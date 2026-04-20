@@ -42,6 +42,56 @@ The `sports-picks` skill is designed to:
 - track official picks in `.picks/INDEX.md`
 - review settled picks in `.picks/REFLECTIONS.md`
 
+## Example output shape
+
+### Good official-pick example
+
+```text
+Good data. Here's the breakdown:
+
+───
+
+🔵 Pick 1: ATL @ PHI → Braves (+100) (Medium-High)
+
+Form:
+
+• ATL: hotter recent offense and cleaner full-game shape
+• PHI: more fragile recent path, with more pressure on the bullpen
+
+SP:
+Sale vs Painter. Atlanta has the steadier current-form starter angle, and the gap is not being priced correctly.
+
+Bullpen check:
+
+• ATL: cleaner recent late-inning path
+• PHI: more stress signs, more ways for the game to get away late
+
+Market:
+
+• ATL around even money
+• playable to -110
+
+The question:
+Is the market overrating the name on the other side instead of the current team shape?
+```
+
+### Good pass example
+
+```text
+⛔ Pass: COL @ SD
+
+Padres are probably the right side.
+The price is too expensive, the edge is not clean enough, and that is not an official pick.
+```
+
+### Bad example
+
+Do **not** do this:
+- spray 4 to 8 picks just to fill the slate
+- call something an official pick when the case is thin
+- use vague language like "I kind of like" or "lean"
+- force a favorite when the offense is cold and the price is bad
+
 ## Main files
 - `skills/sports-picks/` — core pick workflow
 - `.picks/INDEX.md` — official record

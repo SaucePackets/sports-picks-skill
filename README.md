@@ -97,6 +97,13 @@ Once installed, the agent can:
 4. After a result settles, review it in `.picks/REFLECTIONS.md`.
 5. Promote recurring lessons into `.picks/PROCESS.md`.
 
+### Output expectation
+The package includes examples that reinforce two rules:
+- structure picks in the standard `Form / SP / Bullpen check / Market / The question` shape
+- make official picks only when conviction is real, otherwise pass
+
+See `GETTING-STARTED.md` for a concrete official-pick example, a pass example, and a bad-example contrast.
+
 ## Repo layout
 
 ```text
