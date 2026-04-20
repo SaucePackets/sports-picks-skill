@@ -98,11 +98,12 @@ Once installed, the agent can:
 5. Promote recurring lessons into `.picks/PROCESS.md`.
 
 ### Output expectation
-The package includes examples that reinforce two rules:
-- structure picks in the standard `Form / SP / Bullpen check / Market / The question` shape
-- make official picks only when conviction is real, otherwise pass
+The package includes examples that reinforce three rules:
+- structure picks in a clear official-card format
+- make official picks only when conviction is real
+- distinguish between a true no-edge pass and a side that may be right but is not official-card clean at the current number
 
-See `GETTING-STARTED.md` for a concrete official-pick example, a pass example, and a bad-example contrast.
+See `GETTING-STARTED.md` for a full official-card example, pass examples, and a bad-example contrast.
 
 ## Repo layout
 
