@@ -67,34 +67,6 @@ That means verifying:
 
 Hot bats can create interest. They do not, by themselves, create an official favorite pick.
 
-## Fragile-starter favorite guardrail
-Do not log an official favorite when the starter has a genuinely shaky floor unless the broader run-prevention path is strong enough to absorb it.
-
-That means checking:
-- whether the starter can reasonably survive 4-5 innings without blowing up the game
-- whether the bullpen behind him is strong enough to cover a short outing
-- whether the team-form edge is real enough to survive the opposing starter performing to profile
-
-If the answer is mostly "maybe," it is not official-card clean.
-
-## Close-game guardrail
-Do not let a one-run final score trick the review.
-
-A close final can still hide:
-- a weak offensive showing
-- a fragile late-inning path
-- a bullpen crack that was part of the handicap all along
-- a game where one side kept creating pressure even if the scoreboard stayed tight
-
-When reviewing close MLB games, always check:
-- inning-by-inning scoring flow
-- hits and total bases
-- left on base
-- how each run was created
-- which relievers allowed the swing innings
-
-A "tough extra-innings loss" is not automatically a bad-beat result. Sometimes it is just a thin-margin game where the bullpen risk or weak offense showed up exactly the way it could have.
-
 This is the picks-specific process file.
 Use this instead of general `.learnings/` for betting workflow improvements.
 
@@ -227,12 +199,6 @@ If the same mistake happens twice, promote it into this file as a permanent rule
 Use this when we want to study what a game taught us, even if it was a win.
 This is separate from the loss reflection loop.
 
-Post-game analysis is especially useful for:
-- one-run games
-- extra-inning games
-- games where the final score may hide the true shape
-- wins where the thesis needs to be validated, not just celebrated
-
 Goal:
 - understand what we got right
 - understand what mattered more than expected
@@ -252,13 +218,39 @@ Questions to answer:
 3. Did the bullpen path matter, and how much?
 4. Did the offense create real damage or just traffic?
 5. Did the final score flatter or hide the true game shape?
-6. Was the late-inning outcome a random swing, or a foreseeable part of the win path?
-7. Is there any useful second-pass lesson to reuse later?
+6. Is there any useful second-pass lesson to reuse later?
 
 Do not automatically turn every post-game analysis into a new hard rule.
 Use it as a learning layer unless a pattern clearly repeats.
 
 ---
+
+## First Hermes-native slate lessons — 2026-04-19
+
+### CHC lesson — right winner, tighter game than expected
+- The Cubs pick was directionally right, but the game finished **2-1 in 10 innings**, not as a clean separation.
+- What held: Mets offense was still weak enough that Chicago could survive with only modest run support.
+- What we under-modeled: the Mets had a more credible **multi-arm run-prevention path** than the listed probable alone suggested.
+- Durable lesson: when the opponent is likely to patch together a real early-to-middle innings pitching path, do not handicap the game as if only the listed starter matters.
+- Confidence lesson: weather or a credible piggyback / bullpen path can compress scoring and tighten variance even when the side is right.
+
+### ARI lesson — bad bet from underweighting the starter gap
+- Arizona lost **10-4** and the game was effectively dead after **Ryne Nelson allowed 8 ER in 0.1 IP**.
+- The miss was not missing data. The miss was weighting.
+- Kevin Gausman was not just a "name tax" spot — the starter gap was materially real.
+- Durable lesson: if backing the weaker starter, the rest of the case must be overwhelming. Team-form edge alone is not enough when the opposing starter has a clearly stronger floor.
+
+### ATL lesson — winner-first framing held up
+- Atlanta won **4-2** at near pick'em.
+- Grant Holmes was not dominant, but he was good enough; Painter was respected by the market more than the full-game matchup justified.
+- What held: better team shape, better broader run-prevention profile, and a fair enough number.
+- Durable lesson: do not let a flashier opposing starter erase a cleaner full-game team edge when the price is still near even.
+
+### Cross-slate carry-forward rules
+- Ask whether the side can still win often enough **if the opposing starter performs to profile**.
+- Treat weather as a game-shape modifier: sometimes it does not flip the side, but it lowers margin for error.
+- Separate **one bad recent outing** from a truly fragile starter profile.
+- Distinguish between the listed probable and the opponent's real run-prevention path through the first 5-6 innings.
 
 ## Hard Rule: ESPN schedule is the source of truth for today's games
 

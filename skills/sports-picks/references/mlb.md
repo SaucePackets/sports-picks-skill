@@ -61,16 +61,24 @@ url = 'https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/summary?event=
 ```
 Do NOT assume depth chart #1 = today's starter. Always fetch the `probables` field.
 
-Hermes / ESPN note:
-- for detailed pitcher and bullpen review, prefer the raw ESPN summary endpoint directly when needed
-- wrapper outputs can be lossy for pitcher-level detail
-- when the wrapper and raw ESPN boxscore disagree, trust the raw ESPN summary for player pitching lines
+Hermes/ESPN data note:
+- for detailed player-level starter and bullpen review, prefer the raw ESPN summary endpoint directly (`site.api.espn.com/.../summary?event=`)
+- in current Hermes runs, `sports-skills mlb get_game_summary` can be lossy for some boxscore player data, while raw ESPN `boxscore.players` often contains the full pitcher lines needed for deeper analysis
+- when the CLI summary and raw ESPN summary disagree, trust the raw ESPN summary for pitcher-level game logs
 
 **For each starter, check:**
 - Last 1-2 starts (runs allowed, innings, command)
 - ERA is noisy early season — actual recent outings matter more
 - Career stats vs opponent: directional only, discount for current form
-- Do not just ask who is better on paper. Ask whether each starter has a stable enough floor to survive the first 4-5 innings without breaking the handicap.
+
+  - `gameInfo.weather`
+  - `boxscore.players[]` player-level batting/pitching lines
+- Bullpen workload and starter last-start extraction should come from `boxscore.players`, not just `boxscore.teams` totals.
+
+**For each starter, check:**
+- Last 1-2 starts (runs allowed, innings, command)
+- ERA is noisy early season — actual recent outings matter more
+- Career stats vs opponent: directional only, discount for current form
 
 ### Step 4 — Team stats (current season)
 ```python
@@ -94,27 +102,32 @@ url = 'https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/summary?event=
 ```
 This is the PRIMARY price source. Use this for all edge calculations.
 
-### Step 7 — Supplementary market check (optional)
-If you want extra pricing context beyond the sportsbook line, prefer a clean same-game exchange check first.
+### Step 7 — Markets matching layer
+Use `openclaw-imports/markets` when you need to:
+- match the ESPN event to available exchange contracts
+- compare sportsbook odds against exchange probabilities
+- quickly see whether there is even a clean market for this game
 
-Kalshi or any other exchange/market view is supplementary only.
-Do not use exchange data as the primary price source unless the contract clearly maps to the exact game.
+If `markets` returns no clean match, do not force one. Move on.
 
-If no clean same-game market exists, say so and move on.
-Do not force futures, series markets, or vague team contracts into a single-game handicap.
+### Step 8 — Kalshi (supplementary only)
+Use `openclaw-imports/kalshi` only as a supplementary exchange check.
 
-### Step 8 — Current price evaluation
+**Note:** if Kalshi does not surface a clean same-game market, do not use futures or unrelated contracts as a substitute. Primary line stays ESPN/DraftKings unless the exchange contract clearly matches the exact game.
+
+### Step 9 — Current price evaluation
 Always state:
 - Current line from ESPN/DraftKings
 - Bettable-to price or clear pass point
-- Whether any supplementary market check was an exact-game match, loose sentiment only, or unavailable
+- Whether `markets` found a clean exchange match or not
+- Whether Kalshi is exact-game context or just non-matching noise
 
 Use fair probability / implied probability math when it genuinely helps.
 Do not force fake precision when the cleaner read is simply:
 - playable at this number
 - good only to a certain threshold
 - pass if the line gets more expensive
-- pass if outside market context does not cleanly map to the game
+- pass if exchange data does not cleanly map to the game
 
 ---
 
@@ -128,15 +141,18 @@ Do not force fake precision when the cleaner read is simply:
 
 ### Starting Pitchers (weight current form, not reputation)
 - Last 2 starts: runs allowed, innings pitched, walks
+- Do not let one ugly recent outing erase a larger team-form edge by itself; ask whether it reflects a real collapse or just one blowup in an otherwise acceptable profile
+- Is the listed probable actually expected to carry the game, or is this likely a short-leash / opener / piggyback setup?
+- If the opponent's run-prevention path is really a multi-arm game rather than one weak starter, price the whole early-to-middle innings path instead of dismissing them by the listed probable alone
 - Is the ERA from early starts or is this a late-season sample?
 - Check for: injury return, times-through-the-order risk, manager leash tendencies
 - Career stats vs specific opponent: useful signal, but discount 30-50% for current form divergence
 - **Do not let a famous name override a cold recent trend**
+- But do not dismiss a real starter gap as mere name tax.
 - Always ask: which team is more likely to win the starter portion of the game, and by how much?
+- If you are backing a team with the weaker starter, the rest of the case must be strong enough to overcome that early-game risk.
+- If the opposing starter has a clearly superior current-season profile and your side's starter lacks a stable recent-workload / quality-start shape, do not log it as an official pick unless the team-form edge is overwhelming.
 - If the underdog has the better starter edge and the offenses are close enough, treat that as a serious signal, not a side note.
-- If you are backing a favorite with the weaker or shakier starter, the rest of the run-prevention path must be strong enough to absorb that risk.
-- If the favorite's starter has a genuinely fragile floor, team-form edge alone is not enough for an official pick.
-- Do not over-index on the listed probable alone if the opponent has a credible multi-arm early-to-middle innings run-prevention path.
 
 ### Bullpen
 Casual bettors underweight this constantly.
@@ -144,7 +160,7 @@ Casual bettors underweight this constantly.
 Bullpen is not just a side note. It is part of the team's full win path.
 
 Treat bullpen as a **proxy availability check**, not a claim of perfect certainty.
-Use bullpen primarily as a supporting input unless the workload picture is unusually clean and lopsided.
+In current Hermes MLB work, bullpen should usually be a supporting input, not the main handicap, unless the workload picture is extremely lopsided and clean.
 
 Goal:
 - identify the relievers most likely to matter late
@@ -195,23 +211,16 @@ Always check it for MLB.
 Use the dedicated `weather` skill path first when weather is needed for analysis.
 If the game is in a dome or weather is otherwise not relevant, say that explicitly.
 Do not skip the step silently.
+Do not pad the analysis with weather if it does not materially affect the handicap.
 
 Check:
 - Hitter-friendly vs pitcher-friendly park context
 - Temperature (cold can suppress offense)
 - Wind direction and speed
-- Wind direction relative to the field when known
 - Fly-ball vs ground-ball pitcher fit
 - Rain / delay risk that could shorten a starter outing and force earlier bullpen usage
-- Whether bad weather is expected to clear before or during game time
-
-When weather is meaningful, do not just list it. Say whether it is:
-- not a real factor
-- a mild concern
-- or a real source of added variance
 
 Always ask whether weather helps or hurts the stated win path for each side.
-If the game is in a dome or weather is otherwise irrelevant, say that explicitly.
 
 ---
 
@@ -220,7 +229,6 @@ If the game is in a dome or weather is otherwise irrelevant, say that explicitly
 Every MLB pick must answer:
 - What is the current price?
 - What is the worst number we would still take?
-- Is this playable now, only playable to a threshold, or not playable unless a live number improves?
 - Why do I actually believe this team wins?
 - What is this team's full win path through starter, bullpen, offense, and weather/park context?
 - What is the other team's full win path through starter, bullpen, offense, and weather/park context?
@@ -235,12 +243,6 @@ When a dog is under consideration, ask this plainly:
 - or do I just think the price is attractive?
 
 Only the first case should push toward an official pick.
-
-When a favorite is under consideration, ask this too:
-- do I actually like this side at the current number?
-- or do I just like the team more than the opponent?
-
-If it is the second one, that is often a pass-now / better-number-later situation, not a clean pregame pick.
 
 Do not confuse:
 - **most likely winner** with **best bet**
@@ -267,7 +269,6 @@ Rules:
 - only give picks you would actually log as official
 - if conviction is not real, output a pass
 - no unofficial lean/value buckets unless the user explicitly asks
-- conditional official picks are allowed only when the price trigger is explicit
 - prefer 1-3 actual picks max, sometimes zero
 
 Use this structure:
@@ -332,13 +333,13 @@ This second pass is for reinforcement and context. It should not replace the cor
 
 ## Picks Record Protocol
 
-When asked about or referencing the current picks record, always read `.picks/INDEX.md` first. Never state W/L record from memory.
+When asked about or referencing the current picks record, always read `/home/clawdbot/.hermes/skills/openclaw-imports/sports-picks/.picks/INDEX.md` first. Never state W/L record from memory.
 
 ---
 
 ## Post-Game Reflection (Required)
 
-After every settled pick, log the review in `.picks/REFLECTIONS.md` and keep recurring rules in `.picks/PROCESS.md`.
+After every settled pick, log the review in `/home/clawdbot/.hermes/skills/openclaw-imports/sports-picks/.picks/REFLECTIONS.md` and keep recurring rules in `/home/clawdbot/.hermes/skills/openclaw-imports/sports-picks/.picks/PROCESS.md`.
 
 Reflection prompts:
 1. What decided the game?

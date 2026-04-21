@@ -4,7 +4,7 @@ description: >
   Data-driven official game picks for MLB, NFL, NBA, and NHL. Pull team form, injuries, starting pitcher/goalie matchups, and current market prices to decide whether there is a real pick or a pass. Use sportsbook lines as the main pricing signal and treat market odds as a sanity check for whether a side is too expensive or mispriced. The goal is learning to analyze data and keep score only on official picks with real conviction, not generating extra categories like value plays.
 
   Use when: user asks "who do you have winning", "make a pick", "who should I bet on", "who's favored", wants an official pick record, or any game prediction question for MLB, NFL, NBA, or NHL.
-  Don't use when: user only wants raw odds (use polymarket/kalshi directly), live scores (use sport-specific data skill), or news (use sports-news).
+  Don't use when: user only wants raw odds (use kalshi/markets directly), live scores (use sport-specific data skill), or news (use sports-news).
 ---
 
 # Sports Picks
@@ -12,10 +12,12 @@ description: >
 Produce data-backed game picks. Always pull multiple data layers — never guess from memory.
 
 Hermes compatibility note:
-- This repo can be installed in Hermes or OpenClaw.
-- Keep one canonical `.picks/` directory for the installed workflow and use it as the source of truth.
-- In Hermes, prefer the imported sport-specific skills for ESPN-backed data and treat the sportsbook line as the primary price source.
-- Kalshi / Polymarket / other exchange checks are supplementary only unless they map cleanly to the exact game.
+- In Hermes, prefer the imported sport-specific skills (`mlb-data`, `nfl-data`, `nba-data`, `nhl-data`) to fetch ESPN-backed data instead of assuming raw OpenClaw helpers.
+- Pricing hierarchy: ESPN single-game schedule/odds (via the sport modules and `openclaw-imports/markets`) first, `openclaw-imports/markets` second for event matching and normalized cross-market comparison, `openclaw-imports/kalshi` third when you need direct exchange detail.
+- Do not treat exchange markets as primary pricing unless the contract clearly maps to the exact game.
+- If `markets` cannot find a clean match, say so and move on. Do not force fake precision.
+- The canonical picks ledger for this workflow now lives inside this Hermes skill directory at `/home/clawdbot/.hermes/skills/openclaw-imports/sports-picks/.picks/`.
+- Store record, process notes, and reflections there so this workflow is Hermes-native instead of depending on the old OpenClaw workspace.
 
 ---
 
@@ -23,10 +25,14 @@ Hermes compatibility note:
 
 **Official picks only. Confidence first. Price matters, but price alone does not create an official pick. Form first, reputation never.**
 
+Primary objective for official picks: predict the actual winner, then decide whether the line is still acceptable.
+Mismatch-hunting comes first. Price discipline is the filter.
+
 Do not frame a game as "who has the best number?" in isolation. Frame it as:
 - What team do I actually believe wins?
 - Why do I believe they win based on current form and matchup?
 - Is the current price still acceptable?
+- Is the market overpricing a star pitcher or brand-name favorite?
 - When is this a pass?
 
 A team can be the better price and still fail the official-pick bar.
@@ -39,22 +45,6 @@ If the edge is thin, the number is bad, the data is incomplete, confidence does 
 Do not create side categories like "value plays," "leans," or other unofficial buckets unless the user explicitly asks for them. Default to one of two outputs only:
 - official pick
 - pass
-
-A conditional official pick is allowed, but only when it is concrete.
-That means it must include an exact trigger such as:
-- pregame only to a stated price
-- pass if it moves beyond a stated number
-- live only if the team falls behind early and the line improves into a stated range
-
-Good conditional pick:
-- Dodgers ML only at -150 or better pregame
-- otherwise pass pregame, or watch live if they go down early and the number improves toward -125 / near even
-
-Bad conditional pick:
-- I kind of like the Dodgers if the number gets better
-- maybe live if the spot looks good
-
-If the trigger is vague, it is not a real recommendation.
 
 **Dog rule:** underdogs are allowed as official picks only when both are true:
 1. I actually think the dog is the better side and more likely winner
@@ -88,7 +78,7 @@ This applies during picks AND during live game conversation:
 | Current roster / lineup | ESPN depth chart API |
 | Today's starting pitcher | ESPN game summary `probables` field |
 | Recent run scoring / team form | ESPN scoreboard last 5-7 games |
-| My current picks record | Read `.picks/INDEX.md` |
+| My current picks record | Read `/home/clawdbot/.hermes/skills/openclaw-imports/sports-picks/.picks/INDEX.md` |
 
 **Never state any of the above from memory or conversation context.** Check the tool first, then speak.
 
@@ -122,14 +112,16 @@ Load the relevant reference file before building the pick:
 1. Identify sport and teams
 2. Read the sport-specific reference file
 3. Resolve team IDs
-4. **Pull recent scoreboard** — last 5-7 games for both teams (run scoring trend, form)
+4. **Pull recent scoreboard** — use the last 7 games as the baseline for both teams (run scoring trend, form). Check the last 5 only if it materially changes the thesis.
 5. **Pull depth charts** — current roster truth, not memory
 6. **Confirm probable starters** via ESPN game summary `probables` field
 7. Pull current season stats; if thin, pull prior season(s) as baseline
 8. Pull injury report
+   - Treat injury feeds cautiously. If the feed is noisy, outdated, or unclear, say so and do not let dirty injury data fake conviction.
 9. Pull the current primary sportsbook/game line first
-10. If useful, use Kalshi or other market views only as a supplementary exchange/sentiment check, and only when the contract cleanly maps to the exact game
-11. Check the full win path for both teams before finalizing the pick:
+10. Use `openclaw-imports/markets` to try to match the ESPN event to available exchange contracts and compare normalized prices
+11. Use `openclaw-imports/kalshi` directly only when you need deeper exchange detail: exact market search, event listings, or candlestick/price-history context
+12. Check the full win path for both teams before finalizing the pick:
    - starter path
    - bullpen path
    - offense/form path
@@ -139,17 +131,21 @@ Load the relevant reference file before building the pick:
    Weather rule:
    - always check weather/park context for MLB
    - if the game is in a dome or weather is otherwise irrelevant, say that explicitly
-   - if weather is meaningful, explain whether it is a mild concern or a real variance factor
-   - include delay/rain risk when relevant
    - do not silently skip this step
-12. State the **current price** and **bettable-to / pass price**
-13. Decide whether the recommendation is:
-   - a real pregame pick at the current number
-   - a conditional pregame pick only to a stated threshold
-   - or a pass now with a specific live-watch trigger if the price improves
-14. If exchange/market context was checked, explicitly say whether it was an exact-game match, a loose sentiment signal, or unavailable
+   - do not pad analysis with weather if it does not change the thesis; use it as a game-shape modifier only when it materially affects scoring environment or variance
+
+   Starter-floor rule:
+   - do not just compare the last 1-2 starts; ask whether each starter has a stable enough floor to survive the first 4-5 innings without breaking the game open
+   - if backing the team with the weaker starter, and the opposing starter has the clearly stronger current-season profile, do not make it official unless the team-form edge is overwhelming and the side can still win often enough if the opposing starter performs to profile
+
+   Run-prevention-path rule:
+   - do not over-index on the listed probable alone
+   - check whether the opponent has a credible multi-arm early-to-middle innings run-prevention path (bulk reliever, piggyback, short-start bridge, rested leverage arms)
+   - if they can credibly turn the game into a low-scoring grinder, lower confidence unless the offensive edge is big enough to survive that shape
+13. State the **current price** and **bettable-to / pass price**
+14. Explicitly say whether exchange-market context was an exact game match, a loose sentiment signal, or unavailable
 15. Synthesize — weight current form heavily, reputation lightly
-16. If edge is weak, number is gone, the exchange mapping is fuzzy, the full-picture win path is incomplete, or the case relies on name value over current evidence → **pass**
+16. If edge is weak, number is gone, exchange mapping is fuzzy, the full-picture win path is incomplete, or the case relies on name value over current evidence → **pass**
 
 ### Second-pass depth layer (optional, but encouraged when useful)
 Use a second pass when:
@@ -183,14 +179,13 @@ Core first-pass factors still come first:
 - **Recent form check:** default to last 7 games as the baseline; use last 5 only when it materially changes the read
 - **SP current form:** last 1-2 starts, not career stats
 - **Full win-path check:** how does this team actually win the game through starter, bullpen, offense, and weather/park context?
-- **Weather check:** what are the conditions, what does that mean for the game, and if weather is irrelevant, did I say that clearly?
+- **Weather check:** what are the conditions, and if weather is irrelevant, did I say that clearly?
 - **Underdog check when relevant:** is this dog just live, or does the matchup actually favor them enough that they should be the pick?
 - **Confidence level:** High / Medium / Low
   - High: clear edge in 3+ current-data factors AND price supports the bet
   - Medium: edge in 1-2 factors, or uncertainty in one major input
   - Low: coin flip, very early season, data sparse, or price too close to fair
 - **Current price + bettable-to price**
-- **If conditional:** exact pregame threshold and/or exact live-watch trigger
 - **Market-mapping note:** exact-game exchange match, loose sentiment only, or unavailable
 - **Why this number may be wrong:** source of edge in one line
 - **Flip risk:** one sentence on why the other side wins
@@ -199,142 +194,151 @@ Core first-pass factors still come first:
 
 ## Default Output Shape
 
-Default to a tighter official-card format. By default, do **not** surface value angles or dog angles as separate buckets. Name only the teams you actually feel confident win.
+Default to a tighter official-card format. By default, do not surface value angles or dog angles. Name only the teams I actually feel confident win, then explain briefly why they made the card.
+
+Preferred shape:
+- opening line like `Yeah. A few stick out.`
+- `Official card right now` followed by 1-3 ML picks max
+- `Why they stick out` with short numbered breakdowns using actual recent-form numbers, a quick weather/park note, current line, and 2-3 bullets on why the side made the card
+- `Passes / close calls` with short reasons
+- `Real card` repeated at the end, plus a simple ranking if useful
+
+Favorite or dog does not matter. Confidence does.
+
+When the user wants a deeper official-card analysis, use this shape:
+- `Yeah. Here’s the deeper pass.`
+- `Official card` with ML picks and confidence labels
+- one short line on any notable pass near the top if relevant
+- numbered game sections with these labels in order:
+  - `Form`
+  - `Starter matchup`
+  - `Bullpen`
+  - `Weather`
+  - `What held up on second pass`
+  - `Verdict`
+- end with `Final official card`
+
+Deep-analysis rule: still keep it to official picks only. Passes stay separate and concise. The point is to explain why the side made the card, not to turn every game into a writeup.
 
 ```text
-Yeah. A few stick out.
-
-Official card right now
-
-• [Team] ML
-• [Team] ML
-
-That is the cleanest [one/two/three].
-
-Why they stick out
-
-1. [AWAY] @ [HOME] → [Team]
-
-• [recent form number]
-• [recent run-prevention number]
-• [starter or matchup note]
-• [weather / park note]
-• [current line]
-
-What I like:
-
-• [reason]
-• [reason]
-• [reason if needed]
-
-One short sentence on why it made the card.
+Good data. Here's the breakdown:
 
 ───
 
-Passes / close calls
+🔵 Pick 1: [AWAY] @ [HOME] → [Side] ([Confidence])
 
-[Team]
+Form:
 
-• [short reason]
-• [short reason]
+• [Team]: last 5-7 games, avg runs or scoring trend — quick read
+• [Team]: last 5-7 games, avg runs or scoring trend — quick read
 
-Real card
+SP:
+[Pitcher A] vs [Pitcher B]. One or two sentences, plain English. Current-form angle first.
 
-• [Team] ML
-• [Team] ML
+Bullpen check:
+
+• [Team]: clean / mixed / red flags / not fully checked yet
+• [Team]: clean / mixed / red flags / not fully checked yet
+
+Market:
+
+• current line or best available price
+• if needed: playable to / pass above
+
+The question:
+One short sentence on what actually decides whether this is a bet.
+
+───
+
+🔵 Pick 2: [AWAY] @ [HOME] → [Side] ([Confidence])
+
+[same structure]
+
+───
+
+⛔ Pass: [matchup]
+
+One or two short reasons.
 ```
 
 ### Style notes
 - Prefer **1-3 official picks max**. Do not spray the slate.
+- Do **not** create default value-pick or dog-pick sections. Favorite or dog does not matter; confidence does.
 - If only one pick is truly strong, give one pick and passes.
-- If **nothing** is truly strong, give **no picks**.
-- Favorite or dog does not matter. Confidence does.
+- If **nothing** is truly strong, give **no picks**. Just list the passes or say there is no play.
 - Keep the tone conversational, sharp, and direct.
-- Use concise bullets with actual recent-form numbers.
-- Mention weather/park context briefly; if irrelevant, say that plainly.
-- If the starter matchup is the real hesitation, say that directly.
-- If price is bad, move the game to `Passes / close calls` even if the side is probably right.
+- Default official-card style for Jerry: lead with a short `Official card right now` section listing only the confident picks, then a `Why they stick out` section, then `Passes / close calls`, and finish with a short `Real card` or ranking only if useful.
+- In that default style, do **not** force the longer template labels (`Form:`, `SP:`, `Bullpen check:`, `Market:`, `The question:`) unless Jerry asks for a deeper breakdown.
+- Use short bullets (`•`) for the data points that actually matter.
+- The standard longer template is still available for deeper analysis, but the default should feel like a trimmed betting card, not a report.
+- If bullpen was not fully verified, say that directly instead of bluffing.
+- If weather was checked and not relevant, say that plainly.
+- If price is bad, move the game to `⛔ Pass` even if the side is likely to win.
+- When doing a second pass, it is fine to add one short extra note on game-shape context, but do not let the answer sprawl.
 
-## Deeper Official-Card Format
-
-When the user wants a deeper pass, use this shape:
+### Example of the target shape
 
 ```text
-Yeah. Here’s the deeper pass.
-
-Official card
-
-• [Team] ML ([Confidence])
-• [Team] ML ([Confidence])
-
-That’s the real card.
+Good data. Here's the breakdown:
 
 ───
 
-1. [AWAY] @ [HOME] → [Team] ([Confidence])
+🔵 Pick 1: ARI @ PHI → Diamondbacks (+117) (Medium-High)
 
-Form
+Form:
 
-• [recent form bullet]
-• [recent form bullet]
+• ARI: live dog profile, real starter edge spot
+• PHI: bullpen game setup, less stable path through 9 innings
 
-Starter matchup
+SP:
+Zac Gallen vs Zach Pop. Arizona has the real starter. Philly is piecing it together. That is the core edge.
 
-• [Pitcher A] vs [Pitcher B]
+Bullpen check:
 
-[short analysis]
+• ARI: acceptable if Gallen gives length
+• PHI: automatic concern because they are asking for more outs from the pen
 
-Bullpen
+Market:
 
-• [availability / stress note]
-• [availability / stress note]
+• PHI -132 / ARI plus money range
+• +117 is a playable dog number
 
-Weather
-
-• [conditions]
-• [why it matters or does not]
-
-What held up on second pass
-
-[one short paragraph]
-
-Verdict
-
-Play: [Team] ML
-Bettable to: [number]
-Confidence: [level]
+The question:
+Can Gallen control the game long enough to force Philly's bullpen depth to matter?
 
 ───
 
-Final official card
+🔵 Pick 2: HOU @ SEA → Mariners (Medium)
 
-• [Team] ML
-• [Team] ML
+Form:
+
+• SEA: offense may be waking up
+• HOU: volatile scoring profile, not trustworthy inning to inning
+
+SP:
+Logan Gilbert vs Cody Bolton. Clear Seattle starter edge.
+
+Bullpen check:
+
+• SEA: not fully checked yet
+• HOU: not fully checked yet
+
+Market:
+
+• SEA -175
+• right side, worse number
+
+The question:
+Is the starter edge big enough to justify paying the tax?
+
+───
+
+⛔ Pass: COL @ SD
+
+Padres are the right side. -219 is stupid.
 ```
 
-Deep-analysis rule: still keep it to official picks only. Passes stay separate and concise. The point is to explain why the side survived the second pass, not to turn every game into a report.
-
 ---
-
-## Conditional Pick Rules
-
-Use a conditional pick only when the handicap is real but the entry price matters.
-
-Allowed:
-- playable pregame only to a stated number
-- pass now, but watch for a better pregame number
-- pass now, but watch live if an early deficit improves the price into a stated range
-
-Not allowed:
-- vague watch language
-- fake precision without a real threshold
-- treating a live note as an official pick when no actual trigger was given
-
-A live-watch recommendation should still answer:
-- what team I would want
-- what game state likely creates the better number
-- what approximate number or range makes it playable
-- whether this is still only a watch, not an official pregame pick
 
 ## Pass Rules
 
@@ -357,19 +361,15 @@ Pass when:
 
 Use the sportsbook line as the primary pricing input.
 
-If you use a market check beyond the sportsbook line, prefer an exact-game exchange match first. Kalshi or other exchange views are supplementary only and should never override the actual game handicap by themselves.
-
-If no clean same-game contract exists, say so and move on. Do not force fake precision from futures, series markets, or vaguely related contracts.
-
-If market confidence diverges significantly from your analysis, note it and explain why.
+If Kalshi or another exchange market view is available, use it only as a supplementary sanity check on public/book thinking and whether the number may be mispriced or too expensive. If market confidence diverges significantly from your analysis, note it and explain why.
 
 ---
 
 ## Post-Game Reflection Loop (Mandatory for Every Settled Pick)
 
-After every pick settles — win or loss — run this loop and update `.picks/INDEX.md` + `.picks/REFLECTIONS.md`.
+After every pick settles — win or loss — run this loop and update `/home/clawdbot/.hermes/skills/openclaw-imports/sports-picks/.picks/INDEX.md` + `/home/clawdbot/.hermes/skills/openclaw-imports/sports-picks/.picks/REFLECTIONS.md`.
 
-**Loss closure rule:** a loss is not considered fully processed when the index is updated. A loss is closed only after the verified reflection is written to `.picks/REFLECTIONS.md`.
+**Loss closure rule:** a loss is not considered fully processed when the index is updated. A loss is closed only after the verified reflection is written to `/home/clawdbot/.hermes/skills/openclaw-imports/sports-picks/.picks/REFLECTIONS.md`.
 
 ### Questions to answer:
 1. **What was my stated edge thesis?**
@@ -387,7 +387,7 @@ After every pick settles — win or loss — run this loop and update `.picks/IN
 - If the same mistake appears twice → promote it to a permanent rule in this skill
 
 ### Result-settlement update rule
-Whenever a pick moves from `Pending` to `W` or `L`, update `.picks/INDEX.md` so these stay correct together:
+Whenever a pick moves from `Pending` to `W` or `L`, update `/home/clawdbot/.hermes/skills/openclaw-imports/sports-picks/.picks/INDEX.md` so these stay correct together:
 - the row result
 - the running tally
 - the current streaks
@@ -418,11 +418,13 @@ If box score / play-by-play review changes the initial impression, trust the ver
 
 ### On wins:
 - Did the reasoning hold up, or did we get lucky at a bad number?
+- Pull the box score anyway if the win was one-run, extra innings, or otherwise tighter than the pregame framing implied.
+- Check whether the opponent's actual run-prevention path, game-state scoring flow, or weather-driven game shape made the game materially narrower than expected.
 - Beating the close on a winner = good process.
 - Winning despite bad reasoning = still bad process.
 
 ### Pattern log:
-Over time, track recurring failure modes in `.picks/PROCESS.md`. Current known patterns:
+Over time, track recurring failure modes in `/home/clawdbot/.hermes/skills/openclaw-imports/sports-picks/.picks/PROCESS.md`. Current known patterns:
 - **Reputation bias:** picking famous teams/pitchers on name value, not current evidence
 - **Cold offense + heavy juice:** laying -170+ on a team scoring <3 runs/game is almost always wrong
 - **Career stats vs specific opponent:** useful directional signal, not a standalone edge, discount for current form
@@ -441,13 +443,13 @@ Track process quality independently of short-term results. A 3-9 record with imp
 
 ## Picks Files
 
-Use `.picks/` as the source of truth for betting workflow:
-- `.picks/PROCESS.md` — current process + hard rules + recurring failure patterns
-- `.picks/REFLECTIONS.md` — post-game review log
-- `.picks/INDEX.md` — running pick history and W/L record
+Use `/home/clawdbot/.hermes/skills/openclaw-imports/sports-picks/.picks/` as the source of truth for betting workflow:
+- `/home/clawdbot/.hermes/skills/openclaw-imports/sports-picks/.picks/PROCESS.md` — current process + hard rules + recurring failure patterns
+- `/home/clawdbot/.hermes/skills/openclaw-imports/sports-picks/.picks/REFLECTIONS.md` — post-game review log
+- `/home/clawdbot/.hermes/skills/openclaw-imports/sports-picks/.picks/INDEX.md` — running pick history and W/L record
 
 ## Consistency Rule
 
-If the chat analysis, a memory note, or a stray topic summary conflicts with `.picks/INDEX.md`, verify and then update `.picks/INDEX.md` so the official card and official record stay aligned.
+If the chat analysis, a memory note, or a stray topic summary conflicts with `/home/clawdbot/.hermes/skills/openclaw-imports/sports-picks/.picks/INDEX.md`, verify and then update `/home/clawdbot/.hermes/skills/openclaw-imports/sports-picks/.picks/INDEX.md` so the official card and official record stay aligned.
 
 Do not infer official picks from broad slate analysis after the fact. Log only the picks that were actually locked as the card.
