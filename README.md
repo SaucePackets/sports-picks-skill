@@ -48,6 +48,32 @@ Once installed, the agent should:
 3. review settled picks in `.picks/REFLECTIONS.md`
 4. promote recurring lessons into `.picks/PROCESS.md`
 
+## Current proven use
+
+Current production use and refinement has been focused on **MLB game picks**.
+
+The repo still includes the broader sports bundle and supporting skills for NFL, NBA, and NHL, but the most tested official-pick workflow today is MLB.
+
+## MLB pick style
+
+This workflow is not built for blind favorite picks or generic "best bet" dumping.
+
+The current MLB style is:
+- side / moneyline focused
+- recent form first
+- starter matchup matters, but not in isolation
+- bullpen edge matters, especially when it changes the late-game path
+- who is actually hitting right now matters more than name value
+- price discipline matters, always
+- live-bet angles are valid when the pregame side is right but the number is not
+
+In practice, that means the workflow tries to answer:
+- who is hitting right now?
+- who has the cleaner starter path?
+- which bullpen looks more trustworthy?
+- is the current number still bettable?
+- is this a real official pick, or just the side I like more?
+
 ## Output expectation
 
 The package is built around three rules:
