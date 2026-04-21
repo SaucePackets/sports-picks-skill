@@ -61,10 +61,16 @@ url = 'https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/summary?event=
 ```
 Do NOT assume depth chart #1 = today's starter. Always fetch the `probables` field.
 
+Hermes / ESPN note:
+- for detailed pitcher and bullpen review, prefer the raw ESPN summary endpoint directly when needed
+- wrapper outputs can be lossy for pitcher-level detail
+- when the wrapper and raw ESPN boxscore disagree, trust the raw ESPN summary for player pitching lines
+
 **For each starter, check:**
 - Last 1-2 starts (runs allowed, innings, command)
 - ERA is noisy early season — actual recent outings matter more
 - Career stats vs opponent: directional only, discount for current form
+- Do not just ask who is better on paper. Ask whether each starter has a stable enough floor to survive the first 4-5 innings without breaking the handicap.
 
 ### Step 4 — Team stats (current season)
 ```python
@@ -128,6 +134,9 @@ Do not force fake precision when the cleaner read is simply:
 - **Do not let a famous name override a cold recent trend**
 - Always ask: which team is more likely to win the starter portion of the game, and by how much?
 - If the underdog has the better starter edge and the offenses are close enough, treat that as a serious signal, not a side note.
+- If you are backing a favorite with the weaker or shakier starter, the rest of the run-prevention path must be strong enough to absorb that risk.
+- If the favorite's starter has a genuinely fragile floor, team-form edge alone is not enough for an official pick.
+- Do not over-index on the listed probable alone if the opponent has a credible multi-arm early-to-middle innings run-prevention path.
 
 ### Bullpen
 Casual bettors underweight this constantly.
@@ -202,6 +211,7 @@ When weather is meaningful, do not just list it. Say whether it is:
 - or a real source of added variance
 
 Always ask whether weather helps or hurts the stated win path for each side.
+If the game is in a dome or weather is otherwise irrelevant, say that explicitly.
 
 ---
 

@@ -11,6 +11,12 @@ description: >
 
 Produce data-backed game picks. Always pull multiple data layers — never guess from memory.
 
+Hermes compatibility note:
+- This repo can be installed in Hermes or OpenClaw.
+- Keep one canonical `.picks/` directory for the installed workflow and use it as the source of truth.
+- In Hermes, prefer the imported sport-specific skills for ESPN-backed data and treat the sportsbook line as the primary price source.
+- Kalshi / Polymarket / other exchange checks are supplementary only unless they map cleanly to the exact game.
+
 ---
 
 ## Core Betting Principle
@@ -193,124 +199,120 @@ Core first-pass factors still come first:
 
 ## Default Output Shape
 
-Use this as the default response format when the user asks for picks.
+Default to a tighter official-card format. By default, do **not** surface value angles or dog angles as separate buckets. Name only the teams you actually feel confident win.
 
 ```text
-Good data. Here's the breakdown:
+Yeah. A few stick out.
+
+Official card right now
+
+• [Team] ML
+• [Team] ML
+
+That is the cleanest [one/two/three].
+
+Why they stick out
+
+1. [AWAY] @ [HOME] → [Team]
+
+• [recent form number]
+• [recent run-prevention number]
+• [starter or matchup note]
+• [weather / park note]
+• [current line]
+
+What I like:
+
+• [reason]
+• [reason]
+• [reason if needed]
+
+One short sentence on why it made the card.
 
 ───
 
-🔵 Pick 1: [AWAY] @ [HOME] → [Side] ([Confidence])
+Passes / close calls
 
-Form:
+[Team]
 
-• [Team]: last 5-7 games, avg runs or scoring trend — quick read
-• [Team]: last 5-7 games, avg runs or scoring trend — quick read
+• [short reason]
+• [short reason]
 
-SP:
-[Pitcher A] vs [Pitcher B]. One or two sentences, plain English. Current-form angle first.
+Real card
 
-Bullpen check:
-
-• [Team]: clean / mixed / red flags / not fully checked yet
-• [Team]: clean / mixed / red flags / not fully checked yet
-
-Market:
-
-• current line or best available price
-• if needed: playable to / pass above
-• if not playable now: exact watch trigger for a better pregame or live entry
-
-The question:
-One short sentence on what actually decides whether this is a bet.
-
-───
-
-🔵 Pick 2: [AWAY] @ [HOME] → [Side] ([Confidence])
-
-[same structure]
-
-───
-
-⛔ Pass: [matchup]
-
-One or two short reasons.
+• [Team] ML
+• [Team] ML
 ```
 
 ### Style notes
-- Prefer **1-3 actual picks max**. Do not spray the board.
+- Prefer **1-3 official picks max**. Do not spray the slate.
 - If only one pick is truly strong, give one pick and passes.
-- If **nothing** is truly strong, give **no picks**. Just list the passes or say there is no play.
+- If **nothing** is truly strong, give **no picks**.
+- Favorite or dog does not matter. Confidence does.
 - Keep the tone conversational, sharp, and direct.
-- Use the exact labels: `Form:`, `SP:`, `Bullpen check:`, `Market:`, `The question:`
-- Use bullets (`•`) under Form and Bullpen check when possible for Telegram readability.
-- If bullpen was not fully verified, say that directly instead of bluffing.
-- If weather was checked and not relevant, say that plainly.
-- If price is bad, move the game to `⛔ Pass` even if the side is likely to win.
-- It is allowed to say a side is playable only to a specific number, or to say pass now / watch live if down early, but the trigger must be explicit.
-- When doing a second pass, it is fine to add one short extra note on game-shape context, but do not let the answer sprawl.
+- Use concise bullets with actual recent-form numbers.
+- Mention weather/park context briefly; if irrelevant, say that plainly.
+- If the starter matchup is the real hesitation, say that directly.
+- If price is bad, move the game to `Passes / close calls` even if the side is probably right.
 
-### Example of the target shape
+## Deeper Official-Card Format
+
+When the user wants a deeper pass, use this shape:
 
 ```text
-Good data. Here's the breakdown:
+Yeah. Here’s the deeper pass.
+
+Official card
+
+• [Team] ML ([Confidence])
+• [Team] ML ([Confidence])
+
+That’s the real card.
 
 ───
 
-🔵 Pick 1: ARI @ PHI → Diamondbacks (+117) (Medium-High)
+1. [AWAY] @ [HOME] → [Team] ([Confidence])
 
-Form:
+Form
 
-• ARI: live dog profile, real starter edge spot
-• PHI: bullpen game setup, less stable path through 9 innings
+• [recent form bullet]
+• [recent form bullet]
 
-SP:
-Zac Gallen vs Zach Pop. Arizona has the real starter. Philly is piecing it together. That is the core edge.
+Starter matchup
 
-Bullpen check:
+• [Pitcher A] vs [Pitcher B]
 
-• ARI: acceptable if Gallen gives length
-• PHI: automatic concern because they are asking for more outs from the pen
+[short analysis]
 
-Market:
+Bullpen
 
-• PHI -132 / ARI plus money range
-• +117 is a playable dog number
+• [availability / stress note]
+• [availability / stress note]
 
-The question:
-Can Gallen control the game long enough to force Philly's bullpen depth to matter?
+Weather
 
-───
+• [conditions]
+• [why it matters or does not]
 
-🔵 Pick 2: HOU @ SEA → Mariners (Medium)
+What held up on second pass
 
-Form:
+[one short paragraph]
 
-• SEA: offense may be waking up
-• HOU: volatile scoring profile, not trustworthy inning to inning
+Verdict
 
-SP:
-Logan Gilbert vs Cody Bolton. Clear Seattle starter edge.
-
-Bullpen check:
-
-• SEA: not fully checked yet
-• HOU: not fully checked yet
-
-Market:
-
-• SEA -175
-• right side, worse number
-
-The question:
-Is the starter edge big enough to justify paying the tax?
+Play: [Team] ML
+Bettable to: [number]
+Confidence: [level]
 
 ───
 
-⛔ Pass: COL @ SD
+Final official card
 
-Padres are the right side. -219 is stupid.
+• [Team] ML
+• [Team] ML
 ```
+
+Deep-analysis rule: still keep it to official picks only. Passes stay separate and concise. The point is to explain why the side survived the second pass, not to turn every game into a report.
 
 ---
 

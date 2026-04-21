@@ -67,6 +67,16 @@ That means verifying:
 
 Hot bats can create interest. They do not, by themselves, create an official favorite pick.
 
+## Fragile-starter favorite guardrail
+Do not log an official favorite when the starter has a genuinely shaky floor unless the broader run-prevention path is strong enough to absorb it.
+
+That means checking:
+- whether the starter can reasonably survive 4-5 innings without blowing up the game
+- whether the bullpen behind him is strong enough to cover a short outing
+- whether the team-form edge is real enough to survive the opposing starter performing to profile
+
+If the answer is mostly "maybe," it is not official-card clean.
+
 ## Close-game guardrail
 Do not let a one-run final score trick the review.
 
