@@ -152,6 +152,7 @@ Do not force fake precision when the cleaner read is simply:
 - Always ask: which team is more likely to win the starter portion of the game, and by how much?
 - If you are backing a team with the weaker starter, the rest of the case must be strong enough to overcome that early-game risk.
 - If the opposing starter has a clearly superior current-season profile and your side's starter lacks a stable recent-workload / quality-start shape, do not log it as an official pick unless the team-form edge is overwhelming.
+- Treat command volatility as starter-floor risk, not a minor stat-line blemish. If a favorite's starter can lose the zone early and break the handicap in the first trip or two through the order, downgrade to pass unless the bullpen/run-prevention backup is clearly strong.
 - If the underdog has the better starter edge and the offenses are close enough, treat that as a serious signal, not a side note.
 
 ### Bullpen

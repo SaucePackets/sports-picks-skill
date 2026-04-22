@@ -67,6 +67,18 @@ That means verifying:
 
 Hot bats can create interest. They do not, by themselves, create an official favorite pick.
 
+## Starter-floor guardrail
+If backing a favorite, the listed starter needs a believable floor to survive the first 4-5 innings without breaking the game open.
+
+Do not treat a decent surface ERA as enough by itself.
+Check for:
+- walk risk / command volatility
+- short recent outings or pitch-count stress
+- whether the handicap collapses if the starter loses the zone early
+- whether the bullpen behind him is strong enough to absorb an early exit
+
+If the starter floor is shaky and the bullpen backup is not clearly strong, pass the favorite.
+
 This is the picks-specific process file.
 Use this instead of general `.learnings/` for betting workflow improvements.
 
