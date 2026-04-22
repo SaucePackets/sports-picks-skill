@@ -65,14 +65,6 @@ Hermes/ESPN data note:
 - for detailed player-level starter and bullpen review, prefer the raw ESPN summary endpoint directly (`site.api.espn.com/.../summary?event=`)
 - in current Hermes runs, `sports-skills mlb get_game_summary` can be lossy for some boxscore player data, while raw ESPN `boxscore.players` often contains the full pitcher lines needed for deeper analysis
 - when the CLI summary and raw ESPN summary disagree, trust the raw ESPN summary for pitcher-level game logs
-
-**For each starter, check:**
-- Last 1-2 starts (runs allowed, innings, command)
-- ERA is noisy early season — actual recent outings matter more
-- Career stats vs opponent: directional only, discount for current form
-
-  - `gameInfo.weather`
-  - `boxscore.players[]` player-level batting/pitching lines
 - Bullpen workload and starter last-start extraction should come from `boxscore.players`, not just `boxscore.teams` totals.
 
 **For each starter, check:**
@@ -334,13 +326,13 @@ This second pass is for reinforcement and context. It should not replace the cor
 
 ## Picks Record Protocol
 
-When asked about or referencing the current picks record, always read `/home/clawdbot/.hermes/skills/openclaw-imports/sports-picks/.picks/INDEX.md` first. Never state W/L record from memory.
+When asked about or referencing the current picks record, always read the installed workflow's `.picks/INDEX.md` first. Never state W/L record from memory.
 
 ---
 
 ## Post-Game Reflection (Required)
 
-After every settled pick, log the review in `/home/clawdbot/.hermes/skills/openclaw-imports/sports-picks/.picks/REFLECTIONS.md` and keep recurring rules in `/home/clawdbot/.hermes/skills/openclaw-imports/sports-picks/.picks/PROCESS.md`.
+After every settled pick, log the review in the installed workflow's `.picks/REFLECTIONS.md` and keep recurring rules in `.picks/PROCESS.md`.
 
 Reflection prompts:
 1. What decided the game?

@@ -12,12 +12,10 @@ description: >
 Produce data-backed game picks. Always pull multiple data layers — never guess from memory.
 
 Hermes compatibility note:
-- In Hermes, prefer the imported sport-specific skills (`mlb-data`, `nfl-data`, `nba-data`, `nhl-data`) to fetch ESPN-backed data instead of assuming raw OpenClaw helpers.
-- Pricing hierarchy: ESPN single-game schedule/odds (via the sport modules and `openclaw-imports/markets`) first, `openclaw-imports/markets` second for event matching and normalized cross-market comparison, `openclaw-imports/kalshi` third when you need direct exchange detail.
-- Do not treat exchange markets as primary pricing unless the contract clearly maps to the exact game.
-- If `markets` cannot find a clean match, say so and move on. Do not force fake precision.
-- The canonical picks ledger for this workflow now lives inside this Hermes skill directory at `/home/clawdbot/.hermes/skills/openclaw-imports/sports-picks/.picks/`.
-- Store record, process notes, and reflections there so this workflow is Hermes-native instead of depending on the old OpenClaw workspace.
+- This repo can be installed in Hermes or OpenClaw.
+- Keep one canonical `.picks/` directory for the installed workflow and use it as the source of truth.
+- In Hermes, prefer the imported sport-specific skills for ESPN-backed data and treat the sportsbook line as the primary price source.
+- Kalshi / Polymarket / other exchange checks are supplementary only unless they map cleanly to the exact game.
 
 ---
 
@@ -25,14 +23,10 @@ Hermes compatibility note:
 
 **Official picks only. Confidence first. Price matters, but price alone does not create an official pick. Form first, reputation never.**
 
-Primary objective for official picks: predict the actual winner, then decide whether the line is still acceptable.
-Mismatch-hunting comes first. Price discipline is the filter.
-
 Do not frame a game as "who has the best number?" in isolation. Frame it as:
 - What team do I actually believe wins?
 - Why do I believe they win based on current form and matchup?
 - Is the current price still acceptable?
-- Is the market overpricing a star pitcher or brand-name favorite?
 - When is this a pass?
 
 A team can be the better price and still fail the official-pick bar.
@@ -78,7 +72,7 @@ This applies during picks AND during live game conversation:
 | Current roster / lineup | ESPN depth chart API |
 | Today's starting pitcher | ESPN game summary `probables` field |
 | Recent run scoring / team form | ESPN scoreboard last 5-7 games |
-| My current picks record | Read `/home/clawdbot/.hermes/skills/openclaw-imports/sports-picks/.picks/INDEX.md` |
+| My current picks record | Read `.picks/INDEX.md` |
 
 **Never state any of the above from memory or conversation context.** Check the tool first, then speak.
 
@@ -119,9 +113,8 @@ Load the relevant reference file before building the pick:
 8. Pull injury report
    - Treat injury feeds cautiously. If the feed is noisy, outdated, or unclear, say so and do not let dirty injury data fake conviction.
 9. Pull the current primary sportsbook/game line first
-10. Use `openclaw-imports/markets` to try to match the ESPN event to available exchange contracts and compare normalized prices
-11. Use `openclaw-imports/kalshi` directly only when you need deeper exchange detail: exact market search, event listings, or candlestick/price-history context
-12. Check the full win path for both teams before finalizing the pick:
+10. If useful, use Kalshi or other market views only as a supplementary exchange/sentiment check, and only when the contract cleanly maps to the exact game
+11. Check the full win path for both teams before finalizing the pick:
    - starter path
    - bullpen path
    - offense/form path
@@ -131,6 +124,8 @@ Load the relevant reference file before building the pick:
    Weather rule:
    - always check weather/park context for MLB
    - if the game is in a dome or weather is otherwise irrelevant, say that explicitly
+   - if weather is meaningful, explain whether it is a mild concern or a real variance factor
+   - include delay/rain risk when relevant
    - do not silently skip this step
    - do not pad analysis with weather if it does not change the thesis; use it as a game-shape modifier only when it materially affects scoring environment or variance
 
@@ -142,10 +137,14 @@ Load the relevant reference file before building the pick:
    - do not over-index on the listed probable alone
    - check whether the opponent has a credible multi-arm early-to-middle innings run-prevention path (bulk reliever, piggyback, short-start bridge, rested leverage arms)
    - if they can credibly turn the game into a low-scoring grinder, lower confidence unless the offensive edge is big enough to survive that shape
-13. State the **current price** and **bettable-to / pass price**
-14. Explicitly say whether exchange-market context was an exact game match, a loose sentiment signal, or unavailable
+12. State the **current price** and **bettable-to / pass price**
+13. Decide whether the recommendation is:
+   - a real pregame pick at the current number
+   - a conditional pregame pick only to a stated threshold
+   - or a pass now with a specific live-watch trigger if the price improves
+14. If exchange/market context was checked, explicitly say whether it was an exact-game match, a loose sentiment signal, or unavailable
 15. Synthesize — weight current form heavily, reputation lightly
-16. If edge is weak, number is gone, exchange mapping is fuzzy, the full-picture win path is incomplete, or the case relies on name value over current evidence → **pass**
+16. If edge is weak, number is gone, the exchange mapping is fuzzy, the full-picture win path is incomplete, or the case relies on name value over current evidence → **pass**
 
 ### Second-pass depth layer (optional, but encouraged when useful)
 Use a second pass when:
@@ -186,6 +185,7 @@ Core first-pass factors still come first:
   - Medium: edge in 1-2 factors, or uncertainty in one major input
   - Low: coin flip, very early season, data sparse, or price too close to fair
 - **Current price + bettable-to price**
+- **If conditional:** exact pregame threshold and/or exact live-watch trigger
 - **Market-mapping note:** exact-game exchange match, loose sentiment only, or unavailable
 - **Why this number may be wrong:** source of edge in one line
 - **Flip risk:** one sentence on why the other side wins
