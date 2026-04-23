@@ -21,7 +21,13 @@ Hermes compatibility note:
 
 ## Core Betting Principle
 
-**Official picks only. Confidence first. Price matters, but price alone does not create an official pick. Form first, reputation never.**
+**Official picks only. Confidence first. Winner first. Price matters, but price alone does not create an official pick. Form first, reputation never.**
+
+Official-pick confidence rule:
+- first decide who I actually think wins the game most often
+- then check whether the current price is still worth paying
+- never promote a side to an official pick mainly because the number is attractive
+- if I like the price more than I like the team to win, it is a pass
 
 Do not frame a game as "who has the best number?" in isolation. Frame it as:
 - What team do I actually believe wins?
@@ -132,9 +138,14 @@ Load the relevant reference file before building the pick:
    Starter-floor rule:
    - do not just compare the last 1-2 starts; ask whether each starter has a stable enough floor to survive the first 4-5 innings without breaking the game open
    - if backing the team with the weaker starter, and the opposing starter has the clearly stronger current-season profile, do not make it official unless the team-form edge is overwhelming and the side can still win often enough if the opposing starter performs to profile
-
+ 
+   Road-dog rule:
+   - do not make a road underdog official just because the recent-form differential looks cleaner on paper
+   - if the opponent has both the cleaner starter-floor edge and a strong home profile, the dog needs a real offensive matchup edge or a clearly mispriced number
+   - if the favorite can plausibly control the first 5-6 innings and has been materially stronger at home, pass the dog unless the matchup gives a concrete reason the market may have the teams ordered wrong
+ 
    Run-prevention-path rule:
-   - do not over-index on the listed probable alone
+
    - check whether the opponent has a credible multi-arm early-to-middle innings run-prevention path (bulk reliever, piggyback, short-start bridge, rested leverage arms)
    - if they can credibly turn the game into a low-scoring grinder, lower confidence unless the offensive edge is big enough to survive that shape
 12. State the **current price** and **bettable-to / pass price**
