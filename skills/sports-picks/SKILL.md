@@ -151,7 +151,7 @@ Load the relevant reference file before building the pick:
    - do not fade yesterday's version of a team if the current series shape suggests the offense may be waking up
  
    Run-prevention-path rule:
-
+   - do not over-index on the listed probable alone
    - check whether the opponent has a credible multi-arm early-to-middle innings run-prevention path (bulk reliever, piggyback, short-start bridge, rested leverage arms)
    - if they can credibly turn the game into a low-scoring grinder, lower confidence unless the offensive edge is big enough to survive that shape
 12. State the **current price** and **bettable-to / pass price**
