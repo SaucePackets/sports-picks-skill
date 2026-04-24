@@ -79,6 +79,28 @@ Check for:
 
 If the starter floor is shaky and the bullpen backup is not clearly strong, pass the favorite.
 
+## Road-dog guardrail
+If backing a road underdog, do not let a generic recent-form edge do all the work when the opponent has both:
+- the cleaner starter-floor edge
+- a strong home-game profile
+
+In that shape, the dog needs a real offensive matchup advantage or a clearly mispriced number.
+If the favorite can control the first 5-6 innings and has been consistently stronger at home, pass the dog.
+
+## Cold-offense fade reset check
+Before making an official pick mainly by fading a cold offense, check whether the cold-offense label is stale.
+
+Reset triggers:
+- a key bat returned to the lineup
+- the team broke a losing streak in the previous game
+- the lineup construction materially changed
+- the market moved toward the supposedly cold team despite poor recent scoring
+
+If a reset trigger exists, do not make the fade official unless my side also has at least one strong support layer:
+- hot offense
+- elite/stable starter floor
+- clean bullpen/run-prevention backup
+
 This is the picks-specific process file.
 Use this instead of general `.learnings/` for betting workflow improvements.
 

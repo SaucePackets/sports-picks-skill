@@ -362,6 +362,7 @@ Pass when:
 - market data conflicts sharply with your case and you cannot explain why
 - confidence is below a real-conviction threshold, even if you lean one side
 - you would be making the pick mainly to have action or keep the record moving
+- the pick is mainly a cold-offense fade, but the opponent has a reset trigger: key bat returning, losing streak broken last game, changed lineup shape, or market moving toward them
 
 **No pick is better than a bad pick.**
 **No confidence, no pick.**
