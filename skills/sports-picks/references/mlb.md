@@ -130,6 +130,10 @@ Do not force fake precision when the cleaner read is simply:
 - Is there a scoring trend (heating up, cooling off, flat)?
 - Heavy juice + cold offense = almost always a bad bet, regardless of roster quality
 - Hot offense alone is not enough to justify a favorite pick. If the case is built mainly on bats, verify the run-prevention side harder before logging it as official.
+- If the handicap starts with fading a cold offense, ask whether the fade is stale.
+- Reset triggers include: a losing streak just ended, a key bat returned, the lineup shape materially changed, or the market is moving toward the supposedly cold team.
+- If a reset trigger exists, the fade needs another real support layer behind it: hot bats on my side, elite/stable starter floor, or clearly cleaner bullpen/run-prevention support.
+- Do not fade yesterday's version of a team if the current series shape suggests the offense may already be waking up.
 
 ### Starting Pitchers (weight current form, not reputation)
 - Last 2 starts: runs allowed, innings pitched, walks

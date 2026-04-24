@@ -143,6 +143,12 @@ Load the relevant reference file before building the pick:
    - do not make a road underdog official just because the recent-form differential looks cleaner on paper
    - if the opponent has both the cleaner starter-floor edge and a strong home profile, the dog needs a real offensive matchup edge or a clearly mispriced number
    - if the favorite can plausibly control the first 5-6 innings and has been materially stronger at home, pass the dog unless the matchup gives a concrete reason the market may have the teams ordered wrong
+
+   Cold-offense fade reset rule:
+   - if the case starts with fading a cold offense, ask whether that label may already be going stale
+   - treat a broken losing streak, a key bat returning, a meaningful lineup change, or market support for the supposedly cold team as reset triggers
+   - if a reset trigger exists, do not make the fade official unless your side also has another real support layer: hot offense, elite/stable starter floor, or cleaner bullpen/run-prevention backup
+   - do not fade yesterday's version of a team if the current series shape suggests the offense may be waking up
  
    Run-prevention-path rule:
 

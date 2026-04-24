@@ -101,6 +101,8 @@ If a reset trigger exists, do not make the fade official unless my side also has
 - elite/stable starter floor
 - clean bullpen/run-prevention backup
 
+Do not fade yesterday's version of a team if the current series shape suggests the offense may already be waking up.
+
 This is the picks-specific process file.
 Use this instead of general `.learnings/` for betting workflow improvements.
 
