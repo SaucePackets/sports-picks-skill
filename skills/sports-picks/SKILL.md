@@ -148,7 +148,7 @@ Load the relevant reference file before building the pick:
    Cold-offense fade reset rule:
    - if the case starts with fading a cold offense, ask whether that label may already be going stale
    - treat a broken losing streak, a key bat returning, a meaningful lineup change, market support for the supposedly cold team, or multiple competitive offensive outputs inside the current series as reset triggers
-   - if a reset trigger exists, do not make the fade official unless your side also has another real support layer: hot offense, elite/stable starter floor, or cleaner bullpen/run-prevention backup
+   - if a reset trigger exists, do not make the pick official unless your side also has another real support layer: hot offense, elite/stable starter floor, or cleaner bullpen/run-prevention backup
    - do not fade yesterday's version of a team if the current series shape suggests the offense may be waking up
    - do not double-dip the same cold-offense fade across a series after reset signs appear; rebuild the handicap from scratch
  
