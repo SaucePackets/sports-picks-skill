@@ -67,6 +67,20 @@ That means verifying:
 
 Hot bats can create interest. They do not, by themselves, create an official favorite pick.
 
+## Official Pick Gate
+
+Before logging any official pick, run this gate in writing, even if the final user-facing answer stays short:
+
+- **Starter floor:** Can my side's starter survive 4-5 innings without command volatility, walk/traffic risk, weak miss-bat floor, pitch inefficiency, or HR damage breaking the handicap? If no, pass.
+- **Bullpen survival:** If the likely script is close late, do I trust my side's innings 7-10 enough? If no, pass.
+- **My-side red-bullpen check:** If my side's bullpen is red/taxed, is my side's edge big enough to avoid a one-to-two-run script and late bullpen dependence? If no, pass.
+- **Both-bullpens red check:** If both bullpens are red/taxed, is my side's starter/offense edge strong enough to avoid making bullpen chaos the deciding factor? If no, pass.
+- **Cold-fade reset:** If fading a cold offense, has that offense shown reset signs inside the series? If yes, require another strong support layer or pass.
+- **Price discipline:** Is the number inside the bettable-to threshold without needing the price to create the pick? If no, pass.
+- **Winner conviction:** Do I actually believe this side wins most often, not just that the number is attractive? If no, pass.
+
+Any failed gate overrides the lean. Do not downgrade to Medium and keep it. Failed gate means pass.
+
 ## Starter-floor guardrail
 If backing a favorite, the listed starter needs a believable floor to survive the first 4-5 innings without breaking the game open.
 
@@ -175,6 +189,8 @@ Pass when:
 - edge is weak and you cannot explain it clearly
 - market sharply disagrees and you cannot explain why
 - you are chasing a moved number late
+- my side's bullpen is tagged red and the realistic win path is a one-to-two-run game, unless my side has a clear multi-run offensive/starter edge
+- both bullpens are tagged red and the realistic win path is close late, unless my side has an even stronger starter/offense edge that can realistically avoid bullpen dependence
 
 **No pick is better than a bad pick.**
 

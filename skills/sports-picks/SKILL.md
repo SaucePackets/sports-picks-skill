@@ -42,6 +42,8 @@ A famous team with a great pitcher is still a bad bet if their offense is cold a
 **Hard output rule:** if conviction is not real, do not make a pick.
 If the edge is thin, the number is bad, the data is incomplete, confidence does not clear the bar, or the case is mostly "the dog is live at this number" without a real belief they win, output a pass and nothing else. The goal is to learn from the data, make official picks only when they are truly confidence picks, and track judgment quality over time.
 
+**Official pick gate:** before logging any official pick, explicitly check starter floor, bullpen survival, red-bullpen close-game risk, cold-fade reset risk, price discipline, and winner conviction. Starter floor must explicitly stress-test command volatility, walk/traffic risk, strikeout or miss-bat floor, pitch efficiency, and HR damage risk — not just recent ERA or last-start runs allowed. Bullpen survival must separately check whether **my side's** bullpen is red/taxed in a close-game script; do not only fail the gate when both bullpens are red. Any failed gate overrides the lean. Do not downgrade to Medium and keep it. Failed gate means pass.
+
 Do not create side categories like "value plays," "leans," or other unofficial buckets unless the user explicitly asks for them. Default to one of two outputs only:
 - official pick
 - pass
@@ -380,6 +382,8 @@ Pass when:
 - confidence is below a real-conviction threshold, even if you lean one side
 - you would be making the pick mainly to have action or keep the record moving
 - the pick is mainly a cold-offense fade, but the opponent has a reset trigger: key bat returning, losing streak broken last game, changed lineup shape, or market moving toward them
+- my side's bullpen is red/taxed and the realistic win path is a one-to-two-run game, unless my side has a clear multi-run offensive/starter edge
+- both bullpens are red/taxed in a close-game script, unless my side has an even stronger starter/offense edge that can realistically avoid late bullpen dependence
 
 **No pick is better than a bad pick.**
 **No confidence, no pick.**
