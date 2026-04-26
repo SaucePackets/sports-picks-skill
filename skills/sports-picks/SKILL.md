@@ -143,17 +143,27 @@ Load the relevant reference file before building the pick:
    - do not make a road underdog official just because the recent-form differential looks cleaner on paper
    - if the opponent has both the cleaner starter-floor edge and a strong home profile, the dog needs a real offensive matchup edge or a clearly mispriced number
    - if the favorite can plausibly control the first 5-6 innings and has been materially stronger at home, pass the dog unless the matchup gives a concrete reason the market may have the teams ordered wrong
+   - if the dog case depends on a “cleaner starter floor,” stress-test command, walk risk, and swing-and-miss — not just recent ER. Against high-ceiling lineups, traffic can become one crooked inning fast.
 
    Cold-offense fade reset rule:
    - if the case starts with fading a cold offense, ask whether that label may already be going stale
-   - treat a broken losing streak, a key bat returning, a meaningful lineup change, or market support for the supposedly cold team as reset triggers
+   - treat a broken losing streak, a key bat returning, a meaningful lineup change, market support for the supposedly cold team, or multiple competitive offensive outputs inside the current series as reset triggers
    - if a reset trigger exists, do not make the fade official unless your side also has another real support layer: hot offense, elite/stable starter floor, or cleaner bullpen/run-prevention backup
    - do not fade yesterday's version of a team if the current series shape suggests the offense may be waking up
+   - do not double-dip the same cold-offense fade across a series after reset signs appear; rebuild the handicap from scratch
  
    Run-prevention-path rule:
    - do not over-index on the listed probable alone
    - check whether the opponent has a credible multi-arm early-to-middle innings run-prevention path (bulk reliever, piggyback, short-start bridge, rested leverage arms)
    - if they can credibly turn the game into a low-scoring grinder, lower confidence unless the offensive edge is big enough to survive that shape
+
+   Close-game bullpen survival rule:
+   - apply this hardest when the projected script is close late: favorite in a one-to-two-run game, no overwhelming offensive/starter edge, and the opponent can keep it within one swing
+   - if the realistic win path is a one-to-two-run game, explicitly check who protects innings 7-10
+   - a starter giving 6-7 good innings is not enough if the bridge/closer path is injured, taxed, or role-uncertain
+   - missing/taxed leverage arms + close favorite script caps confidence at Medium at best; pass unless the offense or starter edge is overwhelming
+   - do not let "we probably lead after the starter" stand in for a full-game pick
+   - do not over-apply this to every bullpen uncertainty; if the side has a clear multi-run offensive/starter edge, bullpen risk is a modifier, not an automatic pass
 12. State the **current price** and **bettable-to / pass price**
 13. Decide whether the recommendation is:
    - a real pregame pick at the current number
@@ -195,6 +205,7 @@ Core first-pass factors still come first:
 - **Recent form check:** default to last 7 games as the baseline; use last 5 only when it materially changes the read
 - **SP current form:** last 1-2 starts, not career stats
 - **Full win-path check:** how does this team actually win the game through starter, bullpen, offense, and weather/park context?
+- **Close-game bullpen survival:** if this is likely close late, who protects innings 7-10, and are key leverage arms healthy/rested enough?
 - **Weather check:** what are the conditions, and if weather is irrelevant, did I say that clearly?
 - **Underdog check when relevant:** is this dog just live, or does the matchup actually favor them enough that they should be the pick?
 - **Confidence level:** High / Medium / Low

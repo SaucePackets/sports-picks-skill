@@ -87,6 +87,8 @@ If backing a road underdog, do not let a generic recent-form edge do all the wor
 In that shape, the dog needs a real offensive matchup advantage or a clearly mispriced number.
 If the favorite can control the first 5-6 innings and has been consistently stronger at home, pass the dog.
 
+If the road dog case depends on “cleaner starter floor,” stress-test the starter's command and miss bats, not just recent ER. Against high-ceiling lineups, a low-ERA recent run can still hide walk/traffic risk that turns into one crooked inning.
+
 ## Cold-offense fade reset check
 Before making an official pick mainly by fading a cold offense, check whether the cold-offense label is stale.
 
@@ -95,6 +97,7 @@ Reset triggers:
 - the team broke a losing streak in the previous game
 - the lineup construction materially changed
 - the market moved toward the supposedly cold team despite poor recent scoring
+- the supposedly cold team has already produced a reset game or multiple competitive offensive outputs inside the current series
 
 If a reset trigger exists, do not make the fade official unless my side also has at least one strong support layer:
 - hot offense
@@ -102,6 +105,7 @@ If a reset trigger exists, do not make the fade official unless my side also has
 - clean bullpen/run-prevention backup
 
 Do not fade yesterday's version of a team if the current series shape suggests the offense may already be waking up.
+Do not double-dip a cold-offense fade across the same series once reset signs appear; require a fresh handicap, not a repeated label.
 
 This is the picks-specific process file.
 Use this instead of general `.learnings/` for betting workflow improvements.
@@ -144,6 +148,8 @@ Before every pick:
 4. **Bullpen context**
    - Availability / fatigue if known
    - If unknown, say uncertainty exists
+   - If the realistic win path is close late, identify who protects innings 7-10
+   - Check whether key leverage arms are injured, recently taxed, or role-uncertain
 
 5. **Lineup / injury context**
    - Current roster truth only
@@ -319,7 +325,11 @@ Two losses in one day to bullpen collapses (PIT and LAD). Both starters were fin
 
 If the answer to any of these is "unknown" — that is a confidence penalty, not a footnote.
 
+**Close-game survival check:** Apply this hardest when the projected script is close late: favorite in a one-to-two-run game, no overwhelming offensive/starter edge, and the opponent can keep it within one swing. In that shape, explicitly answer who protects innings 7-10. A starter giving 6-7 good innings is not enough if the bridge/closer path is injured, taxed, or role-uncertain.
+
 **Rule:** Bullpen unknown + starter-dependent pick = cap at Low confidence. Low confidence picks only go at clear plus-money prices.
+
+**Rule:** Missing/taxed leverage arms + close favorite script = cap at Medium at best. If the offensive or starter edge is not overwhelming, pass instead of assuming the late innings hold. Do not over-apply this to every bullpen uncertainty; with a clear multi-run offensive/starter edge, bullpen risk is a confidence modifier, not an automatic pass.
 
 **Rule:** Ceiling price (-150 or worse) requires HIGH confidence, not Med-High. Thin edge at max price is a pass.
 

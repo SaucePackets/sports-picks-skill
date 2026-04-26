@@ -46,6 +46,11 @@ url = 'https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard'
 url = 'https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/teams/{team_id}/schedule?season=2026'
 ```
 
+ESPN team schedule parsing note:
+- `competitor.score` may be a nested object like `{"value": 4.0, "displayValue": "4"}`, not a raw string/int.
+- If recent-form output shows `n: 0` for active-season teams, check this first before assuming schedule data is missing.
+- Use `competitions[0].status.type.completed` for final games, and parse score via `score.value` when present.
+
 ### Step 2 — Depth charts (roster truth)
 ```bash
 # ESPN depth chart API
@@ -66,6 +71,23 @@ Hermes/ESPN data note:
 - in current Hermes runs, `sports-skills mlb get_game_summary` can be lossy for some boxscore player data, while raw ESPN `boxscore.players` often contains the full pitcher lines needed for deeper analysis
 - when the CLI summary and raw ESPN summary disagree, trust the raw ESPN summary for pitcher-level game logs
 - Bullpen workload and starter last-start extraction should come from `boxscore.players`, not just `boxscore.teams` totals.
+- ESPN athlete gamelog endpoint (`site.web.api.espn.com/apis/common/v3/sports/baseball/mlb/athletes/{player_id}/gamelog?season=YYYY&category=pitching`) stores stat labels in top-level `labels` / `names`; `seasonTypes[0].categories` is a list of month splits, each with `events[]`. Do not parse `categories` as a dict. Join each month event's `eventId` back to top-level `events[eventId]` for date/opponent.
+
+Example pitcher gamelog extraction pattern:
+```python
+data = requests.get(gamelog_url, params={"season": season, "category": "pitching"}).json()
+labels = data.get("labels", [])
+rows = []
+for cat in data.get("seasonTypes", [{}])[0].get("categories", []):
+    for event_row in cat.get("events", []):
+        event_id = str(event_row.get("eventId"))
+        event_meta = data.get("events", {}).get(event_id, {})
+        stats = dict(zip(labels, event_row.get("stats", [])))
+        rows.append({"date": event_meta.get("gameDate"), "opponent": (event_meta.get("opponent") or {}).get("abbreviation"), "stats": stats})
+```
+
+Injury endpoint note:
+- ESPN injury endpoint may return top-level `injuries[]`, not `teams[]`. Match by team `displayName` if abbreviations are missing, then read nested team `injuries[]`.
 
 **For each starter, check:**
 - Last 1-2 starts (runs allowed, innings, command)
@@ -131,9 +153,10 @@ Do not force fake precision when the cleaner read is simply:
 - Heavy juice + cold offense = almost always a bad bet, regardless of roster quality
 - Hot offense alone is not enough to justify a favorite pick. If the case is built mainly on bats, verify the run-prevention side harder before logging it as official.
 - If the handicap starts with fading a cold offense, ask whether the fade is stale.
-- Reset triggers include: a losing streak just ended, a key bat returned, the lineup shape materially changed, or the market is moving toward the supposedly cold team.
+- Reset triggers include: a losing streak just ended, a key bat returned, the lineup shape materially changed, the market is moving toward the supposedly cold team, or the team has already produced a reset game / multiple competitive offensive outputs inside the current series.
 - If a reset trigger exists, the fade needs another real support layer behind it: hot bats on my side, elite/stable starter floor, or clearly cleaner bullpen/run-prevention support.
 - Do not fade yesterday's version of a team if the current series shape suggests the offense may already be waking up.
+- Do not double-dip a cold-offense fade across the same series once reset signs appear; rebuild the handicap from scratch.
 
 ### Starting Pitchers (weight current form, not reputation)
 - Last 2 starts: runs allowed, innings pitched, walks
@@ -150,6 +173,7 @@ Do not force fake precision when the cleaner read is simply:
 - If the opposing starter has a clearly superior current-season profile and your side's starter lacks a stable recent-workload / quality-start shape, do not log it as an official pick unless the team-form edge is overwhelming.
 - Treat command volatility as starter-floor risk, not a minor stat-line blemish. If a favorite's starter can lose the zone early and break the handicap in the first trip or two through the order, downgrade to pass unless the bullpen/run-prevention backup is clearly strong.
 - If the underdog has the better starter edge and the offenses are close enough, treat that as a serious signal, not a side note.
+- For road dogs, do not treat recent ER alone as proof of a stable starter floor. Stress-test command, walk risk, pitch efficiency, and swing-and-miss. Against high-ceiling lineups, traffic can become one crooked inning fast.
 
 ### Bullpen
 Casual bettors underweight this constantly.
@@ -190,6 +214,15 @@ How to write it in the handicap:
 - **Bullpen edge** — opponent's likely late-inning arms look more taxed
 - **Bullpen concern** — my side's key recent relievers have heavier recent use
 - **Bullpen uncertain** — role/usage picture is too muddy to trust
+
+Close-game survival rule:
+- apply this hardest when the projected game is close late: favorite script, one-to-two-run margin, no overwhelming offensive/starter edge, and an opponent that can stay within one swing
+- if the likely win path is a one-to-two-run game, identify the 7th-10th inning path before locking the pick
+- a starter giving 6-7 good innings is not enough if the bridge/closer path is injured, taxed, or role-uncertain
+- missing/taxed leverage arms + close favorite script caps confidence at **Medium** at best
+- if the side needs late bullpen protection and the offensive/starter edge is not overwhelming, pass instead of assuming the late innings hold
+- if the opponent's bullpen can stabilize after its starter exits, do not keep treating the game as a pure starter mismatch
+- do not over-apply this to every bullpen uncertainty; with a clear multi-run offensive/starter edge, bullpen risk is a confidence modifier, not an automatic pass
 
 Important:
 - do **not** pretend we know the exact closer decision unless directly verified
