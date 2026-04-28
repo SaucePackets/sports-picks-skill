@@ -71,6 +71,8 @@ Hermes/ESPN data note:
 - in current Hermes runs, `sports-skills mlb get_game_summary` can be lossy for some boxscore player data, while raw ESPN `boxscore.players` often contains the full pitcher lines needed for deeper analysis
 - when the CLI summary and raw ESPN summary disagree, trust the raw ESPN summary for pitcher-level game logs
 - Bullpen workload and starter last-start extraction should come from `boxscore.players`, not just `boxscore.teams` totals.
+- In ESPN summary `boxscore.players[].statistics[]`, baseball batting/pitching categories may have `name: None`; identify pitching rows by `labels[0] == "IP"`, not by `name == "pitching"`.
+- `header` from the ESPN summary endpoint may not include a top-level `name`; use the scoreboard event name or `header.competitions[0].competitors` to label the matchup.
 - ESPN athlete gamelog endpoint (`site.web.api.espn.com/apis/common/v3/sports/baseball/mlb/athletes/{player_id}/gamelog?season=YYYY&category=pitching`) stores stat labels in top-level `labels` / `names`; `seasonTypes[0].categories` is a list of month splits, each with `events[]`. Do not parse `categories` as a dict. Join each month event's `eventId` back to top-level `events[eventId]` for date/opponent.
 
 Example pitcher gamelog extraction pattern:
@@ -238,7 +240,7 @@ Important:
 Treat weather as a real handicap input, not an afterthought.
 
 Always check it for MLB.
-Use the dedicated `weather` skill path first when weather is needed for analysis.
+Use the dedicated `weather` skill path first when weather is needed for analysis. If `wttr.in` hangs or gets blocked, do not retry the same curl command; use Open-Meteo JSON directly with venue/city coordinates for temperature, wind speed/direction, and precipitation.
 If the game is in a dome or weather is otherwise not relevant, say that explicitly.
 Do not skip the step silently.
 Do not pad the analysis with weather if it does not materially affect the handicap.
