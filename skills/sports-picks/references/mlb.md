@@ -219,10 +219,10 @@ Close-game survival rule:
 - apply this hardest when the projected game is close late: favorite script, one-to-two-run margin, no overwhelming offensive/starter edge, and an opponent that can stay within one swing
 - if the likely win path is a one-to-two-run game, identify the 7th-10th inning path before locking the pick
 - a starter giving 6-7 good innings is not enough if the bridge/closer path is injured, taxed, or role-uncertain
-- missing/taxed leverage arms + close favorite script caps confidence at **Medium** at best
+- missing/taxed leverage arms + close favorite script is a hard-gate question first
 - if the side needs late bullpen protection and the offensive/starter edge is not overwhelming, pass instead of assuming the late innings hold
 - if the opponent's bullpen can stabilize after its starter exits, do not keep treating the game as a pure starter mismatch
-- do not over-apply this to every bullpen uncertainty; with a clear multi-run offensive/starter edge, bullpen risk is a confidence modifier, not an automatic pass
+- do not over-apply this to every bullpen uncertainty; with a clear multi-run offensive/starter edge and a passed gate, bullpen risk is a confidence cap/modifier, not an automatic pass
 
 Important:
 - do **not** pretend we know the exact closer decision unless directly verified

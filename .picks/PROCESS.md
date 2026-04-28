@@ -202,9 +202,10 @@ Before every pick:
    - Pass point
    - Price can veto a pick; it cannot create one by itself
 
-7. **Polymarket / market sanity check**
-   - If available, compare
-   - If missing, say so explicitly
+7. **Market sanity check**
+   - Sportsbook line is primary
+   - Kalshi / Polymarket / exchange markets are supplementary only when they cleanly map to the exact game
+   - If exchange data is missing or mismatched, say so explicitly and do not use it as a primary price source
 
 ---
 
@@ -236,13 +237,21 @@ Ledger handling:
 
 ## Weighting Rules
 
-### Highest weight
-- recent run scoring
-- current starter form
-- current price
+These weights apply only after the Official Pick Gate is passed.
+A failed gate is not a lower-weight concern; it is a pass.
 
-### Medium weight
-- bullpen context
+### Highest weight
+- winner conviction from current evidence
+- recent run scoring / run prevention
+- current starter form and floor
+- opposing-starter shutdown risk
+
+### Veto / filter weight
+- current price: it can veto a pick, but it cannot create one by itself
+- bettable-to threshold / pass point
+
+### Supporting weight
+- bullpen context, unless it triggers a hard-gate failure
 - lineup / injury context
 - home/away splits
 
@@ -405,7 +414,7 @@ If the answer to any of these is "unknown" — that is a confidence penalty, not
 
 **Rule:** Bullpen unknown + starter-dependent pick = cap at Low confidence. Low confidence picks only go at clear plus-money prices.
 
-**Rule:** Missing/taxed leverage arms + close favorite script = cap at Medium at best. If the offensive or starter edge is not overwhelming, pass instead of assuming the late innings hold. Do not over-apply this to every bullpen uncertainty; with a clear multi-run offensive/starter edge, bullpen risk is a confidence modifier, not an automatic pass.
+**Rule:** Missing/taxed leverage arms + close favorite script is a hard-gate question first. If the offensive or starter edge is not overwhelming enough to avoid bullpen dependence, pass instead of assuming the late innings hold. If the gate still passes because the side has a clear multi-run offensive/starter edge, bullpen risk becomes a confidence cap/modifier rather than an automatic pass.
 
 **Rule:** Ceiling price (-150 or worse) requires HIGH confidence, not Med-High. Thin edge at max price is a pass.
 

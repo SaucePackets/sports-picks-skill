@@ -167,9 +167,9 @@ Load the relevant reference file before building the pick:
    - apply this hardest when the projected script is close late: favorite in a one-to-two-run game, no overwhelming offensive/starter edge, and the opponent can keep it within one swing
    - if the realistic win path is a one-to-two-run game, explicitly check who protects innings 7-10
    - a starter giving 6-7 good innings is not enough if the bridge/closer path is injured, taxed, or role-uncertain
-   - missing/taxed leverage arms + close favorite script caps confidence at Medium at best; pass unless the offense or starter edge is overwhelming
+   - missing/taxed leverage arms + close favorite script is a hard-gate question first: pass unless the offense or starter edge is overwhelming enough to avoid bullpen dependence
    - do not let "we probably lead after the starter" stand in for a full-game pick
-   - do not over-apply this to every bullpen uncertainty; if the side has a clear multi-run offensive/starter edge, bullpen risk is a modifier, not an automatic pass
+   - do not over-apply this to every bullpen uncertainty; if the side has a clear multi-run offensive/starter edge and the gate still passes, bullpen risk is a confidence cap/modifier, not an automatic pass
 12. State the **current price** and **bettable-to / pass price**
 13. Decide whether the recommendation is:
    - a real pregame pick at the current number
