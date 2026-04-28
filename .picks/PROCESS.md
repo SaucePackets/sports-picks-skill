@@ -72,6 +72,7 @@ Hot bats can create interest. They do not, by themselves, create an official fav
 Before logging any official pick, run this gate in writing, even if the final user-facing answer stays short:
 
 - **Starter floor:** Can my side's starter survive 4-5 innings without command volatility, walk/traffic risk, weak miss-bat floor, pitch inefficiency, or HR damage breaking the handicap? If no, pass.
+- **Opposing-starter shutdown path:** Can the opposing starter realistically suppress my side for 6-8 innings through command, swing-and-miss, weak contact, or workload? If yes and my edge is only medium, pass.
 - **Bullpen survival:** If the likely script is close late, do I trust my side's innings 7-10 enough? If no, pass.
 - **My-side red-bullpen check:** If my side's bullpen is red/taxed, is my side's edge big enough to avoid a one-to-two-run script and late bullpen dependence? If no, pass.
 - **Both-bullpens red check:** If both bullpens are red/taxed, is my side's starter/offense edge strong enough to avoid making bullpen chaos the deciding factor? If no, pass.
@@ -92,6 +93,30 @@ Check for:
 - whether the bullpen behind him is strong enough to absorb an early exit
 
 If the starter floor is shaky and the bullpen backup is not clearly strong, pass the favorite.
+
+## Opposing-starter respect rule
+Before backing a favorite, stress-test the opposing starter as an active win condition, not just a lesser name across from our guy.
+
+Do not reduce the matchup to "our starter is better" if the opponent's starter has:
+- recent quality-start shape
+- strong command / low walk risk
+- real swing-and-miss or weak-contact form
+- enough workload to suppress our offense for 6-8 innings
+
+If the opposing starter can plausibly neutralize our lineup and our side has lineup injuries, bullpen tax, or only a medium team-shape edge, downgrade to pass.
+
+## Two-way starter enforcement check
+This is not a new handicap layer; it is an enforcement step for the starter-floor and opposing-starter rules above.
+
+Before locking any MLB official pick, explicitly answer both questions in the analysis:
+- What if the opposing starter is good today?
+- What if our starter struggles today?
+
+Name the actual failure path, not a generic caveat:
+- opposing starter command/swing-and-miss/workload suppresses our offense
+- our starter walk risk, traffic, hard contact, short leash, or matchup issue breaks the game open
+
+If either path is realistic enough to erase a medium edge, lower confidence or pass. If the analysis skips these questions, the pick has not cleared the official-pick gate.
 
 ## Road-dog guardrail
 If backing a road underdog, do not let a generic recent-form edge do all the work when the opponent has both:
@@ -126,12 +151,13 @@ Use this instead of general `.learnings/` for betting workflow improvements.
 
 ## Core Principle
 
-**Price first. Form first. Reputation never.**
+**Winner conviction first. Current form first. Price filters the pick. Reputation never.**
 
-Do not ask only: who is more likely to win?
+Do not ask only: who has the best number?
 Ask:
 - what is each team doing right now?
 - where is the actual edge?
+- who do I actually believe wins most often?
 - what number is still bettable?
 - when is this a pass?
 
@@ -158,6 +184,7 @@ Before every pick:
    - Last 1-2 starts
    - Runs allowed, innings, walks, command
    - Do not over-anchor on career ERA or name value
+   - Explicitly answer: what if their starter is good today, and what if our starter struggles today?
 
 4. **Bullpen context**
    - Availability / fatigue if known
@@ -173,6 +200,7 @@ Before every pick:
    - Current line
    - Bettable-to line
    - Pass point
+   - Price can veto a pick; it cannot create one by itself
 
 7. **Polymarket / market sanity check**
    - If available, compare
@@ -184,6 +212,7 @@ Before every pick:
 
 Pass when:
 - current price is worse than bettable-to price
+- the pick exists mainly because the number is attractive, not because I believe the side wins most often
 - case depends mostly on reputation, not evidence
 - team is averaging **<3 runs/game over last 5** and you're laying heavy juice
 - edge is weak and you cannot explain it clearly
@@ -191,8 +220,17 @@ Pass when:
 - you are chasing a moved number late
 - my side's bullpen is tagged red and the realistic win path is a one-to-two-run game, unless my side has a clear multi-run offensive/starter edge
 - both bullpens are tagged red and the realistic win path is close late, unless my side has an even stronger starter/offense edge that can realistically avoid bullpen dependence
+- the opposing starter has a credible shutdown/workload path and my favorite case relies mostly on recent team form or a medium offensive edge
 
 **No pick is better than a bad pick.**
+
+## Scratched Pick Rule
+If a better critique or new information breaks an official-pick gate before game start, scratch the pick instead of defending stale analysis.
+
+Ledger handling:
+- If the pick was discussed but not logged yet, do not add it.
+- If the pick is already logged, change `Result` to `Scratched`, add the reason in `Notes`, and exclude it from W/L/Pending tally and streaks.
+- Do not relabel a scratched pick as a pass after the fact; keep the audit trail honest.
 
 ---
 
@@ -280,6 +318,28 @@ Questions to answer:
 
 Do not automatically turn every post-game analysis into a new hard rule.
 Use it as a learning layer unless a pattern clearly repeats.
+
+---
+
+## Props rule — line first, role second, matchup third
+
+Props are secondary to the main game-picks workflow. Do not surface prop plays unless the user asks for props or the slate analysis explicitly includes them.
+
+Do not make an official prop without a verified line and price.
+
+Before recommending a prop, verify:
+- the exact prop market, line, and odds
+- the player role/workload expectation
+- recent form against that line, not just generic talent
+- opponent tendency that directly maps to the prop
+- whether one game script kills the bet
+
+For pitcher props:
+- strikeouts need opponent K tendency + pitcher workload + pitch-count leash
+- earned-runs/runs allowed props need opponent damage profile, not just pitcher ERA
+- hits allowed props need opponent contact/hit volume and pitcher traffic profile
+
+If the line moves across a key threshold, re-grade the play. Example: pitcher Ks over 5.5 and over 6.5 are different bets, not the same opinion.
 
 ---
 

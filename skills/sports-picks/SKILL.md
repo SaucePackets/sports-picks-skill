@@ -42,7 +42,9 @@ A famous team with a great pitcher is still a bad bet if their offense is cold a
 **Hard output rule:** if conviction is not real, do not make a pick.
 If the edge is thin, the number is bad, the data is incomplete, confidence does not clear the bar, or the case is mostly "the dog is live at this number" without a real belief they win, output a pass and nothing else. The goal is to learn from the data, make official picks only when they are truly confidence picks, and track judgment quality over time.
 
-**Official pick gate:** before logging any official pick, explicitly check starter floor, bullpen survival, red-bullpen close-game risk, cold-fade reset risk, price discipline, and winner conviction. Starter floor must explicitly stress-test command volatility, walk/traffic risk, strikeout or miss-bat floor, pitch efficiency, and HR damage risk — not just recent ERA or last-start runs allowed. Bullpen survival must separately check whether **my side's** bullpen is red/taxed in a close-game script; do not only fail the gate when both bullpens are red. Any failed gate overrides the lean. Do not downgrade to Medium and keep it. Failed gate means pass.
+**Official pick gate:** before logging any official pick, explicitly check starter floor, opposing-starter shutdown path, bullpen survival, red-bullpen close-game risk, cold-fade reset risk, price discipline, and winner conviction. Starter floor must explicitly stress-test command volatility, walk/traffic risk, strikeout or miss-bat floor, pitch efficiency, and HR damage risk — not just recent ERA or last-start runs allowed. Opposing-starter shutdown must be treated as an active win condition, not a throwaway caveat. Bullpen survival must separately check whether **my side's** bullpen is red/taxed in a close-game script; do not only fail the gate when both bullpens are red. Any failed gate overrides the lean. Do not downgrade to Medium and keep it. Failed gate means pass.
+
+If new information or a better critique arrives before game start and breaks an official-pick gate, scratch the pick from the card rather than forcing it to stand. If it was already logged, mark `Result` as `Scratched`, add the reason in `Notes`, and exclude it from W/L/Pending tally and streaks. If it was not logged yet, do not add it.
 
 Do not create side categories like "value plays," "leans," or other unofficial buckets unless the user explicitly asks for them. Default to one of two outputs only:
 - official pick
@@ -140,6 +142,8 @@ Load the relevant reference file before building the pick:
    Starter-floor rule:
    - do not just compare the last 1-2 starts; ask whether each starter has a stable enough floor to survive the first 4-5 innings without breaking the game open
    - if backing the team with the weaker starter, and the opposing starter has the clearly stronger current-season profile, do not make it official unless the team-form edge is overwhelming and the side can still win often enough if the opposing starter performs to profile
+   - before backing a favorite, stress-test the opposing starter as an active win condition. If that starter has recent quality-start shape, strong command, real swing-and-miss, or enough workload to suppress the offense for 6-8 innings, the favorite needs a clearer starter edge and reliable offensive support; otherwise pass.
+   - two-way enforcement check: explicitly answer “what if their starter is good today?” and “what if our starter struggles today?” before lock. If either concrete path can erase a medium edge, pass. If those questions are skipped, the official-pick gate is not complete.
  
    Road-dog rule:
    - do not make a road underdog official just because the recent-form differential looks cleaner on paper
@@ -387,6 +391,23 @@ Pass when:
 
 **No pick is better than a bad pick.**
 **No confidence, no pick.**
+
+---
+
+## Props Rule
+
+Props are secondary to the main game-picks workflow. Do not surface prop plays unless the user asks for props or the slate analysis explicitly includes them.
+
+Do not make an official prop without a verified line and price.
+
+Before recommending a prop, verify:
+- exact prop market, line, and odds
+- player role/workload expectation
+- recent form against that line
+- opponent tendency that directly maps to the prop
+- whether one game script kills the bet
+
+If the line moves across a key threshold, re-grade the play. Pitcher Ks over 5.5 and over 6.5 are different bets, not the same opinion.
 
 ---
 

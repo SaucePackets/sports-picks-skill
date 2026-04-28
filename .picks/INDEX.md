@@ -15,7 +15,7 @@ Each pick tracks:
 - Pick + confidence level
 - Line at pick time
 - Bettable-to price
-- Result (W/L/Pending)
+- Result (W/L/Pending/Scratched)
 - Closing line (when available)
 - Beat close? (Yes/No/—)
 - Short edge thesis / notes
@@ -40,5 +40,6 @@ Each pick tracks:
 - `Pick Type` must be explicit for every row: `Official` or `Live`.
 - Official streaks count only `Official` picks. Live streaks should be treated separately.
 - Compute streaks by sorting rows by `Date` and following the most recent uninterrupted sequence within each `Pick Type`.
+- `Scratched` means a pregame critique or new information broke the official-pick gate before start. Exclude scratched picks from W/L/Pending tally and streaks, but keep the row as an audit trail if it was already logged.
 
 _Last updated: TEMPLATE_

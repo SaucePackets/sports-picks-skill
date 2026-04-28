@@ -87,6 +87,7 @@ The package is built around three rules:
 sports-picks-skill/
 ├── README.md
 ├── GETTING-STARTED.md
+├── DEV_NOTES.md
 ├── docs/
 │   ├── install-hermes.md
 │   └── install-openclaw.md
