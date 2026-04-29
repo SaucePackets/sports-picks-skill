@@ -97,6 +97,14 @@ sports-picks-skill/
 │   └── REFLECTIONS.md
 └── skills/
     ├── sports-picks/
+    │   ├── SKILL.md
+    │   └── references/
+    │       ├── runtime.md
+    │       ├── process.md
+    │       ├── mlb.md
+    │       ├── nfl.md
+    │       ├── nba.md
+    │       └── nhl.md
     ├── mlb-data/
     ├── nfl-data/
     ├── nba-data/
@@ -108,6 +116,8 @@ sports-picks-skill/
 ```
 
 ## Notes
-- `sports-picks` is the main workflow skill.
+- `sports-picks/SKILL.md` is the front door: when to use it, hard gate, verification rules, and default output rules.
+- `sports-picks/references/runtime.md` is the short working checklist for picks.
+- `sports-picks/references/process.md` covers settlement, reflections, and record maintenance.
 - The other skills support data gathering and market/weather checks.
 - Platform differences should live in docs, not in duplicate skill forks.

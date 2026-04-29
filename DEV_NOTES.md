@@ -1,5 +1,14 @@
 # Dev Notes
 
+## 2026-04-29 — Runtime extraction
+
+- Kept the Runtime Lock Gate top-level in `SKILL.md`; it is identity, not detail.
+- Slimmed `SKILL.md` from the full monolith into the front door: when to use, hard gate, verification rules, required reference load order, and default output rules.
+- Added `skills/sports-picks/references/runtime.md` as the working clipboard: runtime order, final pass/fail gate, gate checklist, output templates, pass rules, and props rule.
+- Added `skills/sports-picks/references/process.md` for settlement, postgame reflections, result updates, and recurring pattern maintenance.
+- Medium confidence still means all hard gates passed but edge is not elite; it cannot salvage a failed starter, bullpen, cold-fade, price, or winner-conviction gate.
+- Shared repo, Hermes installed runtime copy, and OpenClaw live runtime copy were updated together so current-agent behavior matches repo truth.
+
 ## 2026-04-28 — Official gate cleanup
 
 - Winner conviction remains first; price is a veto/filter, not the reason to create a pick.
