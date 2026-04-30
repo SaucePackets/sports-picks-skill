@@ -1,5 +1,13 @@
 # Dev Notes
 
+## 2026-04-30 — Optional database-backed picks section
+
+- Added a separate `Optional Database-Backed Pick Storage` section to `references/process.md`.
+- Flat-file `.picks/INDEX.md` remains the portable reconciliation source unless a runtime explicitly names a database as canonical.
+- Database users should store full cards/results/reflections in a picks table/object store, not generic memory.
+- Added provenance expectations: `source_agent`/`persona_id` on creation and `updated_by_agent` on settlement.
+- Added record-integrity rule: list filters and record filters must match, especially for `source_agent`, or the `/picks` cockpit lies.
+
 ## 2026-04-29 — Runtime extraction
 
 - Kept the Runtime Lock Gate top-level in `SKILL.md`; it is identity, not detail.

@@ -22,6 +22,40 @@ Do not infer official picks from broad slate analysis after the fact. Log only p
 
 ---
 
+## Optional Database-Backed Pick Storage
+
+Use this section only when the runtime has a real database-backed picks table or API. The flat-file `.picks/INDEX.md` workflow remains the portable fallback and reconciliation source unless the user explicitly names the database as canonical.
+
+Recommended table/object boundary:
+
+```text
+pick_analyses = full official-card artifacts, prices, result, postgame reflection, provenance
+memories      = durable policies, workflow rules, recurring lessons, and preferences
+```
+
+Do not store full cards, box-score reviews, or per-game scouting dumps as generic memories. Those belong in the picks table/object store. Memory can store durable policy like “only confident winners” or “bullpen availability must be checked,” not every game card.
+
+Minimum database fields for serious use:
+- pick identity: sport, league, game/date, teams, pick side, price, stake, confidence, verdict
+- settlement: result, postgame reflection, updated timestamp
+- source provenance: source shell/app, source agent, persona id, source session/excerpt
+- updater provenance: updated-by shell/app, updated-by agent, updated-by persona id
+- audit scope: workspace, namespace, visibility/access policy, status
+
+Database workflow:
+1. Produce the official card only after the Runtime Lock Gate passes.
+2. Write the full card to the picks table/object store, not generic memory.
+3. Stamp `source_agent` / `persona_id` when creating the row.
+4. When settling, update the same row with result/reflection and stamp `updated_by_agent`.
+5. Filter record views by the same scope used for list views. If `/picks?source_agent=...` filters cards, `/picks/record?source_agent=...` must use the same filter or the record lies.
+6. Keep `All agents` as an unfiltered view; agent-specific views should only include rows with that persisted provenance receipt.
+7. If the UI/backend crosses namespaces, ensure visibility/scope allows the reader to see the row. Shared dashboards may need `visibility="shared"` instead of a private namespace.
+8. Reconcile backfills against `.picks/INDEX.md` first, then enrich from reflections or database detail.
+
+Postgame rule for database users: settlement is not complete until both the result and reflection are persisted on the domain row. If the reflection creates a durable rule, save that rule separately as memory or update this skill/process file.
+
+---
+
 ## Post-Game Reflection Loop
 
 After every pick settles — win or loss — update `.picks/INDEX.md` and `.picks/REFLECTIONS.md`.
