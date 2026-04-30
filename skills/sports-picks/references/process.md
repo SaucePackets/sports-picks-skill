@@ -16,7 +16,7 @@ If chat analysis, memory, or a stray topic summary conflicts with `.picks/INDEX.
 
 When backfilling picks into another system, reconcile against `.picks/INDEX.md` first. `.picks/REFLECTIONS.md` is post-game detail only and can be incomplete; use it to enrich rows after the index count/tally matches.
 
-Before approving a backfill, compare parsed rows against the index tally, current/archive scope, official vs live type, W/L/Pending counts, and duplicate keys such as date + pick + line + result. Do not import archive rows into the active record until archive/current totals are reconciled.
+Before approving a backfill, compare parsed rows against the index tally, current/archive scope, official vs live type, W/L/Pending counts, and duplicate keys such as date + pick + line + result. If the running tally disagrees with the rows, fix the ledger first and rerun the dry-run; do not import from an impossible tally. Do not import archive rows into the active record until archive/current totals are reconciled.
 
 Do not infer official picks from broad slate analysis after the fact. Log only picks that were actually locked as the card.
 
