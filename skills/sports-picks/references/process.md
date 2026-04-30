@@ -52,6 +52,13 @@ Database workflow:
 7. If the UI/backend crosses namespaces, ensure visibility/scope allows the reader to see the row. Shared dashboards may need `visibility="shared"` instead of a private namespace.
 8. Reconcile backfills against `.picks/INDEX.md` first, then enrich from reflections or database detail.
 
+Agent/Telegram save seam:
+- Prefer a small raw-card save path over a giant form: send the locked official-card text plus optional game metadata, parse only enough identity fields to populate the domain row, and preserve the full text unchanged in the pick-analysis object.
+- Refuse to save cards whose parsed official line is `PASS` or otherwise no-pick. Analysis can exist without becoming an official database row.
+- Treat the first bullet under `Official card right now` as the official pick line when using the standard output template: `[Team/side] ([price]) — [confidence]`.
+- Store parser provenance in structured metadata when available, e.g. `analysis_json.raw_text`, `analysis_json.source="official_card_text"`, `metadata_json.save_trigger="official_card_text"`.
+- Return the saved pick id and provenance receipt so the agent can confirm exactly what was locked.
+
 Postgame rule for database users: settlement is not complete until both the result and reflection are persisted on the domain row. If the reflection creates a durable rule, save that rule separately as memory or update this skill/process file.
 
 ---

@@ -1,5 +1,13 @@
 # Dev Notes
 
+## 2026-04-30 — Agent/Telegram save seam
+
+- Added raw official-card text save guidance to `references/process.md` for database-backed users.
+- Prefer a tiny agent/Telegram save seam over a giant form: save the locked official-card text plus optional metadata, parse only enough identity fields, and preserve the full card in `pick_analyses`.
+- Refuse to persist `PASS` / no-pick cards as official pick rows.
+- Store parser/provenance hints such as `analysis_json.raw_text`, `analysis_json.source="official_card_text"`, and `metadata_json.save_trigger="official_card_text"` when available.
+- Synced the Hermes installed runtime skill copy.
+
 ## 2026-04-30 — Optional database-backed picks section
 
 - Added a separate `Optional Database-Backed Pick Storage` section to `references/process.md`.
