@@ -14,6 +14,10 @@ Use the installed workflow's `.picks/` directory as the source of truth:
 
 If chat analysis, memory, or a stray topic summary conflicts with `.picks/INDEX.md`, verify and then update `.picks/INDEX.md` so official card and official record stay aligned.
 
+When backfilling picks into another system, reconcile against `.picks/INDEX.md` first. `.picks/REFLECTIONS.md` is post-game detail only and can be incomplete; use it to enrich rows after the index count/tally matches.
+
+Before approving a backfill, compare parsed rows against the index tally, current/archive scope, official vs live type, W/L/Pending counts, and duplicate keys such as date + pick + line + result. Do not import archive rows into the active record until archive/current totals are reconciled.
+
 Do not infer official picks from broad slate analysis after the fact. Log only picks that were actually locked as the card.
 
 ---
