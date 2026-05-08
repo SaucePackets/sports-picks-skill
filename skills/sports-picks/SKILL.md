@@ -122,7 +122,7 @@ If context is tight, keep this `SKILL.md` and `references/runtime.md` visible fi
 - If nothing is truly strong, give no picks.
 - Winner first, current price second.
 - Price filters conviction; price does not create conviction.
-- No unofficial lean/value/dog buckets unless Jerry explicitly asks.
+- No unofficial lean/value/dog buckets unless the user explicitly asks.
 - If bullpen, weather, injuries, or market mapping were not fully verified, say so directly instead of bluffing.
 - If price is bad, pass even if the side is likely to win.
 

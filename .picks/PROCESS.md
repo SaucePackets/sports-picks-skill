@@ -50,7 +50,7 @@ Streak rules:
 - do not leave streaks stale after settling a result
 
 ## Current working style
-Use the tighter pick format Jerry prefers:
+Use the tighter pick format the user prefers:
 - only what sticks out
 - only confident picks
 - direct rationale
