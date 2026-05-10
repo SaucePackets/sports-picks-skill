@@ -59,9 +59,12 @@ official_pick_allowed = true
 if starter_floor fails: official_pick_allowed = false
 if opposing_starter_shutdown_path fails: official_pick_allowed = false
 if my_bullpen_close_game_survival fails: official_pick_allowed = false
+if my_bullpen_is_disaster_recently: official_pick_allowed = false
+if game_shape_is_two_bad_bullpens_chaos: official_pick_allowed = false
 if cold_fade_reset fails: official_pick_allowed = false
 if price_discipline fails: official_pick_allowed = false
 if real_winner_conviction fails: official_pick_allowed = false
+if thesis_is_opponent_fade_or_price_more_than_my_team: official_pick_allowed = false
 
 if official_pick_allowed == false:
   output PASS
@@ -74,6 +77,9 @@ Hard meaning:
 - Not conditional.
 - Not "still playable."
 - No pick because the price is cute.
+- No pick because the opponent is injured, cold, or using a weak opener if my side also has a major run-prevention flaw.
+- A recent bullpen disaster is a hard veto unless the starter is likely to go deep and the edge is overwhelming; otherwise PASS.
+- Two bad bullpens means chaos, not confidence. Do not upgrade chaos into an official pick.
 
 Medium confidence is allowed only when every hard gate passes but the edge is not elite.
 It must never mean one gate failed but the lean survived.
@@ -101,6 +107,10 @@ Official picks are for sides I genuinely believe win, with price acting as a fil
 If the edge is thin, the number is bad, the data is incomplete, confidence does not clear the bar, or the case is mostly "the dog is live at this number" without a real belief they win, output a pass and nothing else.
 
 **Official pick gate:** before logging any official pick, explicitly check starter floor, opposing-starter shutdown path, bullpen survival, red-bullpen close-game risk, cold-fade reset risk, price discipline, and winner conviction. Any failed gate overrides the lean. Do not downgrade to Medium and keep it. Failed gate means pass.
+
+**Opponent-fade trap:** do not promote a side mainly because the opponent looks awful, injured, cold, or mispriced. The selected side must have its own clean win path. If my side has a shaky starter, ugly walk profile, or bullpen disaster, the answer is PASS even when the opponent is worse.
+
+**Bullpen chaos veto:** if my side's recent bullpen form is terrible, or both bullpens are terrible, that is not late-game survival. It is variance. Pass unless there is a clear starter-length edge and overwhelming separation elsewhere.
 
 Road favorite chalk tightening: when both teams are hot, both bullpens are in good form, and the opponent starter has a credible shutdown path, do not let season profile plus starter floor carry a mid-price road favorite by itself. Require a clear late-game separation, offensive contact edge, or bullpen mismatch before paying roughly -130 or worse.
 
@@ -157,6 +167,7 @@ If context is tight, keep this `SKILL.md` and `references/runtime.md` visible fi
 - If price is bad, pass even if the side is likely to win.
 - Daily MLB slate automation should use the normal concise card/review style by default: record/context when relevant, proposed/locked status, 1-3 compact evidence bullets, learning/watch notes, and a clear postgame handoff.
 - Daily MLB same-day reruns must not rescan by default. If `/home/clawdbot/projects/sports-picks-skill/.picks/slate/YYYY-MM-DD.md` exists for today's Central date, replay/deepen that artifact as the canonical card unless Jerry explicitly asks for a fresh slate. Duplicate cron/manual runs should never create different picks for the same slate.
+- Any request like `deep analysis`, `deeper pass`, `deep analysis on the matchups you like`, or `Rebecca's picks deep analysis` after a same-day slate exists must first read the slate artifact and deepen those listed candidates only. Do not interpret "matchups you like" as permission to rerun the entire slate. If there is no artifact, say that and run a fresh slate explicitly labeled fresh.
 - Jerry may ask for a deeper pass afterward. When he asks, first read the canonical same-day slate artifact at `/home/clawdbot/projects/sports-picks-skill/.picks/slate/latest.md` and/or `.picks/slate/YYYY-MM-DD.md`; deepen those candidate(s) instead of rerunning the whole slate from scratch. Re-verify current price, injuries/lineups, weather, and game status before final judgment. If the slate artifact is missing, stale, or the user asks for a different game, run fresh analysis.
 - Use his fuller deep-analysis structure only on request: matchup header; Pick/Pass; current price/book; de-vig fair; start time; park/weather; Form for both teams; Starter matchup; Bullpen / close-game survival; Market / price; Injury notes; What scares me; Why it still holds; Verdict.
 - Do not force action. If a candidate has a real lean but fails a hard gate, say PASS and explain which gate killed it.
