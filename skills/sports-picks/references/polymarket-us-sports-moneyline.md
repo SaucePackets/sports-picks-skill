@@ -81,6 +81,57 @@ If an order appears in Orders but not Positions:
 
 Limit orders protect price; market orders eat the book and can slip through multiple price levels.
 
+## SDK Helper
+
+Use the repo helper so execution is just guarded code, not hand-built API calls:
+
+```bash
+python skills/sports-picks/scripts/polymarket_us_sdk_bet.py health
+python skills/sports-picks/scripts/polymarket_us_sdk_bet.py search-moneyline --query "Atlanta Braves Los Angeles Dodgers"
+```
+
+Proposal example:
+
+```bash
+python skills/sports-picks/scripts/polymarket_us_sdk_bet.py propose-moneyline \
+  --market-slug aec-mlb-atl-lad-2026-05-10 \
+  --intent ORDER_INTENT_BUY_SHORT \
+  --expected-outcome "Los Angeles Dodgers" \
+  --order-type ORDER_TYPE_MARKET \
+  --price 0.56 \
+  --cash-order-qty 15 \
+  --max-notional 15 \
+  --notes "MLB official lock: Los Angeles Dodgers"
+```
+
+Live execution repeats the exact order, requires the proposal token, re-previews before placing, and can write the heartbeat watchlist only after order acceptance:
+
+```bash
+python skills/sports-picks/scripts/polymarket_us_sdk_bet.py order-moneyline \
+  --market-slug aec-mlb-atl-lad-2026-05-10 \
+  --intent ORDER_INTENT_BUY_SHORT \
+  --expected-outcome "Los Angeles Dodgers" \
+  --order-type ORDER_TYPE_MARKET \
+  --price 0.56 \
+  --cash-order-qty 15 \
+  --max-notional 15 \
+  --approval-token <proposal_token> \
+  --execute \
+  --i-accept-live-trading \
+  --write-watchlist \
+  --notes "MLB standing authorization: official lock"
+```
+
+Guardrails in the helper:
+- loads `POLYMARKET_KEY_ID` / `POLYMARKET_SECRET_KEY` from env or `~/.hermes/.env`
+- refuses proposals without authenticated preview
+- refuses live orders when preview outcome differs from `--expected-outcome`
+- computes proposal approval tokens from request + preview outcome + caps
+- re-previews immediately before live order
+- compiles `ORDER_TYPE_MARKET` sports entries into capped IOC limits because the SDK/API currently rejects true market bodies during preview
+- writes proposal/live/error receipts under `.picks/receipts/polymarket/`
+- writes `.picks/watchlist/polymarket/*.json` only after accepted live orders when `--write-watchlist` is passed
+
 ## Receipt Requirements
 
 For any SDK proposal/live order:

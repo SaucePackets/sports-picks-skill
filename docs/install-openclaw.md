@@ -8,13 +8,13 @@ Install the same shared core skill bundle used by Hermes while keeping OpenClaw-
 ## Requirements
 
 ```bash
-pip install sports-skills
+pip install sports-skills polymarket-us
 ```
 
 If needed:
 
 ```bash
-python3.12 -m pip install sports-skills
+python3.12 -m pip install sports-skills polymarket-us
 ```
 
 Also make sure `curl` is available.
@@ -37,6 +37,7 @@ which sports-skills
 sports-skills mlb get_scoreboard
 sports-skills nba get_scoreboard
 sports-skills polymarket get_sports_config
+python skills/sports-picks/scripts/polymarket_us_sdk_bet.py health
 sports-skills kalshi get_sports_config
 curl -s "wttr.in/Chicago?format=3"
 ```

@@ -74,7 +74,7 @@ Public API:
    - For sports moneylines, prefer the Python SDK discovery path in `references/polymarket-us-sports-moneyline.md`.
    - Use `client.search.query()` or `client.markets.list({"sportsMarketTypes": ["MONEYLINE"]})` to find the US tradable moneyline slug; `.com` event slugs can be non-tradable through the US API.
 3. Fetch market details and BBO from `gateway.polymarket.us` or the SDK.
-4. Create a dry-run proposal with `scripts/polymarket_us_guard.py propose` when the slug is gateway-compatible, or an SDK-backed receipt when the SDK is required for sports markets.
+4. Create a dry-run SDK proposal with `scripts/polymarket_us_sdk_bet.py propose-moneyline` for US sports moneylines. Use legacy `scripts/polymarket_us_guard.py propose` only for non-SDK/gateway-compatible markets.
 5. Authenticated-preview the exact order and verify `preview.order.marketMetadata.outcome` equals the intended team before showing the proposal.
 6. Show Jerry the proposal:
    - market slug
@@ -134,10 +134,11 @@ Default TIF:
 - market/cash buys should use slippage protection and current-price preview rather than resting TIF
 - `TIME_IN_FORCE_GOOD_TILL_CANCEL` only if Jerry explicitly asks
 
-Default market orders:
+Default market-style entries:
 - allowed for approved small sports entries when current odds are already acceptable
-- require `cashOrderQty` / notional cap and slippage tolerance
-- do not use market orders from cron or unattended sessions
+- use `scripts/polymarket_us_sdk_bet.py --order-type ORDER_TYPE_MARKET --price <current executable price> --cash-order-qty <cap>`; the helper compiles this into a capped IOC limit because SDK preview rejects true market bodies for sports moneylines
+- require cash/notional cap and preview-verified outcome
+- do not use market-style entries from cron or unattended sessions
 
 Exposure caps:
 - require `--max-notional` or `cashOrderQty`
@@ -176,6 +177,32 @@ No receipt, no claim of success.
 ## Setup Check
 
 ```bash
+python skills/sports-picks/scripts/polymarket_us_sdk_bet.py health
+python skills/sports-picks/scripts/polymarket_us_sdk_bet.py search-moneyline --query "Atlanta Braves Los Angeles Dodgers"
+python skills/sports-picks/scripts/polymarket_us_sdk_bet.py propose-moneyline \
+  --market-slug aec-mlb-atl-lad-2026-05-10 \
+  --intent ORDER_INTENT_BUY_SHORT \
+  --expected-outcome "Los Angeles Dodgers" \
+  --order-type ORDER_TYPE_MARKET \
+  --price 0.56 \
+  --cash-order-qty 15 \
+  --max-notional 15 \
+  --notes "MLB official lock: Los Angeles Dodgers"
+python skills/sports-picks/scripts/polymarket_us_sdk_bet.py order-moneyline \
+  --market-slug aec-mlb-atl-lad-2026-05-10 \
+  --intent ORDER_INTENT_BUY_SHORT \
+  --expected-outcome "Los Angeles Dodgers" \
+  --order-type ORDER_TYPE_MARKET \
+  --price 0.56 \
+  --cash-order-qty 15 \
+  --max-notional 15 \
+  --approval-token <proposal_token> \
+  --execute \
+  --i-accept-live-trading \
+  --write-watchlist \
+  --notes "MLB standing authorization: official lock"
+
+# Legacy public/gateway helper remains available for non-SDK checks:
 python skills/sports-picks/scripts/polymarket_us_guard.py health
 python skills/sports-picks/scripts/polymarket_us_guard.py market --market-slug <slug>
 python skills/sports-picks/scripts/polymarket_us_guard.py balances

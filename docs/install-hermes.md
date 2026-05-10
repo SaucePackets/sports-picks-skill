@@ -8,13 +8,13 @@ Install one shared core skill bundle and keep a single canonical `.picks/` direc
 ## Requirements
 
 ```bash
-pip install sports-skills
+pip install sports-skills polymarket-us
 ```
 
 If needed:
 
 ```bash
-python3.12 -m pip install sports-skills
+python3.12 -m pip install sports-skills polymarket-us
 ```
 
 Also make sure `curl` is available.
@@ -54,6 +54,7 @@ which sports-skills
 sports-skills mlb get_scoreboard
 sports-skills nba get_scoreboard
 sports-skills polymarket get_sports_config
+python /path/to/sports-picks-skill/skills/sports-picks/scripts/polymarket_us_sdk_bet.py health
 sports-skills kalshi get_sports_config
 curl -s "wttr.in/Chicago?format=3"
 ```
