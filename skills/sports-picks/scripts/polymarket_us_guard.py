@@ -16,6 +16,7 @@ import hashlib
 import json
 import os
 import re
+import socket
 import sys
 import time
 import urllib.error
@@ -75,6 +76,8 @@ def http_json(method: str, base: str, path: str, body: dict[str, Any] | None = N
         except json.JSONDecodeError:
             payload = {"raw": raw}
         raise RuntimeError(json.dumps({"status": e.code, "path": path, "response": payload}, indent=2)) from e
+    except (TimeoutError, socket.timeout, urllib.error.URLError) as e:
+        raise RuntimeError(json.dumps({"status": "network_error", "path": path, "error": str(e)}, indent=2)) from e
 
 
 def auth_headers(method: str, path: str) -> dict[str, str]:
@@ -267,8 +270,11 @@ def cmd_balances(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def cmd_positions(args: argparse.Namespace) -> dict[str, Any]:
-    data = http_json("GET", API_BASE, "/v1/portfolio/positions", auth=True)
-    return {"ok": True, "positions": data}
+    try:
+        data = http_json("GET", API_BASE, "/v1/portfolio/positions", auth=True)
+        return {"ok": True, "positions": data}
+    except RuntimeError as e:
+        return {"ok": False, "positions": None, "error": str(e)}
 
 
 def cmd_open_orders(args: argparse.Namespace) -> dict[str, Any]:
