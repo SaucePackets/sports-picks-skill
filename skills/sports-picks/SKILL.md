@@ -148,6 +148,9 @@ If context is tight, keep this `SKILL.md` and `references/runtime.md` visible fi
 - No unofficial lean/value/dog buckets unless the user explicitly asks.
 - If bullpen, weather, injuries, or market mapping were not fully verified, say so directly instead of bluffing.
 - If price is bad, pass even if the side is likely to win.
+- For Jerry's MLB deep-pass format, do not use a shallow card. Use his deeper analysis voice and structure: matchup header; Pick/Pass; current price/book; de-vig fair; start time; park/weather; Form for both teams; Starter matchup; Bullpen / close-game survival; Market / price; Injury notes; What scares me; Why it still holds; Verdict.
+- Do not force action. If a candidate has a real lean but fails a hard gate, say PASS and explain which gate killed it.
+- For daily slate automation, prefer 0-2 deep candidates over five shallow blurbs. Put the best candidate first. If only one game truly deserves the deeper pass, analyze one and list the rest as passes/close calls.
 
 Preferred default shape:
 
