@@ -16,9 +16,11 @@ This file is the clipboard. `SKILL.md` is the front door.
 7. Pull injuries and flag noisy/unclear feeds.
 8. Pull primary sportsbook/game line first.
 9. Use Kalshi/Polymarket/markets only as supplementary context when it cleanly maps to the exact game.
-10. Build full win paths for both teams.
-11. Run the final pass/fail gate.
-12. Output official picks only.
+10. If Jerry asks to bet on Polymarket, load `references/polymarket-trading.md` and create a dry-run proposal only.
+11. Build full win paths for both teams.
+12. Run the final pass/fail gate.
+13. Output official picks only.
+14. Execute a live Polymarket order only after explicit approval with the matching proposal token.
 
 ---
 
@@ -78,6 +80,7 @@ If any answer is weak enough to break the win path, pass.
 - Weather/park/rest/injury context when relevant.
 - Current price and bettable-to/pass point.
 - Market-mapping note: exact-game exchange match, loose sentiment only, or unavailable.
+- If Polymarket execution is requested: proposal token, max exposure, and receipt path from `scripts/polymarket_us_guard.py`.
 - Why this number may be wrong.
 - Flip risk: one sentence on why the other side wins.
 

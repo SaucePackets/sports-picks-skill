@@ -16,6 +16,23 @@ Hermes compatibility note:
 - Keep one canonical `.picks/` directory for the installed workflow and use it as the source of truth.
 - In Hermes, prefer the imported sport-specific skills for ESPN-backed data and treat the sportsbook line as the primary price source.
 - Kalshi / Polymarket / other exchange checks are supplementary only unless they map cleanly to the exact game.
+- Polymarket live trading is allowed only through `references/polymarket-trading.md` and `scripts/polymarket_us_guard.py`; proposals are dry-run by default and live orders require explicit Jerry approval plus a matching approval token.
+
+---
+
+## Live Trading Boundary
+
+Sports analysis may produce an official pick. It does not automatically produce a bet.
+
+For Polymarket execution:
+- load `references/polymarket-trading.md` first
+- exact game/outcome mapping is mandatory
+- create a dry-run proposal before any live order
+- show market slug, side, action, price, quantity, max exposure, BBO, and approval token
+- place/cancel/modify only after explicit approval in the current chat/session
+- save a receipt under `.picks/receipts/polymarket/`
+
+No approval token, no bet. No receipt, no success claim.
 
 ---
 

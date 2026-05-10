@@ -81,6 +81,16 @@ The package is built around three rules:
 - use a **deeper pass** only when the user wants the full case
 - distinguish between a true pass and a side that may be right but is not official-card clean at the current number
 
+## Polymarket execution
+
+Polymarket live trading is guarded, not autonomous chaos.
+
+The repo includes:
+- `skills/sports-picks/references/polymarket-trading.md`
+- `skills/sports-picks/scripts/polymarket_us_guard.py`
+
+Default behavior is dry-run proposal only. Live orders require Polymarket US API credentials in the runtime environment, explicit Jerry approval, a matching proposal token, and a saved receipt. Credentials never belong in this repo.
+
 ## Repo layout
 
 ```text
@@ -98,9 +108,12 @@ sports-picks-skill/
 └── skills/
     ├── sports-picks/
     │   ├── SKILL.md
+    │   ├── scripts/
+    │   │   └── polymarket_us_guard.py
     │   └── references/
     │       ├── runtime.md
     │       ├── process.md
+    │       ├── polymarket-trading.md
     │       ├── mlb.md
     │       ├── nfl.md
     │       ├── nba.md
