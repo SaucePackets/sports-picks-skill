@@ -115,6 +115,21 @@ No receipt, no success claim.
 
 After a Polymarket bet is placed, create or run a watch check for that market.
 
+Current heartbeat implementation:
+- Watch cron job: `c98f238efb0d` — `MLB Polymarket Heartbeat — in-game watch alerts`
+- Watch script: `/home/clawdbot/.hermes/scripts/mlb_polymarket_heartbeat.py`
+- Watch schedule: every 5 minutes
+- Watch mode: `no_agent=true`, script-only, writes receipts only, deliver=`local`
+- Judgement/postgame cron job: `0ecc7d117a97` — `MLB Heartbeat — postgame settlement + alert judgement`
+- Judgement/postgame script: `/home/clawdbot/.hermes/scripts/mlb_polymarket_alert_review.py`
+- Judgement/postgame schedule: every 5 minutes, one minute after the watch script
+- Judgement/postgame model: spawned `hermes chat` pinned to `openai-codex / gpt-5.5`
+- User-facing delivery: Rebecca's Picks topic `telegram:-1003740149270:4`
+- Watch files: `.picks/watchlist/polymarket/*.json`
+- Alert receipts: `.picks/heartbeat/*.json`
+- Reviewed markers: `.picks/heartbeat-reviewed/*.done`
+- Postgame settlement markers: `.picks/postgame-reviewed/*.done`
+
 Default cadence:
 - pregame after order: every 15 minutes until first pitch
 - innings 1-6: every 10 minutes
@@ -167,6 +182,38 @@ Live entry proposal requires:
 - explicit note whether it is pregame-skipped opportunity or live-bet request
 
 For now, live entries from passed-price watchlist are proposal-only unless Jerry explicitly asks for live betting in that session.
+
+---
+
+## Postgame Reflection Rule
+
+After games settle, run a postgame review for proposed candidates, official locks, placed bets, and price-watch passes.
+
+Current official-pick settlement implementation:
+- Cron job `0ecc7d117a97` checks active/pending MLB official picks every 5 minutes.
+- It queries Sovereign Console `/chat/picks?status=active&result=pending&limit=100`.
+- For each MLB pick with `game_id`, it verifies the ESPN final summary and waits until the game is complete.
+- Once final, it spawns Hermes pinned to `openai-codex / gpt-5.5` with `sports-betting-markets`, `sports-data-apis`, and `sovereign-console-workflows`.
+- The spawned review settles the pick through `/chat/picks/{pick_id}/settle`, verifies the record, posts a win/loss message plus reflection to Rebecca's Picks, and patches the sports skill only when the reflection exposes a durable rule.
+- Settlement markers live under `.picks/postgame-reviewed/*.done` to avoid duplicate messages.
+
+Reflection must distinguish:
+- good read, good result
+- good read, bad variance
+- bad read / missed signal
+- correct pass
+- wrong pass / missed opportunity
+- incomplete data / still live
+
+Review evidence should include final score and enough game script to judge the original thesis: starter performance, early innings, run support, stranded chances, bullpen survival, injuries/weather/delays, and decisive volatility such as homers, errors, two-out damage, blown saves, or extras.
+
+If a repeatable missed signal appears, save a dated review note under:
+
+```text
+.picks/reviews/mlb-postgame/YYYY-MM-DD.md
+```
+
+Only patch the skill when the improvement is durable, specific, and not just one-game outcome chasing. If it is variance, log it and leave the skill alone. No mystery gambling machine learns by superstition.
 
 ---
 
