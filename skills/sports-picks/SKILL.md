@@ -161,20 +161,56 @@ If context is tight, keep this `SKILL.md` and `references/runtime.md` visible fi
 - Use his fuller deep-analysis structure only on request: matchup header; Pick/Pass; current price/book; de-vig fair; start time; park/weather; Form for both teams; Starter matchup; Bullpen / close-game survival; Market / price; Injury notes; What scares me; Why it still holds; Verdict.
 - Do not force action. If a candidate has a real lean but fails a hard gate, say PASS and explain which gate killed it.
 
-Preferred default shape:
+## MLB Slate Display Contract
+
+Manual MLB slate requests and cron MLB slate output must use the same display shape. The canonical card text written to `.picks/slate/YYYY-MM-DD.md` must exactly match the final response body.
 
 ```text
-Official card right now
-- [Team ML] ([price]) — [confidence]
+MLB proposed card — <date>
+No locked picks yet. Commands: deep analysis / lock official picks only / lock and propose bets / lock and place authorized MLB bets.
 
-Why it sticks out
-- Form: [last 5-7 game signal]
-- Starter/primary matchup: [current-form edge]
-- Bullpen/weather/market: [only what matters]
-- Gate: all hard gates passed
+Scanned <N> MLB games. <one-line judgment>
 
-Passes / close calls
-- [Game] — [short reason]
+Card
+- <Team ML> <price> — <High/Medium>
 ```
 
-For deeper analysis, use the sport reference and the fuller shape in `references/runtime.md`.
+If no candidate clears the gate:
+
+```text
+Card
+- No official candidates right now.
+```
+
+For each candidate:
+
+```text
+<Away> at <Home> — <Team ML> <price>
+Classification: Proposed candidate
+- Starter/form read: <1-2 concise evidence points>
+- Bullpen/late-game read: <one concise evidence point>
+- Market/price read: <current price, fair/no-vig if available, threshold>
+- Injuries/weather: <only material verified notes, or say not fully verified>
+- What can kill it: <specific failure modes>
+```
+
+Then always include:
+
+```text
+Passes / close calls
+- <Game> — <short reason>. PASS.
+
+Price/watch notes
+- <team>: <threshold or discipline note>
+
+Reflection handoff
+- game_id: <MLB Stats id / ESPN id if available>
+- matchup: <Away at Home>
+- proposed_side: <side or PASS>
+- confidence: <High/Medium/PASS>
+- key_thesis: <one line>
+- bettable_price: <threshold or issue>
+- failure_modes: <comma-separated list>
+```
+
+Do not use the older `Official card right now / Why it sticks out` shape for MLB slate scans. That is for one-off quick pick answers, not the daily slate card.
