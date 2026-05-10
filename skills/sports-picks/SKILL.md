@@ -24,19 +24,26 @@ Hermes compatibility note:
 
 Sports analysis may produce an official pick. It does not automatically produce a bet.
 
+Command semantics for Jerry:
+- `deep analysis` / `deeper pass`: produce the full deep-analysis writeup only. No lock, no bet.
+- `lock official picks only`: save verified official picks to the canonical ledger/Console. No Polymarket proposals or live orders.
+- `lock and propose bets`: save verified official picks, then create dry-run Polymarket proposals with approval tokens. No live orders.
+- `lock and place authorized MLB bets`: save verified official MLB picks, then place capped Polymarket US limit orders only if every standing-authorization gate passes.
+
 For Polymarket execution:
 - load `references/polymarket-trading.md` first
 - for MLB official locks, also load `references/mlb-polymarket-auto-bets.md`
 - exact game/outcome mapping is mandatory
 - create a dry-run proposal before any live order
 - show market slug, side, action, price, quantity, max exposure, BBO, and approval token
-- MLB official locks have standing authorization within the caps in `references/mlb-polymarket-auto-bets.md`
+- live MLB betting requires the explicit phrase `lock and place authorized MLB bets`; vague `lock picks` does **not** authorize live orders
+- MLB official locks have standing authorization within the caps in `references/mlb-polymarket-auto-bets.md` only after that explicit phrase
 - non-MLB bets, exits, cancels, modifications, market orders, props, parlays, and anything outside caps still require explicit Jerry approval in the current chat/session
 - save a receipt under `.picks/receipts/polymarket/`
 - placed-bet watchers and passed-price watchlists must check live MLB game state before suggesting entries/exits; price movement alone is not enough
-- daily season automation should be staged: proposed card first, then standing-authorized entries, then watch/exit proposals, then auto-exits only after separate approval
+- daily season automation should be staged: proposed card first, then lock-only, then dry-run proposals, then explicit standing-authorized entries, then watch/exit proposals, then auto-exits only after separate approval
 
-No authorization, no bet. No receipt, no success claim.
+No explicit authorization phrase, no bet. No receipt, no success claim.
 
 ---
 

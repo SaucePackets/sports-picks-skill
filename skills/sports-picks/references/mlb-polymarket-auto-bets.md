@@ -2,7 +2,15 @@
 
 This is Jerry's standing authorization for MLB official picks only.
 
-When the MLB slate workflow produces a locked official pick, place a capped Polymarket US limit order if and only if every execution gate below passes.
+Standing authorization is **not** triggered by vague phrasing like `lock picks`.
+
+Command meanings:
+- `deep analysis` / `deeper pass`: analysis only, no lock, no bet.
+- `lock official picks only`: ledger/Console lock only, no Polymarket proposal or live order.
+- `lock and propose bets`: ledger/Console lock plus dry-run Polymarket proposals; no live order.
+- `lock and place authorized MLB bets`: ledger/Console lock plus capped Polymarket US limit orders if every execution gate below passes.
+
+When Jerry says exactly `lock and place authorized MLB bets`, the MLB slate workflow may place a capped Polymarket US limit order if and only if every execution gate below passes.
 
 ---
 
