@@ -33,6 +33,8 @@ For Polymarket execution:
 - MLB official locks have standing authorization within the caps in `references/mlb-polymarket-auto-bets.md`
 - non-MLB bets, exits, cancels, modifications, market orders, props, parlays, and anything outside caps still require explicit Jerry approval in the current chat/session
 - save a receipt under `.picks/receipts/polymarket/`
+- placed-bet watchers and passed-price watchlists must check live MLB game state before suggesting entries/exits; price movement alone is not enough
+- daily season automation should be staged: proposed card first, then standing-authorized entries, then watch/exit proposals, then auto-exits only after separate approval
 
 No authorization, no bet. No receipt, no success claim.
 

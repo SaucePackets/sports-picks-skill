@@ -21,6 +21,8 @@ This file is the clipboard. `SKILL.md` is the front door.
 12. Run the final pass/fail gate.
 13. Output official picks only.
 14. For MLB official locks, place capped Polymarket limit bets only when the auto-bet execution gate passes; otherwise output `Pick locked, bet skipped — [reason]`.
+15. Add placed bets and passed-price confidence plays to watch if there is a documented thesis, target price, and exact market mapping.
+16. Watch suggestions must check current score/game state before proposing live entries or profit exits.
 
 ---
 
