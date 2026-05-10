@@ -211,6 +211,34 @@ def exposure_estimate(body: dict[str, Any]) -> Decimal | None:
     return None
 
 
+def amount_value(obj: Any) -> Decimal | None:
+    if isinstance(obj, dict) and "value" in obj:
+        return dec(obj.get("value"), "amount")
+    if obj is None:
+        return None
+    return dec(obj, "amount")
+
+
+def market_prices_for_side(bbo: dict[str, Any], outcome_side: str) -> dict[str, str | None]:
+    md = bbo.get("marketData", bbo)
+    bid = amount_value(md.get("bestBid"))
+    ask = amount_value(md.get("bestAsk"))
+    current = amount_value(md.get("currentPx"))
+    one = Decimal("1")
+    if outcome_side == "OUTCOME_SIDE_NO":
+        # Polymarket US BBO is quoted for the long/YES side. NO is approximated
+        # as the complement: sell NO ~= 1 - YES ask, buy NO ~= 1 - YES bid.
+        yes_bid, yes_ask = bid, ask
+        bid = (one - yes_ask) if yes_ask is not None else None
+        ask = (one - yes_bid) if yes_bid is not None else None
+        current = (one - current) if current is not None else None
+    return {
+        "exit_bid": str(bid) if bid is not None else None,
+        "entry_ask": str(ask) if ask is not None else None,
+        "current": str(current) if current is not None else None,
+    }
+
+
 def make_proposal(args: argparse.Namespace) -> dict[str, Any]:
     market, bbo = market_snapshots(args.market_slug)
     ok, state_reason = market_is_open(market, bbo)
@@ -290,6 +318,54 @@ def cmd_preview(args: argparse.Namespace) -> dict[str, Any]:
     return receipt
 
 
+def cmd_watch_once(args: argparse.Namespace) -> dict[str, Any]:
+    market, bbo = market_snapshots(args.market_slug)
+    prices = market_prices_for_side(bbo, args.outcome_side)
+    entry = dec(args.entry_price, "entry_price")
+    quantity = dec(args.quantity, "quantity")
+    profit_cents = dec(args.profit_cents, "profit_cents")
+    loss_cents = dec(args.loss_cents, "loss_cents")
+    if entry is None or quantity is None or profit_cents is None or loss_cents is None:
+        die("entry, quantity, profit-cents, and loss-cents are required")
+    exit_bid = dec(prices.get("exit_bid"), "exit_bid")
+    if exit_bid is None:
+        status = "no_bid"
+        unrealized = None
+        move = None
+        alert = "No usable exit bid. Keep watching."
+    else:
+        move = exit_bid - entry
+        unrealized = move * quantity
+        if move >= profit_cents:
+            status = "profit_exit_candidate"
+            alert = "Profit threshold reached; propose a sell/exit, do not auto-sell."
+        elif move <= -loss_cents:
+            status = "adverse_move"
+            alert = "Loss threshold reached; review the position and game context."
+        else:
+            status = "hold"
+            alert = "No action threshold hit."
+    result = {
+        "ok": True,
+        "mode": "watch_once",
+        "checked_at": utc_now(),
+        "market_slug": args.market_slug,
+        "outcome_side": args.outcome_side,
+        "entry_price": str(entry),
+        "quantity": str(quantity),
+        "prices": prices,
+        "move_per_share": str(move) if move is not None else None,
+        "unrealized_before_fees": str(unrealized) if unrealized is not None else None,
+        "status": status,
+        "alert": alert,
+        "market_snapshot": market,
+        "bbo_snapshot": bbo,
+    }
+    if args.write_receipt:
+        result["receipt_path"] = save_receipt("watch", args.market_slug, result)
+    return result
+
+
 def cmd_propose(args: argparse.Namespace) -> dict[str, Any]:
     return make_proposal(args)
 
@@ -345,6 +421,17 @@ def add_order_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--no-write-receipt", dest="write_receipt", action="store_false")
 
 
+def add_watch_args(p: argparse.ArgumentParser) -> None:
+    p.add_argument("--market-slug", required=True)
+    p.add_argument("--outcome-side", required=True, choices=sorted(OUTCOME_SIDES))
+    p.add_argument("--entry-price", required=True)
+    p.add_argument("--quantity", required=True)
+    p.add_argument("--profit-cents", default="0.08")
+    p.add_argument("--loss-cents", default="0.10")
+    p.add_argument("--write-receipt", dest="write_receipt", action="store_true", default=True)
+    p.add_argument("--no-write-receipt", dest="write_receipt", action="store_false")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Guarded Polymarket US helper")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -368,6 +455,10 @@ def main() -> None:
     preview = sub.add_parser("preview")
     add_order_args(preview)
     preview.set_defaults(func=cmd_preview)
+
+    watch_once = sub.add_parser("watch-once")
+    add_watch_args(watch_once)
+    watch_once.set_defaults(func=cmd_watch_once)
 
     propose = sub.add_parser("propose")
     add_order_args(propose)

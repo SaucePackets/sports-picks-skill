@@ -8,6 +8,7 @@ Source docs:
 - Auth: https://docs.polymarket.us/api-reference/authentication
 - Orders: https://docs.polymarket.us/api-reference/orders/create-order
 - Balances: https://docs.polymarket.us/api-reference/account/get-account-balances
+- MLB auto-bet policy: `references/mlb-polymarket-auto-bets.md`
 
 ---
 
@@ -29,6 +30,11 @@ Requires explicit Jerry approval in the current chat/session:
 - any action that spends, reserves, sells, or changes exposure
 
 Do not use cron jobs for live order placement. Cron may monitor and propose only.
+
+MLB exception:
+- Jerry has granted standing authorization for MLB official locks within `references/mlb-polymarket-auto-bets.md` caps.
+- That standing authorization covers entry orders only.
+- Profit-taking exits still require Jerry approval unless he later grants an explicit exit rule.
 
 ---
 
@@ -168,9 +174,10 @@ python skills/sports-picks/scripts/polymarket_us_guard.py market --market-slug <
 python skills/sports-picks/scripts/polymarket_us_guard.py balances
 python skills/sports-picks/scripts/polymarket_us_guard.py positions
 python skills/sports-picks/scripts/polymarket_us_guard.py open-orders
+python skills/sports-picks/scripts/polymarket_us_guard.py watch-once --market-slug <slug> --outcome-side OUTCOME_SIDE_YES --entry-price <price> --quantity <shares>
 ```
 
-`balances`, `positions`, `open-orders`, and `preview` need credentials. `market` does not.
+`balances`, `positions`, `open-orders`, and `preview` need credentials. `market` and `watch-once` use public market data.
 
 ---
 

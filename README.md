@@ -87,9 +87,10 @@ Polymarket live trading is guarded, not autonomous chaos.
 
 The repo includes:
 - `skills/sports-picks/references/polymarket-trading.md`
+- `skills/sports-picks/references/mlb-polymarket-auto-bets.md`
 - `skills/sports-picks/scripts/polymarket_us_guard.py`
 
-Default behavior is dry-run proposal only. Live orders require Polymarket US API credentials in the runtime environment, explicit Jerry approval, a matching proposal token, and a saved receipt. Credentials never belong in this repo.
+Default behavior is dry-run proposal only. For MLB official locks, Jerry has granted standing authorization within the documented caps: High $25, Medium $15, daily cap $75, limit orders only, DAY TIF, exact-game moneyline markets only. Anything outside those rails requires explicit approval. Credentials never belong in this repo.
 
 ## Repo layout
 
@@ -114,6 +115,7 @@ sports-picks-skill/
     │       ├── runtime.md
     │       ├── process.md
     │       ├── polymarket-trading.md
+    │       ├── mlb-polymarket-auto-bets.md
     │       ├── mlb.md
     │       ├── nfl.md
     │       ├── nba.md

@@ -16,11 +16,11 @@ This file is the clipboard. `SKILL.md` is the front door.
 7. Pull injuries and flag noisy/unclear feeds.
 8. Pull primary sportsbook/game line first.
 9. Use Kalshi/Polymarket/markets only as supplementary context when it cleanly maps to the exact game.
-10. If Jerry asks to bet on Polymarket, load `references/polymarket-trading.md` and create a dry-run proposal only.
+10. If Jerry asks to bet on Polymarket, load `references/polymarket-trading.md`; for MLB official locks also load `references/mlb-polymarket-auto-bets.md`.
 11. Build full win paths for both teams.
 12. Run the final pass/fail gate.
 13. Output official picks only.
-14. Execute a live Polymarket order only after explicit approval with the matching proposal token.
+14. For MLB official locks, place capped Polymarket limit bets only when the auto-bet execution gate passes; otherwise output `Pick locked, bet skipped — [reason]`.
 
 ---
 

@@ -26,13 +26,15 @@ Sports analysis may produce an official pick. It does not automatically produce 
 
 For Polymarket execution:
 - load `references/polymarket-trading.md` first
+- for MLB official locks, also load `references/mlb-polymarket-auto-bets.md`
 - exact game/outcome mapping is mandatory
 - create a dry-run proposal before any live order
 - show market slug, side, action, price, quantity, max exposure, BBO, and approval token
-- place/cancel/modify only after explicit approval in the current chat/session
+- MLB official locks have standing authorization within the caps in `references/mlb-polymarket-auto-bets.md`
+- non-MLB bets, exits, cancels, modifications, market orders, props, parlays, and anything outside caps still require explicit Jerry approval in the current chat/session
 - save a receipt under `.picks/receipts/polymarket/`
 
-No approval token, no bet. No receipt, no success claim.
+No authorization, no bet. No receipt, no success claim.
 
 ---
 
