@@ -7,8 +7,10 @@ Source docs:
 - Quickstart: https://docs.polymarket.us/getting-started/quickstart
 - Auth: https://docs.polymarket.us/api-reference/authentication
 - Orders: https://docs.polymarket.us/api-reference/orders/create-order
+- SDK markets: https://docs.polymarket.us/api-reference/sdks/python/markets
 - Balances: https://docs.polymarket.us/api-reference/account/get-account-balances
 - MLB auto-bet policy: `references/mlb-polymarket-auto-bets.md`
+- Sports moneyline SDK/session notes: `references/polymarket-us-sports-moneyline.md`
 
 ---
 
@@ -69,23 +71,26 @@ Public API:
 
 1. Run the normal sports-picks workflow.
 2. Confirm the Polymarket market maps exactly to the game/outcome.
-3. Fetch market details and BBO from `gateway.polymarket.us`.
-4. Create a dry-run proposal with `scripts/polymarket_us_guard.py propose`.
-5. Show Jerry the proposal:
+   - For sports moneylines, prefer the Python SDK discovery path in `references/polymarket-us-sports-moneyline.md`.
+   - Use `client.search.query()` or `client.markets.list({"sportsMarketTypes": ["MONEYLINE"]})` to find the US tradable moneyline slug; `.com` event slugs can be non-tradable through the US API.
+3. Fetch market details and BBO from `gateway.polymarket.us` or the SDK.
+4. Create a dry-run proposal with `scripts/polymarket_us_guard.py propose` when the slug is gateway-compatible, or an SDK-backed receipt when the SDK is required for sports markets.
+5. Authenticated-preview the exact order and verify `preview.order.marketMetadata.outcome` equals the intended team before showing the proposal.
+6. Show Jerry the proposal:
    - market slug
-   - outcome side
-   - action
+   - verified outcome/team
+   - intent/outcome side/action
    - type
    - limit price or market-order slippage
    - quantity/cash amount
    - max notional/exposure
    - current best bid/ask
    - approval token
-6. Wait for explicit approval containing the token or exact order terms.
-7. Re-run the same command with `order --execute --approval-token <token> --i-accept-live-trading`.
-8. Save and show the receipt path plus exchange order id.
+7. Wait for explicit approval containing the token or exact order terms.
+8. Re-preview the exact order immediately before execution; stop and re-propose if the previewed outcome, price, quantity, side, market, or token changes.
+9. Place the live order only after preview passes, then save and show the receipt path plus exchange order id.
 
-If anything changes before execution — price, quantity, side, market, token, BBO, or user approval scope — stop and re-propose.
+If anything changes before execution — price, quantity, side, market, token, BBO, previewed outcome, or user approval scope — stop and re-propose.
 
 ---
 
@@ -121,19 +126,21 @@ Prefer `outcomeSide` + `action` for clarity.
 ## Safety Defaults
 
 Default order type:
-- `ORDER_TYPE_LIMIT`
+- Use capped market/cash buy when the current executable odds are inside the approved range and the goal is immediate entry.
+- Use `ORDER_TYPE_LIMIT` when enforcing a target price, a hard max price, or maker-only/resting behavior.
 
 Default TIF:
-- `TIME_IN_FORCE_DAY` for same-day sports
+- `TIME_IN_FORCE_DAY` for same-day limit orders
+- market/cash buys should use slippage protection and current-price preview rather than resting TIF
 - `TIME_IN_FORCE_GOOD_TILL_CANCEL` only if Jerry explicitly asks
 
 Default market orders:
-- avoid them
-- if unavoidable, require `cashOrderQty` and slippage tolerance
+- allowed for approved small sports entries when current odds are already acceptable
+- require `cashOrderQty` / notional cap and slippage tolerance
 - do not use market orders from cron or unattended sessions
 
 Exposure caps:
-- require `--max-notional`
+- require `--max-notional` or `cashOrderQty`
 - reject proposals above cap
 - reject missing cap for buys
 
@@ -186,6 +193,10 @@ python skills/sports-picks/scripts/polymarket_us_guard.py watch-once --market-sl
 - 401: credentials missing/invalid; do not retry repeatedly.
 - timestamp/auth error: check system clock, then retry once.
 - market not found: stop; do not guess a slug.
+- For Polymarket sports pages like `/sports/mlb/mlb-atl-lad-YYYY-MM-DD`, the public `gateway.polymarket.us/v1/market/slug/{slug}` endpoint may return 404 even when the Polymarket page exists. In that case, verify exact mapping from the page data, extract the moneyline outcome/token IDs, and fetch the CLOB book with `https://clob.polymarket.com/book?token_id=<outcome_token_id>` before proposing. Do not use spread/total/NRFI tokens by accident.
+- Before live execution, run authenticated preview (`POST https://api.polymarket.us/v1/order/preview` with `{ "request": <order> }`, or SDK `client.orders.preview({"request": order})`). The preview's `order.marketMetadata.outcome` must exactly match the intended team. If preview says `market not found`, try SDK `client.search.query()` for the US event slug; sports markets may use a prefixed slug such as `aec-mlb-atl-lad-YYYY-MM-DD`.
+- Polymarket US sports moneyline markets can be framed around one team: `ORDER_INTENT_BUY_LONG` may buy the first/listed team, while `ORDER_INTENT_BUY_SHORT` buys the opponent. Do not infer this from slug or price. Trust only authenticated preview metadata. Example: `aec-mlb-atl-lad-2026-05-10` preview mapped `BUY_LONG` to Atlanta and `BUY_SHORT` to Los Angeles Dodgers.
+- If a corrected SDK-discovered slug/intent differs from the already-approved proposal, create a fresh proposal token and wait for Jerry's new approval before live order.
 - order rejected: show rejection receipt; do not resubmit with changed terms unless Jerry approves again.
 - partial fill / synchronous execution response: show executions exactly; do not summarize away risk.
 

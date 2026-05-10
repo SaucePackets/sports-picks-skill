@@ -8,9 +8,9 @@ Command meanings:
 - `deep analysis` / `deeper pass`: analysis only, no lock, no bet.
 - `lock official picks only`: ledger/Console lock only, no Polymarket proposal or live order.
 - `lock and propose bets`: ledger/Console lock plus dry-run Polymarket proposals; no live order.
-- `lock and place authorized MLB bets`: ledger/Console lock plus capped Polymarket US limit orders if every execution gate below passes.
+- `lock and place authorized MLB bets`: ledger/Console lock plus capped Polymarket US orders if every execution gate below passes.
 
-When Jerry says exactly `lock and place authorized MLB bets`, the MLB slate workflow may place a capped Polymarket US limit order if and only if every execution gate below passes.
+When Jerry says exactly `lock and place authorized MLB bets`, the MLB slate workflow may place a capped Polymarket US order if and only if every execution gate below passes.
 
 ---
 
@@ -20,15 +20,15 @@ Scope:
 - sport: MLB only
 - bet type: moneyline / exact winner market only
 - exchange: Polymarket US only
-- order type: limit only
-- time-in-force: `TIME_IN_FORCE_DAY`
+- default order type: market buy when the current executable odds are inside the approved/bettable range and Jerry's goal is entry now; limit order when targeting a specific better/max price or enforcing a hard cap
+- time-in-force: `TIME_IN_FORCE_DAY` for limits; market orders must use cash/notional caps and slippage protection
 - session context: only when Jerry asks for the MLB slate / official card / locks
 
 Not authorized:
 - props
 - parlays
 - live in-game bets unless Jerry explicitly asks in that session
-- market orders
+- uncapped market orders or market orders when current price is outside the approved/bettable range
 - GTC orders unless Jerry explicitly asks
 - any loose sentiment/futures/series market that does not map exactly to today's game winner
 - any bet after the game starts unless Jerry explicitly asks for live betting
@@ -84,10 +84,16 @@ Do not chase price. Do not convert a skipped bet into a worse bet.
 
 Polymarket prices are probabilities.
 
-Bet only when market price is equal to or better than the fair/bettable price from the analysis.
+Bet only when the executable market price is equal to or better than the approved/bettable price from the analysis.
+
+Execution rule:
+- If the current executable price is already acceptable and Jerry wants the bet entered now, use a capped market buy / cash-notional order with slippage protection.
+- If the current price is worse than approved, or Jerry explicitly wants a target entry, use a limit order and accept that it may not fill.
+- Do not use a resting limit merely out of habit when the current odds already satisfy the thesis; that can miss a valid edge.
 
 Default slippage tolerance:
-- limit buys: max 1 cent worse than the checked ask **only if still under bettable price**
+- market/cash buys: cap notional at the approved unit and cap slippage at 1 cent worse than the checked executable price, only if still inside the bettable threshold
+- limit buys: max 1 cent worse than the checked ask only if still under bettable price
 - limit sells/profit exits: max 1 cent worse than checked bid
 
 If price moved beyond the bettable threshold after the pick was locked, skip the bet.
@@ -132,17 +138,36 @@ Current heartbeat implementation:
 - Judgement/postgame script: `/home/clawdbot/.hermes/scripts/mlb_polymarket_alert_review.py`
 - Judgement/postgame schedule: every 5 minutes, one minute after the watch script
 - Judgement/postgame model: spawned `hermes chat` pinned to `openai-codex / gpt-5.5`
+- Judgement output: reply exactly `NO_OPPORTUNITY` to stay silent; only message Jerry for real opportunities worth considering
 - User-facing delivery: Rebecca's Picks topic `telegram:-1003740149270:4`
 - Watch files: `.picks/watchlist/polymarket/*.json`
 - Alert receipts: `.picks/heartbeat/*.json`
 - Reviewed markers: `.picks/heartbeat-reviewed/*.done`
 - Postgame settlement markers: `.picks/postgame-reviewed/*.done`
 
-Default cadence:
+Watch file schema:
+
+```json
+{
+  "active": true,
+  "market_slug": "<polymarket-game-slug>",
+  "outcome_side": "OUTCOME_SIDE_YES",
+  "entry_price": "0.52",
+  "quantity": "25",
+  "profit_cents": "0.08",
+  "loss_cents": "0.10",
+  "espn_event_id": "<optional ESPN event id>",
+  "label": "<optional human label>"
+}
+```
+
+Default cadence policy:
 - pregame after order: every 15 minutes until first pitch
 - innings 1-6: every 10 minutes
 - innings 7-9/extras: every 5 minutes
 - stop when market closes, game ends, position exits, or no actionable bid remains
+
+The current script checks every 5 minutes and stays silent unless a threshold fires. This is intentionally conservative: no auto-sell, no auto-live-entry, no order modification.
 
 Default profit alert threshold:
 - alert if exit bid is at least **8 cents above entry price**, or
@@ -249,6 +274,8 @@ Autonomy increases only with receipts, caps, and review logs. No mystery gamblin
 ---
 
 ## Preferred Command Shape
+
+These CLI shapes are for legacy/gateway-compatible markets. For Polymarket US sports moneylines, prefer the SDK workflow in `references/polymarket-us-sports-moneyline.md` so preview metadata verifies the team and cash market buys can be capped correctly.
 
 Proposal:
 

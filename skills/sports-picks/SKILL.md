@@ -28,11 +28,12 @@ Command semantics for Jerry:
 - `deep analysis` / `deeper pass`: produce the full deep-analysis writeup only. No lock, no bet.
 - `lock official picks only`: save verified official picks to the canonical ledger/Console. No Polymarket proposals or live orders.
 - `lock and propose bets`: save verified official picks, then create dry-run Polymarket proposals with approval tokens. No live orders.
-- `lock and place authorized MLB bets`: save verified official MLB picks, then place capped Polymarket US limit orders only if every standing-authorization gate passes.
+- `lock and place authorized MLB bets`: save verified official MLB picks, then place capped Polymarket US orders only if every standing-authorization gate passes.
 
 For Polymarket execution:
 - load `references/polymarket-trading.md` first
 - for MLB official locks, also load `references/mlb-polymarket-auto-bets.md`
+- for Polymarket US sports moneylines, load `references/polymarket-us-sports-moneyline.md` and trust authenticated preview metadata, not slug/YES-NO guesses
 - exact game/outcome mapping is mandatory
 - create a dry-run proposal before any live order
 - show market slug, side, action, price, quantity, max exposure, BBO, and approval token
