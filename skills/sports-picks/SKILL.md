@@ -177,52 +177,66 @@ If context is tight, keep this `SKILL.md` and `references/runtime.md` visible fi
 
 Manual MLB slate requests and cron MLB slate output must use the same display shape. The canonical card text written to `.picks/slate/YYYY-MM-DD.md` must exactly match the final response body.
 
+Use the concise human card shape, not machine labels:
+
 ```text
-MLB proposed card — <date>
-No locked picks yet. Commands: deep analysis / lock official picks only / lock and propose bets / lock and place authorized MLB bets.
+Yeah. <one short verdict sentence.>
 
-Scanned <N> MLB games. <one-line judgment>
-
-Card
-- <Team ML> <price> — <High/Medium>
+Official card right now
+- <Team ML price> — <short reason>.
 ```
 
 If no candidate clears the gate:
 
 ```text
-Card
-- No official candidates right now.
+Yeah. Nothing clean enough.
+
+Official card right now
+- Nothing clean enough. PASS.
 ```
 
-For each candidate:
+For each card candidate:
 
 ```text
-<Away> at <Home> — <Team ML> <price>
-Classification: Proposed candidate
-- Starter/form read: <1-2 concise evidence points>
-- Bullpen/late-game read: <one concise evidence point>
-- Market/price read: <current price, fair/no-vig if available, threshold>
-- Injuries/weather: <only material verified notes, or say not fully verified>
-- What can kill it: <specific failure modes>
+<Team> over <Opponent>
+- Form: <last-7 record/run diff or clear current-form edge>.
+- Starter: <starter edge with concise stats>.
+- Bullpen: <late-game survival note>.
+- Price: <moneyline and implied probability; say playable/fine/rich/passable>.
+- Hold-up: <main concern that did not kill it, or "Nothing fatal.">
 ```
 
-Then always include:
+Optional close calls:
 
 ```text
-Passes / close calls
-- <Game> — <short reason>. PASS.
-
-Price/watch notes
-- <team>: <threshold or discipline note>
-
-Reflection handoff
-- game_id: <MLB Stats id / ESPN id if available>
-- matchup: <Away at Home>
-- proposed_side: <side or PASS>
-- confidence: <High/Medium/PASS>
-- key_thesis: <one line>
-- bettable_price: <threshold or issue>
-- failure_modes: <comma-separated list>
+Sticks out, but pass
+- <Team price>: <short reason>.
 ```
 
-Do not use the older `Official card right now / Why it sticks out` shape for MLB slate scans. That is for one-off quick pick answers, not the daily slate card.
+End with:
+
+```text
+Clean read: <top side first, second side second, or no clean side>. <one sharp discipline sentence.>
+```
+
+Do not include `Classification`, `Reflection handoff`, `game_id`, `proposed_side`, command menus, or other machine-facing labels in the user-facing card unless Jerry explicitly asks.
+
+## MLB Confidence Calibration
+
+Cold-start cron jobs must apply the same skepticism as a live Rebecca session.
+
+Before putting any side under `Official card right now`, ask:
+
+```text
+Would I tell Jerry I feel confident with this pick if he challenged me?
+```
+
+If the honest answer is no, output PASS.
+
+Hard calibrators:
+- "Best side on a bad slate" is PASS, not a card pick.
+- "Lean," "watchlist," "playable argument," or "plus-money case" is PASS, not Medium.
+- Medium still requires real winner conviction and every hard gate passing.
+- A pick built mostly from bullpen/form/price while the opposing starter can erase the edge is PASS.
+- A dog only belongs on the card if I think it wins outright often enough, not merely because the number is cute.
+- If Jerry later asks "Do you feel confident?" and the answer would be hedged, the cron should not have listed it.
