@@ -240,3 +240,9 @@ Hard calibrators:
 - A pick built mostly from bullpen/form/price while the opposing starter can erase the edge is PASS.
 - A dog only belongs on the card if I think it wins outright often enough, not merely because the number is cute.
 - If Jerry later asks "Do you feel confident?" and the answer would be hedged, the cron should not have listed it.
+- Any candidate described as "rich," "passable," "annoying road chalk," or "not fatal" is not clean enough unless the rest of the case is overwhelming.
+- Road favorites around -150 or worse need dominant current form plus clear starter and bullpen separation; a 3-4 recent record with positive run diff is not enough.
+- If the price paragraph sounds defensive, PASS.
+- The following phrases are disqualifiers inside a card candidate: "playable," "passable," "annoying," "not fatal," "can absolutely," "is real," or "can erase the edge." If those words describe the hold-up/opposing starter/price, the candidate belongs under `Sticks out, but pass`, not `Official card right now`.
+- If the opposing starter is described as real, comparable, or capable of matching/erasing the edge, PASS unless the selected side has overwhelming separation in at least three other areas.
+- A plus-money dog with mostly bullpen/form edge against a real opposing starter is a watchlist, not a pick.
