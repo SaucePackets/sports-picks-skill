@@ -23,12 +23,13 @@ Each pick tracks:
 ## Record
 | Date | Pick Type | Sport | Matchup | Pick | Conf | Pick Line | Bettable To | Result | Close Line | Beat Close | Notes |
 |------|-----------|-------|---------|------|------|-----------|-------------|--------|------------|------------|-------|
+| 2026-05-12 | Official | MLB | Tampa Bay Rays at Toronto Blue Jays | Tampa Bay Rays ML | Medium | -115 | -130 / 0.56 PM | Pending | — | — | Console pick `3790fcfb-f4df-4c8c-ab36-6db46068ce36`; Polymarket proposal `ae648b4162d43135`, no live order. |
 | 2026-05-10 | Official | MLB | Atlanta Braves at Los Angeles Dodgers | Los Angeles Dodgers ML | Medium | -136 | -145 | L | — | — | Braves won 7-2. Elder delivered the shutdown path; Dodgers offense stalled. Console pick `bfd43fc9-b50f-4641-bf1c-7a4a3236da31` settled 2026-05-12. |
 
 ## Running Tally
 - W: 0
 - L: 1
-- Pending: 0
+- Pending: 1
 
 ## Current Streaks
 - Official streak: L1
