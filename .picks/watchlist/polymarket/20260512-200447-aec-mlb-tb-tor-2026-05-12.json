@@ -1,0 +1,14 @@
+{
+  "active": true,
+  "created_at": "2026-05-12T20:04:47Z",
+  "entry_price": "0.520",
+  "espn_event_id": "401815310",
+  "intent": "ORDER_INTENT_BUY_LONG",
+  "label": "MLB official lock: Tampa Bay Rays ML vs Toronto Blue Jays",
+  "loss_cents": "0.10",
+  "market_slug": "aec-mlb-tb-tor-2026-05-12",
+  "outcome": "Tampa Bay Rays",
+  "profit_cents": "0.08",
+  "quantity": "28",
+  "source_receipt": ".picks/receipts/polymarket/20260512-200447-sdk-order-aec-mlb-tb-tor-2026-05-12.json"
+}

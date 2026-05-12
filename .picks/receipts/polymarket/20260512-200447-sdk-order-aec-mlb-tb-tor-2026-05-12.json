@@ -1,0 +1,490 @@
+{
+  "approval_token": "ae648b4162d43135",
+  "bbo_snapshot": {
+    "marketData": {
+      "askDepth": 10,
+      "bestAsk": {
+        "currency": "USD",
+        "value": "0.520"
+      },
+      "bestBid": {
+        "currency": "USD",
+        "value": "0.510"
+      },
+      "bidDepth": 10,
+      "currentPx": {
+        "currency": "USD",
+        "value": "0.510"
+      },
+      "lastPriceSample": {
+        "longPx": {
+          "currency": "USD",
+          "value": "0.520"
+        },
+        "shortPx": {
+          "currency": "USD",
+          "value": "0.490"
+        },
+        "ts": "2026-05-12T20:03:00Z"
+      },
+      "lastTradePx": {
+        "currency": "USD",
+        "value": "0.520"
+      },
+      "marketSlug": "aec-mlb-tb-tor-2026-05-12",
+      "openInterest": "98535.000",
+      "settlementPx": {
+        "currency": "USD",
+        "value": "0.510"
+      },
+      "sharesTraded": "173815.000"
+    }
+  },
+  "created_at": "2026-05-12T20:04:47Z",
+  "estimated_notional": "15",
+  "executed_at": "2026-05-12T20:04:47Z",
+  "expected_outcome": "Tampa Bay Rays",
+  "market_slug": "aec-mlb-tb-tor-2026-05-12",
+  "market_snapshot": {
+    "market": {
+      "active": true,
+      "archived": false,
+      "bestAskQuote": {
+        "currency": "USD",
+        "value": "0.520"
+      },
+      "bestBidQuote": {
+        "currency": "USD",
+        "value": "0.510"
+      },
+      "category": "sports",
+      "closed": false,
+      "createdAt": "2026-05-10T23:24:41Z",
+      "description": "Who will win the upcoming baseball event, scheduled for May 12 at 7:07PM ET, Tampa Bay Rays or Toronto Blue Jays?\nIn the case of a tie or draw, the instrument will settle at $0.50 per instrument. If the event is postponed, delayed, or rescheduled, the settlement date will be amended to the rescheduled date.\nIf the rescheduled date is not within two weeks of the originally scheduled date, the instrument will settle at last-traded prices.\nIf the event is rescheduled to an earlier date than originally scheduled, the settlement date will be the rescheduled date.\nIf the event is canceled, the instrument will settle at last-traded prices.\nIf the event concludes early, or is shortened or truncated, the outcome shall be the declared official result.\nIf a participant retires after the event has commenced, the outcome shall be the declared official result.\nIn the case of a withdrawal, walkover, forfeit, no-contest, or the removal of a participant before the event commences, the instrument will settle at last-traded prices.",
+      "endDate": "2026-05-26T23:07:00Z",
+      "ep3Status": "OPEN",
+      "feeCoefficient": 0.05,
+      "gameStartTime": "2026-05-12T23:07:00Z",
+      "hidden": false,
+      "id": "24244",
+      "manualActivation": false,
+      "marketSides": [
+        {
+          "createdAt": "2026-05-10T23:24:41Z",
+          "description": "Tampa Bay Rays",
+          "id": "48452",
+          "identifier": "aec-mlb-tb-tor-2026-05-12",
+          "long": true,
+          "marketId": 24244,
+          "marketSideType": "MARKET_SIDE_TYPE_INSTRUMENT",
+          "participantId": "event_11652_team_3026",
+          "price": "0.520",
+          "quote": {
+            "currency": "USD",
+            "value": "0.520"
+          },
+          "team": {
+            "abbreviation": "tb",
+            "alias": "Tampa Bay Rays",
+            "color": {
+              "dark": "#8FBCE6",
+              "light": "#8FBCE6"
+            },
+            "colorPrimary": "#8FBCE6",
+            "displayAbbreviation": "TB",
+            "id": 3026,
+            "league": "mlb",
+            "logo": "https://polymarket-upload.s3.us-east-2.amazonaws.com/random-team-images/MLB/TB.png",
+            "longIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/random-team-images/MLB/TB.png",
+            "name": "Tampa Bay Rays",
+            "ordering": "home",
+            "providerId": 11,
+            "providerIds": [
+              {
+                "provider": "PROVIDER_SPORTRADAR",
+                "providerId": "bdc11650-6f74-49c4-875e-778aeb7632d9"
+              },
+              {
+                "provider": "PROVIDER_SPORTSDATAIO",
+                "providerId": "11"
+              }
+            ],
+            "record": "",
+            "safeName": "Tampa Bay Rays",
+            "shortIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/random-team-images/MLB/TB.png"
+          },
+          "teamId": 3026,
+          "updatedAt": "2026-05-10T23:24:41Z"
+        },
+        {
+          "createdAt": "2026-05-10T23:24:41Z",
+          "description": "Toronto Blue Jays",
+          "id": "48453",
+          "identifier": "aec-mlb-tb-tor-2026-05-12",
+          "long": false,
+          "marketId": 24244,
+          "marketSideType": "MARKET_SIDE_TYPE_INSTRUMENT",
+          "participantId": "event_11652_team_3028",
+          "price": "0.49",
+          "quote": {
+            "currency": "USD",
+            "value": "0.49"
+          },
+          "team": {
+            "abbreviation": "tor",
+            "alias": "Toronto Blue Jays",
+            "color": {
+              "dark": "#134A8E",
+              "light": "#134A8E"
+            },
+            "colorPrimary": "#134A8E",
+            "displayAbbreviation": "TOR",
+            "id": 3028,
+            "league": "mlb",
+            "logo": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/mlb/Polymarket_TOR.png",
+            "longIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/mlb/Polymarket_TOR.png",
+            "name": "Toronto Blue Jays",
+            "ordering": "away",
+            "providerId": 3,
+            "providerIds": [
+              {
+                "provider": "PROVIDER_SPORTRADAR",
+                "providerId": "1d678440-b4b1-4954-9b39-70afb3ebbcfa"
+              },
+              {
+                "provider": "PROVIDER_SPORTSDATAIO",
+                "providerId": "3"
+              }
+            ],
+            "record": "",
+            "safeName": "Toronto Blue Jays",
+            "shortIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/mlb/Polymarket_TOR.png"
+          },
+          "teamId": 3028,
+          "updatedAt": "2026-05-10T23:24:41Z"
+        }
+      ],
+      "marketType": "moneyline",
+      "orderPriceMinTickSize": 0.01,
+      "outcomePrices": "[\"0.520\",\"0.49\"]",
+      "outcomes": "[\"Tampa Bay Rays\",\"Toronto Blue Jays\"]",
+      "question": "Tampa Bay Rays vs. Toronto Blue Jays",
+      "slug": "aec-mlb-tb-tor-2026-05-12",
+      "sportsMarketType": "moneyline",
+      "sportsMarketTypeV2": "SPORTS_MARKET_TYPE_MONEYLINE",
+      "startDate": "2026-05-10T23:15:02Z",
+      "tags": [],
+      "updatedAt": "2026-05-12T20:04:38Z"
+    }
+  },
+  "max_notional": "15",
+  "max_price": null,
+  "mode": "live_sdk",
+  "notes": "MLB official lock: Tampa Bay Rays ML vs Toronto Blue Jays; live order approved by Jerry in Telegram",
+  "ok": true,
+  "preview": {
+    "order": {
+      "action": "ORDER_ACTION_BUY",
+      "avgPx": {
+        "currency": "USD",
+        "value": "0.000"
+      },
+      "cashOrderQty": {
+        "currency": "USD",
+        "value": "0.000"
+      },
+      "commissionNotionalTotalCollected": {
+        "currency": "USD",
+        "value": "0.000"
+      },
+      "commissionsBasisPoints": "0",
+      "createTime": "2026-05-12T20:04:47.864523918Z",
+      "cumQuantity": 0,
+      "goodTillTime": null,
+      "id": "",
+      "insertTime": null,
+      "intent": "ORDER_INTENT_BUY_LONG",
+      "leavesQuantity": 28,
+      "makerCommissionsBasisPoints": "0",
+      "manualOrderIndicator": "MANUAL_ORDER_INDICATOR_AUTOMATIC",
+      "marketMetadata": {
+        "eventId": "11652",
+        "eventSlug": "mlb-tb-tor-2026-05-12",
+        "icon": "",
+        "outcome": "Tampa Bay Rays",
+        "slug": "aec-mlb-tb-tor-2026-05-12",
+        "team": {
+          "abbreviation": "tb",
+          "alias": "Tampa Bay Rays",
+          "color": {
+            "dark": "#8FBCE6",
+            "light": "#8FBCE6"
+          },
+          "colorPrimary": "#8FBCE6",
+          "displayAbbreviation": "TB",
+          "id": 3026,
+          "league": "mlb",
+          "logo": "https://polymarket-upload.s3.us-east-2.amazonaws.com/random-team-images/MLB/TB.png",
+          "longIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/random-team-images/MLB/TB.png",
+          "name": "Tampa Bay Rays",
+          "ordering": "home",
+          "providerId": 11,
+          "providerIds": [
+            {
+              "provider": "PROVIDER_SPORTRADAR",
+              "providerId": "bdc11650-6f74-49c4-875e-778aeb7632d9"
+            },
+            {
+              "provider": "PROVIDER_SPORTSDATAIO",
+              "providerId": "11"
+            }
+          ],
+          "record": "",
+          "safeName": "Tampa Bay Rays",
+          "shortIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/random-team-images/MLB/TB.png"
+        },
+        "teamId": 3026,
+        "title": "Tampa Bay Rays vs. Toronto Blue Jays"
+      },
+      "marketSlug": "aec-mlb-tb-tor-2026-05-12",
+      "outcomeSide": "OUTCOME_SIDE_YES",
+      "price": {
+        "currency": "USD",
+        "value": "0.52"
+      },
+      "quantity": 28,
+      "side": "ORDER_SIDE_BUY",
+      "state": "ORDER_STATE_PENDING_NEW",
+      "tif": "TIME_IN_FORCE_IMMEDIATE_OR_CANCEL",
+      "type": "ORDER_TYPE_LIMIT"
+    }
+  },
+  "preview_outcome": "Tampa Bay Rays",
+  "receipt_path": ".picks/receipts/polymarket/20260512-200447-sdk-proposal-aec-mlb-tb-tor-2026-05-12.json",
+  "request": {
+    "cashCap": {
+      "currency": "USD",
+      "value": "15"
+    },
+    "intent": "ORDER_INTENT_BUY_LONG",
+    "manualOrderIndicator": "MANUAL_ORDER_INDICATOR_AUTOMATIC",
+    "marketSlug": "aec-mlb-tb-tor-2026-05-12",
+    "price": {
+      "currency": "USD",
+      "value": "0.52"
+    },
+    "quantity": 28,
+    "requestedOrderType": "ORDER_TYPE_MARKET",
+    "synchronousExecution": true,
+    "tif": "TIME_IN_FORCE_IMMEDIATE_OR_CANCEL",
+    "type": "ORDER_TYPE_LIMIT"
+  },
+  "response": {
+    "executions": [
+      {
+        "aggressor": false,
+        "commissionNotionalCollected": {
+          "currency": "USD",
+          "value": "0.000"
+        },
+        "commissionSpreadPx": {
+          "currency": "USD",
+          "value": "0.000"
+        },
+        "id": "9ZTD5G6G00YA",
+        "lastPx": {
+          "currency": "USD",
+          "value": "0.000"
+        },
+        "lastShares": "0.000",
+        "legPrices": [],
+        "order": {
+          "action": "ORDER_ACTION_BUY",
+          "avgPx": {
+            "currency": "USD",
+            "value": "0.000"
+          },
+          "cashOrderQty": {
+            "currency": "USD",
+            "value": "0.000"
+          },
+          "commissionNotionalTotalCollected": {
+            "currency": "USD",
+            "value": "0.000"
+          },
+          "commissionsBasisPoints": "0",
+          "createTime": "2026-05-12T20:04:47.921263327Z",
+          "cumQuantity": 0,
+          "goodTillTime": null,
+          "id": "9ZHTBEX0014N",
+          "insertTime": "2026-05-12T20:04:47.922734315Z",
+          "intent": "ORDER_INTENT_BUY_LONG",
+          "leavesQuantity": 28,
+          "makerCommissionsBasisPoints": "0",
+          "manualOrderIndicator": "MANUAL_ORDER_INDICATOR_AUTOMATIC",
+          "marketMetadata": {
+            "eventId": "11652",
+            "eventSlug": "mlb-tb-tor-2026-05-12",
+            "icon": "",
+            "outcome": "Tampa Bay Rays",
+            "slug": "aec-mlb-tb-tor-2026-05-12",
+            "team": {
+              "abbreviation": "tb",
+              "alias": "Tampa Bay Rays",
+              "color": {
+                "dark": "#8FBCE6",
+                "light": "#8FBCE6"
+              },
+              "colorPrimary": "#8FBCE6",
+              "displayAbbreviation": "TB",
+              "id": 3026,
+              "league": "mlb",
+              "logo": "https://polymarket-upload.s3.us-east-2.amazonaws.com/random-team-images/MLB/TB.png",
+              "longIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/random-team-images/MLB/TB.png",
+              "name": "Tampa Bay Rays",
+              "ordering": "home",
+              "providerId": 11,
+              "providerIds": [
+                {
+                  "provider": "PROVIDER_SPORTRADAR",
+                  "providerId": "bdc11650-6f74-49c4-875e-778aeb7632d9"
+                },
+                {
+                  "provider": "PROVIDER_SPORTSDATAIO",
+                  "providerId": "11"
+                }
+              ],
+              "record": "",
+              "safeName": "Tampa Bay Rays",
+              "shortIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/random-team-images/MLB/TB.png"
+            },
+            "teamId": 3026,
+            "title": "Tampa Bay Rays vs. Toronto Blue Jays"
+          },
+          "marketSlug": "aec-mlb-tb-tor-2026-05-12",
+          "outcomeSide": "OUTCOME_SIDE_YES",
+          "price": {
+            "currency": "USD",
+            "value": "0.52"
+          },
+          "quantity": 28,
+          "side": "ORDER_SIDE_BUY",
+          "state": "ORDER_STATE_NEW",
+          "tif": "TIME_IN_FORCE_IMMEDIATE_OR_CANCEL",
+          "type": "ORDER_TYPE_LIMIT"
+        },
+        "orderRejectReason": "ORD_REJECT_REASON_EXCHANGE_OPTION",
+        "text": "",
+        "traceId": "",
+        "tradeId": "",
+        "transactTime": "2026-05-12T20:04:47.922734315Z",
+        "transactTradeDate": "2026-05-12T00:00:00Z",
+        "type": "EXECUTION_TYPE_NEW",
+        "unsolicitedCancelReason": "UNSOLICITED_CXL_REASON_UNDEFINED"
+      },
+      {
+        "aggressor": true,
+        "commissionNotionalCollected": {
+          "currency": "USD",
+          "value": "0.350"
+        },
+        "commissionSpreadPx": {
+          "currency": "USD",
+          "value": "0.520"
+        },
+        "id": "9ZTD5G7000YA",
+        "lastPx": {
+          "currency": "USD",
+          "value": "0.520"
+        },
+        "lastShares": "28.000",
+        "legPrices": [],
+        "order": {
+          "action": "ORDER_ACTION_BUY",
+          "avgPx": {
+            "currency": "USD",
+            "value": "0.520"
+          },
+          "cashOrderQty": {
+            "currency": "USD",
+            "value": "0.000"
+          },
+          "commissionNotionalTotalCollected": {
+            "currency": "USD",
+            "value": "0.350"
+          },
+          "commissionsBasisPoints": "0",
+          "createTime": "2026-05-12T20:04:47.921263327Z",
+          "cumQuantity": 28,
+          "goodTillTime": null,
+          "id": "9ZHTBEX0014N",
+          "insertTime": "2026-05-12T20:04:47.922734315Z",
+          "intent": "ORDER_INTENT_BUY_LONG",
+          "leavesQuantity": 0,
+          "makerCommissionsBasisPoints": "0",
+          "manualOrderIndicator": "MANUAL_ORDER_INDICATOR_AUTOMATIC",
+          "marketMetadata": {
+            "eventId": "11652",
+            "eventSlug": "mlb-tb-tor-2026-05-12",
+            "icon": "",
+            "outcome": "Tampa Bay Rays",
+            "slug": "aec-mlb-tb-tor-2026-05-12",
+            "team": {
+              "abbreviation": "tb",
+              "alias": "Tampa Bay Rays",
+              "color": {
+                "dark": "#8FBCE6",
+                "light": "#8FBCE6"
+              },
+              "colorPrimary": "#8FBCE6",
+              "displayAbbreviation": "TB",
+              "id": 3026,
+              "league": "mlb",
+              "logo": "https://polymarket-upload.s3.us-east-2.amazonaws.com/random-team-images/MLB/TB.png",
+              "longIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/random-team-images/MLB/TB.png",
+              "name": "Tampa Bay Rays",
+              "ordering": "home",
+              "providerId": 11,
+              "providerIds": [
+                {
+                  "provider": "PROVIDER_SPORTRADAR",
+                  "providerId": "bdc11650-6f74-49c4-875e-778aeb7632d9"
+                },
+                {
+                  "provider": "PROVIDER_SPORTSDATAIO",
+                  "providerId": "11"
+                }
+              ],
+              "record": "",
+              "safeName": "Tampa Bay Rays",
+              "shortIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/random-team-images/MLB/TB.png"
+            },
+            "teamId": 3026,
+            "title": "Tampa Bay Rays vs. Toronto Blue Jays"
+          },
+          "marketSlug": "aec-mlb-tb-tor-2026-05-12",
+          "outcomeSide": "OUTCOME_SIDE_YES",
+          "price": {
+            "currency": "USD",
+            "value": "0.52"
+          },
+          "quantity": 28,
+          "side": "ORDER_SIDE_BUY",
+          "state": "ORDER_STATE_FILLED",
+          "tif": "TIME_IN_FORCE_IMMEDIATE_OR_CANCEL",
+          "type": "ORDER_TYPE_LIMIT"
+        },
+        "orderRejectReason": "ORD_REJECT_REASON_EXCHANGE_OPTION",
+        "text": "",
+        "traceId": "",
+        "tradeId": "9ZTD5G6G40YA",
+        "transactTime": "2026-05-12T20:04:47.922734315Z",
+        "transactTradeDate": "2026-05-12T00:00:00Z",
+        "type": "EXECUTION_TYPE_FILL",
+        "unsolicitedCancelReason": "UNSOLICITED_CXL_REASON_UNDEFINED"
+      }
+    ],
+    "id": "9ZHTBEX0014N"
+  },
+  "watchlist_path": ".picks/watchlist/polymarket/20260512-200447-aec-mlb-tb-tor-2026-05-12.json"
+}

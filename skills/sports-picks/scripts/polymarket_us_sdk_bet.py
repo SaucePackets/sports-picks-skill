@@ -169,8 +169,21 @@ def extract_order_price(preview_or_order: dict[str, Any]) -> Decimal | None:
     order = preview_or_order.get("order", preview_or_order) if isinstance(preview_or_order, dict) else {}
     for key in ("avgPx", "price"):
         price = dec(order.get(key), key)
-        if price is not None:
+        if price is not None and price > 0:
             return price
+    return None
+
+
+def extract_fill_price(response: dict[str, Any]) -> Decimal | None:
+    """Find the actual non-zero fill price from an order response."""
+    for execution in response.get("executions", []) if isinstance(response, dict) else []:
+        fill_price = dec(execution.get("lastPx"), "lastPx")
+        fill_shares = dec(execution.get("lastShares"), "lastShares")
+        if fill_price is not None and fill_price > 0 and fill_shares is not None and fill_shares > 0:
+            return fill_price
+        order_price = extract_order_price(execution.get("order", {}))
+        if order_price is not None and fill_shares is not None and fill_shares > 0:
+            return order_price
     return None
 
 
@@ -386,7 +399,7 @@ def cmd_order(args: argparse.Namespace) -> dict[str, Any]:
     receipt = {**proposal, "mode": "live_sdk", "executed_at": utc_now(), "response": response, "ok": True}
     receipt["receipt_path"] = save_receipt("sdk-order", args.market_slug, receipt)
     if args.write_watchlist:
-        entry_price = extract_order_price(response) or extract_order_price(proposal.get("preview", {}))
+        entry_price = extract_fill_price(response) or extract_order_price(response) or extract_order_price(proposal.get("preview", {}))
         quantity = proposal["request"].get("quantity")
         receipt["watchlist_path"] = save_watchlist({
             "active": True,
@@ -401,6 +414,7 @@ def cmd_order(args: argparse.Namespace) -> dict[str, Any]:
             "label": args.notes or proposal.get("preview_outcome"),
             "source_receipt": receipt["receipt_path"],
         })
+        Path(receipt["receipt_path"]).write_text(json.dumps(as_jsonable(receipt), indent=2, sort_keys=True) + "\n")
     return receipt
 
 
