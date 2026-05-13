@@ -104,7 +104,7 @@ python skills/sports-picks/scripts/polymarket_us_sdk_bet.py propose-moneyline \
   --notes "MLB official lock: Los Angeles Dodgers"
 ```
 
-Live execution repeats the exact order, requires the proposal token, re-previews before placing, and can write the heartbeat watchlist only after order acceptance:
+Live execution repeats the exact order, requires the proposal token, re-previews before placing, and can write the heartbeat watchlist only after the order receives non-zero filled shares:
 
 ```bash
 python skills/sports-picks/scripts/polymarket_us_sdk_bet.py order-moneyline \
@@ -130,7 +130,7 @@ Guardrails in the helper:
 - re-previews immediately before live order
 - compiles `ORDER_TYPE_MARKET` sports entries into capped IOC limits because the SDK/API currently rejects true market bodies during preview
 - writes proposal/live/error receipts under `.picks/receipts/polymarket/`
-- writes `.picks/watchlist/polymarket/*.json` only after accepted live orders when `--write-watchlist` is passed
+- writes `.picks/watchlist/polymarket/*.json` only after a live order has non-zero filled shares when `--write-watchlist` is passed; accepted-but-unfilled or expired orders are not positions and must not create active watchers
 
 ## Receipt Requirements
 
