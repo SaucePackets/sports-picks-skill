@@ -187,6 +187,20 @@ def extract_fill_price(response: dict[str, Any]) -> Decimal | None:
     return None
 
 
+def extract_filled_quantity(response: dict[str, Any]) -> Decimal:
+    """Return filled shares from execution reports; zero means no position exists."""
+    filled = Decimal("0")
+    for execution in response.get("executions", []) if isinstance(response, dict) else []:
+        shares = dec(execution.get("lastShares"), "lastShares")
+        if shares is not None and shares > 0:
+            filled += shares
+        order = execution.get("order", {})
+        cum = dec(order.get("cumQuantity"), "cumQuantity")
+        if cum is not None and cum > filled:
+            filled = cum
+    return filled
+
+
 def side_cost(price: Decimal, quantity: Decimal, intent: str) -> Decimal:
     if "BUY_SHORT" in intent:
         return (Decimal("1") - price) * quantity
@@ -399,21 +413,24 @@ def cmd_order(args: argparse.Namespace) -> dict[str, Any]:
     receipt = {**proposal, "mode": "live_sdk", "executed_at": utc_now(), "response": response, "ok": True}
     receipt["receipt_path"] = save_receipt("sdk-order", args.market_slug, receipt)
     if args.write_watchlist:
-        entry_price = extract_fill_price(response) or extract_order_price(response) or extract_order_price(proposal.get("preview", {}))
-        quantity = proposal["request"].get("quantity")
-        receipt["watchlist_path"] = save_watchlist({
-            "active": True,
-            "created_at": utc_now(),
-            "market_slug": args.market_slug,
-            "intent": args.intent,
-            "outcome": proposal.get("preview_outcome"),
-            "entry_price": str(entry_price) if entry_price is not None else None,
-            "quantity": str(quantity) if quantity is not None else None,
-            "profit_cents": args.profit_cents,
-            "loss_cents": args.loss_cents,
-            "label": args.notes or proposal.get("preview_outcome"),
-            "source_receipt": receipt["receipt_path"],
-        })
+        filled_quantity = extract_filled_quantity(response)
+        if filled_quantity > 0:
+            entry_price = extract_fill_price(response) or extract_order_price(response) or extract_order_price(proposal.get("preview", {}))
+            receipt["watchlist_path"] = save_watchlist({
+                "active": True,
+                "created_at": utc_now(),
+                "market_slug": args.market_slug,
+                "intent": args.intent,
+                "outcome": proposal.get("preview_outcome"),
+                "entry_price": str(entry_price) if entry_price is not None else None,
+                "quantity": str(filled_quantity),
+                "profit_cents": args.profit_cents,
+                "loss_cents": args.loss_cents,
+                "label": args.notes or proposal.get("preview_outcome"),
+                "source_receipt": receipt["receipt_path"],
+            })
+        else:
+            receipt["watchlist_skipped"] = "order accepted/expired without fill; no position exists to watch"
         Path(receipt["receipt_path"]).write_text(json.dumps(as_jsonable(receipt), indent=2, sort_keys=True) + "\n")
     return receipt
 
