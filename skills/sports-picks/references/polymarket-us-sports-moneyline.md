@@ -129,6 +129,7 @@ Guardrails in the helper:
 - computes proposal approval tokens from request + preview outcome + caps
 - re-previews immediately before live order
 - compiles `ORDER_TYPE_MARKET` sports entries into capped IOC limits because the SDK/API currently rejects true market bodies during preview
+- treats `--price` as the selected outcome's price; for `BUY_SHORT` outcomes it converts to the inverse long-side orderbook price before preview/order (`Cleveland at 0.60` sends orderbook price `0.40`)
 - writes proposal/live/error receipts under `.picks/receipts/polymarket/`
 - writes `.picks/watchlist/polymarket/*.json` only after a live order has non-zero filled shares when `--write-watchlist` is passed; accepted-but-unfilled or expired orders are not positions and must not create active watchers
 

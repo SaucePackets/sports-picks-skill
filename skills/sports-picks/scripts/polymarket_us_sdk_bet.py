@@ -174,16 +174,30 @@ def extract_order_price(preview_or_order: dict[str, Any]) -> Decimal | None:
     return None
 
 
-def extract_fill_price(response: dict[str, Any]) -> Decimal | None:
-    """Find the actual non-zero fill price from an order response."""
+def outcome_price_from_orderbook(price: Decimal, intent: str) -> Decimal:
+    """Convert Polymarket's long-side orderbook price into the selected outcome's price."""
+    if "BUY_SHORT" in intent or "SELL_SHORT" in intent:
+        return Decimal("1") - price
+    return price
+
+
+def orderbook_price_from_outcome(price: Decimal, intent: str) -> Decimal:
+    """Convert a user-facing outcome price into the SDK orderbook price."""
+    if "BUY_SHORT" in intent or "SELL_SHORT" in intent:
+        return Decimal("1") - price
+    return price
+
+
+def extract_fill_price(response: dict[str, Any], intent: str = "") -> Decimal | None:
+    """Find the actual non-zero fill price in selected-outcome terms."""
     for execution in response.get("executions", []) if isinstance(response, dict) else []:
         fill_price = dec(execution.get("lastPx"), "lastPx")
         fill_shares = dec(execution.get("lastShares"), "lastShares")
         if fill_price is not None and fill_price > 0 and fill_shares is not None and fill_shares > 0:
-            return fill_price
+            return outcome_price_from_orderbook(fill_price, intent)
         order_price = extract_order_price(execution.get("order", {}))
         if order_price is not None and fill_shares is not None and fill_shares > 0:
-            return order_price
+            return outcome_price_from_orderbook(order_price, intent)
     return None
 
 
@@ -225,29 +239,33 @@ def build_order_request(args: argparse.Namespace) -> dict[str, Any]:
     if args.order_type == "ORDER_TYPE_LIMIT":
         if args.price is None or args.quantity is None:
             die("limit orders require --price and --quantity")
-        price = dec(args.price, "price")
+        outcome_price = dec(args.price, "price")
         quantity = dec(args.quantity, "quantity")
-        if price is None or quantity is None or price <= 0 or price >= 1 or quantity <= 0:
+        if outcome_price is None or quantity is None or outcome_price <= 0 or outcome_price >= 1 or quantity <= 0:
             die("limit --price must be between 0 and 1 and --quantity must be positive")
-        request.update({"price": amount(price), "quantity": int(quantity), "tif": args.tif})
+        orderbook_price = orderbook_price_from_outcome(outcome_price, args.intent)
+        request.update({"price": amount(orderbook_price), "quantity": int(quantity), "tif": args.tif})
     else:
         # Polymarket US SDK currently previews sports moneyline "market" bodies as
         # malformed limits. Compile intent-to-enter-now into an IOC limit with a
         # cash cap-derived share quantity. This preserves price discipline and
         # avoids uncapped slippage while still behaving like a taker entry.
+        # `--price` is always the selected outcome's acceptable price. For
+        # BUY_SHORT outcomes, the SDK orderbook uses the inverse long-side price.
         cash = dec(args.cash_order_qty, "cash_order_qty")
-        limit_price = dec(args.price or args.current_price, "price/current_price")
+        outcome_price = dec(args.price or args.current_price, "price/current_price")
         if cash is None or cash <= 0:
             die("market-style entries require positive --cash-order-qty")
-        if limit_price is None or limit_price <= 0 or limit_price >= 1:
+        if outcome_price is None or outcome_price <= 0 or outcome_price >= 1:
             die("market-style entries require --price or --current-price between 0 and 1")
-        unit_cost = (Decimal("1") - limit_price) if "BUY_SHORT" in args.intent else limit_price
+        unit_cost = outcome_price if "BUY" in args.intent else Decimal("0")
         quantity = int(cash / unit_cost)
         if quantity <= 0:
-            die(f"cash order quantity {cash} is too small for price {limit_price}")
+            die(f"cash order quantity {cash} is too small for price {outcome_price}")
+        orderbook_price = orderbook_price_from_outcome(outcome_price, args.intent)
         request["requestedOrderType"] = "ORDER_TYPE_MARKET"
         request["type"] = "ORDER_TYPE_LIMIT"
-        request["price"] = amount(limit_price)
+        request["price"] = amount(orderbook_price)
         request["quantity"] = quantity
         request["tif"] = "TIME_IN_FORCE_IMMEDIATE_OR_CANCEL"
         request["cashCap"] = amount(cash)
@@ -311,13 +329,11 @@ def make_proposal(args: argparse.Namespace) -> dict[str, Any]:
         die(f"preview outcome mismatch: expected {args.expected_outcome!r}, got {preview_outcome!r}")
 
     preview_price = extract_order_price(preview)
+    preview_outcome_price = outcome_price_from_orderbook(preview_price, args.intent) if preview_price is not None else None
     max_price = dec(args.max_price, "max_price")
-    if max_price is not None and preview_price is not None:
-        if "BUY_LONG" in args.intent and preview_price > max_price:
-            die(f"preview price {preview_price} exceeds max price {max_price}")
-        if "BUY_SHORT" in args.intent and preview_price < max_price:
-            # Short intent price is the framing-team price; lower means the short side is more expensive.
-            die(f"preview short/framing price {preview_price} is worse than max short-side threshold {max_price}")
+    if max_price is not None and preview_outcome_price is not None and "BUY" in args.intent:
+        if preview_outcome_price > max_price:
+            die(f"preview outcome price {preview_outcome_price} exceeds max price {max_price}")
 
     proposal = {
         "ok": True,
@@ -330,6 +346,8 @@ def make_proposal(args: argparse.Namespace) -> dict[str, Any]:
         "preview": preview,
         "market_snapshot": market,
         "bbo_snapshot": bbo,
+        "preview_orderbook_price": str(preview_price) if preview_price is not None else None,
+        "preview_outcome_price": str(preview_outcome_price) if preview_outcome_price is not None else None,
         "estimated_notional": str(est) if est is not None else None,
         "max_notional": str(max_notional),
         "max_price": str(max_price) if max_price is not None else None,
@@ -415,7 +433,10 @@ def cmd_order(args: argparse.Namespace) -> dict[str, Any]:
     if args.write_watchlist:
         filled_quantity = extract_filled_quantity(response)
         if filled_quantity > 0:
-            entry_price = extract_fill_price(response) or extract_order_price(response) or extract_order_price(proposal.get("preview", {}))
+            orderbook_entry = extract_order_price(response) or extract_order_price(proposal.get("preview", {}))
+            entry_price = extract_fill_price(response, args.intent) or (
+                outcome_price_from_orderbook(orderbook_entry, args.intent) if orderbook_entry is not None else None
+            )
             receipt["watchlist_path"] = save_watchlist({
                 "active": True,
                 "created_at": utc_now(),
