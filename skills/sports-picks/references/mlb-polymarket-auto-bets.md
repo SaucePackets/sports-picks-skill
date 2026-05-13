@@ -249,6 +249,12 @@ If a repeatable missed signal appears, save a dated review note under:
 
 Only patch the skill when the improvement is durable, specific, and not just one-game outcome chasing. If it is variance, log it and leave the skill alone. No mystery gambling machine learns by superstition.
 
+Patch decision guardrail:
+- If the review says `wrong pass`, `missed opportunity`, `watch`, `do one more stress test`, or `closer than we gave it`, explicitly compare the missed-signal wording against the existing skill text.
+- Do not stop at "a general rule already exists." Ask whether the existing rule would have forced the next slate scan to behave differently.
+- If the existing rule is too generic to change future behavior, patch the skill with the smallest concrete trigger/action wording.
+- If no patch is made, state why the current wording is already specific enough to catch the next similar slate.
+
 ---
 
 ## Daily Automation Roadmap
