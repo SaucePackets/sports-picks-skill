@@ -226,8 +226,9 @@ Current official-pick settlement implementation:
 - Cron job `0ecc7d117a97` checks active/pending MLB official picks every 5 minutes.
 - It queries Sovereign Console `/chat/picks?status=active&result=pending&limit=100`.
 - For each MLB pick with `game_id`, it verifies the ESPN final summary and waits until the game is complete.
-- Once final, it spawns Hermes pinned to `openai-codex / gpt-5.5` with `sports-betting-markets`, `sports-data-apis`, and `sovereign-console-workflows`.
-- The spawned review settles the pick through `/chat/picks/{pick_id}/settle`, verifies the record, posts a win/loss message plus reflection to Rebecca's Picks, and patches the sports skill only when the reflection exposes a durable rule.
+- The no-agent script must stay under the scheduler timeout; it settles the verified win/loss directly through `/chat/picks/{pick_id}/settle` and emits a concise result message.
+- Do **not** spawn a long `hermes chat` postgame reviewer inside this every-5-minute no-agent script; it can exceed the scheduler's 120s script timeout after a final score.
+- Deeper process reflection and durable skill patches belong in the separate postgame reflection workflow, not the heartbeat settlement loop.
 - Settlement markers live under `.picks/postgame-reviewed/*.done` to avoid duplicate messages.
 
 Reflection must distinguish:
