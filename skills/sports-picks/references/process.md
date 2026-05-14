@@ -53,9 +53,26 @@ Database workflow:
 8. Reconcile backfills against `.picks/INDEX.md` first, then enrich from reflections or database detail.
 
 Agent/Telegram save seam:
-- Prefer a small raw-card save path over a giant form: send the locked official-card text plus optional game metadata, parse only enough identity fields to populate the domain row, and preserve the full text unchanged in the pick-analysis object.
+- Prefer a small raw-card save path over a giant form: send the locked official-card text plus the required game metadata, parse only enough identity fields to populate the domain row, and preserve the full text unchanged in the pick-analysis object.
 - Refuse to save cards whose parsed official line is `PASS` or otherwise no-pick. Analysis can exist without becoming an official database row.
-- Treat the first bullet under `Official card right now` as the official pick line when using the standard output template: `[Team/side] ([price]) — [confidence]`.
+- Treat the first bullet under `Official card right now` as the human pick line when using the standard output template: `[Team/side] ([price]) — [confidence]`.
+- Any machine/backfill card that may write to Agent Memory `pick_analyses` must include this contract, even if the user-facing card stays concise:
+```text
+Official pick ledger contract
+Sport: <sport family, e.g. baseball>
+League: <league, e.g. MLB>
+Game date: <YYYY-MM-DD>
+Away team: <away team>
+Home team: <home team>
+Matchup: <Away Team> @ <Home Team>
+Pick: <side>
+Price: <book/market price>
+Stake: <stake or max notional>
+Confidence: <Low|Medium|Medium-High|High>
+Verdict: <official pick/result intent>
+Source agent: <agent identity or runtime-provided value>
+Persona id: <persona identity or runtime-provided value>
+```
 - Store parser provenance in structured metadata when available, e.g. `analysis_json.raw_text`, `analysis_json.source="official_card_text"`, `metadata_json.save_trigger="official_card_text"`.
 - Return the saved pick id and provenance receipt so the agent can confirm exactly what was locked.
 

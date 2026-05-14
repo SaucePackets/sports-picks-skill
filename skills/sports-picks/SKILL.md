@@ -173,9 +173,32 @@ If context is tight, keep this `SKILL.md` and `references/runtime.md` visible fi
 - Use his fuller deep-analysis structure only on request: matchup header; Pick/Pass; current price/book; de-vig fair; start time; park/weather; Form for both teams; Starter matchup; Bullpen / close-game survival; Market / price; Injury notes; What scares me; Why it still holds; Verdict.
 - Do not force action. If a candidate has a real lean but fails a hard gate, say PASS and explain which gate killed it.
 
+## Official Pick Ledger Contract
+
+When saving an official pick into Agent Memory `pick_analyses`, every new active row must have non-empty audit fields: `sport`, `league`, `game_date`, `away_team`, `home_team`, `pick_side`, `price`, `stake`, `confidence`, `verdict`, `source_agent`, and `persona_id`. `confidence` is not an officialness flag; use controlled values only: `Low`, `Medium`, `Medium-High`, or `High` for new cards. Preserve weird raw labels in metadata, not the stored `confidence` field. If an agent creates the pick now, blanks are a bug: fix the source process before saving.
+
 ## MLB Slate Display Contract
 
 Manual MLB slate requests and cron MLB slate output must use the same display shape. The canonical card text written to `.picks/slate/YYYY-MM-DD.md` must exactly match the final response body.
+
+Human-facing cards stay concise. Any card saved or backfilled into Agent Memory `pick_analyses` must also carry the machine contract below. Missing contract fields mean do not write the row.
+
+```text
+Official pick ledger contract
+Sport: <sport family, e.g. baseball>
+League: <league, e.g. MLB>
+Game date: <YYYY-MM-DD>
+Away team: <away team>
+Home team: <home team>
+Matchup: <Away Team> @ <Home Team>
+Pick: <side>
+Price: <book/market price>
+Stake: <stake or max notional>
+Confidence: <Low|Medium|Medium-High|High>
+Verdict: <official pick/result intent>
+Source agent: <agent identity or runtime-provided value>
+Persona id: <persona identity or runtime-provided value>
+```
 
 Use the concise human card shape, not machine labels:
 

@@ -110,6 +110,25 @@ Real card
 
 Keep it tight. Do not turn every game into a report.
 
+If this card may be written to Agent Memory `pick_analyses`, attach or submit this machine contract with the save call. Do not create the row if any field is missing:
+
+```text
+Official pick ledger contract
+Sport: <sport family, e.g. baseball>
+League: <league, e.g. MLB>
+Game date: <YYYY-MM-DD>
+Away team: <away team>
+Home team: <home team>
+Matchup: <Away Team> @ <Home Team>
+Pick: <side>
+Price: <book/market price>
+Stake: <stake or max notional>
+Confidence: <Low|Medium|Medium-High|High>
+Verdict: <official pick/result intent>
+Source agent: <agent identity or runtime-provided value>
+Persona id: <persona identity or runtime-provided value>
+```
+
 ---
 
 ## Output Template — Deeper Pass
