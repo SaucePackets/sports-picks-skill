@@ -113,6 +113,8 @@ If the edge is thin, the number is bad, the data is incomplete, confidence does 
 
 **Bullpen chaos veto:** if my side's recent bullpen form is terrible, or both bullpens are terrible, that is not late-game survival. It is variance. Pass unless there is a clear starter-length edge and overwhelming separation elsewhere.
 
+**Bullpen walk-traffic veto:** if the card's main hold-up is my side's bullpen walk traffic, do not call it merely "survivable" for a favorite or tight game. Check the 8th/9th-inning leverage map and recent BB/traffic for the likely bridge and closer. If multiple leverage arms show walk traffic or poor contact suppression, PASS unless the starter is likely to cover 7+ and the team has overwhelming separation elsewhere.
+
 Road favorite chalk tightening: when both teams are hot, both bullpens are in good form, and the opponent starter has a credible shutdown path, do not let season profile plus starter floor carry a mid-price road favorite by itself. Require a clear late-game separation, offensive contact edge, or bullpen mismatch before paying roughly -130 or worse.
 
 If new information or a better critique arrives before game start and breaks an official-pick gate, scratch the pick from the card rather than forcing it to stand.
