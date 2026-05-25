@@ -155,14 +155,36 @@ This applies during picks AND during live game conversation:
 For any pick, load these in order:
 
 1. `references/runtime.md` — short execution checklist, final pass/fail form, output template.
-2. The sport reference:
+2. `references/pick-process-lanes.md` — choose slate scan, quick card, full handicap, thesis card, or postgame attribution depth.
+3. The sport reference:
    - MLB → `references/mlb.md`
    - NFL → `references/nfl.md`
    - NBA → `references/nba.md`
    - NHL → `references/nhl.md`
-3. For settling or reflecting on picks, load `references/process.md`.
+4. For official picks or execution proposals, load `references/thesis-card-template.md` and save the thesis before result bias can enter.
+5. For settling or reflecting on picks, load `references/process.md` and `references/postgame-attribution.md`.
 
-If context is tight, keep this `SKILL.md` and `references/runtime.md` visible first. Sport references are manuals; the Runtime Lock Gate is identity.
+If context is tight, keep this `SKILL.md`, `references/runtime.md`, and `references/pick-process-lanes.md` visible first. Sport references are manuals; the Runtime Lock Gate is identity.
+
+---
+
+## Analysis Depth Lanes
+
+Do not make every game a full memo. Use lanes:
+
+1. **Slate scan:** broad review; classify games as ignore, log, monitor, research deeper, official candidate, or pass.
+2. **Quick card:** normal user-facing output; official picks plus compact evidence.
+3. **Full handicap:** only for serious candidates, disputed reads, or explicit deep-analysis requests.
+4. **Thesis card:** required for official picks and execution proposals.
+5. **Postgame attribution:** required after settlement to grade process, not just W/L.
+
+Canonical flow:
+
+```text
+Slate scan → candidate queue → deep analysis only on candidates → thesis card only for official picks → postgame attribution
+```
+
+A full handicap can still end in PASS. A thesis card is not optional once a pick becomes official.
 
 ---
 

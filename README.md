@@ -59,6 +59,9 @@ sports-picks-skill/
 
 - `skills/sports-picks/SKILL.md` — main skill contract.
 - `skills/sports-picks/references/runtime.md` — short working checklist.
+- `skills/sports-picks/references/pick-process-lanes.md` — slate scan, quick card, full handicap, thesis card, postgame lanes.
+- `skills/sports-picks/references/thesis-card-template.md` — official-pick thesis receipt.
+- `skills/sports-picks/references/postgame-attribution.md` — process-vs-result settlement labels.
 - `skills/sports-picks/references/process.md` — settlement, reflection, ledger maintenance.
 - `skills/sports-picks/references/mlb.md` — MLB-specific pick rules.
 - `.picks/PROCESS.md` — reusable lessons and process rules.
@@ -74,5 +77,8 @@ Any agent that can read Markdown can use the repo:
 
 1. Load `skills/sports-picks/SKILL.md`.
 2. Load `skills/sports-picks/references/runtime.md`.
-3. Load the relevant sport reference, such as `skills/sports-picks/references/mlb.md`.
-4. Use `.picks/` as the local ledger root.
+3. Load `skills/sports-picks/references/pick-process-lanes.md`.
+4. Load the relevant sport reference, such as `skills/sports-picks/references/mlb.md`.
+5. For official picks, use `skills/sports-picks/references/thesis-card-template.md`.
+6. For settlement, use `skills/sports-picks/references/postgame-attribution.md` plus `skills/sports-picks/references/process.md`.
+7. Use `.picks/` as the local ledger root.
