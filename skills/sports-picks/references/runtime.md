@@ -8,24 +8,21 @@ This file is the clipboard. `SKILL.md` is the front door.
 ## Runtime Order
 
 1. Identify sport and teams.
-2. Load `references/pick-process-lanes.md` and choose the depth lane before analysis.
-3. Load the sport reference.
-4. Resolve team IDs and event ID.
-5. Pull recent form: last 7 games baseline, last 5 only if it changes the read.
-6. Confirm roster/depth chart truth.
-7. Confirm starters/goalies/QBs/star availability from live sources.
-8. Pull injuries and flag noisy/unclear feeds.
-9. Pull primary sportsbook/game line first.
-10. Use Kalshi/Polymarket/markets only as supplementary context when it cleanly maps to the exact game.
-11. If the user asks to bet on Polymarket, load `references/polymarket-trading.md`; for MLB official locks also load `references/mlb-polymarket-auto-bets.md`.
-12. Classify candidates: ignore, log, monitor, research deeper, official candidate, or pass.
-13. Build full win paths only for official candidates or explicit deep-analysis requests.
-14. Run the final pass/fail gate.
-15. For any official pick or execution proposal, load `references/thesis-card-template.md` and write the thesis card.
-16. Output official picks only.
-17. For MLB official locks, place capped Polymarket limit bets only when the auto-bet execution gate passes; otherwise output `Pick locked, bet skipped — [reason]`.
-18. Add placed bets and passed-price confidence plays to watch only if there is a documented thesis, target price, and exact market mapping.
-19. Watch suggestions must check current score/game state before proposing live entries or profit exits.
+2. Load the sport reference.
+3. Resolve team IDs and event ID.
+4. Pull recent form: last 7 games baseline, last 5 only if it changes the read.
+5. Confirm roster/depth chart truth.
+6. Confirm starters/goalies/QBs/star availability from live sources.
+7. Pull injuries and flag noisy/unclear feeds.
+8. Pull primary sportsbook/game line first.
+9. Use Kalshi/Polymarket/markets only as supplementary context when it cleanly maps to the exact game.
+10. If the user asks to bet on Polymarket, load `references/polymarket-trading.md`; for MLB official locks also load `references/mlb-polymarket-auto-bets.md`.
+11. Build full win paths for both teams.
+12. Run the final pass/fail gate.
+13. Output official picks only.
+14. For MLB official locks, place capped Polymarket limit bets only when the auto-bet execution gate passes; otherwise output `Pick locked, bet skipped — [reason]`.
+15. Add placed bets and passed-price confidence plays to watch if there is a documented thesis, target price, and exact market mapping.
+16. Watch suggestions must check current score/game state before proposing live entries or profit exits.
 
 ---
 
@@ -79,15 +76,13 @@ If any answer is weak enough to break the win path, pass.
 
 ## Always Include When Making a Pick
 
-- Process lane used: quick card, full handicap, or execution proposal.
 - Recent form check: last 7 baseline, last 5 only if meaningful.
 - Current matchup edge: starter/goalie/QB/star context depending on sport.
 - Full win path: how the side wins through early game, late game, offense/defense, and market price.
 - Weather/park/rest/injury context when relevant.
 - Current price and bettable-to/pass point.
 - Market-mapping note: exact-game exchange match, loose sentiment only, or unavailable.
-- Thesis card: edge, why now, win path, failure path, max acceptable price, review trigger.
-- If Polymarket execution is requested: proposal token, max exposure, and receipt path from the configured Polymarket script.
+- If Polymarket execution is requested: proposal token, max exposure, and receipt path from `scripts/polymarket_us_guard.py`.
 - Why this number may be wrong.
 - Flip risk: one sentence on why the other side wins.
 

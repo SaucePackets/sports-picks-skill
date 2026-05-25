@@ -128,15 +128,15 @@ No receipt, no success claim.
 
 After a Polymarket bet is placed, create or run a watch check for that market.
 
-Generic heartbeat implementation:
-- Watch job: runtime-defined in the user's scheduler
+Current heartbeat implementation:
+- Watch cron job: `c98f238efb0d` — `MLB Polymarket Heartbeat — in-game watch alerts`
 - Watch script: `<runtime-scripts>/mlb_polymarket_heartbeat.py`
-- Watch schedule: every 5 minutes, or any runtime-approved cadence
-- Watch mode: script-only, writes receipts only, silent unless an alert is actionable
-- Judgement/postgame job: runtime-defined in the user's scheduler
+- Watch schedule: every 5 minutes
+- Watch mode: `no_agent=true`, script-only, writes receipts only, deliver=`local`
+- Judgement/postgame cron job: `0ecc7d117a97` — `MLB Heartbeat — postgame settlement + alert judgement`
 - Judgement/postgame script: `<runtime-scripts>/mlb_polymarket_alert_review.py`
-- Judgement/postgame schedule: offset from the watch script to avoid double-processing
-- Judgement/postgame model: runtime-selected model with access to the local picks ledger
+- Judgement/postgame schedule: every 5 minutes, one minute after the watch script
+- Judgement/postgame model: spawned `hermes chat` pinned to `openai-codex / gpt-5.5`
 - Judgement output: reply exactly `NO_OPPORTUNITY` to stay silent; only message the user for real opportunities worth considering
 - User-facing delivery: the configured picks channel/topic
 - Watch files: `.picks/watchlist/polymarket/*.json`

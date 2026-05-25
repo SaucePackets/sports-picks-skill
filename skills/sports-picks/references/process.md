@@ -84,9 +84,7 @@ Postgame rule for database users: settlement is not complete until both the resu
 
 After every pick settles — win or loss — update `.picks/INDEX.md` and `.picks/REFLECTIONS.md`.
 
-Load `references/postgame-attribution.md` before writing the reflection. Every review should grade process separately from result.
-
-A loss is not fully processed when the index is updated. A loss is closed only after the verified reflection is written to `.picks/REFLECTIONS.md`. A win is not automatically good process; compare it to the thesis card.
+A loss is not fully processed when the index is updated. A loss is closed only after the verified reflection is written to `.picks/REFLECTIONS.md`.
 
 Questions to answer:
 
@@ -96,8 +94,7 @@ Questions to answer:
 4. Was the data available to catch what went wrong — did I look?
 5. Did I lean on reputation, price, or one narrow angle instead of the full picture?
 6. Was this a bad bet or a bad result?
-7. What attribution label applies: good read/good result, good read/bad result, bad read/good result, bad read/bad result, price right/side wrong, side right/price bad, or thesis failed before market mattered?
-8. What rubric change, if any, prevents this mistake again?
+7. What rubric change, if any, prevents this mistake again?
 
 ---
 
