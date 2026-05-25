@@ -1,22 +1,31 @@
 ---
 name: sports-picks
-description: >
-  Data-driven official game picks for MLB, NFL, NBA, and NHL. Pull team form, injuries, starting pitcher/goalie matchups, and current market prices to decide whether there is a real pick or a pass. Use sportsbook lines as the main pricing signal and treat market odds as a sanity check for whether a side is too expensive or mispriced. The goal is learning to analyze data and keep score only on official picks with real conviction, not generating extra categories like value plays.
-
-  Use when: user asks "who do you have winning", "make a pick", "who should I bet on", "who's favored", wants an official pick record, or any game prediction question for MLB, NFL, NBA, or NHL.
-  Don't use when: user only wants raw odds (use kalshi/markets directly), live scores (use sport-specific data skill), or news (use sports-news).
+description: Use when making data-driven official sports picks for MLB, NFL, NBA,
+  or NHL; deciding pick vs pass; maintaining a portable picks ledger; or reviewing
+  settled picks.
+version: 1.0.0
+author: Hermes Agent
+license: MIT
+metadata:
+  hermes:
+    tags:
+    - sports
+    - picks
+    - betting
+    - ledger
+    related_skills: []
 ---
-
 # Sports Picks
 
 Produce data-backed game picks. Always pull multiple data layers — never guess from memory.
 
-Hermes compatibility note:
-- This repo can be installed in Hermes or OpenClaw.
+Compatibility note:
+- This repo can be installed in Hermes or read manually by any Markdown-capable agent.
 - Keep one canonical `.picks/` directory for the installed workflow and use it as the source of truth.
-- In Hermes, prefer the imported sport-specific skills for ESPN-backed data and treat the sportsbook line as the primary price source.
-- Kalshi / Polymarket / other exchange checks are supplementary only unless they map cleanly to the exact game.
-- Polymarket live trading is allowed only through `references/polymarket-trading.md`, `scripts/polymarket_us_sdk_bet.py`, and legacy `scripts/polymarket_us_guard.py`; proposals are dry-run by default and live orders require explicit Jerry approval plus a matching approval token.
+- Use sport-specific data skills for scores, schedules, rosters, and game context.
+- Treat the sportsbook line as the primary price source unless the runtime explicitly targets a prediction market.
+- Kalshi / Polymarket / other exchange checks are supplementary unless they map cleanly to the exact game.
+- Polymarket live trading is proposal-only by default. Live orders require a local runtime policy, explicit user authorization, configured credentials, and a matching approval token.
 
 ---
 
@@ -24,11 +33,11 @@ Hermes compatibility note:
 
 Sports analysis may produce an official pick. It does not automatically produce a bet.
 
-Command semantics for Jerry:
+Command semantics:
 - `deep analysis` / `deeper pass`: produce the full deep-analysis writeup only. No lock, no bet.
-- `lock official picks only`: save verified official picks to the canonical ledger/Console. No Polymarket proposals or live orders.
+- `lock official picks only`: save verified official picks to the canonical ledger. No Polymarket proposals or live orders.
 - `lock and propose bets`: save verified official picks, then create dry-run Polymarket proposals with approval tokens. No live orders.
-- `lock and place authorized MLB bets`: save verified official MLB picks, then place capped Polymarket US orders only if every standing-authorization gate passes.
+- `lock and place authorized MLB bets`: live execution only if a local runtime policy explicitly enables it and every execution gate passes.
 
 For Polymarket execution:
 - load `references/polymarket-trading.md` first
@@ -37,12 +46,11 @@ For Polymarket execution:
 - exact game/outcome mapping is mandatory
 - create a dry-run proposal before any live order
 - show market slug, side, action, price, quantity, max exposure, BBO, and approval token
-- live MLB betting requires the explicit phrase `lock and place authorized MLB bets`; vague `lock picks` does **not** authorize live orders
-- MLB official locks have standing authorization within the caps in `references/mlb-polymarket-auto-bets.md` only after that explicit phrase
-- non-MLB bets, exits, cancels, modifications, market orders, props, parlays, and anything outside caps still require explicit Jerry approval in the current chat/session
+- vague `lock picks` does **not** authorize live orders
+- non-MLB bets, exits, cancels, modifications, market orders, props, parlays, and anything outside local caps require explicit user approval in the current chat/session
 - save a receipt under `.picks/receipts/polymarket/`
 - placed-bet watchers and passed-price watchlists must check live MLB game state before suggesting entries/exits; price movement alone is not enough
-- daily season automation should be staged: proposed card first, then lock-only, then dry-run proposals, then explicit standing-authorized entries, then watch/exit proposals, then auto-exits only after separate approval
+- daily season automation should be staged: proposed card first, then lock-only, then dry-run proposals, then explicitly authorized entries, then watch/exit proposals, then auto-exits only after separate approval
 
 No explicit authorization phrase, no bet. No receipt, no success claim.
 
@@ -169,21 +177,21 @@ If context is tight, keep this `SKILL.md` and `references/runtime.md` visible fi
 - If bullpen, weather, injuries, or market mapping were not fully verified, say so directly instead of bluffing.
 - If price is bad, pass even if the side is likely to win.
 - Daily MLB slate automation should use the normal concise card/review style by default: record/context when relevant, proposed/locked status, 1-3 compact evidence bullets, learning/watch notes, and a clear postgame handoff.
-- Daily MLB same-day reruns must not rescan by default. If `/home/clawdbot/projects/sports-picks-skill/.picks/slate/YYYY-MM-DD.md` exists for today's Central date, replay/deepen that artifact as the canonical card unless Jerry explicitly asks for a fresh slate. Duplicate cron/manual runs should never create different picks for the same slate.
-- Any request like `deep analysis`, `deeper pass`, `deep analysis on the matchups you like`, or `Rebecca's picks deep analysis` after a same-day slate exists must first read the slate artifact and deepen those listed candidates only. Do not interpret "matchups you like" as permission to rerun the entire slate. If there is no artifact, say that and run a fresh slate explicitly labeled fresh.
-- Jerry may ask for a deeper pass afterward. When he asks, first read the canonical same-day slate artifact at `/home/clawdbot/projects/sports-picks-skill/.picks/slate/latest.md` and/or `.picks/slate/YYYY-MM-DD.md`; deepen those candidate(s) instead of rerunning the whole slate from scratch. Re-verify current price, injuries/lineups, weather, and game status before final judgment. If the slate artifact is missing, stale, or the user asks for a different game, run fresh analysis.
+- Daily MLB same-day reruns must not rescan by default. If `<sports-picks-repo>/.picks/slate/YYYY-MM-DD.md` exists for today's Central date, replay/deepen that artifact as the canonical card unless the user explicitly asks for a fresh slate. Duplicate cron/manual runs should never create different picks for the same slate.
+- Any request like `deep analysis`, `deeper pass`, `deep analysis on the matchups you like`, or `the agent's picks deep analysis` after a same-day slate exists must first read the slate artifact and deepen those listed candidates only. Do not interpret "matchups you like" as permission to rerun the entire slate. If there is no artifact, say that and run a fresh slate explicitly labeled fresh.
+- the user may ask for a deeper pass afterward. When he asks, first read the canonical same-day slate artifact at `<sports-picks-repo>/.picks/slate/latest.md` and/or `.picks/slate/YYYY-MM-DD.md`; deepen those candidate(s) instead of rerunning the whole slate from scratch. Re-verify current price, injuries/lineups, weather, and game status before final judgment. If the slate artifact is missing, stale, or the user asks for a different game, run fresh analysis.
 - Use his fuller deep-analysis structure only on request: matchup header; Pick/Pass; current price/book; de-vig fair; start time; park/weather; Form for both teams; Starter matchup; Bullpen / close-game survival; Market / price; Injury notes; What scares me; Why it still holds; Verdict.
 - Do not force action. If a candidate has a real lean but fails a hard gate, say PASS and explain which gate killed it.
 
 ## Official Pick Ledger Contract
 
-When saving an official pick into Agent Memory `pick_analyses`, every new active row must have non-empty audit fields: `sport`, `league`, `game_date`, `away_team`, `home_team`, `pick_side`, `price`, `stake`, `confidence`, `verdict`, `source_agent`, and `persona_id`. `confidence` is not an officialness flag; use controlled values only: `Low`, `Medium`, `Medium-High`, or `High` for new cards. Preserve weird raw labels in metadata, not the stored `confidence` field. If an agent creates the pick now, blanks are a bug: fix the source process before saving.
+When saving an official pick into runtime database `pick_analyses`, every new active row must have non-empty audit fields: `sport`, `league`, `game_date`, `away_team`, `home_team`, `pick_side`, `price`, `stake`, `confidence`, `verdict`, `source_agent`, and `persona_id`. `confidence` is not an officialness flag; use controlled values only: `Low`, `Medium`, `Medium-High`, or `High` for new cards. Preserve weird raw labels in metadata, not the stored `confidence` field. If an agent creates the pick now, blanks are a bug: fix the source process before saving.
 
 ## MLB Slate Display Contract
 
 Manual MLB slate requests and cron MLB slate output must use the same display shape. The canonical card text written to `.picks/slate/YYYY-MM-DD.md` must exactly match the final response body.
 
-Human-facing cards stay concise. Any card saved or backfilled into Agent Memory `pick_analyses` must also carry the machine contract below. Missing contract fields mean do not write the row.
+Human-facing cards stay concise. Any card saved or backfilled into runtime database `pick_analyses` must also carry the machine contract below. Missing contract fields mean do not write the row.
 
 ```text
 Official pick ledger contract
@@ -244,16 +252,16 @@ End with:
 Clean read: <top side first, second side second, or no clean side>. <one sharp discipline sentence.>
 ```
 
-Do not include `Classification`, `Reflection handoff`, `game_id`, `proposed_side`, command menus, or other machine-facing labels in the user-facing card unless Jerry explicitly asks.
+Do not include `Classification`, `Reflection handoff`, `game_id`, `proposed_side`, command menus, or other machine-facing labels in the user-facing card unless the user explicitly asks.
 
 ## MLB Confidence Calibration
 
-Cold-start cron jobs must apply the same skepticism as a live Rebecca session.
+Cold-start cron jobs must apply the same skepticism as a live the agent session.
 
 Before putting any side under `Official card right now`, ask:
 
 ```text
-Would I tell Jerry I feel confident with this pick if he challenged me?
+Would I tell the user I feel confident with this pick if he challenged me?
 ```
 
 If the honest answer is no, output PASS.
@@ -264,7 +272,7 @@ Hard calibrators:
 - Medium still requires real winner conviction and every hard gate passing.
 - A pick built mostly from bullpen/form/price while the opposing starter can erase the edge is PASS.
 - A dog only belongs on the card if I think it wins outright often enough, not merely because the number is cute.
-- If Jerry later asks "Do you feel confident?" and the answer would be hedged, the cron should not have listed it.
+- If the user later asks "Do you feel confident?" and the answer would be hedged, the cron should not have listed it.
 - Any candidate described as "rich," "passable," "annoying road chalk," or "not fatal" is not clean enough unless the rest of the case is overwhelming.
 - Road favorites around -150 or worse need dominant current form plus clear starter and bullpen separation; a 3-4 recent record with positive run diff is not enough.
 - If the price paragraph sounds defensive, PASS.

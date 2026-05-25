@@ -1,142 +1,78 @@
 # sports-picks-skill
 
-Data-driven sports-picks skill bundle for **Hermes** and **OpenClaw**.
+A generic sports-picks skill bundle for Hermes.
 
-This repo keeps one shared core workflow for official sports picks, supporting data skills, and a clean `.picks/` ledger. Platform-specific setup lives in install docs so the betting logic stays in one place.
+It provides one portable workflow for official sports picks: gather sport data, compare market prices, decide pick vs pass, and keep a clean `.picks/` ledger. It is built for discipline, not action-chasing.
 
-## What this includes
+## Install
 
-### Skills
-- `sports-picks`
-- `mlb-data`
-- `nfl-data`
-- `nba-data`
-- `nhl-data`
-- `weather`
-- `polymarket`
-- `kalshi`
-- `sports-news`
+```bash
+curl -fsSL https://raw.githubusercontent.com/SaucePackets/sports-picks-skill/main/scripts/install-hermes.sh | bash
+```
 
-### Fresh-start state
-- `.picks/PROCESS.md`
-- `.picks/INDEX.md`
-- `.picks/REFLECTIONS.md`
+Then start a new Hermes session and ask:
 
-## Fresh slate
+```text
+Use sports-picks. Give me tonight's MLB card, and pass anything thin.
+```
 
-Yes. This repo starts as a **fresh slate**.
+## What gets installed
 
-It includes:
-- a clean `INDEX.md`
-- a clean `REFLECTIONS.md`
-- reusable process rules in `PROCESS.md`
+The installer copies this bundle into Hermes:
 
-It does **not** include anyone's live pick history, running record, or personal reflections.
+- `sports-picks` — official pick workflow and ledger rules.
+- `mlb-data`, `nfl-data`, `nba-data`, `nhl-data` — sport data helpers.
+- `polymarket`, `kalshi` — prediction-market helpers.
+- `sports-news` — sports news helper.
+- `weather` — weather helper for outdoor-game context.
 
-## Install docs
-
-Use the platform-specific install guide that matches the runtime:
-
-- `docs/install-hermes.md`
-- `docs/install-openclaw.md`
-
-## Shared workflow rules
-
-Once installed, the agent should:
-1. use `sports-picks` for official pick analysis
-2. log only real official picks in `.picks/INDEX.md`
-3. review settled picks in `.picks/REFLECTIONS.md`
-4. promote recurring lessons into `.picks/PROCESS.md`
-
-## Current proven use
-
-Current production use and refinement has been focused on **MLB game picks**.
-
-The repo still includes the broader sports bundle and supporting skills for NFL, NBA, and NHL, but the most tested official-pick workflow today is MLB.
-
-## MLB pick style
-
-This workflow is not built for blind favorite picks or generic "best bet" dumping.
-
-The current MLB style is:
-- side / moneyline focused
-- recent form first
-- starter matchup matters, but not in isolation
-- bullpen edge matters, especially when it changes the late-game path
-- who is actually hitting right now matters more than name value
-- price discipline matters, always
-- live-bet angles are valid when the pregame side is right but the number is not
-
-In practice, that means the workflow tries to answer:
-- who is hitting right now?
-- who has the cleaner starter path?
-- which bullpen looks more trustworthy?
-- is the current number still bettable?
-- is this a real official pick, or just the side I like more?
-
-## Output expectation
-
-The package is built around three rules:
-- default to a **tight official card** with only real-conviction picks
-- use a **deeper pass** only when the user wants the full case
-- distinguish between a true pass and a side that may be right but is not official-card clean at the current number
-
-## Polymarket execution
-
-Polymarket live trading is guarded, not autonomous chaos.
-
-The repo includes:
-- `skills/sports-picks/references/polymarket-trading.md`
-- `skills/sports-picks/references/polymarket-us-sports-moneyline.md`
-- `skills/sports-picks/references/mlb-polymarket-auto-bets.md`
-- `skills/sports-picks/scripts/polymarket_us_sdk_bet.py` — SDK-first search/proposal/preview/live-order helper for Polymarket US sports moneylines
-- `skills/sports-picks/scripts/polymarket_us_guard.py` — legacy public/gateway helper and watch checks
-
-Default behavior is dry-run SDK proposal only. For MLB official locks, Jerry has granted standing authorization within the documented caps: High $25, Medium $15, daily cap $75, exact-game moneyline markets only, authenticated preview must verify the intended team, and live execution requires the explicit standing-authorization phrase plus matching proposal token. Credentials never belong in this repo.
-
-## Repo layout
+## Repo structure
 
 ```text
 sports-picks-skill/
 ├── README.md
 ├── GETTING-STARTED.md
-├── DEV_NOTES.md
 ├── docs/
 │   ├── install-hermes.md
 │   └── install-openclaw.md
+├── scripts/
+│   └── install-hermes.sh
 ├── .picks/
-│   ├── INDEX.md
 │   ├── PROCESS.md
 │   └── REFLECTIONS.md
 └── skills/
     ├── sports-picks/
     │   ├── SKILL.md
-    │   ├── scripts/
-    │   │   ├── polymarket_us_sdk_bet.py
-    │   │   └── polymarket_us_guard.py
-    │   └── references/
-    │       ├── runtime.md
-    │       ├── process.md
-    │       ├── polymarket-trading.md
-    │       ├── polymarket-us-sports-moneyline.md
-    │       ├── mlb-polymarket-auto-bets.md
-    │       ├── mlb.md
-    │       ├── nfl.md
-    │       ├── nba.md
-    │       └── nhl.md
+    │   ├── references/
+    │   └── scripts/
     ├── mlb-data/
     ├── nfl-data/
     ├── nba-data/
     ├── nhl-data/
-    ├── weather/
     ├── polymarket/
     ├── kalshi/
-    └── sports-news/
+    ├── sports-news/
+    └── weather/
 ```
 
-## Notes
-- `sports-picks/SKILL.md` is the front door: when to use it, hard gate, verification rules, and default output rules.
-- `sports-picks/references/runtime.md` is the short working checklist for picks.
-- `sports-picks/references/process.md` covers settlement, reflections, and record maintenance.
-- The other skills support data gathering and market/weather checks.
-- Platform differences should live in docs, not in duplicate skill forks.
+## Key files
+
+- `skills/sports-picks/SKILL.md` — main skill contract.
+- `skills/sports-picks/references/runtime.md` — short working checklist.
+- `skills/sports-picks/references/process.md` — settlement, reflection, ledger maintenance.
+- `skills/sports-picks/references/mlb.md` — MLB-specific pick rules.
+- `.picks/PROCESS.md` — reusable lessons and process rules.
+- `.picks/REFLECTIONS.md` — fresh-start reflection ledger template.
+
+## Runtime state
+
+This repo includes only templates and reusable process files. Live pick history, receipts, watchlists, and execution schedules are runtime state and should stay out of public commits.
+
+## Manual loading
+
+Any agent that can read Markdown can use the repo:
+
+1. Load `skills/sports-picks/SKILL.md`.
+2. Load `skills/sports-picks/references/runtime.md`.
+3. Load the relevant sport reference, such as `skills/sports-picks/references/mlb.md`.
+4. Use `.picks/` as the local ledger root.

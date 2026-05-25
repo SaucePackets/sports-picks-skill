@@ -16,7 +16,7 @@ This file is the clipboard. `SKILL.md` is the front door.
 7. Pull injuries and flag noisy/unclear feeds.
 8. Pull primary sportsbook/game line first.
 9. Use Kalshi/Polymarket/markets only as supplementary context when it cleanly maps to the exact game.
-10. If Jerry asks to bet on Polymarket, load `references/polymarket-trading.md`; for MLB official locks also load `references/mlb-polymarket-auto-bets.md`.
+10. If the user asks to bet on Polymarket, load `references/polymarket-trading.md`; for MLB official locks also load `references/mlb-polymarket-auto-bets.md`.
 11. Build full win paths for both teams.
 12. Run the final pass/fail gate.
 13. Output official picks only.
@@ -110,7 +110,7 @@ Real card
 
 Keep it tight. Do not turn every game into a report.
 
-If this card may be written to Agent Memory `pick_analyses`, attach or submit this machine contract with the save call. Do not create the row if any field is missing:
+If this card may be written to runtime database `pick_analyses`, attach or submit this machine contract with the save call. Do not create the row if any field is missing:
 
 ```text
 Official pick ledger contract

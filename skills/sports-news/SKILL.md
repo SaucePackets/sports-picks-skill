@@ -1,16 +1,20 @@
 ---
 name: sports-news
-description: |
-  Sports news via RSS/Atom feeds and Google News. Fetch headlines, search by query, filter by date. Covers football news, transfer rumors, match reports, and any sport via Google News.
-
-  Use when: user asks for recent news, headlines, transfer rumors, or articles about any sport. Good for "what's the latest on [team/player]" questions. Supports any Google News query and curated RSS feeds (BBC Sport, ESPN, The Athletic, Sky Sports).
-  Don't use when: user asks for structured data like standings, scores, statistics, or xG — use the sport-specific skill instead: football-data (soccer), nfl-data (NFL), nba-data (NBA), wnba-data (WNBA), nhl-data (NHL), mlb-data (MLB), tennis-data (tennis), golf-data (golf), cfb-data (college football), cbb-data (college basketball), or fastf1 (F1). Don't use for prediction market odds — use polymarket or kalshi. News results are text articles, not structured data.
+description: Use when fetching recent sports news, headlines, articles, transfer rumors,
+  or Google News/RSS results for teams, players, leagues, and events.
+version: 1.0.0
+author: Hermes Agent
 license: MIT
 metadata:
-  author: machina-sports
-  version: "0.1.0"
+  hermes:
+    tags:
+    - sports
+    - news
+    related_skills: []
+  source:
+    author: machina-sports
+    version: 0.1.0
 ---
-
 # Sports News
 
 Before writing queries, consult `references/api-reference.md` for command parameters and `references/rss-feeds.md` for curated feed URLs.

@@ -1,10 +1,19 @@
 ---
 name: weather
-description: Get current weather and forecasts (no API key required).
-homepage: https://wttr.in/:help
-metadata: {"clawdbot":{"emoji":"🌤️","requires":{"bins":["curl"]}}}
+description: Use when checking current weather or forecasts for venues, cities, and
+  outdoor-game context without requiring an API key.
+version: 1.0.0
+author: Hermes Agent
+license: MIT
+metadata:
+  hermes:
+    tags:
+    - sports
+    - weather
+    related_skills: []
+  source:
+    legacy_metadata: clawhub
 ---
-
 # Weather
 
 Two free services, no API keys needed.

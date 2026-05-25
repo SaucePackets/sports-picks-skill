@@ -1,16 +1,22 @@
 ---
 name: nfl-data
-description: |
-  NFL data via ESPN public endpoints — scores, standings, rosters, schedules, game summaries, play-by-play, win probability, injuries, transactions, futures, depth charts, team/player stats, leaders, and news. Zero config, no API keys.
-
-  Use when: user asks about NFL scores, standings, team rosters, schedules, game stats, box scores, play-by-play, injuries, transactions, betting futures, depth charts, team/player statistics, or NFL news.
-  Don't use when: user asks about football/soccer (use football-data), college football (use cfb-data), or other sports.
+description: Use when retrieving NFL scores, schedules, standings, rosters, game summaries,
+  play-by-play, win probability, injuries, transactions, depth charts, team/player
+  stats, leaders, or news from public ESPN endpoints.
+version: 1.0.0
+author: Hermes Agent
 license: MIT
 metadata:
-  author: machina-sports
-  version: "0.1.0"
+  hermes:
+    tags:
+    - sports
+    - data
+    - nfl
+    related_skills: []
+  source:
+    author: machina-sports
+    version: 0.1.0
 ---
-
 # NFL Data
 
 Before writing queries, consult `references/api-reference.md` for endpoints, ID conventions, and data shapes.

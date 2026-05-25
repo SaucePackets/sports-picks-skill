@@ -1,65 +1,40 @@
 # Install on Hermes
 
-Use this when the target runtime is **Hermes**.
+Use the installer from the repo root:
 
-## Goal
-Install one shared core skill bundle and keep a single canonical `.picks/` directory so the workflow stays consistent across sessions.
+```bash
+curl -fsSL https://raw.githubusercontent.com/SaucePackets/sports-picks-skill/main/scripts/install-hermes.sh | bash
+```
 
-## Requirements
+Then start a fresh Hermes session so the skills are reindexed.
+
+## What the installer does
+
+- Copies every directory under `skills/` into `${HERMES_HOME:-$HOME/.hermes}/skills/sports/`.
+- Copies the fresh `.picks/` templates into `${HERMES_HOME:-$HOME/.hermes}/sports-picks/.picks/` if they do not already exist.
+- Leaves existing runtime ledgers, receipts, and reflections untouched.
+
+## Optional dependencies
+
+Some helper scripts use external packages or CLIs depending on the runtime:
 
 ```bash
 pip install sports-skills polymarket-us
 ```
 
-If needed:
+These are not required just to install the Markdown skills.
 
-```bash
-python3.12 -m pip install sports-skills polymarket-us
-```
+## Smoke test
 
-Also make sure `curl` is available.
-
-## Recommended layout
-
-Keep the core skill content together:
+After install and a fresh Hermes session:
 
 ```text
-~/.hermes/skills/<category>/sports-picks/
-~/.hermes/skills/<category>/sports-picks/.picks/
+Use sports-picks. Show the runtime checklist.
 ```
 
-If you prefer a workspace-level `.picks/`, that is fine too — just keep **one** canonical path and make sure your workflow uses it consistently.
-
-## Install
-
-Copy the repo skill folders into the Hermes skill tree and place `.picks/` in the agreed canonical location.
-
-Example:
+For data helpers, test whichever sports package you installed, for example:
 
 ```bash
-mkdir -p ~/.hermes/skills/custom
-cp -R /path/to/sports-picks-skill/skills/* ~/.hermes/skills/custom/
-cp -R /path/to/sports-picks-skill/.picks ~/.hermes/skills/custom/sports-picks/.picks
-```
-
-Adjust the destination path if your Hermes setup uses a different category layout.
-
-## Reload
-Reload Hermes or start a fresh session so the skill is reindexed.
-
-## Validation
-
-```bash
-which sports-skills
 sports-skills mlb get_scoreboard
-sports-skills nba get_scoreboard
-sports-skills polymarket get_sports_config
-python /path/to/sports-picks-skill/skills/sports-picks/scripts/polymarket_us_sdk_bet.py health
-sports-skills kalshi get_sports_config
-curl -s "wttr.in/Chicago?format=3"
+python ~/.hermes/skills/sports/sports-picks/scripts/polymarket_us_sdk_bet.py health
 ```
-
-## Notes
-- The skill logic stays shared with OpenClaw.
-- Hermes/OpenClaw differences should live in install docs, not in separate skill forks.
-- Sportsbook line stays primary. Exchange checks stay supplementary unless they map cleanly to the exact game.

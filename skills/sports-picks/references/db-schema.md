@@ -2,7 +2,7 @@
 
 ## Canonical Template
 
-Every MLB pick row in Agent Memory must match this shape:
+Every MLB pick row in runtime database must match this shape:
 
 | Field | Format | Example |
 |-------|--------|---------|
@@ -65,7 +65,7 @@ def normalize_pick_fields(pick_side_raw: str, price_raw: str, stake_raw: str) ->
 
 ## DB Insert Pattern
 
-When inserting a new pick row directly (Console API is down):
+When inserting a new pick row directly (runtime ledger API is down):
 
 ```python
 normalized = normalize_pick_fields(pick_side, price, stake)

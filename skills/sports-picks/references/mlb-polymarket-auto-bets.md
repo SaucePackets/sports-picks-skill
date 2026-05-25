@@ -1,57 +1,56 @@
 # MLB Polymarket Auto-Bet Policy
 
-This is Jerry's standing authorization for MLB official picks only.
+This is an optional runtime authorization template. It is not enabled by installing the repo.
 
-Standing authorization is **not** triggered by vague phrasing like `lock picks`.
+A runtime may allow capped MLB Polymarket execution only when the user has separately configured bankroll limits, credentials, and an explicit authorization phrase. Without that local policy, this file is proposal-only guidance.
 
 Command meanings:
 - `deep analysis` / `deeper pass`: analysis only, no lock, no bet.
-- `lock official picks only`: ledger/Console lock only, no Polymarket proposal or live order.
-- `lock and propose bets`: ledger/Console lock plus dry-run Polymarket proposals; no live order.
-- `lock and place authorized MLB bets`: ledger/Console lock plus capped Polymarket US orders if every execution gate below passes.
+- `lock official picks only`: ledger lock only, no Polymarket proposal or live order.
+- `lock and propose bets`: ledger lock plus dry-run Polymarket proposals; no live order.
+- `lock and place authorized MLB bets`: live execution only if a local runtime policy explicitly authorizes it and every execution gate below passes.
 
-When Jerry says exactly `lock and place authorized MLB bets`, the MLB slate workflow may place a capped Polymarket US order if and only if every execution gate below passes.
+Vague phrasing like `lock picks` never authorizes live orders.
 
 ---
 
-## Standing Authorization
+## Authorization Scope Template
 
-Scope:
-- sport: MLB only
+If a runtime enables live execution, its local policy should define:
+
+- sport scope: MLB only unless separately expanded
 - bet type: moneyline / exact winner market only
 - exchange: Polymarket US only
-- default order type: market buy when the current executable odds are inside the approved/bettable range and Jerry's goal is entry now; limit order when targeting a specific better/max price or enforcing a hard cap
-- time-in-force: `TIME_IN_FORCE_DAY` for limits; market orders must use cash/notional caps and slippage protection
-- session context: only when Jerry asks for the MLB slate / official card / locks
+- max notional per confidence tier
+- daily exposure cap
+- allowed order types and time-in-force
+- required exact authorization phrase
+- credential and receipt paths
 
-Not authorized:
+Not authorized by this public repo:
+
 - props
 - parlays
-- live in-game bets unless Jerry explicitly asks in that session
-- uncapped market orders or market orders when current price is outside the approved/bettable range
-- GTC orders unless Jerry explicitly asks
-- any loose sentiment/futures/series market that does not map exactly to today's game winner
-- any bet after the game starts unless Jerry explicitly asks for live betting
-- any order that exceeds the per-pick or daily cap
+- uncapped market orders
+- GTC orders unless explicitly configured
+- loose sentiment/futures/series markets that do not map exactly to today's game winner
+- any order exceeding locally configured per-pick or daily caps
+- any live execution without a dry-run proposal receipt first
 
 ---
 
-## Sizing Defaults
+## Sizing Template
 
-Base units:
-- High confidence: **$25** max notional
-- Medium confidence: **$15** max notional
-- Elite confidence: **$25** unless Jerry explicitly raises it
+Keep sizing local. A public skill should not hard-code a user's bankroll.
 
-Daily cap:
-- **$75** total max notional across MLB Polymarket bets
+Recommended runtime policy fields:
 
-Slate adjustment:
-- If one locked pick: use its full unit.
-- If two locked picks: use full units if total is <= $75.
-- If three locked picks: use full units if total is <= $75.
-- If more than three locked picks: something is probably wrong; re-run the hard gate and prefer fewer picks.
-- If total units would exceed $75, scale down proportionally and round down to sane dollar amounts.
+```text
+High confidence max notional: <local amount>
+Medium confidence max notional: <local amount>
+Elite confidence max notional: <local amount>
+Daily max notional: <local amount>
+```
 
 Never increase unit size just because fewer teams are selected. Fewer picks means less exposure, not bigger gambling brain. Cute trap.
 
@@ -87,8 +86,8 @@ Polymarket prices are probabilities.
 Bet only when the executable market price is equal to or better than the approved/bettable price from the analysis.
 
 Execution rule:
-- If the current executable price is already acceptable and Jerry wants the bet entered now, use a capped market buy / cash-notional order with slippage protection.
-- If the current price is worse than approved, or Jerry explicitly wants a target entry, use a limit order and accept that it may not fill.
+- If the current executable price is already acceptable and the user wants the bet entered now, use a capped market buy / cash-notional order with slippage protection.
+- If the current price is worse than approved, or the user explicitly wants a target entry, use a limit order and accept that it may not fill.
 - Do not use a resting limit merely out of habit when the current odds already satisfy the thesis; that can miss a valid edge.
 
 Default slippage tolerance:
@@ -131,15 +130,15 @@ After a Polymarket bet is placed, create or run a watch check for that market.
 
 Current heartbeat implementation:
 - Watch cron job: `c98f238efb0d` — `MLB Polymarket Heartbeat — in-game watch alerts`
-- Watch script: `/home/clawdbot/.hermes/scripts/mlb_polymarket_heartbeat.py`
+- Watch script: `<runtime-scripts>/mlb_polymarket_heartbeat.py`
 - Watch schedule: every 5 minutes
 - Watch mode: `no_agent=true`, script-only, writes receipts only, deliver=`local`
 - Judgement/postgame cron job: `0ecc7d117a97` — `MLB Heartbeat — postgame settlement + alert judgement`
-- Judgement/postgame script: `/home/clawdbot/.hermes/scripts/mlb_polymarket_alert_review.py`
+- Judgement/postgame script: `<runtime-scripts>/mlb_polymarket_alert_review.py`
 - Judgement/postgame schedule: every 5 minutes, one minute after the watch script
 - Judgement/postgame model: spawned `hermes chat` pinned to `openai-codex / gpt-5.5`
-- Judgement output: reply exactly `NO_OPPORTUNITY` to stay silent; only message Jerry for real opportunities worth considering
-- User-facing delivery: Rebecca's Picks topic `telegram:-1003740149270:4`
+- Judgement output: reply exactly `NO_OPPORTUNITY` to stay silent; only message the user for real opportunities worth considering
+- User-facing delivery: the configured picks channel/topic
 - Watch files: `.picks/watchlist/polymarket/*.json`
 - Alert receipts: `.picks/heartbeat/*.json`
 - Reviewed markers: `.picks/heartbeat-reviewed/*.done`
@@ -185,7 +184,7 @@ Live-game judgement gate:
 
 Watch behavior:
 - monitoring may alert/propose an exit
-- monitoring may not sell automatically unless Jerry explicitly approves a profit-taking exit rule later
+- monitoring may not sell automatically unless the user explicitly approves a profit-taking exit rule later
 - if an exit opportunity appears, output a proposed sell order with current bid, estimated profit, game-state reason, and receipt/proposal path
 
 For now: watch recommends exits; it does not auto-sell.
@@ -214,7 +213,7 @@ Live entry proposal requires:
 - remaining daily cap
 - explicit note whether it is pregame-skipped opportunity or live-bet request
 
-For now, live entries from passed-price watchlist are proposal-only unless Jerry explicitly asks for live betting in that session.
+For now, live entries from passed-price watchlist are proposal-only unless the user explicitly asks for live betting in that session.
 
 ---
 
@@ -224,7 +223,7 @@ After games settle, run a postgame review for proposed candidates, official lock
 
 Current official-pick settlement implementation:
 - Cron job `0ecc7d117a97` checks active/pending MLB official picks every 5 minutes.
-- It queries Sovereign Console `/chat/picks?status=active&result=pending&limit=100`.
+- It queries Sovereign runtime ledger `/chat/picks?status=active&result=pending&limit=100`.
 - For each MLB pick with `game_id`, it verifies the ESPN final summary and waits until the game is complete.
 - The no-agent script must stay under the scheduler timeout; it settles the verified win/loss directly through `/chat/picks/{pick_id}/settle` and emits a concise result message.
 - Do **not** spawn a long `hermes chat` postgame reviewer inside this every-5-minute no-agent script; it can exceed the scheduler's 120s script timeout after a final score.
@@ -274,7 +273,7 @@ Do not jump straight to full autonomy. Build in stages:
 - Stage 2: scheduled daily slate scan with proposed card only.
 - Stage 3: scheduled daily slate scan + standing-authorized entries.
 - Stage 4: automated watchlist and exit proposals.
-- Stage 5: auto exits only after Jerry separately approves exact sell rules.
+- Stage 5: auto exits only after the user separately approves exact sell rules.
 
 Autonomy increases only with receipts, caps, and review logs. No mystery gambling machine.
 
@@ -312,7 +311,7 @@ python skills/sports-picks/scripts/polymarket_us_guard.py order \
   --approval-token <proposal_token> \
   --execute \
   --i-accept-live-trading \
-  --notes "MLB standing authorization: official lock"
+  --notes "local runtime authorization: official MLB lock"
 ```
 
 Watch once:

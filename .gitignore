@@ -1,4 +1,10 @@
 .DS_Store
 __pycache__/
 *.pyc
-.picks/
+
+# Runtime pick state. Keep public repo templates only.
+.picks/*
+!.picks/
+!.picks/PROCESS.md
+!.picks/REFLECTIONS.md
+!.picks/INDEX.md

@@ -1,4 +1,4 @@
-# Lucy Picks — Process
+# Sports Picks — Process
 
 ## Core objective
 Only log official picks I actually feel confident making.
@@ -352,105 +352,66 @@ If the line moves across a key threshold, re-grade the play. Example: pitcher Ks
 
 ---
 
-## First Hermes-native slate lessons — 2026-04-19
+## Durable slate lessons
 
-### CHC lesson — right winner, tighter game than expected
-- The Cubs pick was directionally right, but the game finished **2-1 in 10 innings**, not as a clean separation.
-- What held: Mets offense was still weak enough that Chicago could survive with only modest run support.
-- What we under-modeled: the Mets had a more credible **multi-arm run-prevention path** than the listed probable alone suggested.
-- Durable lesson: when the opponent is likely to patch together a real early-to-middle innings pitching path, do not handicap the game as if only the listed starter matters.
-- Confidence lesson: weather or a credible piggyback / bullpen path can compress scoring and tighten variance even when the side is right.
-
-### ARI lesson — bad bet from underweighting the starter gap
-- Arizona lost **10-4** and the game was effectively dead after **Ryne Nelson allowed 8 ER in 0.1 IP**.
-- The miss was not missing data. The miss was weighting.
-- Kevin Gausman was not just a "name tax" spot — the starter gap was materially real.
-- Durable lesson: if backing the weaker starter, the rest of the case must be overwhelming. Team-form edge alone is not enough when the opposing starter has a clearly stronger floor.
-
-### ATL lesson — winner-first framing held up
-- Atlanta won **4-2** at near pick'em.
-- Grant Holmes was not dominant, but he was good enough; Painter was respected by the market more than the full-game matchup justified.
-- What held: better team shape, better broader run-prevention profile, and a fair enough number.
-- Durable lesson: do not let a flashier opposing starter erase a cleaner full-game team edge when the price is still near even.
-
-### Cross-slate carry-forward rules
-- Ask whether the side can still win often enough **if the opposing starter performs to profile**.
+- Ask whether the side can still win often enough if the opposing starter performs to profile.
 - Treat weather as a game-shape modifier: sometimes it does not flip the side, but it lowers margin for error.
-- Separate **one bad recent outing** from a truly fragile starter profile.
+- Separate one bad recent outing from a truly fragile starter profile.
 - Distinguish between the listed probable and the opponent's real run-prevention path through the first 5-6 innings.
 
 ## Hard Rule: ESPN schedule is the source of truth for today's games
 
-**Never use Polymarket series markets to identify today's matchups.**
+Never use prediction-market series markets to identify today's matchups.
 
-Polymarket markets span multi-day series and do not map to individual daily games.
+Prediction-market markets can span multi-day series and may not map to individual daily games.
 
-**Correct workflow:**
-1. Pull today's scoreboard from ESPN first → get exact matchups + game IDs
-2. Pull starters via ESPN summary for those specific game IDs
-3. Pull form via ESPN team schedule for those specific teams
-4. Then search Polymarket for matching markets — treat as supplementary signal only
-5. If Polymarket market title doesn't match today's ESPN game exactly, note the mismatch and don't use it as the primary price source
+Correct workflow:
 
-**Wrong workflow (caught 2026-04-08):**
-- Cross-referencing Polymarket series titles against the wrong day's schedule
-- Reporting WSH@PIT and LAA@NYY as today's games when ESPN showed SD@PIT and ATH@NYY
+1. Pull today's scoreboard first to get exact matchups and game IDs.
+2. Pull starters for those specific game IDs.
+3. Pull form for those specific teams.
+4. Then search prediction markets for matching markets as a supplementary signal.
+5. If a market title does not match today's game exactly, note the mismatch and do not use it as the primary price source.
 
----
+## Hard Rule: Bullpen Check is Mandatory
 
-## New Hard Rule: Bullpen Check is Mandatory (added 2026-04-08)
+Before every pick, answer these explicitly:
 
-Two losses in one day to bullpen collapses (PIT and LAD). Both starters were fine. Both picks were right on paper. Bullpen killed both.
-
-**Before every pick, answer these explicitly:**
-- Who are the top 2 relievers for the favored team?
-- Have any key relievers been used heavily in the last 2 days?
+- Who are the top leverage relievers for the side?
+- Have any key relievers been used heavily in the last two days?
 - Is the closer available?
 - If the starter exits early, what does the bridge to the closer look like?
 
-If the answer to any of these is "unknown" — that is a confidence penalty, not a footnote.
+If the answer is unknown, that is a confidence penalty, not a footnote.
 
-**Close-game survival check:** Apply this hardest when the projected script is close late: favorite in a one-to-two-run game, no overwhelming offensive/starter edge, and the opponent can keep it within one swing. In that shape, explicitly answer who protects innings 7-10. A starter giving 6-7 good innings is not enough if the bridge/closer path is injured, taxed, or role-uncertain.
+Close-game survival check: apply this hardest when the projected script is close late. A starter giving 6-7 good innings is not enough if the bridge/closer path is injured, taxed, or role-uncertain.
 
-**Rule:** Bullpen unknown + starter-dependent pick = cap at Low confidence. Low confidence picks only go at clear plus-money prices.
+Rules:
 
-**Rule:** Missing/taxed leverage arms + close favorite script is a hard-gate question first. If the offensive or starter edge is not overwhelming enough to avoid bullpen dependence, pass instead of assuming the late innings hold. If the gate still passes because the side has a clear multi-run offensive/starter edge, bullpen risk becomes a confidence cap/modifier rather than an automatic pass.
+- Bullpen unknown + starter-dependent pick = cap confidence or pass.
+- Missing/taxed leverage arms + close favorite script is a hard-gate question first.
+- Ceiling prices require high conviction. Thin edge at max price is a pass.
 
-**Rule:** Ceiling price (-150 or worse) requires HIGH confidence, not Med-High. Thin edge at max price is a pass.
+## Hard Rule: Always Pull Game Stats After Every Loss
 
----
+After every settled loss, pull the full boxscore before writing the reflection.
 
-## Hard Rule: Always Pull Game Stats After Every Loss (added 2026-04-08)
+Check:
 
-After every settled loss, pull the full boxscore via ESPN summary API before writing the reflection.
+- pitching lines for both teams
+- who pitched after the starter
+- whether the starter held up or was the problem
+- score progression and swing moments
 
-**What to check:**
-- Pitching lines for both teams (IP, H, R, ER, BB, K, ERA)
-- Who pitched after the starter — identify exactly who blew it
-- Whether the starter held up or was the problem
-- Score progression if possible (when did it break?)
+No reflection is complete without actual game data.
 
-**Why:** Today's PIT loss showed Keller was dominant (6 IP, 0 ER). The collapse was Lawrence (9.53 ERA) in relief — data that was available pre-game. Without pulling the boxscore, the reflection is guesswork.
+## Hard Rule: Explicit Starter Check
 
-**Workflow:**
-```
-ESPN summary?event=<game_id> → boxscore.players[].statistics[group 1] = pitching lines
-```
+Before any pick, explicitly state:
 
-No reflection is complete without the actual game data. No exceptions.
+1. both starting pitchers by name
+2. their last 1-2 starts with stats
+3. whether either is an elite arm
+4. how the starting-pitcher matchup affects confidence
 
----
-
-## Hard Rule: Explicit Starter Check (added 2026-04-12)
-
-**Failure:** Recommended LAD -131 without registering deGrom was pitching for TEX.
-
-**Fix:** Before any pick, explicitly state:
-1. Both starting pitchers by name
-2. Their last 1-2 starts with stats
-3. Whether either is an elite arm (deGrom, Scherzer, Cole, Glasnow, etc.)
-4. How the SP matchup affects confidence
-
-**DO NOT skip this step.** Form + price means nothing if the opposing starter is elite and your starter is inexperienced.
-
-**Today's lesson:** LAD 6-1 form + -131 price looked like value. deGrom pitching for TEX made it a pass. The pick was wrong because I didn't actually *read* the starter names I pulled.
+Do not skip this step. Form + price means nothing if the opposing starter is elite and your starter is inexperienced.

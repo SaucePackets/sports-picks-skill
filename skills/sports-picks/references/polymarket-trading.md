@@ -25,7 +25,7 @@ Allowed without approval:
 - create a dry-run proposal
 - calculate exposure and approval token
 
-Requires explicit Jerry approval in the current chat/session:
+Requires explicit user approval in the current chat/session:
 - create order
 - cancel order
 - modify order
@@ -34,9 +34,9 @@ Requires explicit Jerry approval in the current chat/session:
 Do not use cron jobs for live order placement. Cron may monitor and propose only.
 
 MLB exception:
-- Jerry has granted standing authorization for MLB official locks within `references/mlb-polymarket-auto-bets.md` caps.
-- That standing authorization covers entry orders only.
-- Profit-taking exits still require Jerry approval unless he later grants an explicit exit rule.
+- live execution is allowed only when a local runtime policy grants explicit MLB authorization and defines caps.
+- That local authorization should cover entry orders only unless it explicitly says otherwise.
+- Profit-taking exits still require explicit user approval unless the local runtime policy defines an exit rule.
 
 ---
 
@@ -76,7 +76,7 @@ Public API:
 3. Fetch market details and BBO from `gateway.polymarket.us` or the SDK.
 4. Create a dry-run SDK proposal with `scripts/polymarket_us_sdk_bet.py propose-moneyline` for US sports moneylines. Use legacy `scripts/polymarket_us_guard.py propose` only for non-SDK/gateway-compatible markets.
 5. Authenticated-preview the exact order and verify `preview.order.marketMetadata.outcome` equals the intended team before showing the proposal.
-6. Show Jerry the proposal:
+6. Show the user the proposal:
    - market slug
    - verified outcome/team
    - intent/outcome side/action
@@ -132,7 +132,7 @@ Default order type:
 Default TIF:
 - `TIME_IN_FORCE_DAY` for same-day limit orders
 - market/cash buys should use slippage protection and current-price preview rather than resting TIF
-- `TIME_IN_FORCE_GOOD_TILL_CANCEL` only if Jerry explicitly asks
+- `TIME_IN_FORCE_GOOD_TILL_CANCEL` only if the user explicitly asks
 
 Default market-style entries:
 - allowed for approved small sports entries when current odds are already acceptable
@@ -200,7 +200,7 @@ python skills/sports-picks/scripts/polymarket_us_sdk_bet.py order-moneyline \
   --execute \
   --i-accept-live-trading \
   --write-watchlist \
-  --notes "MLB standing authorization: official lock"
+  --notes "local runtime authorization: official MLB lock"
 
 # Legacy public/gateway helper remains available for non-SDK checks:
 python skills/sports-picks/scripts/polymarket_us_guard.py health
@@ -223,8 +223,8 @@ python skills/sports-picks/scripts/polymarket_us_guard.py watch-once --market-sl
 - For Polymarket sports pages like `/sports/mlb/mlb-atl-lad-YYYY-MM-DD`, the public `gateway.polymarket.us/v1/market/slug/{slug}` endpoint may return 404 even when the Polymarket page exists. In that case, verify exact mapping from the page data, extract the moneyline outcome/token IDs, and fetch the CLOB book with `https://clob.polymarket.com/book?token_id=<outcome_token_id>` before proposing. Do not use spread/total/NRFI tokens by accident.
 - Before live execution, run authenticated preview (`POST https://api.polymarket.us/v1/order/preview` with `{ "request": <order> }`, or SDK `client.orders.preview({"request": order})`). The preview's `order.marketMetadata.outcome` must exactly match the intended team. If preview says `market not found`, try SDK `client.search.query()` for the US event slug; sports markets may use a prefixed slug such as `aec-mlb-atl-lad-YYYY-MM-DD`.
 - Polymarket US sports moneyline markets can be framed around one team: `ORDER_INTENT_BUY_LONG` may buy the first/listed team, while `ORDER_INTENT_BUY_SHORT` buys the opponent. Do not infer this from slug or price. Trust only authenticated preview metadata. Example: `aec-mlb-atl-lad-2026-05-10` preview mapped `BUY_LONG` to Atlanta and `BUY_SHORT` to Los Angeles Dodgers.
-- If a corrected SDK-discovered slug/intent differs from the already-approved proposal, create a fresh proposal token and wait for Jerry's new approval before live order.
-- order rejected: show rejection receipt; do not resubmit with changed terms unless Jerry approves again.
+- If a corrected SDK-discovered slug/intent differs from the already-approved proposal, create a fresh proposal token and wait for the user's new approval before live order.
+- order rejected: show rejection receipt; do not resubmit with changed terms unless the user approves again.
 - partial fill / synchronous execution response: show executions exactly; do not summarize away risk.
 
 Numbers do not lie. Receipts do not lie either.

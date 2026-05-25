@@ -58,7 +58,7 @@ outcome = preview["order"]["marketMetadata"]["outcome"]
 assert outcome == "Los Angeles Dodgers"
 ```
 
-If the preview outcome is wrong, stop and rebuild the proposal. If the corrected slug/intent changes, generate a new approval token and wait for Jerry to approve again.
+If the preview outcome is wrong, stop and rebuild the proposal. If the corrected slug/intent changes, generate a new approval token and wait for the user to approve again.
 
 ## Short-Side Cost and App Display
 
@@ -70,7 +70,7 @@ Example:
 - Collateral/cost shown: `(1 - 0.56) * 26 = $11.44`
 - If Dodgers win, payout is `$26`; profit is `$26 - $11.44 = $14.56`
 
-The app may also show the long/framing team price (e.g. Braves `0.44`) while the short-side team is implied at `0.56`. Explain this plainly to Jerry.
+The app may also show the long/framing team price (e.g. Braves `0.44`) while the short-side team is implied at `0.56`. Explain this plainly to the user.
 
 ## Orders vs Positions
 
@@ -119,7 +119,7 @@ python skills/sports-picks/scripts/polymarket_us_sdk_bet.py order-moneyline \
   --execute \
   --i-accept-live-trading \
   --write-watchlist \
-  --notes "MLB standing authorization: official lock"
+  --notes "local runtime authorization: official MLB lock"
 ```
 
 Guardrails in the helper:
