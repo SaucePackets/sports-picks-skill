@@ -29,7 +29,28 @@ Compatibility note:
 
 ---
 
-## Live Trading Boundary
+## Three-Actor Pipeline (Optional Automated Setup)
+
+For runtimes using an automated pick pipeline (morning slate → execution poller → settlement), this repo supports an optional **second-review gate** between the slate and execution:
+
+Add `vig_review_needed` and `vig_approved` fields to each schedule candidate:
+
+```json
+{
+  "candidates": [{
+    "vig_review_needed": false,
+    "vig_approved": null,
+    "vig_notes": null
+  }]
+}
+```
+
+- `vig_review_needed: false` — Auto-execute. The poller proceeds without review.
+- `vig_review_needed: true` + `vig_approved: true` — Approved. Poller executes.
+- `vig_review_needed: true` + `vig_approved: false` — Rejected. Poller skips.
+- `vig_review_needed: true` + `vig_approved: null` — Not yet reviewed. Poller waits (safety valve executes on last possible tick if reviewer is unreachable).
+
+The postgame reflection stage also writes to a shared `latest-action.md` file so the reviewer sees settlement results alongside the next day's card. This file lives at the runtime ledger root.
 
 Sports analysis may produce an official pick. It does not automatically produce a bet.
 
