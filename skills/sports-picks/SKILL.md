@@ -1,7 +1,7 @@
 ---
 name: sports-picks
 description: Use when making data-driven official sports picks for MLB, NFL, NBA,
-  or NHL; deciding pick vs pass; maintaining a portable picks ledger; or reviewing
+  NHL, or soccer/World Cup; deciding pick vs pass; maintaining a portable picks ledger; or reviewing
   settled picks.
 version: 1.0.0
 author: Hermes Agent
@@ -181,6 +181,7 @@ For any pick, load these in order:
    - NFL → `references/nfl.md`
    - NBA → `references/nba.md`
    - NHL → `references/nhl.md`
+   - Soccer / World Cup → `references/soccer.md`
 3. For settling or reflecting on picks, load `references/process.md`.
 
 If context is tight, keep this `SKILL.md` and `references/runtime.md` visible first. Sport references are manuals; the Runtime Lock Gate is identity.

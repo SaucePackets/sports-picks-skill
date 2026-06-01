@@ -415,3 +415,58 @@ Before any pick, explicitly state:
 4. how the starting-pitcher matchup affects confidence
 
 Do not skip this step. Form + price means nothing if the opposing starter is elite and your starter is inexperienced.
+
+---
+
+## Daily Pipeline (as of June 2026)
+
+| Time (CT) | Job | Role |
+|---|---|---|
+| **10:30am** | MLB Daily Slate (proposed card) | Full Stage 2 scan. Produces the proposed card. All candidates are review check — no auto-execute. Writes slate file + schedule JSON with `vig_review_needed: true`. Delivers to the picks channel. |
+| **10:35am** | Second-Review Gate | Reads the slate file and schedule JSON. Does independent check on each candidate. Sets `vig_approved` + `vig_notes` in the schedule JSON. Posts approval/concerns to the picks channel. |
+| **11:00am–9:00pm** | MLB Execution Poller (every 30min) | Polls schedule JSON. Executes only picks with `vig_approved: true`. |
+| **10:30pm–2:30am** | MLB Heartbeat (every 5min) | In-game watch alerts and postgame settlement. |
+| **2:30am** | MLB Postgame Reflection | Reviews settled picks. Logs reflections to REFLECTIONS.md. |
+
+The flow: cron proposes → reviewer approves → poller executes. If the reviewer flags a candidate, it does not execute unless the user overrides. The user can read both posts and ask questions before the poller fires.
+
+---
+
+## World Cup 2026 Pipeline (June 11 – July 19)
+
+WC uses the same 3-layer model as MLB (slate → review → execution) but soccer-adapted.
+
+### New artifacts
+| Path | Purpose |
+|---|---|
+| `.picks/references/wc-data.md` | Data sources, team IDs, gate criteria, commands |
+| `.picks/references/wc-players.md` | Player watchlist framework, key positions, injury tracking |
+| `.picks/slate/wc/YYYY-MM-DD.md` | WC daily slate card |
+| `.picks/execute/wc/YYYY-MM-DD-schedule.json` | WC execution schedule |
+
+### Key differences from MLB
+- **3-way moneyline** (Home/Draw/Away) — draw is a risk factor, not a betting side
+- **7 gates** instead of 5: Form, Attack, Defense, Draw Risk, Rest/Availability, Tournament Context, Price
+- **Player tracking** — 3-4 key players per side for each analyzed match
+- **Data sources** — ESPN `fifa.world` for schedule/odds, FootyStats for team form, web search for squad/injury news
+- **Polymarket prices** in cents/probability (not American odds like MLB)
+
+### Daily WC cron
+| Time (CT) | Job | Role |
+|---|---|---|
+| **9:00am** | WC Daily Slate Scan | Proposes card for today's matches. Writes slate + schedule JSON. Delivers to the picks channel. |
+| **(manual)** | Review Gate | The reviewer checks the card, approves/flags candidates (same day, before first match at ~11am CT) |
+| **(manual)** | Execution | Manual until WC integration is automated. First week: the runtime executes approved picks. |
+| **(later)** | Postgame Reflection | Same pattern as MLB — settles, reflects, promotes lessons |
+
+### WC gate summary
+1. **Form** — Last 5 W-D-L, goals scored/conceded
+2. **Attack** — GF/game, xG For, shots on target
+3. **Defense** — Clean sheet %, GA/game, xG Against
+4. **Draw risk** — Historical draw rate, low-scoring profile
+5. **Rest/injuries** — Days between matches, key player availability
+6. **Tournament context** — Group stage vs knockout, must-win scenarios
+7. **Price** — Estimated probability vs Polymarket market price
+
+### Other leagues (future)
+The soccer analysis framework transfers directly to Premier League (`eng.1`), La Liga (`esp.1`), Bundesliga (`ger.1`), and Champions League. ESPN endpoints and team IDs are already available in sports-data-apis. Add as new pipeline sections when ready.

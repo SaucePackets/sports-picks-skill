@@ -25,6 +25,7 @@ The installer copies this bundle into Hermes:
 - `polymarket`, `kalshi` — prediction-market helpers.
 - `sports-news` — sports news helper.
 - `weather` — weather helper for outdoor-game context.
+- `soccer` — soccer/World Cup pick rules and gate criteria.
 
 ## Repo structure
 
