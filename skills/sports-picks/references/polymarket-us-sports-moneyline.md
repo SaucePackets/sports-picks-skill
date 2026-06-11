@@ -133,9 +133,46 @@ Guardrails in the helper:
 - writes proposal/live/error receipts under `.picks/receipts/polymarket/`
 - writes `.picks/watchlist/polymarket/*.json` only after a live order has non-zero filled shares when `--write-watchlist` is passed; accepted-but-unfilled or expired orders are not positions and must not create active watchers
 
-## Receipt Requirements
+## Search Fallback (Brotli Decode Bug)
 
-For any SDK proposal/live order:
+The SDK's `search-moneyline` command uses `httpx` with brotli compression. This can fail with:
+
+```
+httpx.DecodingError: brotli: decoder process called with data when
+'can_accept_more_data()' is False
+```
+
+This is a `brotlicffi`/`httpx` library-level issue that affects large search responses.
+**It is not a Marlins or data issue — it affects ALL queries.**
+
+The `polymarket_us_sdk_bet.py` script now auto-falls back to a raw API call that
+bypasses brotli:
+
+```python
+# Internal flow:
+try:
+    return _search_via_sdk(args)        # SDK httpx — brotli may fail
+except httpx.DecodingError:
+    return _search_via_raw_api(args)    # urllib with Accept-Encoding: identity
+```
+
+The fallback hits the same `gateway.polymarket.us/v1/search` endpoint using
+`urllib.request` with `Accept-Encoding: identity`, which skips compression entirely.
+The response format is identical. The output includes `"fallback": "raw_api"` when
+the fallback path was used.
+
+If you need to discover a slug when search is broken, the direct CLI still works:
+
+```bash
+cd /home/clawdbot/projects/sports-picks-skill
+python skills/sports-picks/scripts/polymarket_us_sdk_bet.py \
+  search-moneyline --query "Miami Marlins Arizona Diamondbacks" --limit 5
+```
+
+The returned `aec-mlb-*` slug works with `propose-moneyline` without issues — that
+endpoint is unaffected.
+
+## Receipt Requirements
 - save proposal receipt with request, preview, approval token, max notional, and verified outcome
 - save live order receipt with preview-before-order, response, order id, and error if any
 - create/update watchlist only after a live order is accepted

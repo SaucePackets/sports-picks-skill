@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import hashlib
+import httpx
 import json
 import os
 import re
@@ -25,7 +26,14 @@ from typing import Any
 
 RECEIPT_ROOT = Path(".picks/receipts/polymarket")
 WATCH_ROOT = Path(".picks/watchlist/polymarket")
-HERMES_ENV = Path.home() / ".hermes/.env"
+_HOME_CANDIDATES = [
+    Path.home(),
+    Path("/home/clawdbot"),
+]
+HERMES_ENV = next(
+    (p / ".hermes/.env" for p in _HOME_CANDIDATES if (p / ".hermes/.env").exists()),
+    Path.home() / ".hermes/.env",
+)
 
 INTENTS = {
     "ORDER_INTENT_BUY_LONG",
@@ -378,7 +386,29 @@ def cmd_health(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def cmd_balance(args: argparse.Namespace) -> dict[str, Any]:
+    """Query account USDC balance from Polymarket."""
+    client = sdk_client(require_auth=True)
+    try:
+        balances = client.account.balances()
+        return {"ok": True, "balances": balances}
+    except Exception as e:
+        return {"ok": False, "error": repr(e)}
+    finally:
+        client.close()
+
+
 def cmd_search_moneyline(args: argparse.Namespace) -> dict[str, Any]:
+    try:
+        return _search_via_sdk(args)
+    except httpx.DecodingError:
+        pass  # brotli decode bug — fall through to raw API
+    except Exception:
+        pass  # any SDK error — fall through to raw API
+    return _search_via_raw_api(args)
+
+
+def _search_via_sdk(args: argparse.Namespace) -> dict[str, Any]:
     client = sdk_client(require_auth=False)
     try:
         results = client.search.query({"query": args.query, "limit": args.limit})
@@ -399,6 +429,39 @@ def cmd_search_moneyline(args: argparse.Namespace) -> dict[str, Any]:
     finally:
         client.close()
     return {"ok": True, "query": args.query, "events": events}
+
+
+def _search_via_raw_api(args: argparse.Namespace) -> dict[str, Any]:
+    """Fallback search that bypasses brotli by using urllib with Accept-Encoding: identity."""
+    import urllib.request
+    import json as _json
+
+    url = f"https://gateway.polymarket.us/v1/search?query={urllib.parse.quote(args.query)}&limit={args.limit}"
+    req = urllib.request.Request(url, headers={
+        "Accept-Encoding": "identity",
+        "User-Agent": "Mozilla/5.0",
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            results = _json.loads(resp.read().decode("utf-8"))
+    except Exception as e:
+        return {"ok": False, "query": args.query, "error": repr(e), "fallback": "raw_api"}
+
+    events = []
+    for event in results.get("events", []) or []:
+        markets = moneyline_markets(event)
+        if not markets:
+            continue
+        events.append({
+            "id": event.get("id"),
+            "slug": event.get("slug"),
+            "title": event.get("title"),
+            "startTime": event.get("startTime"),
+            "active": event.get("active"),
+            "closed": event.get("closed"),
+            "moneyline_markets": markets,
+        })
+    return {"ok": True, "query": args.query, "events": events, "fallback": "raw_api"}
 
 
 def cmd_propose(args: argparse.Namespace) -> dict[str, Any]:
@@ -480,6 +543,9 @@ def main() -> None:
 
     health = sub.add_parser("health")
     health.set_defaults(func=cmd_health)
+
+    balance = sub.add_parser("balance")
+    balance.set_defaults(func=cmd_balance)
 
     search = sub.add_parser("search-moneyline")
     search.add_argument("--query", required=True, help="Exact matchup query, e.g. 'Atlanta Braves Los Angeles Dodgers'")
