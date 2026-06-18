@@ -1,0 +1,21 @@
+#!/bin/bash
+# sports-picks-skill pre-commit hook
+# Checks: trailing whitespace, merge conflict markers
+
+set -e
+
+echo "🔍 Running pre-commit checks..."
+
+# Check for merge conflict markers
+if grep -r "^<<<<<<< \|^=======$\|^>>>>>>> " --include="*.md" --include="*.json" --include="*.toml" --include="*.yaml" --include="*.yml" . 2>/dev/null; then
+    echo "❌ Merge conflict markers found. Resolve them before committing."
+    exit 1
+fi
+
+# Check for trailing whitespace in text files
+if grep -rn "[[:space:]]$" --include="*.md" --include="*.json" --include="*.toml" --include="*.yaml" --include="*.yml" --include="*.sh" . 2>/dev/null; then
+    echo "❌ Trailing whitespace found above. Remove it before committing."
+    exit 1
+fi
+
+echo "✅ Pre-commit checks passed."
