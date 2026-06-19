@@ -70,13 +70,9 @@ Is the number inside the bettable-to threshold without needing the price to crea
 - **Convert American odds to probability:** Negative: |odds| / (|odds| + 100). Positive: 100 / (odds + 100).
 - **3-way market note:** Draw must always be accounted for. Example: France -215 (68% implied) + Draw +360 (22%) + Senegal +600 (14%).
 - **No-Polymarket penalty:** When Polymarket match markets are not available, require a 10%+ edge (not the normal 5%) to compensate for the single price source.
-- **Draw pricing:** When draw risk is High+ and draw is priced at +300 or better, the draw can be the bettable side — not just a reason to pass on the favorite.
-- **Draw thresholds by risk level:**
-  - **Very High draw risk** (>40%): Strong draw candidate at +300 or better. The favorite is often overpriced by name value.
-  - **High draw risk** (30-40%): Consider draw at +350 or better. Look for additional signals (opener, low scoring profile, key attacker absent).
-  - **Medium draw risk** (20-30%): Fringe at +400 or better. Only if multiple factors align.
-  - **Low draw risk** (<20%): Ignore. Not a betting side.
-- **Elite attacker override on draw thresholds:** When the favorite has a top-5 world player healthy and playing, discount the draw risk by 15-20%. Shift thresholds up one tier.
+- **Draw pricing:** Treat draw the same as any other side — estimate probability from form, context, and scoring profile, compare to market, calculate edge. The standard edge thresholds apply (5% with multiple price sources, 10% with one).
+- **Draw risk flags** (Very High/High/Medium/Low) help identify matches where a draw outcome is structurally likely, but they do not carry hard price minimums. A +260 draw with 35% estimated probability has a real edge. A +320 draw with 22% estimated probability has no edge. Do the math.
+- **Elite attacker override:** When the favorite has a top-5 world attacker healthy and playing, discount your estimated draw probability by 15-20%. These players create chances that structured defenses cannot contain — a draw becomes harder to hold.
 - **Hard pass rule — 30¢+ movement away from your side:** If the line moves 30¢ or more against your chosen side, pass unless an independently verifiable event resolves in your favor.
 - **Data sources:** ESPN odds, Polymarket if available, sportsbooks
 
@@ -125,8 +121,8 @@ Pass when:
 - market sharply disagrees (30¢+ movement off your side) and you cannot explain why
 - you are chasing a moved number late
 - a friendly result was cited without verifying the opponent was at full strength
-- A draw play at +300+ where the favorite has an elite attacker starting and healthy
-- A draw play at +300+ where the favorite has **attacking bench depth** that can break a 0-0 after 70' (triple sub of fresh attackers ≈ structural draw-breaker; check recent sub patterns in prior games)
+- A draw play where the favorite has an elite attacker healthy and starting (discount estimated draw probability by 15-20% and re-check edge)
+- A draw play where the favorite has **attacking bench depth** that can break a 0-0 after 70' (triple sub of fresh attackers ≈ structural draw-breaker; check recent sub patterns in prior games)
 - A goalscorer prop where the player is a secondary striker on a team with a top-5 world attacker (15-20% shot share discount applies)
 
 **No pick is better than a bad pick.**
@@ -140,7 +136,7 @@ The gates determine what to bet:
 | Gate Profile | Bet Type | Why |
 |:------------|:---------|:----|
 | **Gates 1, 2, 3, 7, 8 pass** (defensive floor + attack can score + can hold lead + good price + conviction) | Favorite ML. Consider -1.5 handicap if elite attacker present. | Strong side, multiple gates support. |
-| **Gates 1, 3, 4, 6, 8 pass** (structure holds + can survive late + no defensive concerns + faded team has no reset + conviction) | Draw at +300+. Under 2.5. No player props. | Low-event match, draw is the outcome. |
+| **Gates 1, 3, 4, 6, 8 pass** (structure holds + can survive late + no defensive concerns + faded team has no reset + conviction) | Draw at estimated-edge price. Under 2.5. No player props. | Low-event match, draw is the outcome. |
 | **Gates 2, 5, 7, 8 pass** (opponent can't suppress attack + both teams have defensive issues + good price + conviction) | Over 2.5 or BTTS. Star attacker anytime prop. | Goals expected from both sides. |
 | **Gates 1, 2, 4, 8 pass** (defensive floor + no shutdown path + no defensive concerns + conviction) | Star attacker anytime + 2+. Handicap -1.5 if at +130 or better. | Comfortable favorite win. |
 | **Gates 1, 6, 7, 8 pass** (defensive floor + faded team no reset + good price + conviction on dog) | Dog ML if +350+. Dog's primary attacker anytime. Dog +0.5 handicap. | Upset thesis has gate support. |
