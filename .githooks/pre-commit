@@ -29,4 +29,15 @@ if git diff --cached --name-only | grep -q ".picks/INDEX.md"; then
     fi
 fi
 
+# Check that REFLECTIONS.md doesn't contain local picks data
+if git diff --cached --name-only | grep -q ".picks/REFLECTIONS.md"; then
+    STAGED_REFLECT=$(git show :.picks/REFLECTIONS.md 2>/dev/null || true)
+    if echo "$STAGED_REFLECT" | grep -qE '^### 20[0-9]{2}-[0-9]{2}-[0-9]{2} '; then
+        echo "❌ .picks/REFLECTIONS.md contains dated entry headers (e.g. '### 2026-06-16 ...')."
+        echo "   Commit the template form only — format instructions, empty Entries section."
+        echo "   Restore the template with: git checkout HEAD -- .picks/REFLECTIONS.md"
+        exit 1
+    fi
+fi
+
 echo "✅ Pre-commit checks passed."
