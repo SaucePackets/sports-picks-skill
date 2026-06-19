@@ -1,6 +1,6 @@
 #!/bin/bash
 # sports-picks-skill pre-commit hook
-# Checks: trailing whitespace, merge conflict markers
+# Checks: trailing whitespace, merge conflict markers, picks data in INDEX.md
 
 set -e
 
@@ -16,6 +16,17 @@ fi
 if grep -rn "[[:space:]]$" --include="*.md" --include="*.json" --include="*.toml" --include="*.yaml" --include="*.yml" --include="*.sh" . 2>/dev/null; then
     echo "❌ Trailing whitespace found above. Remove it before committing."
     exit 1
+fi
+
+# Check that INDEX.md doesn't contain local picks data
+if git diff --cached --name-only | grep -q ".picks/INDEX.md"; then
+    STAGED_INDEX=$(git show :.picks/INDEX.md 2>/dev/null || true)
+    if echo "$STAGED_INDEX" | grep -qE '^\| [0-9]{4}-[0-9]{2}-[0-9]{2} \|'; then
+        echo "❌ .picks/INDEX.md contains dated pick data (e.g. '| 2026-06-16 |...')."
+        echo "   Commit the template form only: empty table, 0-0 tallies, no streaks."
+        echo "   Restore the template with: git checkout HEAD -- .picks/INDEX.md"
+        exit 1
+    fi
 fi
 
 echo "✅ Pre-commit checks passed."
