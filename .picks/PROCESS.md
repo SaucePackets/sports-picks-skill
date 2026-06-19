@@ -463,10 +463,20 @@ WC uses the same 3-layer model as MLB (slate → review → execution) but socce
 1. **Form** — Last 5 W-D-L, goals scored/conceded
 2. **Attack** — GF/game, xG For, shots on target
 3. **Defense** — Clean sheet %, GA/game, xG Against
-4. **Draw risk** — Historical draw rate, low-scoring profile
+4. **Draw risk** — Historical draw rate, low-scoring profile. **When draw risk is High+, the draw is a potential betting side.** See wc-data.md for thresholds.
 5. **Rest/injuries** — Days between matches, key player availability
 6. **Tournament context** — Group stage vs knockout, must-win scenarios
 7. **Price** — Estimated probability vs Polymarket market price
+
+### WC pick philosophy
+Same discipline as MLB: the matchup determines the play, not the narrative.
+
+- **Draw is one option on the menu**, not the default. It must earn its spot through the same gates as any other side.
+- When proposing a moneyline pick (any side), **always include the draw %** (Polymarket or de-vigged) so the full 3-way picture is visible.
+- Most matches still get a PASS — including on the draw. Don't force it because draws hit yesterday.
+- The expanded format (48 teams, more debutants) may shift matchday dynamics, but that becomes part of the data, not a shortcut around the gates.
+
+**Rule of thumb:** If the sharpest read is the favorite, propose it. If it's BTTS, propose that. If it's the draw because the favorite can't score and the underdog can't lose, propose that. If nothing clears the gates, PASS.
 
 ### Other leagues (future)
 The soccer analysis framework transfers directly to Premier League (`eng.1`), La Liga (`esp.1`), Bundesliga (`ger.1`), and Champions League. ESPN endpoints and team IDs are already available in sports-data-apis. Add as new pipeline sections when ready.
