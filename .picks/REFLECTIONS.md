@@ -16,6 +16,65 @@ Each entry answers:
 
 ## Entries
 
+### 2026-06-16 — Los Angeles Angels ML (-109) at Arizona Diamondbacks — W
+
+1. **Stated edge thesis:** Detmers strikeout-command edge over Merrill Kelly, Angels form edge, bullpen edge, and a playable near-pick price. Medium $18, Polymarket fill 0.510.
+2. **What decided it:** Los Angeles won 7-0. Detmers validated the core pillar: 7.0 IP, 3 H, 0 ER, 0 BB, 3 K on 90 pitches. Kelly was the weak side: 5.1 IP, 11 H, 6 ER, 1 BB, 4 K, 2 HR. Neto homered in the 3rd, Trout hit a two-run shot in the 5th, and the Angels kept adding pressure with Meckler/Walton RBI hits. The bullpen only needed to protect a clean script; Yates and Silseth finished two scoreless.
+3. **Was it catchable:** Yes, in our favor. The K/BB gap was the pregame signal, but the actual win came from the broader command/contact profile: Detmers avoided traffic entirely while Kelly could not suppress hard contact.
+4. **Bad bet or bad result:** Good bet, clean result. No variance bailout. The starter gate held directly and the offense gave enough margin that the bullpen edge was not stress-tested.
+5. **Change:** No rule change. This reinforces the best MLB profile right now: specific command edge plus playable Polymarket discount. Keep Medium unless the opponent-starter fade is also extreme or the price is clearly mispriced.
+
+
+### 2026-06-14 — Atlanta Braves ML (+108) at New York Mets — L
+
+1. **Stated edge thesis:** Elder run-prevention edge, Atlanta form edge, and Braves bullpen gap against a Mets side priced as home favorite despite weaker recent shape. Medium $18, Polymarket fill 0.470.
+2. **What decided it:** New York won 8-1. Elder failed the core pillar: 4.0 IP, 10 H, 6 ER, 2 BB, 2 K, 2 HR. The Mets put up four in the 1st on Young's single, Ewing's double/error sequence, and Baty's RBI single, then added Ewing and Semien solo HRs in the 5th. Atlanta scored once on a sac fly and finished with four hits.
+3. **Was it catchable:** Yes. Elder's ERA/run-prevention profile was treated too cleanly without enough strikeout/contact-damage stress. Peralta was not a weak enough opposing starter to justify an underdog road thesis if Elder did not suppress contact.
+4. **Bad bet or bad result:** Bad read. The starter gate failed directly and the bullpen edge never got a chance to matter.
+5. **Change:** Do not use run-prevention ERA as a standalone starter edge unless the pitcher has miss/contact-suppression support. For road dogs, require either a sharper opposing-starter fade or a clearer price discount.
+
+### 2026-06-14 — St. Louis Cardinals ML (-108) at Minnesota Twins — L
+
+1. **Stated edge thesis:** McGreevy command edge plus massive form and bullpen gap against a Minnesota team bleeding runs recently. Medium $18, Polymarket fill 0.490.
+2. **What decided it:** Minnesota won 5-4. McGreevy mostly held: 6.0 IP, 7 H, 2 ER, 2 BB, 2 K. But Bradley beat the fade with 6.2 IP, 5 H, 4 ER, 1 BB, 7 K, and St. Louis struck out 11 times. The Cardinals led 4-2 in the 7th before JoJo Romero allowed three hits, two earned runs, and a walk; Kreidler doubled in the winner in the 8th.
+3. **Was it catchable:** Partly. The McGreevy side was fine, but Bradley's strikeout upside was underweighted. The bullpen gap was aggregated; it did not account for Romero as the leverage failure point.
+4. **Bad bet or bad result:** Bad result with a process leak. Not a price chase, but the thesis needed Minnesota's run-bleed to continue and Bradley/Romero reversed that script.
+5. **Change:** When fading a volatile starter, separate run-prevention risk from K-upside. Also stress-test likely 7th/8th inning arms when the bet depends on a bullpen gap.
+
+
+### 2026-06-13 — New York Yankees ML (-112) at Toronto Blue Jays — W
+
+1. **Stated edge thesis:** Schlittler command edge, Yankees form, and bullpen gap at a fair road price. Medium $15, Polymarket fill 0.520.
+2. **What decided it:** New York won 3-1. Schlittler did the job: 7.0 IP, 6 H, 1 ER, 4 BB, 7 K. Gausman was also excellent — 7.0 IP, 1 H, 1 ER, 7 K — so this was not a clean opponent-starter fade. The game turned in the 9th when Goldschmidt hit a two-run HR off Louis Varland after Bellinger reached. Bednar closed with three strikeouts.
+3. **Was it catchable:** Yes, mostly in our favor. The Schlittler side was real and the Yankees bullpen/late-power path held. But Gausman outperforming the fade means the starter mismatch was narrower than the thesis implied.
+4. **Bad bet or bad result:** Good bet, good result, not a blowout read. Medium sizing was right because the win path needed late separation after both starters held.
+5. **Change:** No rule change. Do not upgrade “our starter is better” into “their starter is vulnerable” unless the opponent starter fade is independently documented.
+
+### 2026-06-13 — Miami Marlins ML (+109) at Pittsburgh Pirates — L
+
+1. **Stated edge thesis:** Bachar run prevention, Marlins 6-1 form, Chandler walk risk, and a Pittsburgh bullpen gap at plus money. Medium $15, Polymarket fill 0.490.
+2. **What decided it:** Pittsburgh won 3-2. Bachar only gave Miami 2.0 IP, so the starter/run-prevention pillar turned into a bullpen-volume script. Chandler beat the fade: 5.2 IP, 3 H, 2 ER, 1 BB, 6 K. Miami tied it in the 6th, but Anthony Bender loaded traffic in the 8th and hit Horwitz with a pitch to force in the winning run.
+3. **Was it catchable:** Yes. The analysis treated Bachar like a normal starter without verifying expected workload/role. It also overweighted Chandler’s walk risk without enough current command-shape support. Both were available pregame checks.
+4. **Bad bet or bad result:** Bad read. Plus money helped, but the core gate failed: the “starter edge” was not really a starter edge if Bachar was only giving two innings.
+5. **Change:** No skill change needed yet; this is covered by starter-gate discipline. Operationally, require expected starter length/pitch-count verification before using run prevention as a primary gate.
+
+
+### 2026-06-11 — Detroit Tigers ML (-126) vs Minnesota Twins — W
+
+1. **Stated edge thesis:** Detroit had the cleaner starter profile with Montero over Matthews, better last-7 form (+18 RD), a major bullpen gap, and a playable Polymarket BUY_SHORT price around 0.55. Medium $15.
+2. **What decided it:** Detroit won 11-0. Montero carried the starter gate: 6.1 IP, 4 H, 0 ER, 1 BB, 4 K. Matthews got tagged for 7 ER and 3 HR in 6 IP, then Minnesota's pen gave up 4 more. Detroit hit six homers total — Torkelson, Torres, Keith, Greene, McKinstry, and Pérez — so the form/offense gate did not just hold, it detonated.
+3. **Was it catchable:** Yes, in our favor. The starter and bullpen edges were both real. The only surprise was the scale: Detroit's power made the bullpen edge mostly irrelevant because the game was already broken open.
+4. **Bad bet or bad result:** Good read, clean outcome. No variance bailout. Medium was right; 5/5 gates passed, but the price was still not cheap enough to call this elite.
+5. **Change:** No rule change. This validates the gate-count calibration: when starter, form, bullpen, market, and price all align, Medium/High is earned by the numbers, not narrative.
+
+### 2026-06-11 — Miami Marlins ML (-120) vs Arizona Diamondbacks — W
+
+1. **Stated edge thesis:** Miami had the better form and bullpen, Arizona's lineup was weakened, and Merrill Kelly's run-prevention/HR profile was fadeable against Tyler Phillips at a playable -120 / ~0.53 Polymarket manual entry. Medium $15.
+2. **What decided it:** Miami won 2-0. Phillips held the core risk together: 5.0 IP, 2 H, 0 ER, 2 BB, 5 K. The Marlins bullpen finished four scoreless innings with 8 strikeouts. Kelly was not shelled, but Miami scratched the only runs on Edwards' sac fly and Marsee's RBI single. Arizona produced only 3 hits and struck out 13 times.
+3. **Was it catchable:** Yes. Vig review correctly accepted Phillips' walk risk because Arizona's offensive/injury context and bullpen gap gave the pick multiple win paths. The thesis was not "Kelly collapses"; it was Miami's pitching/run-prevention stack plus price discipline. That held.
+4. **Bad bet or bad result:** Good read, but narrower than Detroit. The starter/bullpen gate won it; the offense did just enough. Medium sizing was correct.
+5. **Change:** No rule change. This reinforces that a walk-risk starter can still be playable when the opponent offense is thin and the bullpen gap is strong — but keep it Medium unless the starter edge is cleaner.
+
 ### 2026-06-10 — Philadelphia Phillies ML (-152) at Toronto Blue Jays — W
 
 1. **Stated edge thesis:** Luzardo strikeout/control edge over Scherzer's rough return profile, Phillies form edge, bullpen gap, and playable Polymarket 0.560 fill. Medium $15.

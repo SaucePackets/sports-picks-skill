@@ -42,11 +42,11 @@ def normalize_pick_fields(pick_side_raw: str, price_raw: str, stake_raw: str) ->
     """Returns normalized top-level fields + normalized_scalar_originals."""
     # Extract just the team name (strip "ML" suffix)
     team = re.sub(r'\s+ML$', '', pick_side_raw).strip()
-    
+
     # Extract just the moneyline number
     m = re.search(r'([+-]?\d+)', price_raw)
     price = m.group(1) if m else price_raw
-    
+
     return {
         'top_level': {
             'pick_side': team,
