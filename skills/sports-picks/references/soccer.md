@@ -16,6 +16,21 @@ Soccer betting framework for FIFA World Cup, continental tournaments, and other 
 
 ---
 
+## Venue / Neutral-Site Verification (Required Pre-Gate Check)
+
+**The "home" label in fixture data (ESPN, FootyStats) is a tournament convention — not real home advantage on neutral soil.** Verify actual venue location before applying any home-field reasoning in gate analysis.
+
+- **Extract** venue `fullName`, `address.city`, and `address.country` from the competition data for every match
+- **Compare** the venue country to the "home" team's home country:
+  - **Neutral site** (venue country ≠ home team's country): Strip ALL home-field advantage reasoning from analysis. Do not reference "at home" in any gate commentary. The home/away label is meaningless for venue context.
+  - **True home game** (venue country = home team's country): Home advantage is real but the market already prices it. Note as neutral context — do not use as a tiebreaker bias.
+- **Host nation rule:** When a host nation plays at home in a tournament (e.g., USA in a US-hosted World Cup), that IS a true home game. Note it explicitly. The market prices it — flag it rather than argue from it.
+- **Club/tournament default:** For international tournaments (World Cup, Champions League, Copa America, Euros, AFCON), default to neutral site unless the venue country matches one team's home federation. For domestic league matches (EPL, La Liga, etc.), the "home" label IS real — assume home advantage unless the fixture is at a neutral venue (cup final, neutral-site derby).
+- **Data source:** Venue block from competition data — `fullName`, `address.city`, `address.country`
+- **Pitfall:** Do NOT use the competitor home/away designation as a proxy for venue. A match listed as "Netherlands (home)" at NRG Stadium in Houston is not a home game.
+
+---
+
 ## The 8 Soccer Gates (adapted from PROCESS.md)
 
 Apply these in order before any official pick. Same numbered structure as PROCESS.md — only the content inside each gate changes.
