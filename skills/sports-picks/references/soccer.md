@@ -31,6 +31,22 @@ Soccer betting framework for FIFA World Cup, continental tournaments, and other 
 
 ---
 
+## Opponent-Quality Weighting in Form Analysis
+
+Raw W-D-L records and GF/GA totals are misleading without opponent context. Apply these checks before treating any form advantage as real.
+
+**Check who each result came against.** A 3-1-1 against weak teams is not better than 2-2-1 against strong teams:
+- A win over a tournament minnow is not equivalent to a draw against a contender
+- 5 goals against a bottom-tier team inflates the GF average — note which goals came against comparable opposition
+- 3 clean sheets against weak attacks is noise; 1 clean sheet against a contender is a real signal
+- A draw against Belgium is a positive result. A draw against a minnow is a negative. Tag draws by opponent tier
+
+**Shared-opponent comparison is single-point evidence, not a trend.** One common opponent between two teams gives directional data, not a conclusion. "Team A beat Norway 3-1, Team B beat Norway 2-1" says Team A was better *that day*, not that Team A is the better team overall. Require 2+ shared opponents or corroborating data before using it as a primary thesis.
+
+**Case example — Sweden vs Netherlands (June 20, 2026):** Sweden's 3-1-1 (14 GF) was treated as clearly superior to Netherlands' 2-2-1 (7 GF). But Netherlands' draws came against Belgium and Japan — stronger opposition than Sweden's wins. The GF gap was inflated by 5 goals against Tunisia. Shared-opponent comp (both beat Norway) was one data point, not a trend. Result: Netherlands won 2-0.
+
+---
+
 ## The 8 Soccer Gates (adapted from PROCESS.md)
 
 Apply these in order before any official pick. Same numbered structure as PROCESS.md — only the content inside each gate changes.
