@@ -5,6 +5,8 @@ from pathlib import Path
 
 from scripts.execution_guard import (
     acquire_execution_lock,
+    active_pick_exists,
+    append_pick_with_dedup,
     find_filled_receipts,
     mark_execution_from_receipts,
 )
@@ -117,6 +119,67 @@ class ExecutionGuardTests(unittest.TestCase):
     def test_acquire_lock_refuses_when_candidate_already_locked(self):
         self.assertTrue(acquire_execution_lock(self.schedule_path, "aec-mlb-nyy-kc-2026-05-27", "attempt-1"))
         self.assertFalse(acquire_execution_lock(self.schedule_path, "aec-mlb-nyy-kc-2026-05-27", "attempt-2"))
+
+    def test_active_pick_exists_ignores_settled_rows(self):
+        picks_path = self.root / "picks.json"
+        picks_path.write_text(json.dumps({"picks": [
+            {"market_slug": "abc", "status": "settled"},
+            {"market_slug": "def", "status": "open"},
+        ]}))
+
+        self.assertFalse(active_pick_exists(picks_path, "abc"))
+        self.assertTrue(active_pick_exists(picks_path, "def"))
+
+    def test_append_pick_with_dedup_merges_nearby_duplicate_fill(self):
+        picks_path = self.root / "picks.json"
+        picks_path.write_text(json.dumps({"picks": [{
+            "pick_id": "P1",
+            "market_slug": "aec-mlb-nyy-kc-2026-05-27",
+            "execution_timestamp": "2026-05-27T21:32:03Z",
+            "fill_shares": 25,
+            "entry_notional": 14.75,
+            "duplicate_count": 1,
+        }]}))
+
+        result = append_pick_with_dedup(picks_path, {
+            "pick_id": "P2",
+            "market_slug": "aec-mlb-nyy-kc-2026-05-27",
+            "execution_timestamp": "2026-05-27T21:32:54Z",
+            "fill_shares": 10,
+            "entry_notional": 5.90,
+        })
+
+        self.assertEqual(result["action"], "merged")
+        data = json.loads(picks_path.read_text())
+        self.assertEqual(len(data["picks"]), 1)
+        pick = data["picks"][0]
+        self.assertEqual(pick["fill_shares"], 35)
+        self.assertEqual(pick["entry_notional"], 20.65)
+        self.assertEqual(pick["duplicate_count"], 2)
+        self.assertTrue(pick["duplicate_batch"])
+        self.assertEqual(pick["duplicate_pick_ids"], ["P2"])
+
+    def test_append_pick_with_dedup_appends_outside_window(self):
+        picks_path = self.root / "picks.json"
+        picks_path.write_text(json.dumps({"picks": [{
+            "pick_id": "P1",
+            "market_slug": "aec-mlb-nyy-kc-2026-05-27",
+            "execution_timestamp": "2026-05-27T21:32:03Z",
+            "fill_shares": 25,
+            "entry_notional": 14.75,
+        }]}))
+
+        result = append_pick_with_dedup(picks_path, {
+            "pick_id": "P2",
+            "market_slug": "aec-mlb-nyy-kc-2026-05-27",
+            "execution_timestamp": "2026-05-27T21:34:04Z",
+            "fill_shares": 10,
+            "entry_notional": 5.90,
+        })
+
+        self.assertEqual(result["action"], "appended")
+        data = json.loads(picks_path.read_text())
+        self.assertEqual(len(data["picks"]), 2)
 
 
 if __name__ == "__main__":
