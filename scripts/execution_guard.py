@@ -35,6 +35,21 @@ def _write_json_atomic(path: Path, data: dict[str, Any]) -> None:
     os.replace(tmp, path)
 
 
+def _write_json_locked(file_obj: Any, data: dict[str, Any]) -> None:
+    """Write JSON through the locked descriptor without replacing the inode.
+
+    Replacing the file while another process is waiting on flock can let the
+    waiter acquire a lock on the old unlinked inode and then clobber the newer
+    path. When a flock is active, rewrite the same descriptor instead.
+    """
+    file_obj.seek(0)
+    json.dump(data, file_obj, indent=2)
+    file_obj.write("\n")
+    file_obj.truncate()
+    file_obj.flush()
+    os.fsync(file_obj.fileno())
+
+
 def _parse_utc_timestamp(value: Any) -> datetime | None:
     if not value:
         return None
@@ -139,7 +154,7 @@ def acquire_execution_lock(schedule_path: Path | str, market_slug: str, attempt_
             if lock and lock.get("attempt_id") != attempt_id:
                 return False
             candidate["execution_lock"] = {"attempt_id": attempt_id, "locked_at": utc_now()}
-            _write_json_atomic(path, schedule)
+            _write_json_locked(f, schedule)
             return True
         finally:
             fcntl.flock(f, fcntl.LOCK_UN)
@@ -163,32 +178,37 @@ def append_pick_with_dedup(picks_path: Path | str, new_pick: dict[str, Any], win
     duplicate_batch is set, and duplicate_pick_ids captures the absorbed row identity.
     """
     path = Path(picks_path)
-    data = _load_json(path)
-    picks = data.setdefault("picks", [])
-    new_slug = new_pick.get("market_slug")
-    new_ts = _parse_utc_timestamp(new_pick.get("execution_timestamp"))
-    if new_slug and new_ts:
-        for existing in picks:
-            if existing.get("market_slug") != new_slug:
-                continue
-            existing_ts = _parse_utc_timestamp(existing.get("execution_timestamp"))
-            if not existing_ts:
-                continue
-            delta = abs((existing_ts - new_ts).total_seconds())
-            if delta <= window_seconds:
-                existing["fill_shares"] = _merge_number(existing.get("fill_shares"), new_pick.get("fill_shares"))
-                existing["entry_notional"] = _money(_dec_value(existing.get("entry_notional")) + _dec_value(new_pick.get("entry_notional")))
-                existing["duplicate_count"] = int(existing.get("duplicate_count", 1)) + 1
-                existing["duplicate_batch"] = True
-                absorbed = existing.setdefault("duplicate_pick_ids", [])
-                if new_pick.get("pick_id"):
-                    absorbed.append(new_pick["pick_id"])
-                existing["last_duplicate_execution_timestamp"] = new_pick.get("execution_timestamp")
-                _write_json_atomic(path, data)
-                return {"action": "merged", "pick": existing}
-    picks.append(new_pick)
-    _write_json_atomic(path, data)
-    return {"action": "appended", "pick": new_pick}
+    with path.open("r+") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        try:
+            data = json.load(f)
+            picks = data.setdefault("picks", [])
+            new_slug = new_pick.get("market_slug")
+            new_ts = _parse_utc_timestamp(new_pick.get("execution_timestamp"))
+            if new_slug and new_ts:
+                for existing in picks:
+                    if existing.get("market_slug") != new_slug:
+                        continue
+                    existing_ts = _parse_utc_timestamp(existing.get("execution_timestamp"))
+                    if not existing_ts:
+                        continue
+                    delta = abs((existing_ts - new_ts).total_seconds())
+                    if delta <= window_seconds:
+                        existing["fill_shares"] = _merge_number(existing.get("fill_shares"), new_pick.get("fill_shares"))
+                        existing["entry_notional"] = _money(_dec_value(existing.get("entry_notional")) + _dec_value(new_pick.get("entry_notional")))
+                        existing["duplicate_count"] = int(existing.get("duplicate_count", 1)) + 1
+                        existing["duplicate_batch"] = True
+                        absorbed = existing.setdefault("duplicate_pick_ids", [])
+                        if new_pick.get("pick_id"):
+                            absorbed.append(new_pick["pick_id"])
+                        existing["last_duplicate_execution_timestamp"] = new_pick.get("execution_timestamp")
+                        _write_json_locked(f, data)
+                        return {"action": "merged", "pick": existing}
+            picks.append(new_pick)
+            _write_json_locked(f, data)
+            return {"action": "appended", "pick": new_pick}
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
 
 
 def mark_execution_from_receipts(
@@ -202,50 +222,60 @@ def mark_execution_from_receipts(
     if not fills:
         return False
     path = Path(schedule_path)
-    schedule = _load_json(path)
-    candidate = _candidate_for(schedule, market_slug)
-    if not candidate:
-        return False
-    qty: Decimal = sum((Decimal(str(fill["fill_quantity"])) for fill in fills), Decimal("0"))
-    notional: Decimal = sum((Decimal(str(fill["fill_notional"])) for fill in fills), Decimal("0"))
-    commission: Decimal = sum((Decimal(str(fill["commission"])) for fill in fills), Decimal("0"))
-    first = fills[0]
-    last = fills[-1]
-    avg_price = notional / qty if qty else Decimal("0")
+    with path.open("r+") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        try:
+            schedule = json.load(f)
+            candidate = _candidate_for(schedule, market_slug)
+            if not candidate:
+                return False
+            qty: Decimal = sum((Decimal(str(fill["fill_quantity"])) for fill in fills), Decimal("0"))
+            notional: Decimal = sum((Decimal(str(fill["fill_notional"])) for fill in fills), Decimal("0"))
+            commission: Decimal = sum((Decimal(str(fill["commission"])) for fill in fills), Decimal("0"))
+            first = fills[0]
+            last = fills[-1]
+            avg_price = notional / qty if qty else Decimal("0")
 
-    candidate["executed"] = True
-    candidate["executed_at"] = last.get("transact_time") or utc_now()
-    candidate["fill_price"] = float(avg_price.quantize(Decimal("0.001"), rounding=ROUND_HALF_UP))
-    candidate["fill_quantity"] = int(qty) if qty == qty.to_integral_value() else float(qty)
-    candidate["fill_notional"] = _money(notional)
-    candidate["commission"] = _money(commission)
-    candidate["polymarket_order_id"] = last.get("order_id")
-    candidate["polymarket_trade_id"] = last.get("trade_id")
-    if len(fills) > 1:
-        candidate["duplicate_fill_count"] = len(fills)
-        candidate["duplicate_order_ids"] = [fill.get("order_id") for fill in fills]
-        candidate["duplicate_trade_ids"] = [fill.get("trade_id") for fill in fills]
-    candidate["execution_lock"] = None
-    candidate["execution_note"] = note
-    if len(fills) == 1:
-        candidate.setdefault("execution_receipt", first.get("receipt_path"))
-    else:
-        candidate["execution_receipts"] = [fill.get("receipt_path") for fill in fills]
-    _write_json_atomic(path, schedule)
-    return True
+            candidate["executed"] = True
+            candidate["executed_at"] = last.get("transact_time") or utc_now()
+            candidate["fill_price"] = float(avg_price.quantize(Decimal("0.001"), rounding=ROUND_HALF_UP))
+            candidate["fill_quantity"] = int(qty) if qty == qty.to_integral_value() else float(qty)
+            candidate["fill_notional"] = _money(notional)
+            candidate["commission"] = _money(commission)
+            candidate["polymarket_order_id"] = last.get("order_id")
+            candidate["polymarket_trade_id"] = last.get("trade_id")
+            if len(fills) > 1:
+                candidate["duplicate_fill_count"] = len(fills)
+                candidate["duplicate_order_ids"] = [fill.get("order_id") for fill in fills]
+                candidate["duplicate_trade_ids"] = [fill.get("trade_id") for fill in fills]
+            candidate["execution_lock"] = None
+            candidate["execution_note"] = note
+            if len(fills) == 1:
+                candidate.setdefault("execution_receipt", first.get("receipt_path"))
+            else:
+                candidate["execution_receipts"] = [fill.get("receipt_path") for fill in fills]
+            _write_json_locked(f, schedule)
+            return True
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
 
 
 def clear_execution_lock(schedule_path: Path | str, market_slug: str, attempt_id: str | None = None) -> bool:
     path = Path(schedule_path)
-    schedule = _load_json(path)
-    candidate = _candidate_for(schedule, market_slug)
-    if not candidate or not candidate.get("execution_lock"):
-        return False
-    if attempt_id and candidate["execution_lock"].get("attempt_id") != attempt_id:
-        return False
-    candidate["execution_lock"] = None
-    _write_json_atomic(path, schedule)
-    return True
+    with path.open("r+") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        try:
+            schedule = json.load(f)
+            candidate = _candidate_for(schedule, market_slug)
+            if not candidate or not candidate.get("execution_lock"):
+                return False
+            if attempt_id and candidate["execution_lock"].get("attempt_id") != attempt_id:
+                return False
+            candidate["execution_lock"] = None
+            _write_json_locked(f, schedule)
+            return True
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
 
 
 def main() -> int:
