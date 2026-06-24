@@ -200,7 +200,10 @@ The gates determine what to bet:
 - **`sports-skills` CLI:** `football search_team`, `football get_event_statistics`, `football get_player_season_stats`
 
 ### Market Data
-- **Polymarket:** Web at `polymarket.com/sports/...` or Gamma API for CLOB-only markets
+- **Polymarket WC match markets:** use `python scripts/polymarket_wc_markets.py --date YYYY-MM-DD --pretty` from the repo. It discovers the current Next.js build ID from `https://polymarket.com/sports/world-cup/games`, fetches `/_next/data/<build>/sports/world-cup/games.json`, then fetches each event's `/_next/data/<build>/sports/world-cup/<slug>.json` page data to extract all 3 regulation outcomes.
+- **Polymarket parsing rule:** each listed outcome is its own binary market. `Yes` on `...-cze` means Czechia wins; `No` means **not Czechia** (draw or opponent), not the other team outright. Use the script's `home_price`, `draw_price`, and `away_price` fields for moneyline comparison.
+- **Scanner output:** include Polymarket `home_price` / `draw_price` / `away_price` next to ESPN/DK odds as a second price source. If the script returns no matching market, apply the No-Polymarket penalty in Gate 7.
+- **Other Polymarket:** Web at `polymarket.com/sports/...` or Gamma API for CLOB-only markets
 - **Sportsbooks:** ESPN odds (DK), FanDuel (player props), DraftKings
 
 ---
