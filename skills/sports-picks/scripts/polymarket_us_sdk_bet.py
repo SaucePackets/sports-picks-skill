@@ -20,6 +20,7 @@ import json
 import os
 import re
 import sys
+import time
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
@@ -480,18 +481,32 @@ def cmd_order(args: argparse.Namespace) -> dict[str, Any]:
     if args.approval_token != proposal["approval_token"]:
         die(f"approval token mismatch; expected {proposal['approval_token']}")
 
-    client = sdk_client(require_auth=True)
-    try:
-        response = client.orders.create(proposal["request"])
-    except Exception as e:
-        receipt = {**proposal, "mode": "live_sdk_error", "executed_at": utc_now(), "error": repr(e), "ok": False}
-        receipt["receipt_path"] = save_receipt("sdk-order-error", args.market_slug, receipt)
-        print(json.dumps(as_jsonable(receipt), indent=2, sort_keys=True))
-        raise SystemExit(1)
-    finally:
-        client.close()
+    response: Any = None
+    order_attempts: list[dict[str, Any]] = []
+    for attempt in range(1, 4):
+        client = sdk_client(require_auth=True)
+        try:
+            response = client.orders.create(proposal["request"])
+            break
+        except Exception as e:
+            order_attempts.append({"attempt": attempt, "at": utc_now(), "error": repr(e)})
+            if attempt == 3:
+                receipt = {
+                    **proposal,
+                    "mode": "live_sdk_error",
+                    "executed_at": utc_now(),
+                    "error": repr(e),
+                    "order_attempts": order_attempts,
+                    "ok": False,
+                }
+                receipt["receipt_path"] = save_receipt("sdk-order-error", args.market_slug, receipt)
+                print(json.dumps(as_jsonable(receipt), indent=2, sort_keys=True))
+                raise SystemExit(1)
+            time.sleep(10 * attempt)
+        finally:
+            client.close()
 
-    receipt = {**proposal, "mode": "live_sdk", "executed_at": utc_now(), "response": response, "ok": True}
+    receipt = {**proposal, "mode": "live_sdk", "executed_at": utc_now(), "response": response, "order_attempts": order_attempts, "ok": True}
     receipt["receipt_path"] = save_receipt("sdk-order", args.market_slug, receipt)
     if args.write_watchlist:
         filled_quantity = extract_filled_quantity(response)
