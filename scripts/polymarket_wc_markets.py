@@ -9,12 +9,14 @@ fetches the matching _next/data JSON route and extracts binary match markets.
 from __future__ import annotations
 
 import argparse
+import base64
 import html
 import json
 import re
 import sys
 import urllib.error
 import urllib.request
+import zlib
 from dataclasses import asdict, dataclass
 from typing import Any, Iterable
 
@@ -90,15 +92,50 @@ def fetch_data_route(build_id: str) -> dict[str, Any]:
     return json.loads(body)
 
 
-def load_world_cup_data() -> tuple[str, dict[str, Any]]:
+def decode_serialized_payload(payload: str) -> dict[str, Any]:
+    padding = "=" * (-len(payload) % 4)
+    raw = base64.urlsafe_b64decode(payload + padding)
+    return json.loads(zlib.decompress(raw).decode("utf-8"))
+
+
+def extract_serialized_payload(page_html: str) -> dict[str, Any]:
+    # App-router/Turbopack pages no longer expose __NEXT_DATA__ or a build ID.
+    # Polymarket now ships the hydrated World Cup data as a compressed React
+    # Flight payload referenced by serializedPayload.
+    if "serializedPayload" not in page_html:
+        raise ValueError("Polymarket page did not contain serializedPayload")
+
+    for match in re.finditer(r'self\.__next_f\.push\(\[1,"([A-Za-z0-9_-]{100,})"\]\)', page_html):
+        payload = match.group(1)
+        if not payload.startswith("eJ"):
+            continue
+        try:
+            data = decode_serialized_payload(payload)
+        except (ValueError, zlib.error, json.JSONDecodeError):
+            continue
+        if isinstance(data, dict) and any(
+            obj.get("slug", "").startswith("fifwc-") for obj in walk_dicts(data)
+        ):
+            return data
+
+    raise ValueError("could not decode Polymarket serializedPayload")
+
+
+def load_world_cup_data() -> tuple[str | None, dict[str, Any]]:
     page_html, _ = fetch_text(PAGE_URL, accept="text/html")
-    build_id = discover_build_id(page_html)
+    try:
+        build_id = discover_build_id(page_html)
+    except ValueError:
+        return None, extract_serialized_payload(page_html)
     try:
         return build_id, fetch_data_route(build_id)
     except (ValueError, urllib.error.URLError, json.JSONDecodeError):
         # One retry with a fresh page fetch handles rolling build IDs.
         page_html, _ = fetch_text(PAGE_URL, accept="text/html")
-        build_id = discover_build_id(page_html)
+        try:
+            build_id = discover_build_id(page_html)
+        except ValueError:
+            return None, extract_serialized_payload(page_html)
         return build_id, fetch_data_route(build_id)
 
 
@@ -163,7 +200,7 @@ def classify_outcome(question: str, teams: list[str]) -> tuple[str, str | None] 
     return None
 
 
-def extract_outcome_markets(event_data: dict[str, Any], teams: list[str]) -> dict[str, OutcomeMarket]:
+def extract_outcome_markets(event_data: dict[str, Any], teams: list[str], base_slug: str | None = None) -> dict[str, OutcomeMarket]:
     outcomes: dict[str, OutcomeMarket] = {}
     for obj in walk_dicts(event_data):
         slug = obj.get("slug")
@@ -171,6 +208,8 @@ def extract_outcome_markets(event_data: dict[str, Any], teams: list[str]) -> dic
         prices = obj.get("outcomePrices")
         raw_outcomes = obj.get("outcomes")
         if not isinstance(slug, str) or not isinstance(question, str):
+            continue
+        if base_slug and not slug.startswith(f"{base_slug}-"):
             continue
         if not isinstance(prices, list) or len(prices) < 2:
             continue
@@ -193,11 +232,11 @@ def extract_outcome_markets(event_data: dict[str, Any], teams: list[str]) -> dic
     return outcomes
 
 
-def extract_markets(data: dict[str, Any], build_id: str, date: str | None = None) -> list[MatchMarket]:
+def extract_markets(data: dict[str, Any], build_id: str | None, date: str | None = None) -> list[MatchMarket]:
     markets: list[MatchMarket] = []
     for slug, title, teams, volume, liquidity in extract_event_shells(data, date=date):
-        event_data = fetch_event_data(build_id, slug)
-        outcomes = extract_outcome_markets(event_data, teams)
+        event_data = fetch_event_data(build_id, slug) if build_id else data
+        outcomes = extract_outcome_markets(event_data, teams, base_slug=slug)
         if not outcomes:
             continue
         markets.append(MatchMarket(
