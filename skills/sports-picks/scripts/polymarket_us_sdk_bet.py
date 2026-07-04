@@ -470,7 +470,11 @@ def cmd_propose(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def _find_existing_order(market_slug: str, proposal: dict[str, Any]) -> Any | None:
-    """Check if an order matching this proposal already exists (e.g. after a 500 on create)."""
+    """Check if an order matching this proposal already exists (e.g. after a 500 on create).
+
+    All three fields must match: outcome, size/quantity, and price.
+    Size and price are taken from the request (what was sent to the server)
+    with a fallback to the preview response."""
     client = sdk_client(require_auth=True)
     try:
         orders = client.orders.list(params={"market": market_slug})
@@ -480,17 +484,23 @@ def _find_existing_order(market_slug: str, proposal: dict[str, Any]) -> Any | No
         client.close()
     if not isinstance(orders, list):
         return None
-    preview_outcome = proposal.get("preview_outcome")
-    preview_size = proposal.get("preview", {}).get("size")
-    preview_price = proposal.get("preview", {}).get("price")
+    expected_outcome = proposal.get("preview_outcome")
+    request = proposal.get("request", {})
+    preview = proposal.get("preview", {})
+    # Derive size and price from the actual request first, falling back to preview
+    expected_size = request.get("quantity") or preview.get("size") or preview.get("quantity")
+    expected_price = request.get("price") or preview.get("price")
+    # If we can't determine both size and price, refuse to match — too risky
+    if expected_outcome is None or expected_size is None or expected_price is None:
+        return None
     for order in orders:
         if not isinstance(order, dict):
             continue
-        if order.get("outcome") != preview_outcome:
+        if order.get("outcome") != expected_outcome:
             continue
-        if preview_size is not None and order.get("size") != preview_size:
+        if order.get("size") != expected_size and order.get("quantity") != expected_size:
             continue
-        if preview_price is not None and order.get("price") != preview_price:
+        if order.get("price") != expected_price:
             continue
         return order
     return None
