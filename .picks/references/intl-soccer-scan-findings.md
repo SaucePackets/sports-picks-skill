@@ -177,3 +177,44 @@
 2. **Tournament form > pre-tournament form:** A draw-heavy pre-tournament streak isn't a reliable tournament signal. Group-stage results carry more weight. → Added to Hard Pass Rules.
 3. **Fade the 1-0 home altitude team unless the edge clears.** Mexico had 5 clean sheets, true home, altitude — and the cron still passed. That was too conservative. Home + altitude + elite defense = factor the altitude into the edge estimate, don't just note it.
 
+---
+
+## 2026-07-04
+
+### Canada vs Morocco (NRG Stadium, Houston — R16)
+- **Morocco To Advance candidate (Medium, 5.5% edge).** PM prices Morocco advance at 56.5% but DK 90-min win is 58.3%. The PM price is below the 90-min-only implied probability — clear mispricing for a To Advance market. Morocco unbeaten through group stage with draws against Brazil and Netherlands. Canada making WC knockout debut.
+- **Capped at Medium due to penalties risk.** Morocco drew 3 of 5 group matches. If this reaches pens, the edge becomes a coin flip. The 5.5% edge exists but the draw-heavy profile means the path includes a real shootout risk.
+- **Draw risk for To Advance = less concerning.** Morocco's 3 draws in group stage are a risk for 90-min ML bets but actually support the To Advance thesis — Morocco survives to ET and has the pedigree (2022 semifinalist) to win from there.
+- **Observation:** Two independent price sources (PM + DK) confirming the same 5.5% mispricing is a stronger signal than a single-source edge would be. The market consensus on Morocco is slightly too pessimistic — both the sportsbook and prediction market agree on the direction but PM's To Advance pricing is the anomaly.
+
+### Paraguay vs France (Lincoln Financial Field, Philadelphia — R16)
+- **France To Advance candidate (High, 5.5% edge).** France 5-0-0 with elite attack (3.33 adj GF/g, Mbappé 6G). PM To Advance at 83.5% vs DK 90-min at 85.2%. France should advance 88-90%. All 8 gates pass.
+- **Elite attacker override confirmed.** Mbappé (6G, 21 shots) and Dembélé (4G) create chances that even a parked bus struggles to contain. Paraguay held Germany to 1-1 but Germany doesn't have Mbappé-level game-breaking pace.
+- **No penalties risk — draw risk is LOW.** France hasn't drawn a competitive match. Paraguay can defend (drew Australia 0-0, Germany 1-1) but France's attack is the ultimate draw-breaker.
+- **Observation:** The France edge is thinner than Morocco's in absolute terms (both 5.5%, but France at 83.5% has less upside). However, the higher gate count (8 vs 6) and lower variance profile justify the High/$30 sizing. The PM price at 0.835 is objectively wrong for a team with France's form and attacking talent.
+
+### Slate-level observations
+- **Both edges are exactly 5.5%** — right at the threshold. In a 2-game slate, passing on both would be defensible. But the independent price confirmation (PM + DK agree directionally, PM is the outlier on To Advance pricing) makes both actionable.
+- **R16 market type awareness is functioning.** Both candidates correctly use To Advance (PM) rather than 90-min ML (DK). The draw-heavy Morocco profile and elite-attacker France profile route to different markets per the decision table. The framework caught the value that a 90-min-only approach would have missed.
+- **Total exposure $48 under $90 cap.** Conservative sizing given both edges hover near 5%.
+- **Rule candidate (DEPRECATED by model on 2026-07-04):** The old rule "PM To Advance below DK 90-min = structural edge" was wrong. The Jul 4 Morocco case proved it — model shows -1.5% edge where the old method claimed +5.5%. Cross-market comparison creates phantom edges. Replaced with: **"All edges must be computed by `intl_soccer_model.py` comparing model probability to market price for the SAME event type. Never compare DK 90-min implied to PM To Advance price."**
+
+---
+## 2026-07-04 — Model Implementation & Edge Recalculation
+
+### Edge methodology overhaul
+- **Old method (deprecated):** DK 90-min implied + subjective "ET bump" → "estimated advance probability" → compare to PM To Advance price. Both Jul 4 candidates landed at exactly 5.5% — the edge was the artifact, not the signal.
+- **New method (`intl_soccer_model.py`):** Independent probability model from quality-adjusted form data. Computes 90-min outcome probabilities via logistic regression (calibrated to 324 WC matches), derives To Advance probability, then compares model output to market prices FOR THE SAME EVENT TYPE.
+
+### Jul 4 slate — model recalculation
+
+| Match | Market | Old "Edge" | Model Edge | Verdict |
+|---|---|---|---|---|
+| Morocco To Advance | PM 0.565 | +5.5% (phantom) | **-1.5%** | PASS — slightly overpriced |
+| France To Advance | PM 0.835 | +5.5% | **+6.6%** | BET — genuine edge |
+
+### Key findings
+- **Morocco's edge was entirely fabricated by cross-market comparison.** Model says Morocco advance probability = 55.0% (not 62%+). PM at 56.5% is actually a fair price if anything slightly over. The 90-min DK price (-140 = 58.3%) is a terrible bet — model gives Morocco only 40.9% to win in regulation.
+- **France's edge is real and in the right market.** Model says France advances 90.1% of the time vs PM pricing at 83.5%. That's +6.6% — Medium confidence, actionable. The 90-min ML edge is thinner (+3.1%) but also positive.
+- **The model caught the fabrication.** The old method produced exactly 5.5% for every favorite because it was adding an arbitrary ET bump to hit the threshold. The model produces different numbers based on actual team strength differences.
+- **Rule promoted:** All edge calculations must use `intl_soccer_model.py`. No subjective ET bumps. No cross-market comparison. Model probability vs market price, same event type.

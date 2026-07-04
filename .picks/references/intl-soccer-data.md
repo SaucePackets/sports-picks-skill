@@ -89,15 +89,50 @@ If fading a team on a poor run (1W or fewer in last 5, <1 GF/game), have they sh
 
 ### 7. Price discipline
 Is the number inside the bettable-to threshold without needing the price to create the pick?
+
+**⚠️ CRITICAL — Edge must come from an independent probability model, not from cross-market comparison.**
+Comparing DK 90-min implied + a subjective "ET bump" to PM To Advance price is NOT edge discovery. It's comparing apples to oranges. Both markets already know the format. The model must produce its own probability estimate from form data, THEN compare to the market price for the SAME event type.
+
+**Model-based edge calculation (required for all picks):**
+
+Use `scripts/intl_soccer_model.py` to estimate probabilities:
+```bash
+python3 scripts/intl_soccer_model.py <team_a> <team_b> --stage R16 \
+  --adj-gf-a X --adj-ga-a X --wins-a N --draws-a N --losses-a N \
+  --adj-gf-b X --adj-ga-b X --wins-b N --draws-b N --losses-b N
+```
+
+The model:
+1. Computes team strength ratings from quality-adjusted form (GF/g, GA/g) + tournament win rate
+2. Converts rating difference to 90-min outcome probabilities (win/draw/loss) via logistic regression calibrated to 324 WC matches
+3. Derives To Advance probabilities from 90-min outcomes + ET/pens model
+4. Compares model probabilities to market prices WITHIN THE SAME MARKET TYPE
+
+**Edge comparison rules (hard):**
+
+| Market | Compare model to | Do NOT compare to |
+|---|---|---|
+| DK/ESPN 90-min ML | DK/ESPN implied probability | PM To Advance price |
+| PM To Advance | PM YES price | DK 90-min implied |
+| Draw (DK 90-min) | DK draw implied probability | PM draw binary |
+
+**Edge thresholds (same-market):**
+- 2%+: candidate if 4+ gates pass
+- 4%+: Medium confidence
+- 7%+: High confidence
+- Under 2%: PASS
+
+**No subjective ET bump.** The model derives advance probability from team strength — it doesn't add an arbitrary percentage to DK's number. If the model shows no edge, there is no edge.
+
 - **Convert American odds to probability:**
   - Negative: prob = |odds| / (|odds| + 100)
   - Positive: prob = 100 / (odds + 100)
 - **3-way market note:** Draw must always be accounted for. Example: France -215 (68% implied) + Draw +360 (22%) + Senegal +600 (14%)
-- **Polymarket pricing:** WC match markets are available via `polymarket_wc_markets.py --date YYYY-MM-DD`. This script returns binary (to-advance) prices for all three outcomes (home/draw/away). Always run this script during the slate scan to get a second independent price source for every match. With two independent price sources (PM + DK/ESPN), use the **standard 5% edge threshold** — not the old 10% penalty. The no-Polymarket penalty only applies if the script fails AND returns no data.
-- **Draw pricing:** Treat draw the same as any other side — estimate probability from form, context, and scoring profile, compare to market, calculate edge. The standard edge thresholds apply (5% with multiple price sources, 10% with one).
+- **Polymarket pricing:** WC match markets are available via `polymarket_wc_markets.py --date YYYY-MM-DD`. This script returns binary (to-advance) prices for all three outcomes (home/draw/away). Always run this script during the slate scan to get a second independent price source for every match.
+- **Draw pricing:** Treat draw the same as any other side — estimate probability from form, context, and scoring profile, compare to market, calculate edge. Use the model for draw probability estimation.
 - **Draw risk flags** (Very High/High/Medium/Low) help identify matches where a draw outcome is structurally likely, but they do not carry hard price minimums. A +260 draw with 35% estimated probability has a real edge (+260 = 27.8% implied; 35% estimated = 7.2% edge). A +320 draw with 22% estimated probability has no edge. Do the math.
 - **Elite attacker override:** When the favorite has a top-5 world attacker healthy and playing, discount your estimated draw probability by 15-20%. These players create chances that structured defenses cannot contain — a draw becomes harder to hold.
-- **Data sources:** ESPN odds (DK), Polymarket via `polymarket_wc_markets.py`
+- **Data sources:** ESPN odds (DK), Polymarket via `polymarket_wc_markets.py`, model via `intl_soccer_model.py`
 
 ### 8. Winner conviction
 Do I actually believe this side/draw wins most often?
@@ -272,7 +307,12 @@ For knockout matches with ET, ask: **does my edge thesis say the favorite wins i
 | Favorite has an elite attacker (Messi, Mbappé) | 90-min ML (DK) | These players break draws. If you believe the favorite wins in regulation, take the better payout. |
 | Fading a favorite whose attack is anemic (can't score) | To Advance (PM) on the underdog, or 90-min Draw (DK) | Belgium-Senegal: Belgium couldn't score against Iran. If you think the favorite might go to ET, the underdog To Advance at long odds has structural value. |
 
-**Hard rule:** Never compare PM To Advance prices directly against DK 90-min prices as if they're the same thing. They're different bets. Quote both in the slate but compute edges within the same market type: PM edge vs PM implied, DK edge vs DK implied.
+**Hard rule — ⚠️ EDGE METHODOLOGY UPDATED 2026-07-04:**
+- **Edge must come from `intl_soccer_model.py`, not from cross-market comparison.**
+- The model produces independent probabilities from form data. Compare model output to market prices for the SAME event type.
+- PM To Advance prices already include ET/pens in the market consensus. DK 90-min already excludes them. Comparing one to the other + a subjective bump is NOT edge discovery — it's comparing different bets.
+- The model solves this: it estimates 90-min outcomes and derives advance probability from team strength, then each is compared to its own market.
+- Example (Jul 4 Morocco): DK 90-min implied 58.3%, PM To Advance 56.5%. The old method said "58.3% + ET bump ≈ 62% → edge vs 56.5%." The model says "Morocco advance probability = 55.0% → -1.5% edge." The model was right — comparing different market types created a phantom edge.
 
 ### Penalties Risk (applies to all To Advance picks)
 
@@ -417,6 +457,7 @@ web_extract "https://footystats.org/clubs/{team-name-slug}-{id}"
 | **FootyStats** | Team form, xG, goal timing, BTTS rates, clean sheet % | Pre-match team analysis | `web_extract` on team page |
 | **ESPN Summary API** | Match timeline, per-player stats, team form, lineups | Post-match analysis, player tracking | `curl -s "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/summary?event={event_id}"` |
 | **sports-skills CLI** | Match stats, player search, player season stats, H2H | Pre-match scouting | `sports-skills football get_event_statistics --event_id={id}` |
+| **intl_soccer_model.py** | Team strength ratings, 90-min & To Advance probabilities, edge calculation | Independent probability model — required for all edge calculations | `python3 scripts/intl_soccer_model.py <team_a> <team_b> --stage R16 --adj-gf-a X ...` |
 
 **Note on xG for World Cup:** Neither Understat nor free scrapable sites provide xG data for WC matches. fbref.com has the data but is behind Cloudflare anti-bot protection. Use **shots on target** as an xG proxy.
 
