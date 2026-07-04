@@ -8,3 +8,7 @@ __pycache__/
 !.picks/PROCESS.md
 !.picks/REFLECTIONS.md
 !.picks/INDEX.md
+# Reference docs — framework, not pick data
+!.picks/references/
+!.picks/references/intl-soccer-data.md
+!.picks/references/intl-soccer-scan-findings.md
