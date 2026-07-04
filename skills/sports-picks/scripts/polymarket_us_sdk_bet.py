@@ -469,6 +469,33 @@ def cmd_propose(args: argparse.Namespace) -> dict[str, Any]:
     return make_proposal(args)
 
 
+def _find_existing_order(market_slug: str, proposal: dict[str, Any]) -> Any | None:
+    """Check if an order matching this proposal already exists (e.g. after a 500 on create)."""
+    client = sdk_client(require_auth=True)
+    try:
+        orders = client.orders.list(params={"market": market_slug})
+    except Exception:
+        return None
+    finally:
+        client.close()
+    if not isinstance(orders, list):
+        return None
+    preview_outcome = proposal.get("preview_outcome")
+    preview_size = proposal.get("preview", {}).get("size")
+    preview_price = proposal.get("preview", {}).get("price")
+    for order in orders:
+        if not isinstance(order, dict):
+            continue
+        if order.get("outcome") != preview_outcome:
+            continue
+        if preview_size is not None and order.get("size") != preview_size:
+            continue
+        if preview_price is not None and order.get("price") != preview_price:
+            continue
+        return order
+    return None
+
+
 def cmd_order(args: argparse.Namespace) -> dict[str, Any]:
     proposal = make_proposal(args)
     if not args.execute:
@@ -481,21 +508,35 @@ def cmd_order(args: argparse.Namespace) -> dict[str, Any]:
     if args.approval_token != proposal["approval_token"]:
         die(f"approval token mismatch; expected {proposal['approval_token']}")
 
-    response: Any = None
+    response = None
     order_attempts: list[dict[str, Any]] = []
     for attempt in range(1, 4):
         client = sdk_client(require_auth=True)
         try:
             response = client.orders.create(proposal["request"])
             break
-        except Exception as e:
-            order_attempts.append({"attempt": attempt, "at": utc_now(), "error": repr(e)})
+        except Exception as exc:
+            order_attempts.append({"attempt": attempt, "at": utc_now(), "error": repr(exc)})
+            client.close()
+            # Before retrying, check if the order landed despite the error.
+            # A 5xx / transport failure can mean the order was created server-side
+            # but the response was lost. If we find a matching order, treat as success.
+            if attempt < 3:
+                try:
+                    dup = _find_existing_order(args.market_slug, proposal)
+                except Exception:
+                    dup = None
+                if dup:
+                    response = dup
+                    order_attempts.append({"attempt": attempt, "at": utc_now(),
+                                           "resolved_via": "existing_order_lookup"})
+                    break
             if attempt == 3:
                 receipt = {
                     **proposal,
                     "mode": "live_sdk_error",
                     "executed_at": utc_now(),
-                    "error": repr(e),
+                    "error": repr(exc),
                     "order_attempts": order_attempts,
                     "ok": False,
                 }
@@ -506,7 +547,8 @@ def cmd_order(args: argparse.Namespace) -> dict[str, Any]:
         finally:
             client.close()
 
-    receipt = {**proposal, "mode": "live_sdk", "executed_at": utc_now(), "response": response, "order_attempts": order_attempts, "ok": True}
+    receipt = {**proposal, "mode": "live_sdk", "executed_at": utc_now(), "response": response,
+               "order_attempts": order_attempts, "ok": True}
     receipt["receipt_path"] = save_receipt("sdk-order", args.market_slug, receipt)
     if args.write_watchlist:
         filled_quantity = extract_filled_quantity(response)
