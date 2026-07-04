@@ -145,8 +145,9 @@ class MatchModel:
 
     def _normalize_stage(self) -> None:
         """Map stage names to 'group' or 'knockout'."""
-        knockout_stages = {"R32", "R16", "QF", "SF", "final", "3rd"}
-        if self.stage.upper() in knockout_stages:
+        stage = self.stage.strip().lower()
+        knockout_stages = {"knockout", "r32", "r16", "qf", "sf", "final", "3rd"}
+        if stage in knockout_stages:
             self.stage = "knockout"
         else:
             self.stage = "group"
