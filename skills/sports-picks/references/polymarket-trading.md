@@ -9,6 +9,7 @@ Source docs:
 - Orders: https://docs.polymarket.us/api-reference/orders/create-order
 - SDK markets: https://docs.polymarket.us/api-reference/sdks/python/markets
 - Balances: https://docs.polymarket.us/api-reference/account/get-account-balances
+- CLOB book: `https://clob.polymarket.com/book?token_id=<clobTokenId>`
 - MLB auto-bet policy: `references/mlb-polymarket-auto-bets.md`
 - Sports moneyline SDK/session notes: `references/polymarket-us-sports-moneyline.md`
 
@@ -52,6 +53,18 @@ POLYMARKET_SECRET_KEY=...
 
 The secret key is shown only once. If lost, revoke and create a new key.
 
+For public Polymarket CLOB World Cup / soccer markets, use a separate wallet/client setup. Store these locally, never in the repo:
+
+```bash
+POLYMARKET_CLOB_PRIVATE_KEY=...      # EOA/private key used by py-clob-client
+POLYMARKET_CLOB_FUNDER=...           # proxy/funder address for the account
+POLYMARKET_CLOB_SIGNATURE_TYPE=1     # usually 1 for proxy wallets
+POLYMARKET_CLOB_CHAIN_ID=137         # Polygon
+POLYMARKET_CLOB_HOST=https://clob.polymarket.com
+```
+
+Public CLOB book checks do not need secrets. Live CLOB orders also require `py-clob-client` and an approval token from a fresh dry-run proposal.
+
 Authenticated API:
 - base URL: `https://api.polymarket.us`
 - auth headers: `X-PM-Access-Key`, `X-PM-Timestamp`, `X-PM-Signature`
@@ -74,7 +87,8 @@ Public API:
    - For sports moneylines, prefer the Python SDK discovery path in `references/polymarket-us-sports-moneyline.md`.
    - Use `client.search.query()` or `client.markets.list({"sportsMarketTypes": ["MONEYLINE"]})` to find the US tradable moneyline slug; `.com` event slugs can be non-tradable through the US API.
 3. Fetch market details and BBO from `gateway.polymarket.us` or the SDK.
-4. Create a dry-run SDK proposal with `scripts/polymarket_us_sdk_bet.py propose-moneyline` for US sports moneylines. Use legacy `scripts/polymarket_us_guard.py propose` only for non-SDK/gateway-compatible markets.
+   - For World Cup / soccer markets discovered on the public `.com` page (`fifwc-*`), use `scripts/polymarket_wc_markets.py` to verify event slug, question, team/outcome, and `clobTokenIds`, then use `scripts/polymarket_clob_wc_bet.py propose` to fetch the live CLOB book by token id. Do not route these through the Polymarket US gateway slug endpoints when they return 404.
+4. Create a dry-run SDK proposal with `scripts/polymarket_us_sdk_bet.py propose-moneyline` for US sports moneylines. Use legacy `scripts/polymarket_us_guard.py propose` only for non-SDK/gateway-compatible markets. For `fifwc-*` public CLOB soccer, use `scripts/polymarket_clob_wc_bet.py propose`.
 5. Authenticated-preview the exact order and verify `preview.order.marketMetadata.outcome` equals the intended team before showing the proposal.
 6. Show the user the proposal:
    - market slug
@@ -209,6 +223,33 @@ python skills/sports-picks/scripts/polymarket_us_guard.py balances
 python skills/sports-picks/scripts/polymarket_us_guard.py positions
 python skills/sports-picks/scripts/polymarket_us_guard.py open-orders
 python skills/sports-picks/scripts/polymarket_us_guard.py watch-once --market-slug <slug> --outcome-side OUTCOME_SIDE_YES --entry-price <price> --quantity <shares>
+
+# Public CLOB World Cup / soccer path. Proposal writes both receipt and watchlist.
+python skills/sports-picks/scripts/polymarket_clob_wc_bet.py health
+python scripts/polymarket_wc_markets.py --pretty
+python skills/sports-picks/scripts/polymarket_clob_wc_bet.py propose \
+  --event-slug fifwc-eng-mex-2026-06-18 \
+  --outcome away \
+  --side yes \
+  --expected-team Mexico \
+  --price 0.42 \
+  --quantity 10 \
+  --max-notional 5 \
+  --max-price 0.45 \
+  --notes "manual soccer proposal only"
+python skills/sports-picks/scripts/polymarket_clob_wc_bet.py propose \
+  --event-slug fifwc-eng-mex-2026-06-18 \
+  --outcome away \
+  --side yes \
+  --expected-team Mexico \
+  --price 0.42 \
+  --quantity 10 \
+  --max-notional 5 \
+  --max-price 0.45 \
+  --approval-token <proposal_token> \
+  --execute \
+  --i-accept-live-trading \
+  --notes "explicit approval in current session: <quote>"
 ```
 
 `balances`, `positions`, `open-orders`, and `preview` need credentials. `market` and `watch-once` use public market data.

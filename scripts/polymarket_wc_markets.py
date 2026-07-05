@@ -31,8 +31,11 @@ class OutcomeMarket:
     outcome: str
     team: str | None
     slug: str
+    question: str
     yes_price: float | None
     no_price: float | None
+    yes_clob_token_id: str | None = None
+    no_clob_token_id: str | None = None
     volume: float | None = None
     liquidity: float | None = None
 
@@ -164,6 +167,24 @@ def parse_price(value: Any) -> float | None:
         return None
 
 
+def parse_clob_token_ids(value: Any) -> tuple[str | None, str | None]:
+    """Return YES/NO CLOB token ids from Gamma/Next page data.
+
+    Polymarket has exposed this as either a JSON string or a two-element list.
+    The ordering follows the binary outcomes list: ["Yes", "No"].
+    """
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError:
+            return None, None
+    if not isinstance(value, list) or len(value) < 2:
+        return None, None
+    yes = str(value[0]) if value[0] not in (None, "") else None
+    no = str(value[1]) if value[1] not in (None, "") else None
+    return yes, no
+
+
 def split_teams(title: str) -> list[str]:
     if " vs. " in title:
         return [part.strip() for part in title.split(" vs. ", 1)]
@@ -215,6 +236,7 @@ def extract_outcome_markets(event_data: dict[str, Any], teams: list[str], base_s
             continue
         if raw_outcomes and raw_outcomes != ["Yes", "No"]:
             continue
+        yes_clob_token_id, no_clob_token_id = parse_clob_token_ids(obj.get("clobTokenIds"))
         classified = classify_outcome(question, teams)
         if not classified:
             continue
@@ -224,8 +246,11 @@ def extract_outcome_markets(event_data: dict[str, Any], teams: list[str], base_s
             outcome=outcome,
             team=team,
             slug=slug,
+            question=question,
             yes_price=parse_price(prices[0]),
             no_price=parse_price(prices[1]),
+            yes_clob_token_id=yes_clob_token_id,
+            no_clob_token_id=no_clob_token_id,
             volume=parse_price(obj.get("volume") or obj.get("volumeNum")),
             liquidity=parse_price(obj.get("liquidity") or obj.get("liquidityNum")),
         ))

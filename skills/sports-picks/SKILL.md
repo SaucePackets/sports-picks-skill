@@ -64,6 +64,7 @@ For Polymarket execution:
 - load `references/polymarket-trading.md` first
 - for MLB official locks, also load `references/mlb-polymarket-auto-bets.md`
 - for Polymarket US sports moneylines, load `references/polymarket-us-sports-moneyline.md` and use `scripts/polymarket_us_sdk_bet.py`; trust authenticated preview metadata, not slug/YES-NO guesses
+- for public World Cup / soccer `fifwc-*` markets where US gateway slug endpoints return 404, use `scripts/polymarket_clob_wc_bet.py` to verify page data, extract YES/NO `clobTokenIds`, fetch the CLOB book, and create manual-approval proposals only
 - exact game/outcome mapping is mandatory
 - create a dry-run proposal before any live order
 - show market slug, side, action, price, quantity, max exposure, BBO, and approval token

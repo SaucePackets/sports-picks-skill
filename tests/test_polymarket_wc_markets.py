@@ -8,6 +8,7 @@ from scripts.polymarket_wc_markets import (
     extract_markets,
     extract_outcome_markets,
     extract_serialized_payload,
+    parse_clob_token_ids,
 )
 
 
@@ -34,6 +35,7 @@ class PolymarketWcMarketsTests(unittest.TestCase):
                     "question": "Will Czechia win on 2026-06-24?",
                     "outcomes": ["Yes", "No"],
                     "outcomePrices": ["0.255", "0.745"],
+                    "clobTokenIds": '["YES_CZE", "NO_CZE"]',
                 },
                 {
                     "slug": "fifwc-cze-mex-2026-06-24-draw",
@@ -53,8 +55,11 @@ class PolymarketWcMarketsTests(unittest.TestCase):
         outcomes = extract_outcome_markets(event_data, ["Czechia", "Mexico"])
 
         self.assertEqual(outcomes["home"].team, "Czechia")
+        self.assertEqual(outcomes["home"].question, "Will Czechia win on 2026-06-24?")
         self.assertEqual(outcomes["home"].yes_price, 0.255)
         self.assertEqual(outcomes["home"].no_price, 0.745)
+        self.assertEqual(outcomes["home"].yes_clob_token_id, "YES_CZE")
+        self.assertEqual(outcomes["home"].no_clob_token_id, "NO_CZE")
         self.assertIsNone(outcomes["draw"].team)
         self.assertEqual(outcomes["draw"].yes_price, 0.245)
         self.assertEqual(outcomes["away"].team, "Mexico")
@@ -68,6 +73,7 @@ class PolymarketWcMarketsTests(unittest.TestCase):
                     "question": "Will Czechia win on 2026-06-24?",
                     "outcomes": ["Yes", "No"],
                     "outcomePrices": ["0.255", "0.745"],
+                    "clobTokenIds": '["YES_CZE", "NO_CZE"]',
                 },
                 {
                     "slug": "fifwc-cze-bra-2026-06-30-cze",
@@ -85,6 +91,11 @@ class PolymarketWcMarketsTests(unittest.TestCase):
         )
 
         self.assertEqual(outcomes["home"].yes_price, 0.255)
+
+    def test_parse_clob_token_ids_accepts_json_string_and_list(self):
+        self.assertEqual(parse_clob_token_ids('["YES", "NO"]'), ("YES", "NO"))
+        self.assertEqual(parse_clob_token_ids(["YES2", "NO2"]), ("YES2", "NO2"))
+        self.assertEqual(parse_clob_token_ids("not-json"), (None, None))
 
     def test_extract_serialized_payload_decodes_react_flight_payload(self):
         data = {
