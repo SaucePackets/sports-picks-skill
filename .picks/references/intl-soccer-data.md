@@ -47,6 +47,7 @@ Can my side's defensive structure survive the first 60-70 minutes without conced
 - **Check:** CB partnership, goalkeeper form, defensive midfielder screen, tactical setup (deep block vs high press)
 - **For favorites:** Can we keep a clean sheet or limit the opponent to 0-1 goals while we find our scoring rhythm?
 - **For underdogs:** Can we survive the opening pressure wave and stay in the match?
+- **Opponent-adjustment:** Clean sheets and low GA only count as a full gate when the sample includes comparable attacking opponents. Against a tier step-up, require matchup-specific box-control evidence or downgrade this gate.
 - **Friendly data filter:** Defensive data from matches where the opponent was at less than full strength is **noise**. Discount by 50% unless the opposing lineup is confirmed.
 - **Data sources:** ESPN rosters (who's in the back line), FootyStats GA/game and clean sheet %, form of GK and CBs
 
@@ -166,7 +167,10 @@ Do I actually believe this side/draw wins most often?
   - **Draws are not equal.** A draw against Belgium is a positive result. A draw against a minnow is a negative. Tag each draw by opponent tier.
 - **Quality-adjustment guardrail (2026-07-04):** When computing quality-adjusted GF/g and GA/g, exclude the **bottom 2 opponents by FIFA rank or Elo rating only** — not every non-elite team. Costa Rica and Congo DR are tournament-level sides. Only minnows like Haiti, Jordan, Uzbekistan, Panama, Qatar, New Zealand should be filtered out. Example from Colombia vs Ghana audit: Pass 1 incorrectly excluded Costa Rica and Congo DR as "minnows," producing a false 0.5 adj GF/g. Pass 2 corrected to 1.33 by only excluding Jordan and Uzbekistan. **If in doubt about whether a team is a minnow, include them in the quality-adjusted sample.** Under-filtering produces noise; over-filtering produces phantom edges.
 - **Shared-opponent comparison is single-point evidence, not a trend.** One common opponent between two teams gives directional data, not a conclusion. "Team A beat Norway 3-1, Team B beat Norway 2-1" says Team A was better *that day*, not that Team A is the better team overall. Require 2+ shared opponents or corroborating data before using it as a primary thesis.
-- **Friendly data filter:** If a result came against a weakened opponent (rested starters, unknown lineup), discount by 50%
+- **Opponent-adjusted form gate:** Current-tournament form is not enough by itself. Pull a 10–15 match competitive sample where available, weight current-tournament matches highest, competitive matches from the last 12–18 months medium-high, and friendlies low. Tier prior opponents as elite attack, strong attack, average, or weak/low-danger. Clean sheets, scoring streaks, and GF/GA trends are not full gates unless prior opponent quality is comparable to today's opponent.
+- **Step-up downgrade:** If today's opponent is a tier step-up from the sample that created the form edge, downgrade the relevant form/attack/defense gate unless matchup-specific evidence supports it. Required evidence includes CB/DM matchups, fullback-vs-winger matchups, set-piece/cross defense, penalty-box shot prevention/SOT allowed, and prior competitive results against comparable attacks.
+- **Missing-data downgrade:** If xG/SOT/box-entry data is unavailable and the pick depends on defensive suppression against an elite or strong attack, the defensive gate cannot be a full ✅. Mark it ⚠️ and cap confidence unless other matchup evidence is strong.
+- **Tier audit requirement:** Opponent tiers must be audited at least annually and before every major international tournament. If a team's tier has not been audited within 12 months, mark it stale and downgrade any gate that depends on that tier.
 - **Case example — Sweden vs Netherlands (June 20):** Sweden's 3-1-1 (14 GF) was treated as clearly superior to Netherlands' 2-2-1 (7 GF). But Netherlands' draws came against Belgium and Japan — stronger opposition than Sweden's wins. The GF gap was inflated by 5 goals against Tunisia. Shared-opponent comp (both beat Norway) was one data point, not a trend. Result: Netherlands won 2-0.
 - **Data source:** ESPN lastFiveGames (check opponent names in each), FootyStats
 
@@ -244,6 +248,8 @@ Pass when:
 - market sharply disagrees (30¢+ movement off your side) and you cannot explain why
 - you are chasing a moved number late
 - a friendly result was cited without verifying the opponent was at full strength
+- a clean-sheet/scoring/form edge has not been opponent-adjusted and today's opponent is a tier step-up
+- the tier labels used in the analysis are stale or unaudited for 12+ months
 - **No pick is better than a bad pick**
 
 **Soccer-specific hard passes:**
