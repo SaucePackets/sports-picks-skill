@@ -43,6 +43,51 @@ Raw W-D-L records and GF/GA totals are misleading without opponent context. Appl
 
 **Shared-opponent comparison is single-point evidence, not a trend.** One common opponent between two teams gives directional data, not a conclusion. "Team A beat Norway 3-1, Team B beat Norway 2-1" says Team A was better *that day*, not that Team A is the better team overall. Require 2+ shared opponents or corroborating data before using it as a primary thesis.
 
+### Opponent-Adjusted Form Gate
+
+Current-tournament form is not enough by itself. International samples are small and opponent quality varies widely. Before any form, attack, or defense gate can pass, validate the underlying sample against comparable opposition.
+
+**Required sample layers:**
+
+| Layer | Use | Weight |
+|:------|:----|:------:|
+| Current tournament | Current role, tactical setup, injuries, confidence | High |
+| Competitive matches from the last 12-18 months | Opponent-adjusted team strength | Medium-high |
+| Friendlies | Style hints and player availability only | Low |
+
+**Required opponent tiering:** classify every relevant prior opponent as elite attack, strong attack, average, or weak/low-danger. The labels are analytical inputs, not permanent truths.
+
+**Gate rule:** a clean-sheet streak, scoring streak, low GA/GF trend, or possession edge is not a full gate unless prior opponent quality is comparable to the current opponent. If the current opponent is a tier step-up, downgrade the gate unless matchup-specific evidence supports it.
+
+**Specific evidence required against a tier step-up:**
+- CB and defensive-midfield matchups against the current opponent's striker/late runners
+- Fullback matchups against wide creators
+- Set-piece and cross defense
+- Penalty-box shot prevention / SOT allowed, when available
+- Evidence from prior competitive matches against comparable attacks
+
+**Missing-data downgrade:** if xG/SOT/box-entry data is unavailable and the pick depends on defensive suppression against an elite or strong attack, the defensive gate cannot be a full ✅. Mark it ⚠️ and cap confidence unless other matchup evidence is strong.
+
+**Model adjustment:** if a side's defensive case is built on a sample below the current opponent's attack tier, apply a step-up penalty to that side's modeled win probability before declaring edge. A major tier step-up with no comparable-opponent evidence should usually move the pick to watch/pass.
+
+**Slate output must show:**
+```text
+Opponent-adjusted form:
+- Recent defensive/attacking sample: [opponents + tiers]
+- Current opponent tier: [tier]
+- Comparable opponent evidence: [yes/no]
+- Gate effect: [pass / downgrade / fail]
+```
+
+### Tier Audit Requirement
+
+Opponent tiers drift. Team quality changes with managers, player pools, age curves, injuries, and tournament cycles. Maintain tier labels as a reviewed data artifact, not as static memory.
+
+- Run a formal tier audit at least annually and before every major international tournament.
+- Audit inputs: Elo/FIFA rank movement, competitive results, GF/GA/xG where available, player-pool changes, manager/tactical changes, injuries/retirements, and results against comparable tiers.
+- Each audit must write a dated note explaining tier promotions/demotions and unresolved teams.
+- If a team's tier has not been audited within 12 months, mark it stale and downgrade any gate that depends on that tier.
+
 **Case example — Sweden vs Netherlands (June 20, 2026):** Sweden's 3-1-1 (14 GF) was treated as clearly superior to Netherlands' 2-2-1 (7 GF). But Netherlands' draws came against Belgium and Japan — stronger opposition than Sweden's wins. The GF gap was inflated by 5 goals against Tunisia. Shared-opponent comp (both beat Norway) was one data point, not a trend. Result: Netherlands won 2-0.
 
 ---
@@ -56,6 +101,7 @@ Can my side's defensive structure survive the first 60-70 minutes without conced
 - **Check:** CB partnership, goalkeeper form, defensive midfielder screen, tactical setup (deep block vs high press)
 - **For favorites:** Can we keep a clean sheet or limit the opponent to 0-1 goals while we find our scoring rhythm?
 - **For underdogs:** Can we survive the opening pressure wave and stay in the match?
+- **Opponent-adjustment:** Clean sheets and low GA only count as a full gate when the sample includes comparable attacking opponents. Against a tier step-up, require matchup-specific box-control evidence or downgrade this gate.
 - **Friendly data filter:** Defensive data from matches where the opponent was at less than full strength is **noise**. Discount by 50% unless the opposing lineup is confirmed.
 - **Data sources:** ESPN rosters, FootyStats GA/game and clean sheet %, form of GK and CBs
 
@@ -152,6 +198,8 @@ Pass when:
 - market sharply disagrees (30¢+ movement off your side) and you cannot explain why
 - you are chasing a moved number late
 - a friendly result was cited without verifying the opponent was at full strength
+- a clean-sheet/scoring/form edge has not been opponent-adjusted and today's opponent is a tier step-up
+- the tier labels used in the analysis are stale or unaudited for 12+ months
 - A draw play where the favorite has an elite attacker healthy and starting (discount estimated draw probability by 15-20% and re-check edge)
 - A draw play where the favorite has **attacking bench depth** that can break a 0-0 after 70' (triple sub of fresh attackers ≈ structural draw-breaker; check recent sub patterns in prior games)
 - A goalscorer prop where the player is a secondary striker on a team with a top-5 world attacker (15-20% shot share discount applies)

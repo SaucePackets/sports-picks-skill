@@ -49,8 +49,13 @@ https://site.api.espn.com/apis/site/v2/sports/soccer/[league]/scoreboard?dates=Y
 
 ### 1. Form Gate
 - Last 5 matches (W-D-L record), goal difference
-- Weight less for matches against weak opposition
-- **Data source:** FootyStats, web search
+- Pull a 10–15 match competitive sample where available; use current tournament as high-weight context, not the entire evidence base
+- Tier every relevant opponent as elite attack, strong attack, average, or weak/low-danger
+- Clean sheets, scoring streaks, and GF/GA trends are not full gates unless prior opponent quality is comparable to today's opponent
+- If today's opponent is a tier step-up, downgrade the gate unless matchup-specific evidence supports it
+- Friendlies are style/player-availability hints only; do not let friendly form create an official edge
+- **Tier audit:** opponent tiers must be audited at least annually and before every major tournament; stale 12+ month tiers downgrade any gate that depends on them
+- **Data source:** FootyStats, ESPN team results, Elo/FIFA ranking movement, web search
 
 ### 2. Attack Gate
 - Goals per game, xG For, shots on target
