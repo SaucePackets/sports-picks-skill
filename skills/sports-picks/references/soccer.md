@@ -70,6 +70,8 @@ Current-tournament form is not enough by itself. International samples are small
 
 **Model adjustment:** if a side's defensive case is built on a sample below the current opponent's attack tier, apply a step-up penalty to that side's modeled win probability before declaring edge. A major tier step-up with no comparable-opponent evidence should usually move the pick to watch/pass.
 
+**Elite-finishing / box-control override:** model edge plus host or venue context is not enough against an elite finishing side. If the opponent-context gate is a warning because the opponent has top-end attackers, late runners, or proven bench scorers, require box-control evidence before approving a 90-minute ML: SOT allowed against comparable attacks, CB/DM matchup support, set-piece/cross defense, and open-play SOT creation from our side. If those inputs are missing, do not merely cap confidence — pass or move the thesis to a safer market only if the price still clears EV.
+
 **Slate output must show:**
 ```text
 Opponent-adjusted form:
