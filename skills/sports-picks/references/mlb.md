@@ -159,6 +159,7 @@ Do not force fake precision when the cleaner read is simply:
 - If a reset trigger exists, the fade needs another real support layer behind it: hot bats on my side, elite/stable starter floor, or clearly cleaner bullpen/run-prevention support.
 - Do not fade yesterday's version of a team if the current series shape suggests the offense may already be waking up.
 - Do not double-dip a cold-offense fade across the same series once reset signs appear; rebuild the handicap from scratch.
+- **Same-series recheck after a loss is mandatory** before backing the same side against the same opponent within 48 hours. The new starter edge must be independent of the failed pillar, and the opponent's counter-signal from the prior game must be addressed directly. If the new case is just the same broad team-over-team thesis with different pitcher names, cap at lean/pass.
 
 ### Starting Pitchers (weight current form, not reputation)
 - Last 2 starts: runs allowed, innings pitched, walks
@@ -176,6 +177,7 @@ Do not force fake precision when the cleaner read is simply:
 - Treat command volatility as starter-floor risk, not a minor stat-line blemish. If a favorite's starter can lose the zone early and break the handicap in the first trip or two through the order, downgrade to pass unless the bullpen/run-prevention backup is clearly strong.
 - If the underdog has the better starter edge and the offenses are close enough, treat that as a serious signal, not a side note.
 - For road dogs, do not treat recent ER alone as proof of a stable starter floor. Stress-test command, walk risk, pitch efficiency, and swing-and-miss. Against high-ceiling lineups, traffic can become one crooked inning fast.
+- A walk-rate fade is not clean by itself. Confirm the candidate offense has current traffic/punish support — recent OBP, walk rate, hard contact, or power — and that the opponent is not also in strong form. Otherwise cap at lean/pass.
 
 ### Bullpen
 Casual bettors underweight this constantly.

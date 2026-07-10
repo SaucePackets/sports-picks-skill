@@ -72,6 +72,8 @@ Current-tournament form is not enough by itself. International samples are small
 
 **Elite-finishing / box-control override:** model edge plus host or venue context is not enough against an elite finishing side. If the opponent-context gate is a warning because the opponent has top-end attackers, late runners, or proven bench scorers, require box-control evidence before approving a 90-minute ML: SOT allowed against comparable attacks, CB/DM matchup support, set-piece/cross defense, and open-play SOT creation from our side. If those inputs are missing, do not merely cap confidence — pass or move the thesis to a safer market only if the price still clears EV.
 
+**Model value is not official confidence:** the probability model's Low/Medium/High label measures edge magnitude only. It does not override gate confidence. A side can be a model-value candidate and still be a pass if winner conviction, draw risk, opponent context, market type, or chance-quality gates are unresolved. Official confidence requires both positive model edge and passed gates.
+
 **Slate output must show:**
 ```text
 Opponent-adjusted form:
@@ -197,6 +199,7 @@ Pass when:
 - case depends mostly on reputation (team name, historical brand), not evidence
 - team is averaging **<1 GF/game over last 5** and you're laying heavy juice
 - edge is weak and you cannot explain it clearly
+- the model says "value" but the side lacks winner conviction or enough passed gates
 - market sharply disagrees (30¢+ movement off your side) and you cannot explain why
 - you are chasing a moved number late
 - a friendly result was cited without verifying the opponent was at full strength
