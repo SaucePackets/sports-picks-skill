@@ -1,18 +1,11 @@
 #!/usr/bin/env python3
-"""Verify Vig second-review/runtime handoff state without mutating betting files.
+"""Read-only verification of an MLB Vig review handoff.
 
 Usage:
-    python scripts/vig-review-verify.py YYYY-MM-DD
+    python scripts/vig-review-verify.py YYYY-MM-DD [options]
 
-Checks performed:
-- schedule JSON files for the date are valid and reviewer-gated candidates have
-  explicit boolean vig_approved values
-- one-shot/cron ids recorded in schedule JSON still appear in `hermes cron list --all`
-- latest-action.md exists (when present in the ledger) and is readable/non-empty
-- picks.json is valid JSON and has no duplicate active entries by market_slug
-
-The verifier is intentionally read-only: it never writes schedule, picks, or cron
-state.
+The verifier reads a dated schedule, Hermes cron storage, the canonical pick
+ledger, and ``.picks/latest-action.md``. It never writes any of them.
 """
 
 from __future__ import annotations
@@ -21,17 +14,21 @@ import argparse
 import json
 import os
 import re
-import subprocess
 import sys
 from collections import Counter
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-CRON_ID_KEY_RE = re.compile(r"(?:^|_)(?:cron|job)(?:_job)?_?id$|cron.*id$", re.IGNORECASE)
-ACTIVE_STATUSES = {"open", "active", "pending", "watch", "watching", "executed", "live"}
-SETTLED_STATUSES = {"settled", "closed", "void", "cancelled", "canceled", "lost", "won"}
+FINAL_RESULTS = {"win", "loss", "lost", "won", "void", "push", "cancelled", "canceled"}
+INACTIVE_STATUSES = {"settled", "closed", "void", "cancelled", "canceled"}
+DEFAULT_DELIVER = "telegram:-1003740149270:4"
+DEFAULT_SKILLS = ["sports-betting-markets", "sports-data-apis"]
+DEFAULT_PROVIDER = "deepseek-api"
+DEFAULT_MODEL = "deepseek-v4-flash"
 
 
 @dataclass
@@ -46,9 +43,6 @@ class VerificationReport:
 
     def ok(self, message: str) -> None:
         self.checks.append(Check("OK", message))
-
-    def warn(self, message: str) -> None:
-        self.checks.append(Check("WARN", message))
 
     def fail(self, message: str) -> None:
         self.checks.append(Check("FAIL", message))
@@ -67,203 +61,313 @@ def load_json(path: Path) -> Any:
         return json.load(handle)
 
 
-def find_schedule_paths(root: Path, date: str) -> list[Path]:
-    execute_root = root / ".picks" / "execute"
-    if not execute_root.exists():
-        return []
-    return sorted(execute_root.glob(f"**/{date}-schedule.json"))
+def decimal(value: Any) -> Decimal | None:
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        return None
 
 
-def candidates_from_schedule(schedule: Any) -> list[dict[str, Any]]:
-    if isinstance(schedule, dict) and isinstance(schedule.get("candidates"), list):
-        return [item for item in schedule["candidates"] if isinstance(item, dict)]
-    if isinstance(schedule, list):
-        return [item for item in schedule if isinstance(item, dict)]
-    return []
+def money(value: Decimal) -> str:
+    return format(value.normalize(), "f")
 
 
-def is_review_gated(candidate: dict[str, Any]) -> bool:
-    if "vig_review_needed" in candidate:
-        return bool(candidate.get("vig_review_needed"))
-    return "vig_approved" in candidate
+def parse_instant(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    text = value.strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def same_instant(left: Any, right: Any) -> bool:
+    left_dt = parse_instant(left)
+    right_dt = parse_instant(right)
+    return left_dt is not None and right_dt is not None and left_dt == right_dt
 
 
 def describe_candidate(candidate: dict[str, Any], index: int) -> str:
-    for key in ("polymarket_slug", "market_slug", "slug", "game", "matchup", "pick"):
-        value = candidate.get(key)
-        if value:
-            return f"candidate[{index}] {key}={value}"
-    return f"candidate[{index}]"
+    slug = candidate.get("polymarket_slug") or candidate.get("market_slug")
+    side = candidate.get("side")
+    details = " / ".join(str(value) for value in (slug, side) if value)
+    return f"candidate[{index}] {details}" if details else f"candidate[{index}]"
 
 
-def collect_cron_ids(value: Any) -> set[str]:
-    ids: set[str] = set()
-    if isinstance(value, dict):
-        for key, child in value.items():
-            if CRON_ID_KEY_RE.search(str(key)):
-                if isinstance(child, str) and child.strip():
-                    ids.add(child.strip())
-                elif isinstance(child, (int, float)):
-                    ids.add(str(child))
-            ids.update(collect_cron_ids(child))
-    elif isinstance(value, list):
-        for child in value:
-            ids.update(collect_cron_ids(child))
-    return ids
+def read_schedule(root: Path, date: str, report: VerificationReport) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    path = root / ".picks" / "execute" / f"{date}-schedule.json"
+    if not path.is_file():
+        report.fail(f"Schedule not found: {path}")
+        return {}, []
+    try:
+        schedule = load_json(path)
+    except (OSError, json.JSONDecodeError) as exc:
+        report.fail(f"Could not read schedule JSON {path}: {exc}")
+        return {}, []
+    if not isinstance(schedule, dict) or not isinstance(schedule.get("candidates"), list):
+        report.fail(f"Schedule must be an object with a candidates list: {path}")
+        return {}, []
+    if schedule.get("date") != date:
+        report.fail(f"Schedule date is {schedule.get('date')!r}, expected {date}")
+    candidates = [item for item in schedule["candidates"] if isinstance(item, dict)]
+    if len(candidates) != len(schedule["candidates"]):
+        report.fail("Every schedule candidate must be a JSON object")
+    report.ok(f"Loaded {len(candidates)} MLB candidates from {path}")
+    return schedule, candidates
 
 
-def get_cron_listing(cron_list_file: Path | None) -> str:
-    if cron_list_file is not None:
-        return cron_list_file.read_text(encoding="utf-8")
+def verify_reviews(candidates: list[dict[str, Any]], report: VerificationReport) -> tuple[list[dict[str, Any]], int]:
+    approved: list[dict[str, Any]] = []
+    flagged = 0
+    for index, candidate in enumerate(candidates):
+        label = describe_candidate(candidate, index)
+        decision = candidate.get("vig_approved")
+        notes = candidate.get("vig_notes")
+        if not isinstance(decision, bool):
+            report.fail(f"{label} has non-boolean vig_approved={decision!r}")
+            continue
+        if not isinstance(notes, str) or not notes.strip():
+            report.fail(f"{label} has empty vig_notes")
+        else:
+            report.ok(f"{label} has a decision and non-empty Vig notes")
+        if decision:
+            approved.append(candidate)
+        else:
+            flagged += 1
+    return approved, flagged
 
-    env = os.environ.copy()
-    env.setdefault("HERMES_ACCEPT_HOOKS", "1")
-    proc = subprocess.run(
-        ["hermes", "cron", "list", "--all"],
-        check=False,
-        capture_output=True,
-        text=True,
-        env=env,
-    )
-    if proc.returncode != 0:
-        raise RuntimeError((proc.stderr or proc.stdout or "hermes cron list failed").strip())
-    return proc.stdout
+
+def load_jobs(path: Path, report: VerificationReport) -> dict[str, dict[str, Any]]:
+    try:
+        data = load_json(path)
+    except (OSError, json.JSONDecodeError) as exc:
+        report.fail(f"Could not read Hermes cron jobs {path}: {exc}")
+        return {}
+    jobs = data.get("jobs") if isinstance(data, dict) else data
+    if not isinstance(jobs, list):
+        report.fail(f"Cron jobs file must contain a jobs list: {path}")
+        return {}
+    indexed = {str(job.get("id")): job for job in jobs if isinstance(job, dict) and job.get("id")}
+    report.ok(f"Loaded {len(indexed)} Hermes cron jobs from {path}")
+    return indexed
 
 
-def verify_schedules(root: Path, date: str, report: VerificationReport) -> set[str]:
-    paths = find_schedule_paths(root, date)
-    if not paths:
-        report.fail(f"No schedule JSON found under {root / '.picks' / 'execute'} for {date}")
-        return set()
+def expected(candidate: dict[str, Any], schedule: dict[str, Any], key: str, fallback: Any) -> Any:
+    return candidate.get(key, schedule.get(key, fallback))
 
-    cron_ids: set[str] = set()
-    for path in paths:
-        try:
-            schedule = load_json(path)
-        except json.JSONDecodeError as exc:
-            report.fail(f"Invalid schedule JSON: {path} ({exc})")
+
+def verify_execution_jobs(
+    approved: list[dict[str, Any]],
+    schedule: dict[str, Any],
+    jobs: dict[str, dict[str, Any]],
+    root: Path,
+    report: VerificationReport,
+) -> None:
+    for index, candidate in enumerate(approved):
+        label = describe_candidate(candidate, index)
+        job_id = candidate.get("execution_cron_id")
+        fire = candidate.get("execution_cron_fire_utc")
+        if not isinstance(job_id, str) or not job_id.strip():
+            report.fail(f"{label} is approved but has no execution_cron_id")
+            continue
+        if parse_instant(fire) is None:
+            report.fail(f"{label} has invalid execution_cron_fire_utc={fire!r}")
+            continue
+        job = jobs.get(job_id)
+        if job is None:
+            report.fail(f"{label} references missing cron job {job_id}")
             continue
 
-        candidates = candidates_from_schedule(schedule)
-        report.ok(f"Valid schedule JSON: {path} ({len(candidates)} candidates)")
-        cron_ids.update(collect_cron_ids(schedule))
+        failures: list[str] = []
+        if job.get("enabled") is not True or job.get("state") != "scheduled":
+            failures.append(f"not active (enabled={job.get('enabled')!r}, state={job.get('state')!r})")
+        raw_schedule = job.get("schedule")
+        job_schedule: dict[str, Any] = raw_schedule if isinstance(raw_schedule, dict) else {}
+        if job_schedule.get("kind") != "once":
+            failures.append(f"schedule kind is {job_schedule.get('kind')!r}, not 'once'")
+        if not same_instant(job_schedule.get("run_at"), fire):
+            failures.append(f"run_at {job_schedule.get('run_at')!r} != {fire!r}")
+        if job.get("next_run_at") is not None and not same_instant(job.get("next_run_at"), fire):
+            failures.append(f"next_run_at {job.get('next_run_at')!r} != {fire!r}")
+        raw_repeat = job.get("repeat")
+        repeat: dict[str, Any] = raw_repeat if isinstance(raw_repeat, dict) else {}
+        if repeat.get("times") != 1 or repeat.get("completed") != 0:
+            failures.append(f"Repeat is {repeat.get('completed')!r}/{repeat.get('times')!r}, expected 0/1")
 
-        for index, candidate in enumerate(candidates):
-            label = describe_candidate(candidate, index)
-            if is_review_gated(candidate):
-                approved = candidate.get("vig_approved")
-                if isinstance(approved, bool):
-                    report.ok(f"{label} has vig_approved={approved}")
-                else:
-                    report.fail(f"{label} needs boolean vig_approved before execution; found {approved!r}")
-            else:
-                report.ok(f"{label} is not Vig-review gated")
-    return cron_ids
+        checks = {
+            "deliver": expected(candidate, schedule, "execution_deliver", DEFAULT_DELIVER),
+            "skills": expected(candidate, schedule, "execution_skills", DEFAULT_SKILLS),
+            "workdir": str(expected(candidate, schedule, "execution_workdir", root)),
+            "provider": expected(candidate, schedule, "execution_provider", DEFAULT_PROVIDER),
+            "model": expected(candidate, schedule, "execution_model", DEFAULT_MODEL),
+        }
+        for field, wanted in checks.items():
+            actual = job.get(field)
+            if field == "skills":
+                actual = actual if isinstance(actual, list) else []
+            if actual != wanted:
+                failures.append(f"{field}={actual!r}, expected {wanted!r}")
 
-
-def verify_cron_ids(cron_ids: Iterable[str], cron_list_file: Path | None, report: VerificationReport) -> None:
-    ids = sorted(set(cron_ids))
-    if not ids:
-        report.warn("No one-shot cron ids found in schedule JSON")
-        return
-
-    try:
-        listing = get_cron_listing(cron_list_file)
-    except Exception as exc:  # noqa: BLE001 - CLI failure should become verifier failure
-        report.fail(f"Could not read Hermes cron list: {exc}")
-        return
-
-    for cron_id in ids:
-        if cron_id in listing:
-            report.ok(f"One-shot cron id present in Hermes cron list: {cron_id}")
+        if failures:
+            for failure in failures:
+                report.fail(f"Cron {job_id} for {label}: {failure}")
         else:
-            report.fail(f"One-shot cron id missing from Hermes cron list: {cron_id}")
+            report.ok(f"Cron {job_id} is an active matching one-shot with Repeat 0/1 and pinned runtime fields")
 
 
-def latest_action_candidates(root: Path) -> list[Path]:
-    return [root / ".picks" / "latest-action.md", root / "latest-action.md"]
-
-
-def verify_latest_action(root: Path, date: str, report: VerificationReport) -> None:
-    existing = [path for path in latest_action_candidates(root) if path.exists()]
-    if not existing:
-        report.warn("latest-action.md not found at .picks/latest-action.md or repo root")
-        return
-
-    path = existing[0]
-    text = path.read_text(encoding="utf-8")
-    if not text.strip():
-        report.fail(f"latest-action.md is empty: {path}")
-        return
-    if date in text:
-        report.ok(f"latest-action.md references {date}: {path}")
-    else:
-        report.warn(f"latest-action.md is readable but does not mention {date}: {path}")
+def resolve_picks_file(root: Path, explicit: Path | None) -> Path:
+    if explicit is not None:
+        return explicit
+    env_path = os.environ.get("SPORTS_PICKS_LEDGER")
+    candidates = [
+        Path(env_path).expanduser() if env_path else None,
+        root / ".picks" / "picks.json",
+        root / "picks.json",
+        Path.home() / "notes" / "Sports" / "picks" / "picks.json",
+    ]
+    return next((path for path in candidates if path is not None and path.is_file()), root / ".picks" / "picks.json")
 
 
 def pick_is_active(pick: dict[str, Any]) -> bool:
-    status = str(pick.get("status", "open")).strip().lower()
-    if status in SETTLED_STATUSES:
+    result = str(pick.get("result") or "").strip().lower()
+    if result in FINAL_RESULTS or pick.get("settled_at"):
         return False
-    if status in ACTIVE_STATUSES:
-        return True
-    return True
+    status = str(pick.get("status") or "active").strip().lower()
+    return status not in INACTIVE_STATUSES
 
 
-def verify_picks(root: Path, report: VerificationReport) -> None:
-    candidates = [root / ".picks" / "picks.json", root / "picks.json"]
-    existing = [path for path in candidates if path.exists()]
-    if not existing:
-        report.warn("picks.json not found at .picks/picks.json or repo root")
-        return
-
-    path = existing[0]
+def verify_picks(path: Path, report: VerificationReport) -> None:
     try:
         data = load_json(path)
-    except json.JSONDecodeError as exc:
-        report.fail(f"Invalid picks JSON: {path} ({exc})")
+    except (OSError, json.JSONDecodeError) as exc:
+        report.fail(f"Could not read picks JSON {path}: {exc}")
         return
-
-    if isinstance(data, dict):
-        picks = data.get("picks", [])
-    else:
-        picks = data
+    picks = data.get("picks") if isinstance(data, dict) else data
     if not isinstance(picks, list):
-        report.fail(f"picks.json must contain a list or an object with a picks list: {path}")
+        report.fail(f"picks.json must be a list or an object with a picks list: {path}")
         return
-
-    active_slugs = [
-        str(pick.get("market_slug")).strip()
-        for pick in picks
-        if isinstance(pick, dict) and pick.get("market_slug") and pick_is_active(pick)
-    ]
-    duplicates = sorted(slug for slug, count in Counter(active_slugs).items() if count > 1)
+    keys: list[tuple[str, str]] = []
+    for pick in picks:
+        if not isinstance(pick, dict) or not pick_is_active(pick):
+            continue
+        slug = str(pick.get("market_slug") or pick.get("polymarket_slug") or "").strip()
+        side = str(pick.get("side") or "").strip().casefold()
+        if slug and side:
+            keys.append((slug, side))
+    duplicates = sorted(key for key, count in Counter(keys).items() if count > 1)
     if duplicates:
-        report.fail(f"Duplicate active picks by market_slug in {path}: {', '.join(duplicates)}")
+        rendered = ", ".join(f"{slug} + {side}" for slug, side in duplicates)
+        report.fail(f"Duplicate active picks by slug+side in {path}: {rendered}")
     else:
-        report.ok(f"picks.json valid with no duplicate active market_slug entries: {path}")
+        report.ok(f"No duplicate active slug+side pairs in {path}")
+
+
+def verify_exposure(schedule: dict[str, Any], approved: list[dict[str, Any]], report: VerificationReport) -> tuple[Decimal, Decimal | None]:
+    amounts: list[Decimal] = []
+    for candidate in approved:
+        amount = decimal(candidate.get("unit_size"))
+        if amount is None or amount < 0:
+            report.fail(f"Approved candidate has invalid unit_size={candidate.get('unit_size')!r}")
+        else:
+            amounts.append(amount)
+    calculated = sum(amounts, Decimal("0"))
+    recorded = decimal(schedule.get("approved_exposure"))
+    cap = decimal(schedule.get("daily_cap"))
+    if recorded != calculated:
+        report.fail(f"Schedule approved_exposure={schedule.get('approved_exposure')!r}, calculated {money(calculated)}")
+    else:
+        report.ok(f"Schedule approved exposure matches approved unit sizes: ${money(calculated)}")
+    if cap is None or cap < calculated:
+        report.fail(f"Schedule daily_cap={schedule.get('daily_cap')!r} is missing, invalid, or below approved exposure")
+    return calculated, cap
+
+
+def verify_latest_action(
+    path: Path,
+    date: str,
+    approved_count: int,
+    flagged_count: int,
+    approved: list[dict[str, Any]],
+    exposure: Decimal,
+    cap: Decimal | None,
+    report: VerificationReport,
+) -> None:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        report.fail(f"Could not read latest-action.md {path}: {exc}")
+        return
+    failures: list[str] = []
+    required_patterns = [
+        (rf"\b{re.escape(date)}\b", f"date {date}"),
+        (rf"\b{approved_count}\s+approved\b", f"{approved_count} approved"),
+        (rf"\b{flagged_count}\s+(?:flagged|rejected)\b", f"{flagged_count} flagged/rejected"),
+        (rf"\$?{re.escape(money(exposure))}\s*/\s*\$?{re.escape(money(cap))}\b" if cap is not None else r"(?!)", "approved exposure / daily cap"),
+    ]
+    for pattern, description in required_patterns:
+        if not re.search(pattern, text, re.IGNORECASE):
+            failures.append(description)
+    for candidate in approved:
+        job_id = candidate.get("execution_cron_id")
+        if isinstance(job_id, str) and job_id not in text:
+            failures.append(f"one-shot id {job_id}")
+    if failures:
+        report.fail(f"latest-action.md does not match review state ({', '.join(failures)}): {path}")
+    else:
+        report.ok(f"latest-action.md matches approval counts, one-shots, and exposure: {path}")
+
+
+def default_cron_jobs_file(profile: str) -> Path:
+    hermes_home = Path(os.environ.get("HERMES_HOME", Path.home() / ".hermes")).expanduser()
+    profile_path = hermes_home / "profiles" / profile / "cron" / "jobs.json"
+    direct_path = hermes_home / "cron" / "jobs.json"
+    return profile_path if profile_path.is_file() else direct_path
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Verify Vig review handoff state without modifying betting files.")
-    parser.add_argument("date", help="Slate date to verify, format YYYY-MM-DD")
+    parser = argparse.ArgumentParser(description="Verify a read-only MLB Vig review handoff.")
+    parser.add_argument("date", help="MLB schedule date (YYYY-MM-DD)")
     parser.add_argument("--root", type=Path, default=Path.cwd(), help="sports-picks runtime root (default: cwd)")
-    parser.add_argument("--cron-list-file", type=Path, help="Use saved hermes cron list output instead of running hermes")
+    parser.add_argument("--profile", default="vig", help="Hermes profile owning execution jobs (default: vig)")
+    parser.add_argument("--cron-jobs-file", type=Path, help="Hermes jobs.json override")
+    parser.add_argument("--picks-file", type=Path, help="canonical picks.json override")
+    parser.add_argument("--latest-action-file", type=Path, help="latest-action.md override")
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    if not DATE_RE.match(args.date):
+    if not DATE_RE.fullmatch(args.date):
         print("date must use YYYY-MM-DD", file=sys.stderr)
+        return 2
+    try:
+        datetime.strptime(args.date, "%Y-%m-%d")
+    except ValueError:
+        print("date must be a real calendar date", file=sys.stderr)
         return 2
 
     root = args.root.resolve()
     report = VerificationReport()
-    cron_ids = verify_schedules(root, args.date, report)
-    verify_cron_ids(cron_ids, args.cron_list_file, report)
-    verify_latest_action(root, args.date, report)
-    verify_picks(root, report)
+    schedule, candidates = read_schedule(root, args.date, report)
+    approved, flagged = verify_reviews(candidates, report)
+    exposure, cap = verify_exposure(schedule, approved, report)
+
+    cron_path = (args.cron_jobs_file or default_cron_jobs_file(args.profile)).expanduser().resolve()
+    jobs = load_jobs(cron_path, report)
+    verify_execution_jobs(approved, schedule, jobs, root, report)
+
+    picks_path = resolve_picks_file(root, args.picks_file).expanduser().resolve()
+    verify_picks(picks_path, report)
+
+    latest_path = (args.latest_action_file or root / ".picks" / "latest-action.md").expanduser().resolve()
+    verify_latest_action(latest_path, args.date, len(approved), flagged, approved, exposure, cap, report)
+
     report.print()
     return 1 if report.failed else 0
 
