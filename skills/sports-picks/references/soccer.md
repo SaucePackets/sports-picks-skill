@@ -74,6 +74,8 @@ Current-tournament form is not enough by itself. International samples are small
 
 **Model value is not official confidence:** the probability model's Low/Medium/High label measures edge magnitude only. It does not override gate confidence. A side can be a model-value candidate and still be a pass if winner conviction, draw risk, opponent context, market type, or chance-quality gates are unresolved. Official confidence requires both positive model edge and passed gates.
 
+**Proposal eligibility gate:** a side cannot enter the official candidate schedule on model edge alone. Require at least 6/9 gates passed, winner conviction passed, no more than 2 unresolved warning gates, and exact market-type alignment. A 5/9 gate profile with warnings such as draw risk, line movement against the side, attack edge against, and opponent tier step-up is a watchlist/pass even if EV is large.
+
 **Slate output must show:**
 ```text
 Opponent-adjusted form:
@@ -200,6 +202,7 @@ Pass when:
 - team is averaging **<1 GF/game over last 5** and you're laying heavy juice
 - edge is weak and you cannot explain it clearly
 - the model says "value" but the side lacks winner conviction or enough passed gates
+- the side has only 5/9 gates or fewer, or more than 2 unresolved warning gates, even if model EV is large
 - market sharply disagrees (30¢+ movement off your side) and you cannot explain why
 - you are chasing a moved number late
 - a friendly result was cited without verifying the opponent was at full strength
