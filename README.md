@@ -69,6 +69,34 @@ sports-picks-skill/
 
 This repo includes only templates and reusable process files. Live pick history, receipts, watchlists, and execution schedules are runtime state and should stay out of public commits.
 
+### Verify an MLB Vig review handoff
+
+`scripts/vig-review-verify.py` performs a read-only check of a dated MLB review before its execution jobs fire. It verifies:
+
+- every candidate has a boolean `vig_approved` decision and non-empty `vig_notes`;
+- each approved candidate points to an active matching one-shot Hermes cron with Repeat `0/1`, the recorded fire time, delivery target, skills, workdir, and pinned provider/model;
+- the canonical `picks.json` has no duplicate active `market_slug` + `side` pair; and
+- `.picks/latest-action.md` matches the approval counts, one-shot IDs, and approved exposure/daily cap.
+
+Run it from the sports-picks runtime root:
+
+```bash
+python scripts/vig-review-verify.py 2026-07-10
+```
+
+The default cron profile is `vig`. The script looks for the pick ledger in `SPORTS_PICKS_LEDGER`, `.picks/picks.json`, `picks.json`, then `~/notes/Sports/picks/picks.json`. Portable or test runs can provide every state file explicitly:
+
+```bash
+python scripts/vig-review-verify.py 2026-07-10 \
+  --root /path/to/sports-picks-skill \
+  --profile vig \
+  --cron-jobs-file /path/to/jobs.json \
+  --picks-file /path/to/picks.json \
+  --latest-action-file /path/to/latest-action.md
+```
+
+Exit code `0` means every check passed, `1` means the handoff is inconsistent, and `2` means the date argument is invalid. The verifier never edits schedules, jobs, picks, or latest-action state.
+
 ## Manual loading
 
 Any agent that can read Markdown can use the repo:
