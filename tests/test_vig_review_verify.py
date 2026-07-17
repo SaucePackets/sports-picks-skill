@@ -18,14 +18,12 @@ spec.loader.exec_module(vig_review_verify)
 class VigReviewVerifyTests(unittest.TestCase):
     DATE = "2026-07-10"
     FIRE = "2026-07-10T22:10:00Z"
-    JOB_ID = "abc123cron"
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
         (self.root / ".picks" / "execute").mkdir(parents=True)
         self.schedule_path = self.root / ".picks" / "execute" / f"{self.DATE}-schedule.json"
-        self.cron_path = self.root / "jobs.json"
         self.picks_path = self.root / "picks.json"
         self.latest_path = self.root / ".picks" / "latest-action.md"
 
@@ -40,8 +38,9 @@ class VigReviewVerifyTests(unittest.TestCase):
                     "vig_review_needed": False,
                     "vig_approved": True,
                     "vig_notes": "Starter, price, lineup, and weather gates hold.",
-                    "execution_cron_id": self.JOB_ID,
-                    "execution_cron_fire_utc": self.FIRE,
+                    "execution_mode": "manual",
+                    "manual_bet_status": "awaiting_jerry",
+                    "executed": False,
                 },
                 {
                     "polymarket_slug": "aec-mlb-ghi-jkl-2026-07-10",
@@ -55,19 +54,6 @@ class VigReviewVerifyTests(unittest.TestCase):
             "approved_exposure": 18,
             "daily_cap": 90,
         }
-        self.job = {
-            "id": self.JOB_ID,
-            "enabled": True,
-            "state": "scheduled",
-            "schedule": {"kind": "once", "run_at": "2026-07-10T22:10:00+00:00"},
-            "next_run_at": "2026-07-10T22:10:00+00:00",
-            "repeat": {"times": 1, "completed": 0},
-            "deliver": vig_review_verify.DEFAULT_DELIVER,
-            "skills": vig_review_verify.DEFAULT_SKILLS,
-            "workdir": str(self.root),
-            "provider": vig_review_verify.DEFAULT_PROVIDER,
-            "model": vig_review_verify.DEFAULT_MODEL,
-        }
         self.picks = {
             "picks": [
                 {"market_slug": "old", "side": "ABC", "status": "settled", "result": "win"},
@@ -77,7 +63,7 @@ class VigReviewVerifyTests(unittest.TestCase):
         }
         self.latest = (
             f"{self.DATE}: Vig review complete. 1 approved, 1 flagged. "
-            f"One-shots: {self.JOB_ID}. Approved exposure $18 / $90.\n"
+            "Manual reminder awaiting Jerry. Approved exposure $18 / $90.\n"
         )
         self.write_fixture()
 
@@ -86,7 +72,6 @@ class VigReviewVerifyTests(unittest.TestCase):
 
     def write_fixture(self):
         self.schedule_path.write_text(json.dumps(self.schedule), encoding="utf-8")
-        self.cron_path.write_text(json.dumps({"jobs": [self.job]}), encoding="utf-8")
         self.picks_path.write_text(json.dumps(self.picks), encoding="utf-8")
         self.latest_path.write_text(self.latest, encoding="utf-8")
 
@@ -96,8 +81,6 @@ class VigReviewVerifyTests(unittest.TestCase):
                 self.DATE,
                 "--root",
                 str(self.root),
-                "--cron-jobs-file",
-                str(self.cron_path),
                 "--picks-file",
                 str(self.picks_path),
                 "--latest-action-file",
@@ -114,28 +97,24 @@ class VigReviewVerifyTests(unittest.TestCase):
         self.write_fixture()
         self.assertEqual(self.run_main(), 1)
 
-    def test_approved_candidate_requires_cron_id_and_fire_time(self):
-        self.schedule["candidates"][0].pop("execution_cron_id")
-        self.schedule["candidates"][0]["execution_cron_fire_utc"] = "not-a-time"
+    def test_approved_candidate_requires_manual_awaiting_jerry_state(self):
+        self.schedule["candidates"][0]["execution_mode"] = "automatic"
+        self.schedule["candidates"][0]["manual_bet_status"] = None
         self.write_fixture()
         self.assertEqual(self.run_main(), 1)
 
-    def test_cron_must_be_active_matching_one_shot_with_expected_runtime(self):
+    def test_approved_candidate_rejects_execution_artifacts(self):
         mutations = {
-            "disabled": lambda job: job.update(enabled=False),
-            "wrong fire": lambda job: job["schedule"].update(run_at="2026-07-10T22:11:00Z"),
-            "wrong repeat": lambda job: job.update(repeat={"times": 2, "completed": 0}),
-            "wrong delivery": lambda job: job.update(deliver="local"),
-            "wrong skills": lambda job: job.update(skills=["sports-data-apis"]),
-            "wrong workdir": lambda job: job.update(workdir="/tmp/wrong"),
-            "wrong provider": lambda job: job.update(provider="openai-codex"),
-            "wrong model": lambda job: job.update(model="gpt-5.6-sol"),
+            "executed": lambda candidate: candidate.update(executed=True),
+            "cron id": lambda candidate: candidate.update(execution_cron_id="unsafe"),
+            "cron fire": lambda candidate: candidate.update(execution_cron_fire_utc=self.FIRE),
+            "approval token": lambda candidate: candidate.update(approval_token="unsafe"),
         }
-        original = json.loads(json.dumps(self.job))
+        original = json.loads(json.dumps(self.schedule["candidates"][0]))
         for name, mutate in mutations.items():
             with self.subTest(name=name):
-                self.job = json.loads(json.dumps(original))
-                mutate(self.job)
+                self.schedule["candidates"][0] = json.loads(json.dumps(original))
+                mutate(self.schedule["candidates"][0])
                 self.write_fixture()
                 self.assertEqual(self.run_main(), 1)
 
@@ -164,7 +143,7 @@ class VigReviewVerifyTests(unittest.TestCase):
         self.assertEqual(self.run_main(), 1)
 
     def test_read_only_does_not_mutate_runtime_files(self):
-        paths = [self.schedule_path, self.cron_path, self.picks_path, self.latest_path]
+        paths = [self.schedule_path, self.picks_path, self.latest_path]
         before = {path: path.read_bytes() for path in paths}
         self.assertEqual(self.run_main(), 0)
         after = {path: path.read_bytes() for path in paths}

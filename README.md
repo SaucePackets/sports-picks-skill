@@ -71,12 +71,12 @@ This repo includes only templates and reusable process files. Live pick history,
 
 ### Verify an MLB Vig review handoff
 
-`scripts/vig-review-verify.py` performs a read-only check of a dated MLB review before its execution jobs fire. It verifies:
+`scripts/vig-review-verify.py` performs a read-only check of a dated MLB review before manual reminders are delivered. It verifies:
 
 - every candidate has a boolean `vig_approved` decision and non-empty `vig_notes`;
-- each approved candidate points to an active matching one-shot Hermes cron with Repeat `0/1`, the recorded fire time, delivery target, skills, workdir, and pinned provider/model;
+- each approved candidate is manual-only, `awaiting_jerry`, unexecuted, and has no execution cron or approval token;
 - the canonical `picks.json` has no duplicate active `market_slug` + `side` pair; and
-- `.picks/latest-action.md` matches the approval counts, one-shot IDs, and approved exposure/daily cap.
+- `.picks/latest-action.md` matches the approval counts and approved exposure/daily cap.
 
 Run it from the sports-picks runtime root:
 
@@ -84,18 +84,32 @@ Run it from the sports-picks runtime root:
 python scripts/vig-review-verify.py 2026-07-10
 ```
 
-The default cron profile is `vig`. The script looks for the pick ledger in `SPORTS_PICKS_LEDGER`, `.picks/picks.json`, `picks.json`, then `~/notes/Sports/picks/picks.json`. Portable or test runs can provide every state file explicitly:
+The script looks for the pick ledger in `SPORTS_PICKS_LEDGER`, `.picks/picks.json`, `picks.json`, then `~/notes/Sports/picks/picks.json`. Portable or test runs can provide every state file explicitly:
 
 ```bash
 python scripts/vig-review-verify.py 2026-07-10 \
   --root /path/to/sports-picks-skill \
-  --profile vig \
-  --cron-jobs-file /path/to/jobs.json \
   --picks-file /path/to/picks.json \
   --latest-action-file /path/to/latest-action.md
 ```
 
 Exit code `0` means every check passed, `1` means the handoff is inconsistent, and `2` means the date argument is invalid. The verifier never edits schedules, jobs, picks, or latest-action state.
+
+### MLB lineup watchlist rechecks
+
+`scripts/mlb_lineup_watchlist.py` provides deterministic selection and
+validation for lineup-dependent near-misses. Pending entries are eligible only
+60-90 minutes before first pitch and only when unconfirmed lineups were the
+sole original blocker. The scheduled reviewer then refreshes lineups, key
+injuries, and price and reruns every original gate. Promotions remain
+manual-only `awaiting_jerry` reminders and never create or execute bets.
+
+Inspect entries due at a specific instant or validate a schedule:
+
+```bash
+python scripts/mlb_lineup_watchlist.py .picks/execute/2026-07-17-schedule.json --now 2026-07-17T21:45:00Z
+python scripts/mlb_lineup_watchlist.py .picks/execute/2026-07-17-schedule.json --validate
+```
 
 ## Manual loading
 
