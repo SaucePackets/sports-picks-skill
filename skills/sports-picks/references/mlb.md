@@ -238,6 +238,23 @@ Important:
 - Handedness / platoon context if relevant
 - Cold bats are real — check if key hitters are struggling
 
+#### Unconfirmed-lineup watchlist recheck
+
+Do not discard a strong near-miss when every hard gate passes except confirmed
+batting lineups. Persist it to the schedule's `lineup_watchlist` with
+`blocked_only_by: ["lineups_unconfirmed"]`, all original gate results, first
+pitch, a target recheck at first pitch minus 75 minutes, the observed price,
+and the bettable-to threshold. Any second blocker means ordinary PASS, not a
+watchlist entry.
+
+The conditional review gate runs frequently enough to select the entry 60-90
+minutes before first pitch. Refresh both confirmed lineups, key injuries and
+late scratches, and the supported-market price. Rerun every original gate.
+Promote only if all gates still hold and the price remains acceptable;
+otherwise log `status: "passed"` plus the decisive reason. Promotions are
+manual-only `awaiting_jerry` reminders with `executed: false`. Never create an
+execution cron, proposal token, or order.
+
 ### Park / Weather
 Treat weather as a real handicap input, not an afterthought.
 

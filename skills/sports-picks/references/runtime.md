@@ -19,11 +19,11 @@ This file is the clipboard. `SKILL.md` is the front door.
 10. If the user asks to bet on Polymarket, load `references/polymarket-trading.md`; for MLB official locks also load `references/mlb-polymarket-auto-bets.md`.
 11. Build full win paths for both teams.
 12. Run the final pass/fail gate.
-13. **Optional second-review gate** — If the runtime uses a reviewer-approval pattern and `vig_review_needed` is set on the candidate, the reviewer reviews the analysis and stamps `vig_approved: true/false` before the execution stage acts.
+13. **Optional second-review gate** — If `vig_review_needed` is set, the reviewer stamps `vig_approved: true/false`. Approval creates only an `awaiting_jerry` manual reminder; it never authorizes execution.
 14. Output official picks only.
-14. For MLB official locks, place capped Polymarket limit bets only when the auto-bet execution gate passes; otherwise output `Pick locked, bet skipped — [reason]`.
-15. Add placed bets and passed-price confidence plays to watch if there is a documented thesis, target price, and exact market mapping.
-16. Watch suggestions must check current score/game state before proposing live entries or profit exits.
+15. For an MLB near-miss blocked only by unconfirmed lineups, persist a lineup watchlist entry for a single 60-90 minute pregame recheck. Refresh lineups, key injuries, price, and every original gate; promote only when all still hold.
+16. Add placed bets and passed-price confidence plays to watch if there is a documented thesis, target price, and exact market mapping.
+17. Watch suggestions must check current score/game state before proposing live entries or profit exits.
 
 ---
 

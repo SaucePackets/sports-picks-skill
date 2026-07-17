@@ -31,24 +31,44 @@ Compatibility note:
 
 ## Three-Actor Pipeline (Optional Automated Setup)
 
-For runtimes using an automated pick pipeline (morning slate → execution poller → settlement), this repo supports an optional **second-review gate** between the slate and execution:
+For runtimes using a scheduled pick pipeline (morning slate → Vig review → settlement), this repo supports an optional **second-review gate**. All approvals are manual-only reminders; this pipeline never executes bets:
 
 Add `vig_review_needed` and `vig_approved` fields to each schedule candidate:
 
 ```json
 {
   "candidates": [{
-    "vig_review_needed": false,
+    "vig_review_needed": true,
     "vig_approved": null,
-    "vig_notes": null
+    "vig_notes": null,
+    "execution_mode": "manual",
+    "manual_bet_status": null,
+    "executed": false
   }]
 }
 ```
 
-- `vig_review_needed: false` — Auto-execute. The poller proceeds without review.
-- `vig_review_needed: true` + `vig_approved: true` — Approved. Poller executes.
-- `vig_review_needed: true` + `vig_approved: false` — Rejected. Poller skips.
-- `vig_review_needed: true` + `vig_approved: null` — Not yet reviewed. Poller waits (safety valve executes on last possible tick if reviewer is unreachable).
+- `vig_review_needed: true` + `vig_approved: true` — Approved as an `awaiting_jerry` manual reminder.
+- `vig_review_needed: true` + `vig_approved: false` — Rejected and logged as a pass.
+- `vig_review_needed: true` + `vig_approved: null` — Not yet reviewed; remain pending.
+- No reviewer-unreachable safety valve exists. Missing review always means no bet.
+
+### Lineup-dependent MLB watchlist
+
+A strong MLB near-miss may be persisted under schedule-level
+`lineup_watchlist` only when unconfirmed batting lineups are the sole blocker.
+Store `first_pitch_utc`, `recheck_due_utc` (normally first pitch minus 75
+minutes), `blocked_only_by: ["lineups_unconfirmed"]`, the complete
+`original_gate_results`, original/current price limits, and
+`status: "pending_lineup_recheck"`.
+
+The conditional reviewer checks pending entries only 60-90 minutes before
+first pitch. It refreshes confirmed lineups, key injuries/late scratches, and
+price, then reruns every original gate. Promote only if all still hold. A
+promotion is copied into `candidates` with `execution_mode: "manual"`,
+`manual_bet_status: "awaiting_jerry"`, and `executed: false`. Otherwise set
+the watchlist status to `passed` and record `recheck_notes`. Never attach an
+execution cron or approval token.
 
 The postgame reflection stage also writes to a shared `latest-action.md` file so the reviewer sees settlement results alongside the next day's card. This file lives at the runtime ledger root.
 
