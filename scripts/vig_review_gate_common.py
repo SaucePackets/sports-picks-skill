@@ -17,7 +17,12 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from mlb_lineup_watchlist import build_recheck_prompt, due_entries  # noqa: E402
+from mlb_lineup_watchlist import (  # noqa: E402
+    WatchlistFormatError,
+    build_recheck_prompt,
+    due_entries,
+    validate_watchlist,
+)
 
 HERMES = os.environ.get("HERMES_BIN") or shutil.which("hermes") or "/home/clawdbot/.local/bin/hermes"
 ROOT = Path(os.environ.get("SPORTS_PICKS_ROOT", Path.cwd())).expanduser().resolve()
@@ -30,7 +35,9 @@ class ScheduleFormatError(ValueError):
 def parse_candidates(data: object) -> list[dict[str, Any]]:
     """Accept raw candidate arrays and schedule objects with candidates."""
     if isinstance(data, list):
-        return [item for item in data if isinstance(item, dict)]
+        if not all(isinstance(item, dict) for item in data):
+            raise ScheduleFormatError("every candidate must be an object")
+        return data
     if not isinstance(data, dict):
         raise ScheduleFormatError(f"expected object or list, got {type(data).__name__}")
     if "candidates" not in data:
@@ -45,6 +52,101 @@ def parse_candidates(data: object) -> list[dict[str, Any]]:
 
 def pending_candidates(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [candidate for candidate in candidates if not isinstance(candidate.get("vig_approved"), bool)]
+
+
+def candidate_identity(candidate: dict[str, Any]) -> str:
+    for field in ("id", "watchlist_id", "polymarket_slug", "market_slug", "event_id"):
+        value = candidate.get(field)
+        if value not in (None, ""):
+            return f"{field}:{value}|side:{candidate.get('side', '')}"
+    return f"side:{candidate.get('side', '')}|game:{candidate.get('game', '')}"
+
+
+def manual_candidate_errors(candidate: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    if candidate.get("execution_mode") != "manual":
+        errors.append("execution_mode must be manual")
+    if candidate.get("manual_bet_status") != "awaiting_jerry":
+        errors.append("manual_bet_status must be awaiting_jerry")
+    if candidate.get("executed") is not False:
+        errors.append("executed must be false")
+    forbidden = sorted(
+        field
+        for field in ("execution_cron_id", "execution_cron_fire_utc", "approval_token")
+        if field in candidate
+    )
+    if forbidden:
+        errors.append(f"forbidden execution fields present: {', '.join(forbidden)}")
+    return errors
+
+
+def validate_review_transition(
+    before: dict[str, Any],
+    after: dict[str, Any],
+    candidate_ids: list[str],
+    watchlist_ids: list[str],
+) -> list[str]:
+    errors: list[str] = []
+    watch_errors = validate_watchlist(after)
+    for entry_id, entry_errors in watch_errors.items():
+        errors.extend(f"watchlist {entry_id}: {message}" for message in entry_errors)
+    try:
+        before_candidates = parse_candidates(before)
+        after_candidates = parse_candidates(after)
+    except ScheduleFormatError as exc:
+        return [str(exc), *errors]
+
+    before_by_id = {candidate_identity(item): item for item in before_candidates}
+    after_by_id = {candidate_identity(item): item for item in after_candidates}
+    targeted_candidates = set(candidate_ids)
+    for identity in targeted_candidates:
+        candidate = after_by_id.get(identity)
+        if candidate is None:
+            errors.append(f"candidate {identity} missing after review")
+            continue
+        if not isinstance(candidate.get("vig_approved"), bool):
+            errors.append(f"candidate {identity} has no boolean decision")
+        notes = candidate.get("vig_notes")
+        if not isinstance(notes, str) or not notes.strip():
+            errors.append(f"candidate {identity} has empty vig_notes")
+        if candidate.get("vig_approved") is True:
+            errors.extend(f"candidate {identity}: {message}" for message in manual_candidate_errors(candidate))
+
+    for identity, candidate in before_by_id.items():
+        if identity not in targeted_candidates and after_by_id.get(identity) != candidate:
+            errors.append(f"untargeted candidate {identity} changed")
+
+    before_watch = {
+        item.get("id"): item
+        for item in before.get("lineup_watchlist", [])
+        if isinstance(item, dict) and item.get("id")
+    }
+    after_watch = {
+        item.get("id"): item
+        for item in after.get("lineup_watchlist", [])
+        if isinstance(item, dict) and item.get("id")
+    }
+    targeted_watch = set(watchlist_ids)
+    for entry_id in targeted_watch:
+        entry = after_watch.get(entry_id)
+        if entry is None:
+            errors.append(f"watchlist {entry_id} missing after review")
+            continue
+        status = entry.get("status")
+        if status not in ("promoted", "passed"):
+            errors.append(f"watchlist {entry_id} did not reach promoted or passed")
+            continue
+        if status == "promoted":
+            matches = [item for item in after_candidates if item.get("watchlist_id") == entry_id]
+            if len(matches) != 1:
+                errors.append(f"watchlist {entry_id} must map to exactly one candidate")
+            elif matches[0] != entry.get("promoted_candidate"):
+                errors.append(f"watchlist {entry_id} promoted_candidate differs from candidates entry")
+
+    for entry_id, entry in before_watch.items():
+        if entry_id not in targeted_watch and after_watch.get(entry_id) != entry:
+            errors.append(f"untargeted watchlist {entry_id} changed")
+    return errors
 
 
 def review_work(
@@ -74,31 +176,6 @@ candidate, and total proposed exposure.
 """
 
 
-def enforce_manual_state(schedule: dict[str, Any]) -> bool:
-    """Apply the non-negotiable manual-only state to every approved candidate."""
-    changed = False
-    candidates = schedule.get("candidates", [])
-    if not isinstance(candidates, list):
-        return False
-    for candidate in candidates:
-        if not isinstance(candidate, dict) or candidate.get("vig_approved") is not True:
-            continue
-        required = {
-            "execution_mode": "manual",
-            "manual_bet_status": "awaiting_jerry",
-            "executed": False,
-        }
-        for key, value in required.items():
-            if candidate.get(key) != value:
-                candidate[key] = value
-                changed = True
-        for key in ("execution_cron_id", "execution_cron_fire_utc", "approval_token"):
-            if key in candidate:
-                candidate.pop(key)
-                changed = True
-    return changed
-
-
 def _schedule_path(sport: str, day: str) -> Path:
     if sport == "MLB":
         return ROOT / ".picks" / "execute" / f"{day}-schedule.json"
@@ -116,7 +193,10 @@ def run_gate(sport: str) -> int:
         print(f"{sport} review gate ERROR: invalid schedule JSON: {exc}")
         return 1
     if isinstance(data, list):
-        schedule: dict[str, Any] = {"candidates": data}
+        if not data:
+            return 0
+        print(f"{sport} review gate ERROR: non-empty legacy array schedule requires migration")
+        return 1
     elif isinstance(data, dict):
         schedule = data
     else:
@@ -124,11 +204,14 @@ def run_gate(sport: str) -> int:
         return 1
     try:
         candidates, watchlist = review_work(schedule, sport)
-    except ScheduleFormatError as exc:
+    except (ScheduleFormatError, WatchlistFormatError) as exc:
         print(f"{sport} review gate ERROR: {exc}")
         return 1
     if not candidates and not watchlist:
         return 0
+
+    candidate_ids = [candidate_identity(candidate) for candidate in candidates]
+    watchlist_ids = [str(entry["id"]) for entry in watchlist]
 
     prompts: list[str] = []
     if candidates:
@@ -156,10 +239,15 @@ def run_gate(sport: str) -> int:
 
     try:
         updated = json.loads(schedule_path.read_text(encoding="utf-8"))
-        if isinstance(updated, dict) and enforce_manual_state(updated):
-            schedule_path.write_text(json.dumps(updated, indent=2) + "\n", encoding="utf-8")
     except (OSError, json.JSONDecodeError) as exc:
-        print(f"{sport} review gate ERROR: could not enforce manual-only state: {exc}")
+        print(f"{sport} review gate ERROR: could not validate reviewed state: {exc}")
+        return 1
+    if not isinstance(updated, dict):
+        print(f"{sport} review gate ERROR: reviewed schedule must remain an object")
+        return 1
+    transition_errors = validate_review_transition(schedule, updated, candidate_ids, watchlist_ids)
+    if transition_errors:
+        print(f"{sport} review gate ERROR: invalid review transition: {'; '.join(transition_errors)}")
         return 1
 
     out = proc.stdout.strip()

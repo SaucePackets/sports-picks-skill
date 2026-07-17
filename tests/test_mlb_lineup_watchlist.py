@@ -50,7 +50,23 @@ class MlbLineupWatchlistTests(unittest.TestCase):
     def test_entry_is_not_due_outside_window_or_after_terminal_status(self):
         early = datetime(2026, 7, 17, 21, 20, tzinfo=timezone.utc)
         late = datetime(2026, 7, 17, 22, 5, tzinfo=timezone.utc)
-        promoted = self.entry(status="promoted")
+        promoted_candidate = {
+            "watchlist_id": "lineup-abc-def",
+            "execution_mode": "manual",
+            "manual_bet_status": "awaiting_jerry",
+            "executed": False,
+        }
+        promoted = self.entry(
+            status="promoted",
+            rechecked_at_utc="2026-07-17T21:45:00Z",
+            recheck={
+                "lineups_confirmed": True,
+                "key_injuries_refreshed": True,
+                "price_refreshed": True,
+                "all_original_gates_hold": True,
+            },
+            promoted_candidate=promoted_candidate,
+        )
 
         self.assertEqual(mlb_lineup_watchlist.due_entries({"lineup_watchlist": [self.entry()]}, early), [])
         self.assertEqual(mlb_lineup_watchlist.due_entries({"lineup_watchlist": [self.entry()]}, late), [])
@@ -63,13 +79,38 @@ class MlbLineupWatchlistTests(unittest.TestCase):
 
         now = datetime(2026, 7, 17, 21, 45, tzinfo=timezone.utc)
 
-        self.assertEqual(mlb_lineup_watchlist.due_entries({"lineup_watchlist": [extra_blocker, broken_gate]}, now), [])
+        with self.assertRaises(mlb_lineup_watchlist.WatchlistFormatError):
+            mlb_lineup_watchlist.due_entries({"lineup_watchlist": [extra_blocker, broken_gate]}, now)
+
+    def test_pending_entry_requires_identity_timing_and_prices(self):
+        broken = self.entry(id="", recheck_due_utc="bad", original_price=None, bettable_to_price=None)
+
+        errors = mlb_lineup_watchlist.validate_entry(broken)
+
+        self.assertIn("id must be a non-empty string", errors)
+        self.assertIn("recheck_due_utc must be a valid timestamp", errors)
+        self.assertIn("original_price must be numeric", errors)
+        self.assertIn("bettable_to_price must be numeric", errors)
+
+    def test_duplicate_watchlist_ids_fail_closed(self):
+        with self.assertRaises(mlb_lineup_watchlist.WatchlistFormatError):
+            mlb_lineup_watchlist.due_entries(
+                {"lineup_watchlist": [self.entry(), self.entry()]},
+                datetime(2026, 7, 17, 21, 45, tzinfo=timezone.utc),
+            )
+
+    def test_passed_entry_requires_timestamp_and_exact_blocker(self):
+        errors = mlb_lineup_watchlist.validate_entry(self.entry(status="passed"))
+
+        self.assertIn("passed entry requires rechecked_at_utc", errors)
+        self.assertIn("passed entry requires non-empty recheck_notes", errors)
 
     def test_validation_rejects_missing_manual_safety_fields(self):
         promoted = self.entry(
             status="promoted",
+            rechecked_at_utc="2026-07-17T21:45:00Z",
             recheck={"lineups_confirmed": True, "key_injuries_refreshed": True, "price_refreshed": True, "all_original_gates_hold": True},
-            promoted_candidate={"execution_mode": "automatic", "manual_bet_status": "awaiting_jerry", "executed": False},
+            promoted_candidate={"watchlist_id": "lineup-abc-def", "execution_mode": "automatic", "manual_bet_status": "awaiting_jerry", "executed": False},
         )
 
         errors = mlb_lineup_watchlist.validate_entry(promoted)

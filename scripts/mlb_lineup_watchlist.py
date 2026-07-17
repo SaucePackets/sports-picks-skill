@@ -17,6 +17,13 @@ from typing import Any
 MIN_MINUTES_BEFORE_FIRST_PITCH = 60
 MAX_MINUTES_BEFORE_FIRST_PITCH = 90
 PENDING_STATUS = "pending_lineup_recheck"
+TERMINAL_STATUSES = {"promoted", "passed"}
+VALID_STATUSES = {PENDING_STATUS, *TERMINAL_STATUSES}
+FORBIDDEN_EXECUTION_FIELDS = {
+    "execution_cron_id",
+    "execution_cron_fire_utc",
+    "approval_token",
+}
 REQUIRED_ORIGINAL_GATES = {
     "starter_floor",
     "opposing_starter_shutdown_path",
@@ -25,6 +32,10 @@ REQUIRED_ORIGINAL_GATES = {
     "price_discipline",
     "real_winner_conviction",
 }
+
+
+class WatchlistFormatError(ValueError):
+    """Raised when persisted lineup-watch state is malformed."""
 
 
 def parse_instant(value: Any) -> datetime | None:
@@ -42,12 +53,28 @@ def parse_instant(value: Any) -> datetime | None:
     return parsed.astimezone(timezone.utc)
 
 
+def _is_number(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
 def validate_entry(entry: dict[str, Any]) -> list[str]:
     errors: list[str] = []
+    entry_id = entry.get("id")
+    if not isinstance(entry_id, str) or not entry_id.strip():
+        errors.append("id must be a non-empty string")
     if entry.get("blocked_only_by") != ["lineups_unconfirmed"]:
         errors.append("blocked_only_by must contain only lineups_unconfirmed")
     if parse_instant(entry.get("first_pitch_utc")) is None:
         errors.append("first_pitch_utc must be a valid timestamp")
+    if parse_instant(entry.get("recheck_due_utc")) is None:
+        errors.append("recheck_due_utc must be a valid timestamp")
+    if not _is_number(entry.get("original_price")):
+        errors.append("original_price must be numeric")
+    if not _is_number(entry.get("bettable_to_price")):
+        errors.append("bettable_to_price must be numeric")
+    status = entry.get("status")
+    if status not in VALID_STATUSES:
+        errors.append(f"status must be one of {sorted(VALID_STATUSES)}")
     gates = entry.get("original_gate_results")
     if not isinstance(gates, dict):
         errors.append("original_gate_results must be an object")
@@ -58,7 +85,13 @@ def validate_entry(entry: dict[str, Any]) -> list[str]:
         if gates.get("lineups_confirmed") is not False:
             errors.append("original_gate_results.lineups_confirmed must be false")
 
-    if entry.get("status") == "promoted":
+    if status in TERMINAL_STATUSES and parse_instant(entry.get("rechecked_at_utc")) is None:
+        errors.append(f"{status} entry requires rechecked_at_utc")
+    if status == "passed":
+        notes = entry.get("recheck_notes")
+        if not isinstance(notes, str) or not notes.strip():
+            errors.append("passed entry requires non-empty recheck_notes")
+    if status == "promoted":
         recheck = entry.get("recheck")
         required_refreshes = (
             "lineups_confirmed",
@@ -76,25 +109,57 @@ def validate_entry(entry: dict[str, Any]) -> list[str]:
         if not isinstance(candidate, dict):
             errors.append("promoted entry requires promoted_candidate")
         else:
+            if candidate.get("watchlist_id") != entry_id:
+                errors.append("promoted_candidate.watchlist_id must match entry id")
             if candidate.get("execution_mode") != "manual":
                 errors.append("promoted_candidate.execution_mode must be manual")
             if candidate.get("manual_bet_status") != "awaiting_jerry":
                 errors.append("promoted_candidate.manual_bet_status must be awaiting_jerry")
             if candidate.get("executed") is not False:
                 errors.append("promoted_candidate.executed must be false")
+            present = sorted(FORBIDDEN_EXECUTION_FIELDS.intersection(candidate))
+            if present:
+                errors.append(f"promoted_candidate has forbidden execution fields: {', '.join(present)}")
     return errors
 
 
-def due_entries(schedule: dict[str, Any], now: datetime | None = None) -> list[dict[str, Any]]:
-    current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+def validate_watchlist(schedule: dict[str, Any]) -> dict[str, list[str]]:
     raw_entries = schedule.get("lineup_watchlist", [])
     if not isinstance(raw_entries, list):
-        return []
+        return {"lineup_watchlist": ["lineup_watchlist must be a list"]}
+    errors: dict[str, list[str]] = {}
+    seen: set[str] = set()
+    for index, entry in enumerate(raw_entries):
+        label = str(index)
+        if not isinstance(entry, dict):
+            errors[label] = ["entry must be an object"]
+            continue
+        entry_id = entry.get("id")
+        if isinstance(entry_id, str) and entry_id.strip():
+            label = entry_id
+            if entry_id in seen:
+                errors.setdefault(label, []).append("id must be unique")
+            seen.add(entry_id)
+        entry_errors = validate_entry(entry)
+        if entry_errors:
+            errors.setdefault(label, []).extend(entry_errors)
+    return errors
+
+
+def require_valid_watchlist(schedule: dict[str, Any]) -> None:
+    errors = validate_watchlist(schedule)
+    if errors:
+        rendered = "; ".join(f"{key}: {', '.join(value)}" for key, value in errors.items())
+        raise WatchlistFormatError(rendered)
+
+
+def due_entries(schedule: dict[str, Any], now: datetime | None = None) -> list[dict[str, Any]]:
+    require_valid_watchlist(schedule)
+    current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    raw_entries = schedule.get("lineup_watchlist", [])
     due: list[dict[str, Any]] = []
     for entry in raw_entries:
-        if not isinstance(entry, dict) or entry.get("status") != PENDING_STATUS:
-            continue
-        if validate_entry(entry):
+        if entry.get("status") != PENDING_STATUS:
             continue
         first_pitch = parse_instant(entry.get("first_pitch_utc"))
         if first_pitch is None:
@@ -118,6 +183,7 @@ For each entry, refresh from live sources:
 Re-run every original gate using the refreshed facts. Promote only when lineups
 are confirmed, injury and price refreshes succeeded, and every original gate
 still holds. A promotion must be copied into candidates with
+watchlist_id equal to the source watchlist entry id,
 execution_mode=manual, manual_bet_status=awaiting_jerry, executed=false,
 vig_review_needed=false, vig_approved=true, and no execution cron fields.
 It is only a reminder for Jerry and must never place or schedule a bet.
@@ -148,14 +214,7 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("schedule must be a JSON object")
 
     if args.validate:
-        errors: dict[str, list[str]] = {}
-        for index, entry in enumerate(schedule.get("lineup_watchlist", [])):
-            if not isinstance(entry, dict):
-                errors[str(index)] = ["entry must be an object"]
-                continue
-            entry_errors = validate_entry(entry)
-            if entry_errors:
-                errors[str(entry.get("id", index))] = entry_errors
+        errors = validate_watchlist(schedule)
         print(json.dumps({"ok": not errors, "errors": errors}, indent=2))
         return 1 if errors else 0
 
