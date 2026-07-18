@@ -247,6 +247,14 @@ pitch, a target recheck at first pitch minus 75 minutes, the observed price,
 and the bettable-to threshold. Any second blocker means ordinary PASS, not a
 watchlist entry.
 
+Both watchlist price fields use signed American odds as JSON numbers:
+`"original_price": 119` and `"bettable_to_price": 105` (or negative numbers
+such as `-120`). Values such as `"MIN +119 at DraftKings"` and `"+105"` are
+invalid. Keep source and timestamp prose in the slate or `thesis`, not in the
+numeric fields. Validate the finished schedule with
+`python3 scripts/mlb_lineup_watchlist.py <schedule> --validate` before reporting
+slate success.
+
 The conditional review gate runs frequently enough to select the entry 60-90
 minutes before first pitch. Refresh both confirmed lineups, key injuries and
 late scratches, and the supported-market price. Rerun every original gate.

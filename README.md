@@ -103,6 +103,8 @@ validation for lineup-dependent near-misses. Pending entries are eligible only
 sole original blocker. The scheduled reviewer then refreshes lineups, key
 injuries, and price and reruns every original gate. Promotions remain
 manual-only `awaiting_jerry` reminders and never create or execute bets.
+Watchlist `original_price` and `bettable_to_price` values must be signed
+American-odds JSON numbers, not quoted or descriptive strings.
 
 Inspect entries due at a specific instant or validate a schedule:
 

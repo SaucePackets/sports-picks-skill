@@ -62,6 +62,14 @@ minutes), `blocked_only_by: ["lineups_unconfirmed"]`, the complete
 `original_gate_results`, original/current price limits, and
 `status: "pending_lineup_recheck"`.
 
+`original_price` and `bettable_to_price` are signed American-odds JSON
+numbers, for example `119`, `105`, or `-120`. Never include a team, sportsbook,
+or `+` sign in those fields, and never quote them as strings. Put descriptive
+price context in `thesis` instead. Before completing a slate, run
+`python3 scripts/mlb_lineup_watchlist.py <schedule> --validate`; a nonzero exit
+means the slate is invalid and must be reported as an error rather than handed
+to the reviewer.
+
 The conditional reviewer checks pending entries only 60-90 minutes before
 first pitch. It refreshes confirmed lineups, key injuries/late scratches, and
 price, then reruns every original gate. Promote only if all still hold. A
