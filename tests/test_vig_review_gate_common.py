@@ -3,8 +3,11 @@ import json
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from datetime import datetime, timezone
+from io import StringIO
 from pathlib import Path
+from unittest.mock import patch
 
 
 SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "vig_review_gate_common.py"
@@ -17,6 +20,18 @@ spec.loader.exec_module(vig_review_gate_common)
 
 
 class VigReviewGateCommonTests(unittest.TestCase):
+    def test_resolve_root_falls_back_from_profile_scripts_to_default_project(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            project = home / "projects" / "sports-picks-skill"
+            scripts = home / ".hermes" / "profiles" / "vig" / "scripts"
+            (project / ".picks").mkdir(parents=True)
+            scripts.mkdir(parents=True)
+
+            root = vig_review_gate_common.resolve_root(cwd=scripts, home=home)
+
+            self.assertEqual(root, project.resolve())
+
     def test_raw_candidate_array_rejects_non_objects(self):
         with self.assertRaises(vig_review_gate_common.ScheduleFormatError):
             vig_review_gate_common.parse_candidates([{"side": "A"}, "bad"])
@@ -77,6 +92,82 @@ class VigReviewGateCommonTests(unittest.TestCase):
 
         self.assertEqual(candidates, [])
         self.assertEqual([entry["id"] for entry in watchlist], ["due"])
+
+    def test_invalid_slate_prices_surface_as_gate_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            original_root = getattr(vig_review_gate_common, "ROOT")
+            try:
+                root = Path(tmp)
+                setattr(vig_review_gate_common, "ROOT", root)
+                day = vig_review_gate_common.datetime.now(
+                    vig_review_gate_common.ZoneInfo("America/Chicago")
+                ).date().isoformat()
+                schedule = root / ".picks" / "execute" / f"{day}-schedule.json"
+                schedule.parent.mkdir(parents=True)
+                bad_entry = self._watch_entry(
+                    original_price="MIN +119 at DraftKings",
+                    bettable_to_price="+105",
+                )
+                schedule.write_text(json.dumps({"candidates": [], "lineup_watchlist": [bad_entry]}))
+                output = StringIO()
+
+                with redirect_stdout(output):
+                    status = vig_review_gate_common.run_gate("MLB")
+
+                self.assertEqual(status, 1)
+                self.assertIn("original_price must be numeric", output.getvalue())
+                self.assertIn("bettable_to_price must be numeric", output.getvalue())
+            finally:
+                setattr(vig_review_gate_common, "ROOT", original_root)
+
+    def test_successful_review_writes_latest_action(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            original_root = getattr(vig_review_gate_common, "ROOT")
+            try:
+                root = Path(tmp)
+                setattr(vig_review_gate_common, "ROOT", root)
+                day = vig_review_gate_common.datetime.now(
+                    vig_review_gate_common.ZoneInfo("America/Chicago")
+                ).date().isoformat()
+                schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
+                schedule_path.parent.mkdir(parents=True)
+                candidate = {
+                    "event_id": "401816156",
+                    "game": "Chicago White Sox at Toronto Blue Jays",
+                    "side": "CWS",
+                    "unit_size": 18,
+                    "vig_approved": None,
+                    "execution_mode": "manual",
+                    "manual_bet_status": None,
+                    "executed": False,
+                }
+                schedule_path.write_text(json.dumps({"candidates": [candidate], "lineup_watchlist": []}))
+
+                def complete_review(*args, **kwargs):
+                    updated = dict(candidate)
+                    updated.update(
+                        vig_approved=True,
+                        vig_notes="All gates hold.",
+                        manual_bet_status="awaiting_jerry",
+                    )
+                    schedule_path.write_text(
+                        json.dumps({"candidates": [updated], "lineup_watchlist": []})
+                    )
+                    return vig_review_gate_common.subprocess.CompletedProcess(
+                        args[0], 0, stdout="Vig review complete", stderr=""
+                    )
+
+                with patch.object(vig_review_gate_common.subprocess, "run", side_effect=complete_review):
+                    status = vig_review_gate_common.run_gate("MLB")
+
+                self.assertEqual(status, 0)
+                latest = (root / ".picks" / "latest-action.md").read_text()
+                self.assertIn(f"{day}: MLB review complete", latest)
+                self.assertIn("1 approved manual-only candidate", latest)
+                self.assertIn("0 rejected", latest)
+                self.assertIn("No bet placed or scheduled", latest)
+            finally:
+                setattr(vig_review_gate_common, "ROOT", original_root)
 
     def test_regular_review_prompt_is_manual_only(self):
         prompt = vig_review_gate_common.build_regular_review_prompt(

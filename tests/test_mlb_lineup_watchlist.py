@@ -92,6 +92,26 @@ class MlbLineupWatchlistTests(unittest.TestCase):
         self.assertIn("original_price must be numeric", errors)
         self.assertIn("bettable_to_price must be numeric", errors)
 
+    def test_slate_schedule_rejects_descriptive_and_quoted_watchlist_prices(self):
+        slate_schedule = {
+            "date": "2026-07-18",
+            "candidates": [],
+            "lineup_watchlist": [
+                self.entry(
+                    id="LW20260718-MIN-CHC",
+                    original_price="MIN +119 at DraftKings",
+                    bettable_to_price="+105",
+                )
+            ],
+        }
+
+        errors = mlb_lineup_watchlist.validate_watchlist(slate_schedule)
+
+        self.assertEqual(
+            errors["LW20260718-MIN-CHC"],
+            ["original_price must be numeric", "bettable_to_price must be numeric"],
+        )
+
     def test_duplicate_watchlist_ids_fail_closed(self):
         with self.assertRaises(mlb_lineup_watchlist.WatchlistFormatError):
             mlb_lineup_watchlist.due_entries(

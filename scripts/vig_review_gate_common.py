@@ -25,7 +25,23 @@ from mlb_lineup_watchlist import (  # noqa: E402
 )
 
 HERMES = os.environ.get("HERMES_BIN") or shutil.which("hermes") or "/home/clawdbot/.local/bin/hermes"
-ROOT = Path(os.environ.get("SPORTS_PICKS_ROOT", Path.cwd())).expanduser().resolve()
+
+
+def resolve_root(cwd: Path | None = None, home: Path | None = None) -> Path:
+    """Resolve runtime state even when Hermes launches a script from its profile directory."""
+    override = os.environ.get("SPORTS_PICKS_ROOT")
+    if override:
+        return Path(override).expanduser().resolve()
+    current = (cwd or Path.cwd()).expanduser().resolve()
+    if (current / ".picks").is_dir():
+        return current
+    default = ((home or Path.home()) / "projects" / "sports-picks-skill").resolve()
+    if (default / ".picks").is_dir():
+        return default
+    return current
+
+
+ROOT = resolve_root()
 
 
 class ScheduleFormatError(ValueError):
@@ -182,6 +198,37 @@ def _schedule_path(sport: str, day: str) -> Path:
     return ROOT / ".picks" / "execute" / "intl-soccer" / f"{day}-schedule.json"
 
 
+def _plural(count: int, singular: str, plural: str | None = None) -> str:
+    return singular if count == 1 else (plural or f"{singular}s")
+
+
+def write_latest_action(sport: str, day: str, schedule: dict[str, Any]) -> Path:
+    candidates = parse_candidates(schedule)
+    approved = sum(candidate.get("vig_approved") is True for candidate in candidates)
+    rejected = sum(candidate.get("vig_approved") is False for candidate in candidates)
+    pending_watch = sum(
+        isinstance(entry, dict) and entry.get("status") == "pending_lineup_recheck"
+        for entry in schedule.get("lineup_watchlist", [])
+    )
+    label = sport.upper()
+    text = (
+        f"{day}: {label} review complete. {approved} approved manual-only "
+        f"{_plural(approved, 'candidate')} awaiting Jerry; {rejected} rejected. "
+    )
+    if label == "MLB":
+        text += (
+            f"{pending_watch} lineup watchlist {_plural(pending_watch, 'recheck')} pending. "
+        )
+    text += "No bet placed or scheduled.\n"
+
+    path = ROOT / ".picks" / "latest-action.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(f"{path.suffix}.tmp")
+    temporary.write_text(text, encoding="utf-8")
+    temporary.replace(path)
+    return path
+
+
 def run_gate(sport: str) -> int:
     day = datetime.now(ZoneInfo("America/Chicago")).date().isoformat()
     schedule_path = _schedule_path(sport, day)
@@ -248,6 +295,11 @@ def run_gate(sport: str) -> int:
     transition_errors = validate_review_transition(schedule, updated, candidate_ids, watchlist_ids)
     if transition_errors:
         print(f"{sport} review gate ERROR: invalid review transition: {'; '.join(transition_errors)}")
+        return 1
+    try:
+        write_latest_action(sport, day, updated)
+    except (OSError, ScheduleFormatError) as exc:
+        print(f"{sport} review gate ERROR: could not update latest-action.md: {exc}")
         return 1
 
     out = proc.stdout.strip()
