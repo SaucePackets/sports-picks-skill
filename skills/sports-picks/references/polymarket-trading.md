@@ -31,10 +31,13 @@ Requires explicit user approval in the current chat/session:
 - modify order
 - any action that spends, reserves, sells, or changes exposure
 
-Do not use cron jobs for live order placement. Cron may monitor and propose only.
+Do not create ad-hoc or one-shot cron jobs for live order placement. Cron may
+monitor and propose only except for the dedicated recurring MLB execution poller
+allowed by the exception below.
 
 MLB exception:
 - live execution is allowed only when a local runtime policy grants explicit MLB authorization and defines caps.
+- a dedicated recurring poller may execute standing-authorized MLB moneyline entries when it rechecks every gate, uses dedup locks, and writes proposal/order receipts; cron sessions must not recursively create jobs.
 - That local authorization should cover entry orders only unless it explicitly says otherwise.
 - Profit-taking exits still require explicit user approval unless the local runtime policy defines an exit rule.
 

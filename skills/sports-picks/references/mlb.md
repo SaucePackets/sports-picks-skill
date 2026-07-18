@@ -259,9 +259,12 @@ The conditional review gate runs frequently enough to select the entry 60-90
 minutes before first pitch. Refresh both confirmed lineups, key injuries and
 late scratches, and the supported-market price. Rerun every original gate.
 Promote only if all gates still hold and the price remains acceptable;
-otherwise log `status: "passed"` plus the decisive reason. Promotions are
-manual-only `awaiting_jerry` reminders with `executed: false`. Never create an
-execution cron, proposal token, or order.
+otherwise log `status: "passed"` plus the decisive reason. When local MLB
+standing authorization is enabled, promotions use `execution_mode:
+"standing_authorized"`, `execution_status: "pending"`, an explicit
+`max_polymarket_price`, and `executed: false`. Never create a one-shot execution
+cron, proposal token, or order in the reviewer; the recurring poller owns the
+guarded execution attempt.
 
 ### Park / Weather
 Treat weather as a real handicap input, not an afterthought.
