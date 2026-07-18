@@ -90,6 +90,8 @@ def read_schedule(root: Path, date: str, report: VerificationReport) -> tuple[di
         return {}, []
     if schedule.get("date") != date:
         report.fail(f"Schedule date is {schedule.get('date')!r}, expected {date}")
+    if schedule.get("sport") != "MLB" or schedule.get("market_type") != "moneyline":
+        report.fail("Schedule must explicitly declare sport='MLB' and market_type='moneyline'")
     candidates = [item for item in schedule["candidates"] if isinstance(item, dict)]
     if len(candidates) != len(schedule["candidates"]):
         report.fail("Every schedule candidate must be a JSON object")
@@ -118,18 +120,48 @@ def verify_reviews(candidates: list[dict[str, Any]], report: VerificationReport)
     return approved, flagged
 
 
-def verify_manual_approvals(approved: list[dict[str, Any]], report: VerificationReport) -> None:
-    """Require approved rows to be reminders, never executable instructions."""
+def verify_execution_routing(
+    approved: list[dict[str, Any]], date: str, report: VerificationReport
+) -> None:
+    """Require approved MLB rows to route safely to the recurring poller."""
     forbidden = ("execution_cron_id", "execution_cron_fire_utc", "approval_token")
     for index, candidate in enumerate(approved):
         label = describe_candidate(candidate, index)
         failures: list[str] = []
-        if candidate.get("execution_mode") != "manual":
-            failures.append("execution_mode must be 'manual'")
-        if candidate.get("manual_bet_status") != "awaiting_jerry":
-            failures.append("manual_bet_status must be 'awaiting_jerry'")
+        if candidate.get("sport") != "MLB":
+            failures.append("sport must be 'MLB'")
+        if candidate.get("market_type") != "moneyline":
+            failures.append("market_type must be 'moneyline'")
+        if candidate.get("execution_mode") != "standing_authorized":
+            failures.append("execution_mode must be 'standing_authorized'")
+        if candidate.get("execution_status") != "pending":
+            failures.append("execution_status must be 'pending'")
+        if candidate.get("manual_bet_status") == "awaiting_jerry":
+            failures.append("manual_bet_status must not be 'awaiting_jerry'")
         if candidate.get("executed") is not False:
             failures.append("executed must be false")
+        max_price = candidate.get("max_polymarket_price")
+        if (
+            not isinstance(max_price, (int, float))
+            or isinstance(max_price, bool)
+            or not 0 < max_price < 1
+        ):
+            failures.append("max_polymarket_price must be between 0 and 1")
+        slug = candidate.get("polymarket_slug")
+        if (
+            not isinstance(slug, str)
+            or not slug.startswith("aec-mlb-")
+            or not slug.endswith(f"-{date}")
+        ):
+            failures.append("polymarket_slug must be an aec-mlb moneyline for schedule date")
+        first_pitch = candidate.get("first_pitch_utc")
+        if not isinstance(first_pitch, str):
+            failures.append("first_pitch_utc must be a timestamp")
+        else:
+            try:
+                datetime.fromisoformat(first_pitch.replace("Z", "+00:00"))
+            except ValueError:
+                failures.append("first_pitch_utc must be a timestamp")
         present = [field for field in forbidden if field in candidate]
         if present:
             failures.append(f"forbidden execution fields present: {', '.join(present)}")
@@ -137,7 +169,7 @@ def verify_manual_approvals(approved: list[dict[str, Any]], report: Verification
             for failure in failures:
                 report.fail(f"{label}: {failure}")
         else:
-            report.ok(f"{label} is a manual-only awaiting_jerry reminder")
+            report.ok(f"{label} is routed to the standing-authorized MLB execution poller")
 
 
 def resolve_picks_file(root: Path, explicit: Path | None) -> Path:
@@ -264,7 +296,7 @@ def main(argv: list[str] | None = None) -> int:
     approved, flagged = verify_reviews(candidates, report)
     exposure, cap = verify_exposure(schedule, approved, report)
 
-    verify_manual_approvals(approved, report)
+    verify_execution_routing(approved, args.date, report)
 
     picks_path = resolve_picks_file(root, args.picks_file).expanduser().resolve()
     verify_picks(picks_path, report)

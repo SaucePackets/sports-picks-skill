@@ -52,8 +52,11 @@ class MlbLineupWatchlistTests(unittest.TestCase):
         late = datetime(2026, 7, 17, 22, 5, tzinfo=timezone.utc)
         promoted_candidate = {
             "watchlist_id": "lineup-abc-def",
-            "execution_mode": "manual",
-            "manual_bet_status": "awaiting_jerry",
+            "sport": "MLB",
+            "market_type": "moneyline",
+            "execution_mode": "standing_authorized",
+            "execution_status": "pending",
+            "max_polymarket_price": 0.51,
             "executed": False,
         }
         promoted = self.entry(
@@ -125,27 +128,33 @@ class MlbLineupWatchlistTests(unittest.TestCase):
         self.assertIn("passed entry requires rechecked_at_utc", errors)
         self.assertIn("passed entry requires non-empty recheck_notes", errors)
 
-    def test_validation_rejects_missing_manual_safety_fields(self):
+    def test_validation_rejects_manual_state_for_standing_authorized_mlb(self):
         promoted = self.entry(
             status="promoted",
             rechecked_at_utc="2026-07-17T21:45:00Z",
             recheck={"lineups_confirmed": True, "key_injuries_refreshed": True, "price_refreshed": True, "all_original_gates_hold": True},
-            promoted_candidate={"watchlist_id": "lineup-abc-def", "execution_mode": "automatic", "manual_bet_status": "awaiting_jerry", "executed": False},
+            promoted_candidate={"watchlist_id": "lineup-abc-def", "execution_mode": "manual", "manual_bet_status": "awaiting_jerry", "executed": False},
         )
 
         errors = mlb_lineup_watchlist.validate_entry(promoted)
 
-        self.assertIn("promoted_candidate.execution_mode must be manual", errors)
+        self.assertIn("promoted_candidate.execution_mode must be standing_authorized", errors)
+        self.assertIn("promoted_candidate.execution_status must be pending", errors)
+        self.assertIn("promoted_candidate.max_polymarket_price must be between 0 and 1", errors)
+        self.assertIn("promoted_candidate.sport must be MLB", errors)
+        self.assertIn("promoted_candidate.market_type must be moneyline", errors)
 
-    def test_recheck_prompt_enforces_refresh_gates_and_manual_only_promotion(self):
+    def test_recheck_prompt_routes_promotion_to_recurring_execution_poller(self):
         prompt = mlb_lineup_watchlist.build_recheck_prompt(Path("/tmp/schedule.json"), [self.entry()])
 
         self.assertIn("confirmed batting lineups", prompt)
         self.assertIn("key injury status", prompt)
         self.assertIn("current supported-market price", prompt)
         self.assertIn("every original gate", prompt)
-        self.assertIn("manual_bet_status=awaiting_jerry", prompt)
-        self.assertIn("must never place or schedule a bet", prompt)
+        self.assertIn("execution_mode=standing_authorized", prompt)
+        self.assertIn("execution_status=pending", prompt)
+        self.assertIn("recurring MLB execution poller", prompt)
+        self.assertNotIn("awaiting_jerry", prompt)
         self.assertIn("lineup-abc-def", prompt)
 
 

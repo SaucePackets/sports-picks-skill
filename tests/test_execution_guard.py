@@ -1,7 +1,11 @@
 import json
 import tempfile
 import unittest
+from contextlib import redirect_stdout
+from datetime import datetime, timezone
+from io import StringIO
 from pathlib import Path
+from unittest.mock import patch
 
 from scripts.execution_guard import (
     acquire_execution_lock,
@@ -9,6 +13,7 @@ from scripts.execution_guard import (
     append_pick_with_dedup,
     find_filled_receipts,
     mark_execution_from_receipts,
+    main,
 )
 
 
@@ -22,10 +27,19 @@ class ExecutionGuardTests(unittest.TestCase):
         self.schedule_path.parent.mkdir(parents=True)
         self.schedule_path.write_text(json.dumps({
             "date": "2026-05-27",
+            "sport": "MLB",
+            "market_type": "moneyline",
             "candidates": [{
                 "polymarket_slug": "aec-mlb-nyy-kc-2026-05-27",
                 "pick_side": "New York Yankees",
                 "unit_size": 15,
+                "max_polymarket_price": 0.60,
+                "sport": "MLB",
+                "market_type": "moneyline",
+                "first_pitch_utc": "2026-05-27T23:00:00Z",
+                "vig_approved": True,
+                "execution_mode": "standing_authorized",
+                "execution_status": "pending",
                 "executed": False,
                 "skipped": False,
                 "execution_lock": None,
@@ -119,6 +133,69 @@ class ExecutionGuardTests(unittest.TestCase):
     def test_acquire_lock_refuses_when_candidate_already_locked(self):
         self.assertTrue(acquire_execution_lock(self.schedule_path, "aec-mlb-nyy-kc-2026-05-27", "attempt-1"))
         self.assertFalse(acquire_execution_lock(self.schedule_path, "aec-mlb-nyy-kc-2026-05-27", "attempt-2"))
+
+    def test_standing_authorized_lock_revalidates_hold_and_first_pitch(self):
+        candidate = json.loads(self.schedule_path.read_text())["candidates"][0]
+        candidate["held"] = True
+        self.schedule_path.write_text(json.dumps({"date": "2026-05-27", "sport": "MLB", "market_type": "moneyline", "candidates": [candidate]}))
+        now = datetime(2026, 5, 27, 21, 0, tzinfo=timezone.utc)
+
+        self.assertFalse(
+            acquire_execution_lock(
+                self.schedule_path,
+                "aec-mlb-nyy-kc-2026-05-27",
+                "attempt-held",
+                require_standing_authorized=True,
+                now=now,
+            )
+        )
+
+        candidate["held"] = False
+        candidate["first_pitch_utc"] = "2026-05-27T20:00:00Z"
+        self.schedule_path.write_text(json.dumps({"date": "2026-05-27", "sport": "MLB", "market_type": "moneyline", "candidates": [candidate]}))
+        self.assertFalse(
+            acquire_execution_lock(
+                self.schedule_path,
+                "aec-mlb-nyy-kc-2026-05-27",
+                "attempt-started",
+                require_standing_authorized=True,
+                now=now,
+            )
+        )
+
+    def test_check_cli_blocks_active_canonical_pick(self):
+        picks_path = self.root / "picks.json"
+        picks_path.write_text(
+            json.dumps(
+                {
+                    "picks": [
+                        {
+                            "market_slug": "aec-mlb-nyy-kc-2026-05-27",
+                            "status": "active",
+                        }
+                    ]
+                }
+            )
+        )
+        output = StringIO()
+        argv = [
+            "execution_guard.py",
+            "check",
+            "--schedule",
+            str(self.schedule_path),
+            "--market-slug",
+            "aec-mlb-nyy-kc-2026-05-27",
+            "--receipts-dir",
+            str(self.receipts),
+            "--picks-file",
+            str(picks_path),
+        ]
+
+        with patch("sys.argv", argv), redirect_stdout(output):
+            status = main()
+
+        self.assertEqual(status, 2)
+        self.assertTrue(json.loads(output.getvalue())["has_active_pick"])
 
     def test_active_pick_exists_ignores_settled_rows(self):
         picks_path = self.root / "picks.json"

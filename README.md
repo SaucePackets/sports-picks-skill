@@ -71,10 +71,10 @@ This repo includes only templates and reusable process files. Live pick history,
 
 ### Verify an MLB Vig review handoff
 
-`scripts/vig-review-verify.py` performs a read-only check of a dated MLB review before manual reminders are delivered. It verifies:
+`scripts/vig-review-verify.py` performs a read-only check of a dated MLB review before approved rows reach the recurring execution poller. It verifies:
 
 - every candidate has a boolean `vig_approved` decision and non-empty `vig_notes`;
-- each approved candidate is manual-only, `awaiting_jerry`, unexecuted, and has no execution cron or approval token;
+- each approved candidate is `standing_authorized`, pending, unexecuted, explicitly price-capped, and has no one-shot execution cron or approval token;
 - the canonical `picks.json` has no duplicate active `market_slug` + `side` pair; and
 - `.picks/latest-action.md` matches the approval counts and approved exposure/daily cap.
 
@@ -101,8 +101,9 @@ Exit code `0` means every check passed, `1` means the handoff is inconsistent, a
 validation for lineup-dependent near-misses. Pending entries are eligible only
 60-90 minutes before first pitch and only when unconfirmed lineups were the
 sole original blocker. The scheduled reviewer then refreshes lineups, key
-injuries, and price and reruns every original gate. Promotions remain
-manual-only `awaiting_jerry` reminders and never create or execute bets.
+injuries, and price and reruns every original gate. Under a separately enabled
+local MLB standing authorization, promotions become pending inputs to the
+recurring execution poller; the review job itself never creates or executes bets.
 Watchlist `original_price` and `bettable_to_price` values must be signed
 American-odds JSON numbers, not quoted or descriptive strings.
 
@@ -112,6 +113,13 @@ Inspect entries due at a specific instant or validate a schedule:
 python scripts/mlb_lineup_watchlist.py .picks/execute/2026-07-17-schedule.json --now 2026-07-17T21:45:00Z
 python scripts/mlb_lineup_watchlist.py .picks/execute/2026-07-17-schedule.json --validate
 ```
+
+`scripts/mlb_execution_gate.py` is the deterministic pre-run gate for that
+recurring poller. It emits work only for approved, pending, price-capped MLB
+moneyline candidates before first pitch. Started, held, skipped, manual, locked,
+or already executed rows are silent and can never be chased. Both the schedule
+and candidate must explicitly declare `sport: "MLB"` and
+`market_type: "moneyline"`; slug inference alone is never authorization.
 
 ## Manual loading
 

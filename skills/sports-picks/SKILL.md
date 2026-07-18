@@ -31,24 +31,31 @@ Compatibility note:
 
 ## Three-Actor Pipeline (Optional Automated Setup)
 
-For runtimes using a scheduled pick pipeline (morning slate → Vig review → settlement), this repo supports an optional **second-review gate**. All approvals are manual-only reminders; this pipeline never executes bets:
+For runtimes using a scheduled pick pipeline (morning slate → Vig review → settlement), this repo supports an optional **second-review gate**. Soccer remains manual-only. A local runtime with separately written MLB standing authorization may route approved MLB moneylines to the recurring execution poller:
 
 Add `vig_review_needed` and `vig_approved` fields to each schedule candidate:
 
 ```json
 {
+  "date": "2026-07-19",
+  "sport": "MLB",
+  "market_type": "moneyline",
   "candidates": [{
+    "sport": "MLB",
+    "market_type": "moneyline",
     "vig_review_needed": true,
     "vig_approved": null,
     "vig_notes": null,
-    "execution_mode": "manual",
-    "manual_bet_status": null,
+    "execution_mode": "standing_authorized",
+    "execution_status": null,
+    "max_polymarket_price": 0.51,
     "executed": false
   }]
 }
 ```
 
-- `vig_review_needed: true` + `vig_approved: true` — Approved as an `awaiting_jerry` manual reminder.
+- MLB `vig_review_needed: true` + `vig_approved: true` — Set `execution_status: "pending"` and route to the recurring poller when local standing authorization is enabled.
+- Soccer `vig_review_needed: true` + `vig_approved: true` — Keep as an `awaiting_jerry` manual reminder.
 - `vig_review_needed: true` + `vig_approved: false` — Rejected and logged as a pass.
 - `vig_review_needed: true` + `vig_approved: null` — Not yet reviewed; remain pending.
 - No reviewer-unreachable safety valve exists. Missing review always means no bet.
@@ -73,10 +80,11 @@ to the reviewer.
 The conditional reviewer checks pending entries only 60-90 minutes before
 first pitch. It refreshes confirmed lineups, key injuries/late scratches, and
 price, then reruns every original gate. Promote only if all still hold. A
-promotion is copied into `candidates` with `execution_mode: "manual"`,
-`manual_bet_status: "awaiting_jerry"`, and `executed: false`. Otherwise set
-the watchlist status to `passed` and record `recheck_notes`. Never attach an
-execution cron or approval token.
+promotion is copied into `candidates` with `execution_mode:
+"standing_authorized"`, `execution_status: "pending"`, an explicit
+`max_polymarket_price`, and `executed: false`. Otherwise set the watchlist status
+to `passed` and record `recheck_notes`. Never attach a one-shot execution cron or
+approval token; the dedicated recurring poller owns execution.
 
 The postgame reflection stage also writes to a shared `latest-action.md` file so the reviewer sees settlement results alongside the next day's card. This file lives at the runtime ledger root.
 

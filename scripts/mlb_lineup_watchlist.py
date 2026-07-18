@@ -10,9 +10,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from mlb_runtime_policy import standing_authorization_enabled
 
 MIN_MINUTES_BEFORE_FIRST_PITCH = 60
 MAX_MINUTES_BEFORE_FIRST_PITCH = 90
@@ -111,12 +118,36 @@ def validate_entry(entry: dict[str, Any]) -> list[str]:
         else:
             if candidate.get("watchlist_id") != entry_id:
                 errors.append("promoted_candidate.watchlist_id must match entry id")
-            if candidate.get("execution_mode") != "manual":
-                errors.append("promoted_candidate.execution_mode must be manual")
-            if candidate.get("manual_bet_status") != "awaiting_jerry":
-                errors.append("promoted_candidate.manual_bet_status must be awaiting_jerry")
+            authorized = standing_authorization_enabled()
+            if authorized:
+                if candidate.get("sport") != "MLB":
+                    errors.append("promoted_candidate.sport must be MLB")
+                if candidate.get("market_type") != "moneyline":
+                    errors.append("promoted_candidate.market_type must be moneyline")
+                if candidate.get("execution_mode") != "standing_authorized":
+                    errors.append("promoted_candidate.execution_mode must be standing_authorized")
+                if candidate.get("execution_status") != "pending":
+                    errors.append("promoted_candidate.execution_status must be pending")
+                if candidate.get("manual_bet_status") == "awaiting_jerry":
+                    errors.append("promoted_candidate.manual_bet_status must not be awaiting_jerry")
+            else:
+                if candidate.get("execution_mode") != "manual":
+                    errors.append("promoted_candidate.execution_mode must be manual")
+                if candidate.get("manual_bet_status") != "awaiting_jerry":
+                    errors.append("promoted_candidate.manual_bet_status must be awaiting_jerry")
             if candidate.get("executed") is not False:
                 errors.append("promoted_candidate.executed must be false")
+            if authorized:
+                max_price = candidate.get("max_polymarket_price")
+                numeric_max_price = (
+                    float(max_price)
+                    if isinstance(max_price, (int, float)) and not isinstance(max_price, bool)
+                    else None
+                )
+                if numeric_max_price is None or not 0 < numeric_max_price < 1:
+                    errors.append(
+                        "promoted_candidate.max_polymarket_price must be between 0 and 1"
+                    )
             present = sorted(FORBIDDEN_EXECUTION_FIELDS.intersection(candidate))
             if present:
                 errors.append(f"promoted_candidate has forbidden execution fields: {', '.join(present)}")
@@ -172,6 +203,17 @@ def due_entries(schedule: dict[str, Any], now: datetime | None = None) -> list[d
 
 def build_recheck_prompt(schedule_path: Path, entries: list[dict[str, Any]]) -> str:
     entry_ids = ", ".join(str(entry.get("id", "<missing-id>")) for entry in entries)
+    if standing_authorization_enabled():
+        routing = """A promotion must be copied into candidates with
+watchlist_id equal to the source watchlist entry id,
+execution_mode=standing_authorized, execution_status=pending, executed=false,
+sport=MLB, market_type=moneyline, an explicit max_polymarket_price between 0 and 1,
+vig_review_needed=false, vig_approved=true, and no execution cron fields.
+The recurring MLB execution poller will refresh all gates and handle execution."""
+    else:
+        routing = """A promotion must remain manual-only with execution_mode=manual,
+manual_bet_status=awaiting_jerry, executed=false, vig_review_needed=false, and
+vig_approved=true. It must never place or schedule a bet."""
     return f"""You are Vig performing the MLB lineup watchlist recheck.
 Read and update {schedule_path}. Recheck only these watchlist IDs: {entry_ids}.
 
@@ -182,20 +224,16 @@ For each entry, refresh from live sources:
 
 Re-run every original gate using the refreshed facts. Promote only when lineups
 are confirmed, injury and price refreshes succeeded, and every original gate
-still holds. A promotion must be copied into candidates with
-watchlist_id equal to the source watchlist entry id,
-execution_mode=manual, manual_bet_status=awaiting_jerry, executed=false,
-vig_review_needed=false, vig_approved=true, and no execution cron fields.
-It is only a reminder for Jerry and must never place or schedule a bet.
+still holds. {routing}
 
 If any refresh is unavailable, the price is too expensive, a lineup/injury
 change weakens the thesis, or any original gate fails, set the watchlist entry
 status to passed and write a concise recheck_notes reason. For a promotion, set
 status=promoted and record recheck.lineups_confirmed,
 recheck.key_injuries_refreshed, recheck.price_refreshed, and
-recheck.all_original_gates_hold as true, plus the manual promoted_candidate.
-Always set rechecked_at_utc. Never auto-execute, create an approval token, call
-a trading endpoint, or create an execution cron.
+recheck.all_original_gates_hold as true, plus the promoted_candidate. Always set
+rechecked_at_utc. Do not execute here, create an approval token, call a trading
+endpoint, or create a cron job; route through the recurring MLB execution poller.
 """
 
 

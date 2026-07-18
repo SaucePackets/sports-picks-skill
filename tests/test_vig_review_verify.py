@@ -29,17 +29,23 @@ class VigReviewVerifyTests(unittest.TestCase):
 
         self.schedule = {
             "date": self.DATE,
+            "sport": "MLB",
+            "market_type": "moneyline",
             "status": "vig-reviewed",
             "candidates": [
                 {
                     "polymarket_slug": "aec-mlb-abc-def-2026-07-10",
                     "side": "ABC",
+                    "sport": "MLB",
+                    "market_type": "moneyline",
+                    "first_pitch_utc": "2026-07-10T23:00:00Z",
                     "unit_size": 18,
+                    "max_polymarket_price": 0.51,
                     "vig_review_needed": False,
                     "vig_approved": True,
                     "vig_notes": "Starter, price, lineup, and weather gates hold.",
-                    "execution_mode": "manual",
-                    "manual_bet_status": "awaiting_jerry",
+                    "execution_mode": "standing_authorized",
+                    "execution_status": "pending",
                     "executed": False,
                 },
                 {
@@ -63,7 +69,7 @@ class VigReviewVerifyTests(unittest.TestCase):
         }
         self.latest = (
             f"{self.DATE}: Vig review complete. 1 approved, 1 flagged. "
-            "Manual reminder awaiting Jerry. Approved exposure $18 / $90.\n"
+            "Routed to MLB execution poller. Approved exposure $18 / $90.\n"
         )
         self.write_fixture()
 
@@ -97,9 +103,19 @@ class VigReviewVerifyTests(unittest.TestCase):
         self.write_fixture()
         self.assertEqual(self.run_main(), 1)
 
-    def test_approved_candidate_requires_manual_awaiting_jerry_state(self):
-        self.schedule["candidates"][0]["execution_mode"] = "automatic"
-        self.schedule["candidates"][0]["manual_bet_status"] = None
+    def test_approved_candidate_requires_standing_authorized_pending_state(self):
+        self.schedule["candidates"][0]["execution_mode"] = "manual"
+        self.schedule["candidates"][0]["execution_status"] = "awaiting_jerry"
+        self.write_fixture()
+        self.assertEqual(self.run_main(), 1)
+
+    def test_approved_candidate_requires_explicit_polymarket_price_cap(self):
+        self.schedule["candidates"][0].pop("max_polymarket_price")
+        self.write_fixture()
+        self.assertEqual(self.run_main(), 1)
+
+    def test_approved_candidate_rejects_string_polymarket_price_cap(self):
+        self.schedule["candidates"][0]["max_polymarket_price"] = "0.51"
         self.write_fixture()
         self.assertEqual(self.run_main(), 1)
 

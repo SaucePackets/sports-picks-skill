@@ -23,6 +23,7 @@ from mlb_lineup_watchlist import (  # noqa: E402
     due_entries,
     validate_watchlist,
 )
+from mlb_runtime_policy import standing_authorization_enabled  # noqa: E402
 
 HERMES = os.environ.get("HERMES_BIN") or shutil.which("hermes") or "/home/clawdbot/.local/bin/hermes"
 
@@ -96,11 +97,53 @@ def manual_candidate_errors(candidate: dict[str, Any]) -> list[str]:
     return errors
 
 
+def approved_candidate_errors(
+    candidate: dict[str, Any], sport: str, mlb_standing_authorized: bool = False
+) -> list[str]:
+    """Validate the post-review routing state for an approved candidate."""
+    if sport.upper() != "MLB" or not mlb_standing_authorized:
+        return manual_candidate_errors(candidate)
+
+    errors: list[str] = []
+    if candidate.get("sport") != "MLB":
+        errors.append("sport must be MLB")
+    if candidate.get("market_type") != "moneyline":
+        errors.append("market_type must be moneyline")
+    if candidate.get("execution_mode") != "standing_authorized":
+        errors.append("execution_mode must be standing_authorized")
+    if candidate.get("execution_status") != "pending":
+        errors.append("execution_status must be pending")
+    if candidate.get("manual_bet_status") == "awaiting_jerry":
+        errors.append("manual_bet_status must not be awaiting_jerry")
+    if candidate.get("executed") is not False:
+        errors.append("executed must be false")
+    max_price = candidate.get("max_polymarket_price")
+    if (
+        not isinstance(max_price, (int, float))
+        or isinstance(max_price, bool)
+        or not 0 < max_price < 1
+    ):
+        errors.append("max_polymarket_price must be between 0 and 1")
+    forbidden = sorted(
+        field
+        for field in ("execution_cron_id", "execution_cron_fire_utc", "approval_token")
+        if field in candidate
+    )
+    if forbidden:
+        errors.append(
+            f"forbidden execution fields present: {', '.join(forbidden)}; "
+            "use the recurring MLB execution poller"
+        )
+    return errors
+
+
 def validate_review_transition(
     before: dict[str, Any],
     after: dict[str, Any],
     candidate_ids: list[str],
     watchlist_ids: list[str],
+    sport: str = "MLB",
+    mlb_standing_authorized: bool = False,
 ) -> list[str]:
     errors: list[str] = []
     watch_errors = validate_watchlist(after)
@@ -126,7 +169,12 @@ def validate_review_transition(
         if not isinstance(notes, str) or not notes.strip():
             errors.append(f"candidate {identity} has empty vig_notes")
         if candidate.get("vig_approved") is True:
-            errors.extend(f"candidate {identity}: {message}" for message in manual_candidate_errors(candidate))
+            errors.extend(
+                f"candidate {identity}: {message}"
+                for message in approved_candidate_errors(
+                    candidate, sport, mlb_standing_authorized
+                )
+            )
 
     for identity, candidate in before_by_id.items():
         if identity not in targeted_candidates and after_by_id.get(identity) != candidate:
@@ -174,18 +222,35 @@ def review_work(
 
 
 def build_regular_review_prompt(
-    sport: str, day: str, schedule_path: Path, candidates: list[dict[str, Any]]
+    sport: str,
+    day: str,
+    schedule_path: Path,
+    candidates: list[dict[str, Any]],
+    mlb_standing_authorized: bool = False,
 ) -> str:
     sides = ", ".join(str(candidate.get("side", "<unknown>")) for candidate in candidates)
+    routing = (
+        """For an MLB approval under Jerry's standing authorization, set
+execution_mode=standing_authorized, execution_status=pending, and executed=false.
+Set sport=MLB, market_type=moneyline, and an explicit max_polymarket_price
+between 0 and 1 from the approved price
+discipline rail. Remove any legacy manual reminder status. Do not create a one-shot cron,
+approval token, or trading command here. The recurring MLB execution poller will
+refresh every gate and handle capped execution with canonical receipts.
+"""
+        if sport.upper() == "MLB" and mlb_standing_authorized
+        else """Every approval is manual-only: set execution_mode=manual,
+manual_bet_status=awaiting_jerry, and executed=false. Include no execution cron,
+approval token, or trading command. An approved candidate is only a reminder for
+Jerry and must never place or schedule a bet.
+"""
+    )
     return f"""You are Vig performing the independent {sport} card review for {day}.
 Read {schedule_path}. Review only pending candidates: {sides}. Refresh decisive
 inputs and current supported-market prices, then apply every original hard gate.
 Update each reviewed candidate with boolean vig_approved and concise vig_notes.
 
-Every approval is manual-only: set execution_mode=manual,
-manual_bet_status=awaiting_jerry, and executed=false. Include no execution cron,
-approval token, or trading command. An approved candidate is only a reminder for
-Jerry and must never place or schedule a bet.
+{routing}
 
 Return a concise card review with approved/rejected count, decisive reason per
 candidate, and total proposed exposure.
@@ -202,7 +267,12 @@ def _plural(count: int, singular: str, plural: str | None = None) -> str:
     return singular if count == 1 else (plural or f"{singular}s")
 
 
-def write_latest_action(sport: str, day: str, schedule: dict[str, Any]) -> Path:
+def write_latest_action(
+    sport: str,
+    day: str,
+    schedule: dict[str, Any],
+    mlb_standing_authorized: bool = False,
+) -> Path:
     candidates = parse_candidates(schedule)
     approved = sum(candidate.get("vig_approved") is True for candidate in candidates)
     rejected = sum(candidate.get("vig_approved") is False for candidate in candidates)
@@ -211,15 +281,32 @@ def write_latest_action(sport: str, day: str, schedule: dict[str, Any]) -> Path:
         for entry in schedule.get("lineup_watchlist", [])
     )
     label = sport.upper()
-    text = (
-        f"{day}: {label} review complete. {approved} approved manual-only "
-        f"{_plural(approved, 'candidate')} awaiting Jerry; {rejected} rejected. "
-    )
+    if label == "MLB" and mlb_standing_authorized:
+        text = (
+            f"{day}: MLB review complete. {approved} approved standing-authorized "
+            f"{_plural(approved, 'candidate')} routed to execution poller; "
+            f"{rejected} rejected. "
+        )
+    else:
+        text = (
+            f"{day}: {label} review complete. {approved} approved manual-only "
+            f"{_plural(approved, 'candidate')} awaiting Jerry; {rejected} rejected. "
+        )
     if label == "MLB":
         text += (
             f"{pending_watch} lineup watchlist {_plural(pending_watch, 'recheck')} pending. "
         )
-    text += "No bet placed or scheduled.\n"
+        exposure = sum(
+            float(candidate.get("unit_size", 0))
+            for candidate in candidates
+            if candidate.get("vig_approved") is True
+            and isinstance(candidate.get("unit_size"), (int, float))
+            and not isinstance(candidate.get("unit_size"), bool)
+        )
+        cap = schedule.get("daily_cap")
+        if isinstance(cap, (int, float)) and not isinstance(cap, bool):
+            text += f"Approved exposure ${exposure:g} / ${cap:g}. "
+    text += "Review gate placed no bet.\n"
 
     path = ROOT / ".picks" / "latest-action.md"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -259,10 +346,15 @@ def run_gate(sport: str) -> int:
 
     candidate_ids = [candidate_identity(candidate) for candidate in candidates]
     watchlist_ids = [str(entry["id"]) for entry in watchlist]
+    mlb_standing_authorized = sport.upper() == "MLB" and standing_authorization_enabled()
 
     prompts: list[str] = []
     if candidates:
-        prompts.append(build_regular_review_prompt(sport, day, schedule_path, candidates))
+        prompts.append(
+            build_regular_review_prompt(
+                sport, day, schedule_path, candidates, mlb_standing_authorized
+            )
+        )
     if watchlist:
         prompts.append(build_recheck_prompt(schedule_path, watchlist))
     prompt = "\n\n".join(prompts)
@@ -292,12 +384,19 @@ def run_gate(sport: str) -> int:
     if not isinstance(updated, dict):
         print(f"{sport} review gate ERROR: reviewed schedule must remain an object")
         return 1
-    transition_errors = validate_review_transition(schedule, updated, candidate_ids, watchlist_ids)
+    transition_errors = validate_review_transition(
+        schedule,
+        updated,
+        candidate_ids,
+        watchlist_ids,
+        sport,
+        mlb_standing_authorized,
+    )
     if transition_errors:
         print(f"{sport} review gate ERROR: invalid review transition: {'; '.join(transition_errors)}")
         return 1
     try:
-        write_latest_action(sport, day, updated)
+        write_latest_action(sport, day, updated, mlb_standing_authorized)
     except (OSError, ScheduleFormatError) as exc:
         print(f"{sport} review gate ERROR: could not update latest-action.md: {exc}")
         return 1

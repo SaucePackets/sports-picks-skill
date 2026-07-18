@@ -140,7 +140,53 @@ def _candidate_for(schedule: dict[str, Any], market_slug: str) -> dict[str, Any]
     return None
 
 
-def acquire_execution_lock(schedule_path: Path | str, market_slug: str, attempt_id: str) -> bool:
+def _standing_authorized_candidate(
+    schedule: dict[str, Any], candidate: dict[str, Any], now: datetime
+) -> bool:
+    first_pitch = _parse_utc_timestamp(candidate.get("first_pitch_utc"))
+    schedule_date = schedule.get("date")
+    slug = candidate.get("polymarket_slug")
+    unit_size = candidate.get("unit_size")
+    max_price = candidate.get("max_polymarket_price")
+    minutes_to_pitch = (
+        (first_pitch - now.astimezone(timezone.utc)).total_seconds() / 60
+        if first_pitch
+        else 0
+    )
+    return bool(
+        first_pitch
+        and 0 < minutes_to_pitch <= 120
+        and schedule.get("sport") == "MLB"
+        and schedule.get("market_type") == "moneyline"
+        and candidate.get("sport") == "MLB"
+        and candidate.get("market_type") == "moneyline"
+        and candidate.get("vig_approved") is True
+        and candidate.get("execution_mode") == "standing_authorized"
+        and candidate.get("execution_status") == "pending"
+        and candidate.get("executed") is False
+        and not candidate.get("skipped")
+        and not candidate.get("held")
+        and isinstance(schedule_date, str)
+        and isinstance(slug, str)
+        and slug.startswith("aec-mlb-")
+        and slug.endswith(f"-{schedule_date}")
+        and isinstance(unit_size, (int, float))
+        and not isinstance(unit_size, bool)
+        and unit_size > 0
+        and isinstance(max_price, (int, float))
+        and not isinstance(max_price, bool)
+        and 0 < max_price < 1
+    )
+
+
+def acquire_execution_lock(
+    schedule_path: Path | str,
+    market_slug: str,
+    attempt_id: str,
+    *,
+    require_standing_authorized: bool = False,
+    now: datetime | None = None,
+) -> bool:
     """Set execution_lock for a candidate, refusing executed/skipped/locked rows."""
     path = Path(schedule_path)
     with path.open("r+") as f:
@@ -149,6 +195,10 @@ def acquire_execution_lock(schedule_path: Path | str, market_slug: str, attempt_
             schedule = json.load(f)
             candidate = _candidate_for(schedule, market_slug)
             if not candidate or candidate.get("executed") or candidate.get("skipped"):
+                return False
+            if require_standing_authorized and not _standing_authorized_candidate(
+                schedule, candidate, now or datetime.now(timezone.utc)
+            ):
                 return False
             lock = candidate.get("execution_lock")
             if lock and lock.get("attempt_id") != attempt_id:
@@ -164,8 +214,19 @@ def active_pick_exists(picks_path: Path | str, market_slug: str) -> bool:
     """Return true when picks.json already has an unsettled row for a market."""
     path = Path(picks_path)
     data = _load_json(path)
-    for pick in data.get("picks", []):
-        if pick.get("market_slug") == market_slug and pick.get("status") != "settled":
+    picks = data.get("picks", []) if isinstance(data, dict) else data
+    if not isinstance(picks, list):
+        raise ValueError("canonical picks ledger must contain a picks list")
+    final_results = {"win", "loss", "lost", "won", "void", "push", "cancelled", "canceled"}
+    inactive_statuses = {"settled", "closed", "void", "cancelled", "canceled"}
+    for pick in picks:
+        if not isinstance(pick, dict):
+            continue
+        slug = pick.get("market_slug") or pick.get("polymarket_slug")
+        result = str(pick.get("result") or "").strip().casefold()
+        status = str(pick.get("status") or "active").strip().casefold()
+        active = result not in final_results and not pick.get("settled_at") and status not in inactive_statuses
+        if slug == market_slug and active:
             return True
     return False
 
@@ -295,9 +356,12 @@ def main() -> int:
 
     check = sub.add_parser("check", parents=[common])
     check.add_argument("--mark", action="store_true", help="mark schedule executed if fills exist")
+    check.add_argument("--picks-file", help="canonical picks ledger; active slug blocks execution")
 
     lock = sub.add_parser("lock", parents=[common])
     lock.add_argument("--attempt-id", required=True)
+    lock.add_argument("--require-standing-authorized", action="store_true")
+    lock.add_argument("--now", help="UTC/offset timestamp override for deterministic checks")
 
     clear = sub.add_parser("clear", parents=[common])
     clear.add_argument("--attempt-id")
@@ -305,12 +369,29 @@ def main() -> int:
     args = ap.parse_args()
     if args.cmd == "check":
         fills = find_filled_receipts(args.receipts_dir, args.market_slug)
+        try:
+            active_pick = bool(args.picks_file) and active_pick_exists(
+                args.picks_file, args.market_slug
+            )
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            print(json.dumps({"ok": False, "error": f"could not read canonical picks: {exc}"}, indent=2))
+            return 4
         if fills and args.mark:
             mark_execution_from_receipts(args.schedule, args.market_slug, args.receipts_dir)
-        print(json.dumps({"ok": True, "has_filled_receipt": bool(fills), "fills": fills}, indent=2))
-        return 2 if fills else 0
+        print(json.dumps({"ok": True, "has_filled_receipt": bool(fills), "has_active_pick": active_pick, "fills": fills}, indent=2))
+        return 2 if fills or active_pick else 0
     if args.cmd == "lock":
-        ok = acquire_execution_lock(args.schedule, args.market_slug, args.attempt_id)
+        lock_now = _parse_utc_timestamp(args.now) if args.now else None
+        if args.now and lock_now is None:
+            print(json.dumps({"ok": False, "error": "--now must be a valid timestamp"}, indent=2))
+            return 4
+        ok = acquire_execution_lock(
+            args.schedule,
+            args.market_slug,
+            args.attempt_id,
+            require_standing_authorized=args.require_standing_authorized,
+            now=lock_now,
+        )
         print(json.dumps({"ok": ok, "locked": ok}, indent=2))
         return 0 if ok else 3
     if args.cmd == "clear":

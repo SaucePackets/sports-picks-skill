@@ -135,6 +135,8 @@ class VigReviewGateCommonTests(unittest.TestCase):
                     "event_id": "401816156",
                     "game": "Chicago White Sox at Toronto Blue Jays",
                     "side": "CWS",
+                    "sport": "MLB",
+                    "market_type": "moneyline",
                     "unit_size": 18,
                     "vig_approved": None,
                     "execution_mode": "manual",
@@ -148,10 +150,20 @@ class VigReviewGateCommonTests(unittest.TestCase):
                     updated.update(
                         vig_approved=True,
                         vig_notes="All gates hold.",
-                        manual_bet_status="awaiting_jerry",
+                        execution_mode="standing_authorized",
+                        execution_status="pending",
+                        max_polymarket_price=0.51,
+                        manual_bet_status=None,
                     )
                     schedule_path.write_text(
-                        json.dumps({"candidates": [updated], "lineup_watchlist": []})
+                        json.dumps(
+                            {
+                                "candidates": [updated],
+                                "lineup_watchlist": [],
+                                "approved_exposure": 18,
+                                "daily_cap": 110,
+                            }
+                        )
                     )
                     return vig_review_gate_common.subprocess.CompletedProcess(
                         args[0], 0, stdout="Vig review complete", stderr=""
@@ -163,19 +175,34 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 self.assertEqual(status, 0)
                 latest = (root / ".picks" / "latest-action.md").read_text()
                 self.assertIn(f"{day}: MLB review complete", latest)
-                self.assertIn("1 approved manual-only candidate", latest)
+                self.assertIn("1 approved standing-authorized candidate", latest)
+                self.assertIn("1 approved", latest)
                 self.assertIn("0 rejected", latest)
-                self.assertIn("No bet placed or scheduled", latest)
+                self.assertIn("Approved exposure $18 / $110", latest)
+                self.assertIn("Review gate placed no bet", latest)
             finally:
                 setattr(vig_review_gate_common, "ROOT", original_root)
 
-    def test_regular_review_prompt_is_manual_only(self):
+    def test_mlb_review_prompt_routes_approved_candidate_to_execution_poller(self):
         prompt = vig_review_gate_common.build_regular_review_prompt(
-            "MLB", "2026-07-17", Path("/tmp/schedule.json"), [{"side": "ABC"}]
+            "MLB",
+            "2026-07-17",
+            Path("/tmp/schedule.json"),
+            [{"side": "ABC"}],
+            mlb_standing_authorized=True,
+        )
+
+        self.assertIn("execution_mode=standing_authorized", prompt)
+        self.assertIn("execution_status=pending", prompt)
+        self.assertIn("recurring MLB execution poller", prompt)
+        self.assertNotIn("awaiting_jerry", prompt)
+
+    def test_soccer_review_prompt_remains_manual_only(self):
+        prompt = vig_review_gate_common.build_regular_review_prompt(
+            "SOCCER", "2026-07-17", Path("/tmp/schedule.json"), [{"side": "ABC"}]
         )
 
         self.assertIn("manual_bet_status=awaiting_jerry", prompt)
-        self.assertIn("no execution cron", prompt)
         self.assertIn("must never place or schedule a bet", prompt)
 
     def test_manual_candidate_validation_rejects_execution_state(self):
@@ -194,6 +221,45 @@ class VigReviewGateCommonTests(unittest.TestCase):
         self.assertIn("executed must be false", errors)
         self.assertTrue(any("execution_cron_id" in error for error in errors))
 
+    def test_mlb_candidate_validation_requires_standing_authorized_pending_state(self):
+        candidate = {
+            "side": "ABC",
+            "vig_approved": True,
+            "execution_mode": "manual",
+            "manual_bet_status": "awaiting_jerry",
+            "executed": False,
+        }
+
+        errors = vig_review_gate_common.approved_candidate_errors(candidate, "MLB", True)
+
+        self.assertIn("execution_mode must be standing_authorized", errors)
+        self.assertIn("execution_status must be pending", errors)
+        self.assertIn("manual_bet_status must not be awaiting_jerry", errors)
+        self.assertIn("max_polymarket_price must be between 0 and 1", errors)
+        self.assertIn("sport must be MLB", errors)
+        self.assertIn("market_type must be moneyline", errors)
+
+    def test_mlb_candidate_validation_rejects_one_shot_execution_artifacts(self):
+        candidate = {
+            "side": "ABC",
+            "sport": "MLB",
+            "market_type": "moneyline",
+            "vig_approved": True,
+            "execution_mode": "standing_authorized",
+            "execution_status": "pending",
+            "max_polymarket_price": 0.51,
+            "executed": False,
+            "execution_cron_id": "unsafe",
+            "execution_cron_fire_utc": "2026-07-19T17:00:00Z",
+            "approval_token": "unsafe",
+        }
+
+        errors = vig_review_gate_common.approved_candidate_errors(candidate, "MLB", True)
+
+        self.assertTrue(any("execution_cron_id" in error for error in errors))
+        self.assertTrue(any("execution_cron_fire_utc" in error for error in errors))
+        self.assertTrue(any("approval_token" in error for error in errors))
+
     def test_post_review_requires_targeted_watch_entry_to_finish(self):
         before = {
             "candidates": [],
@@ -208,15 +274,18 @@ class VigReviewGateCommonTests(unittest.TestCase):
 
         self.assertIn("watchlist watch-1 did not reach promoted or passed", errors)
 
-    def test_valid_manual_promotion_transition(self):
+    def test_valid_standing_authorized_promotion_transition(self):
         before = {"candidates": [], "lineup_watchlist": [self._watch_entry()]}
         promoted_candidate = {
             "watchlist_id": "watch-1",
             "side": "ABC",
+            "sport": "MLB",
+            "market_type": "moneyline",
             "vig_approved": True,
             "vig_notes": "All gates hold.",
-            "execution_mode": "manual",
-            "manual_bet_status": "awaiting_jerry",
+            "execution_mode": "standing_authorized",
+            "execution_status": "pending",
+            "max_polymarket_price": 0.51,
             "executed": False,
         }
         promoted = self._watch_entry(
@@ -233,7 +302,9 @@ class VigReviewGateCommonTests(unittest.TestCase):
         after = {"candidates": [promoted_candidate], "lineup_watchlist": [promoted]}
 
         self.assertEqual(
-            vig_review_gate_common.validate_review_transition(before, after, [], ["watch-1"]),
+            vig_review_gate_common.validate_review_transition(
+                before, after, [], ["watch-1"], mlb_standing_authorized=True
+            ),
             [],
         )
 

@@ -424,11 +424,11 @@ Do not skip this step. Form + price means nothing if the opposing starter is eli
 |---|---|---|
 | **10:30am** | MLB Daily Slate (proposed card) | Full Stage 2 scan. Produces the proposed card. All candidates are review check — no auto-execute. Writes slate file + schedule JSON with `vig_review_needed: true`. Delivers to the picks channel. |
 | **10:35am** | Second-Review Gate | Reads the slate file and schedule JSON. Does independent check on each candidate. Sets `vig_approved` + `vig_notes` in the schedule JSON. Posts approval/concerns to the picks channel. |
-| **11:00am–9:00pm** | MLB Execution Poller (every 30min) | Polls schedule JSON. Executes only picks with `vig_approved: true`. |
+| **11:00am–9:00pm** | MLB Execution Poller (recurring) | Polls schedule JSON. Refreshes all gates and executes only `vig_approved: true`, `standing_authorized`, pending, price-capped picks before first pitch. Uses dedup locks, daily cap, SDK proposal/order receipts, and never creates child cron jobs. |
 | **10:30pm–2:30am** | MLB Heartbeat (every 5min) | In-game watch alerts and postgame settlement. |
 | **2:30am** | MLB Postgame Reflection | Reviews settled picks. Logs reflections to REFLECTIONS.md. |
 
-The flow: cron proposes → reviewer approves → poller executes. If the reviewer flags a candidate, it does not execute unless the user overrides. The user can read both posts and ask questions before the poller fires.
+The MLB flow: cron proposes → reviewer approves → recurring poller refreshes every gate and either executes inside standing rails or records a skip. Started games are never chased. Soccer remains manual-only unless Jerry separately changes that policy.
 
 ---
 
