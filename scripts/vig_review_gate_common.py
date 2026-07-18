@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -25,6 +26,7 @@ from mlb_lineup_watchlist import (  # noqa: E402
 )
 
 HERMES = os.environ.get("HERMES_BIN") or shutil.which("hermes") or "/home/clawdbot/.local/bin/hermes"
+MANUAL_NOTICE = "Manual placement required; no bet submitted."
 
 
 def resolve_root(cwd: Path | None = None, home: Path | None = None) -> Path:
@@ -112,8 +114,16 @@ def validate_review_transition(
     except ScheduleFormatError as exc:
         return [str(exc), *errors]
 
-    before_by_id = {candidate_identity(item): item for item in before_candidates}
-    after_by_id = {candidate_identity(item): item for item in after_candidates}
+    before_identities = [candidate_identity(item) for item in before_candidates]
+    after_identities = [candidate_identity(item) for item in after_candidates]
+    before_by_id = dict(zip(before_identities, before_candidates))
+    after_by_id = dict(zip(after_identities, after_candidates))
+    for identity in sorted(set(before_identities)):
+        if before_identities.count(identity) > 1:
+            errors.append(f"candidate identity {identity} is duplicated before review")
+    for identity in sorted(set(after_identities)):
+        if after_identities.count(identity) > 1:
+            errors.append(f"candidate identity {identity} is duplicated after review")
     targeted_candidates = set(candidate_ids)
     for identity in targeted_candidates:
         candidate = after_by_id.get(identity)
@@ -127,6 +137,21 @@ def validate_review_transition(
             errors.append(f"candidate {identity} has empty vig_notes")
         if candidate.get("vig_approved") is True:
             errors.extend(f"candidate {identity}: {message}" for message in manual_candidate_errors(candidate))
+        else:
+            if candidate.get("execution_mode") not in (None, "manual"):
+                errors.append(f"candidate {identity}: execution_mode must remain manual")
+            if candidate.get("executed") is not False:
+                errors.append(f"candidate {identity}: executed must be false")
+            forbidden = sorted(
+                field
+                for field in ("execution_cron_id", "execution_cron_fire_utc", "approval_token")
+                if field in candidate
+            )
+            if forbidden:
+                errors.append(
+                    f"candidate {identity}: forbidden execution fields present: "
+                    f"{', '.join(forbidden)}"
+                )
 
     for identity, candidate in before_by_id.items():
         if identity not in targeted_candidates and after_by_id.get(identity) != candidate:
@@ -158,10 +183,31 @@ def validate_review_transition(
                 errors.append(f"watchlist {entry_id} must map to exactly one candidate")
             elif matches[0] != entry.get("promoted_candidate"):
                 errors.append(f"watchlist {entry_id} promoted_candidate differs from candidates entry")
+            candidate = entry.get("promoted_candidate")
+            if isinstance(candidate, dict):
+                if candidate.get("vig_approved") is not True:
+                    errors.append(f"watchlist {entry_id} promoted candidate must be vig_approved")
+                notes = candidate.get("vig_notes")
+                if not isinstance(notes, str) or not notes.strip():
+                    errors.append(f"watchlist {entry_id} promoted candidate has empty vig_notes")
 
     for entry_id, entry in before_watch.items():
         if entry_id not in targeted_watch and after_watch.get(entry_id) != entry:
             errors.append(f"untargeted watchlist {entry_id} changed")
+    for entry_id in after_watch:
+        if entry_id not in before_watch:
+            errors.append(f"unexpected watchlist {entry_id} added during review")
+
+    allowed_promotions = {
+        candidate_identity(entry["promoted_candidate"])
+        for entry_id, entry in after_watch.items()
+        if entry_id in targeted_watch
+        and entry.get("status") == "promoted"
+        and isinstance(entry.get("promoted_candidate"), dict)
+    }
+    for identity in after_by_id:
+        if identity not in before_by_id and identity not in allowed_promotions:
+            errors.append(f"unexpected candidate {identity} added during review")
     return errors
 
 
@@ -229,6 +275,96 @@ def write_latest_action(sport: str, day: str, schedule: dict[str, Any]) -> Path:
     return path
 
 
+def _american_price(value: Any) -> str:
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return f"+{value:g}" if value > 0 else f"{value:g}"
+    text = str(value).strip()
+    return text if re.fullmatch(r"[+-]?\d+(?:\.\d+)?", text) else "not recorded"
+
+
+def _size_status(candidate: dict[str, Any]) -> str:
+    size = candidate.get("unit_size")
+    rendered_size = f"${size:g}" if isinstance(size, (int, float)) else "size not recorded"
+    return f"{rendered_size}; awaiting Jerry"
+
+
+def _concise_reason(value: Any, limit: int = 240) -> str:
+    text = " ".join(str(value or "No reason recorded.").split())
+    text = re.sub(r"\*{3}\s*(?:Begin|End) Patch\b", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"\*{3}\s*Update File:\s*", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"\{[^{}]*\}", "[structured data omitted]", text)
+    text = re.sub(r"(?<!\w)/(?:[\w.-]+/)+[\w.-]+", "[path omitted]", text)
+    text = " ".join(text.split())
+    if len(text) <= limit:
+        return text
+    shortened = text[: limit - 3].rsplit(" ", 1)[0]
+    return f"{shortened or text[: limit - 3]}..."
+
+
+def build_lineup_recheck_report(schedule: dict[str, Any], watchlist_ids: list[str]) -> str:
+    entries = {
+        str(entry.get("id")): entry
+        for entry in schedule.get("lineup_watchlist", [])
+        if isinstance(entry, dict)
+    }
+    sections: list[str] = []
+    for entry_id in watchlist_ids:
+        entry = entries[entry_id]
+        approved = entry.get("status") == "promoted"
+        candidate = entry.get("promoted_candidate") if approved else {}
+        if not isinstance(candidate, dict):
+            candidate = {}
+        side = _concise_reason(candidate.get("side") or entry.get("side") or "not recorded", 80)
+        current_price = candidate.get("price", entry.get("current_price", "not recorded"))
+        bettable_to = candidate.get("bettable_to_price", entry.get("bettable_to_price"))
+        reason = entry.get("recheck_notes") or candidate.get("vig_notes") or "No reason recorded."
+        lines = [
+            f"MLB lineup recheck — {'APPROVED' if approved else 'REJECTED'}",
+            f"Pick: {side}",
+            f"Current price: {_american_price(current_price)}",
+            f"Bettable to: {_american_price(bettable_to)}",
+            f"Reason: {_concise_reason(reason)}",
+        ]
+        if approved:
+            lines.append(f"Size/status: {_size_status(candidate)}")
+        sections.append("\n".join(lines))
+    return "\n\n".join(sections)
+
+
+def build_regular_review_report(
+    schedule: dict[str, Any], sport: str, candidate_ids: list[str]
+) -> str:
+    candidates = {candidate_identity(item): item for item in parse_candidates(schedule)}
+    reviewed = [candidates[identity] for identity in candidate_ids]
+    approved = sum(candidate.get("vig_approved") is True for candidate in reviewed)
+    rejected = sum(candidate.get("vig_approved") is False for candidate in reviewed)
+    lines = [f"{sport} card review — {approved} approved, {rejected} rejected"]
+    for candidate in reviewed:
+        decision = "APPROVED" if candidate.get("vig_approved") is True else "REJECTED"
+        side = _concise_reason(candidate.get("side") or candidate.get("game") or "not recorded", 80)
+        reason = _concise_reason(candidate.get("vig_notes"))
+        line = f"- {decision} {side}: {reason}"
+        if decision == "APPROVED":
+            line += f" Size/status: {_size_status(candidate)}"
+        lines.append(line)
+    return "\n".join(lines)
+
+
+def build_validated_review_report(
+    schedule: dict[str, Any],
+    sport: str,
+    candidate_ids: list[str],
+    watchlist_ids: list[str],
+) -> str:
+    sections: list[str] = []
+    if candidate_ids:
+        sections.append(build_regular_review_report(schedule, sport, candidate_ids))
+    if watchlist_ids:
+        sections.append(build_lineup_recheck_report(schedule, watchlist_ids))
+    body = "\n\n".join(sections)
+    return f"{body}\n{MANUAL_NOTICE}"
+
+
 def run_gate(sport: str) -> int:
     day = datetime.now(ZoneInfo("America/Chicago")).date().isoformat()
     schedule_path = _schedule_path(sport, day)
@@ -279,9 +415,25 @@ def run_gate(sport: str) -> int:
         "file,web,skills",
         "--quiet",
     ]
-    proc = subprocess.run(cmd, cwd=ROOT, text=True, capture_output=True, timeout=1800)
+    try:
+        proc = subprocess.run(cmd, cwd=ROOT, text=True, capture_output=True, timeout=1800)
+    except subprocess.TimeoutExpired:
+        print(
+            f"{sport} review gate ERROR: child reviewer timed out; reviewed state was not "
+            "accepted. Retry the job and inspect Vig session logs."
+        )
+        return 1
+    except OSError:
+        print(
+            f"{sport} review gate ERROR: child reviewer could not start; reviewed state was "
+            "not accepted. Verify the Hermes CLI and retry the job."
+        )
+        return 1
     if proc.returncode:
-        print(f"{sport} review failed (exit {proc.returncode}):\n{(proc.stderr or proc.stdout).strip()[:3000]}")
+        print(
+            f"{sport} review gate ERROR: child reviewer exited {proc.returncode}; "
+            "reviewed state was not accepted. Retry the job and inspect Vig session logs."
+        )
         return proc.returncode
 
     try:
@@ -302,15 +454,5 @@ def run_gate(sport: str) -> int:
         print(f"{sport} review gate ERROR: could not update latest-action.md: {exc}")
         return 1
 
-    out = proc.stdout.strip()
-    lines = out.splitlines()
-    starts = [
-        index
-        for index, line in enumerate(lines)
-        if line.startswith(("Vig review", "## Vig", "Card review", "Approved:", "MLB lineup"))
-    ]
-    if starts:
-        out = "\n".join(lines[starts[-1] :]).strip()
-    if out and out != "[SILENT]":
-        print(out)
+    print(build_validated_review_report(updated, sport, candidate_ids, watchlist_ids))
     return 0
