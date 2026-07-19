@@ -18,8 +18,218 @@ assert spec.loader is not None
 sys.modules["vig_review_gate_common"] = vig_review_gate_common
 spec.loader.exec_module(vig_review_gate_common)
 
+EXECUTION_GATE_PATH = Path(__file__).resolve().parents[1] / "scripts" / "mlb_execution_gate.py"
+execution_gate_spec = importlib.util.spec_from_file_location(
+    "mlb_execution_gate_for_review_test", EXECUTION_GATE_PATH
+)
+assert execution_gate_spec is not None
+mlb_execution_gate = importlib.util.module_from_spec(execution_gate_spec)
+assert execution_gate_spec.loader is not None
+execution_gate_spec.loader.exec_module(mlb_execution_gate)
+
 
 class VigReviewGateCommonTests(unittest.TestCase):
+    def test_normalize_new_mlb_approval_repairs_manual_child_state_for_execution_gate(self):
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        before = {
+            "date": "2026-07-19",
+            "candidates": [
+                {
+                    "event_id": "401816156",
+                    "side": "CWS",
+                    "first_pitch_utc": "2026-07-19T18:15:00Z",
+                    "polymarket_slug": "aec-mlb-cws-tor-2026-07-19",
+                    "polymarket_ask": 0.525,
+                    "unit_size": 18,
+                    "vig_approved": None,
+                }
+            ],
+        }
+        after = json.loads(json.dumps(before))
+        after["candidates"][0].update(
+            vig_approved=True,
+            vig_notes="All gates hold.",
+            execution_mode="manual",
+            manual_bet_status="awaiting_jerry",
+            execution_status="pending_manual_fill",
+            executed=False,
+        )
+
+        errors = vig_review_gate_common.normalize_review_routing(
+            before, after, "MLB", mlb_standing_authorized=True
+        )
+
+        self.assertEqual(errors, [])
+        candidate = after["candidates"][0]
+        self.assertEqual(after["sport"], "MLB")
+        self.assertEqual(after["market_type"], "moneyline")
+        self.assertEqual(candidate["sport"], "MLB")
+        self.assertEqual(candidate["market_type"], "moneyline")
+        self.assertEqual(candidate["execution_mode"], "standing_authorized")
+        self.assertEqual(candidate["execution_status"], "pending")
+        self.assertEqual(candidate["max_polymarket_price"], 0.525)
+        self.assertIs(candidate["executed"], False)
+        self.assertNotIn("manual_bet_status", candidate)
+        self.assertEqual(
+            mlb_execution_gate.eligible_candidates(after, now),
+            [candidate],
+        )
+
+    def test_normalize_new_mlb_approval_fails_closed_without_numeric_ask(self):
+        before = {"candidates": [{"event_id": "1", "side": "CWS", "vig_approved": None}]}
+        after = {
+            "candidates": [
+                {
+                    "event_id": "1",
+                    "side": "CWS",
+                    "vig_approved": True,
+                    "vig_notes": "Approved.",
+                    "polymarket_ask": "0.525",
+                }
+            ]
+        }
+
+        errors = vig_review_gate_common.normalize_review_routing(
+            before, after, "MLB", mlb_standing_authorized=True
+        )
+
+        self.assertEqual(
+            errors,
+            ["candidate event_id:1|side:CWS has no strict numeric approved Polymarket ask"],
+        )
+        self.assertNotEqual(after["candidates"][0].get("execution_mode"), "standing_authorized")
+
+    def test_normalize_uses_original_captured_ask_when_child_mutates_generic_ask(self):
+        before = {
+            "candidates": [
+                {
+                    "event_id": "1",
+                    "side": "CWS",
+                    "vig_approved": None,
+                    "polymarket_ask": 0.525,
+                }
+            ]
+        }
+        after = json.loads(json.dumps(before))
+        after["candidates"][0].update(
+            vig_approved=True,
+            vig_notes="Approved.",
+            polymarket_ask=0.99,
+        )
+
+        errors = vig_review_gate_common.normalize_review_routing(
+            before, after, "MLB", mlb_standing_authorized=True
+        )
+
+        self.assertEqual(errors, [])
+        self.assertEqual(after["candidates"][0]["max_polymarket_price"], 0.525)
+
+    def test_normalize_rejects_injected_approved_candidate(self):
+        before = {
+            "candidates": [
+                {"event_id": "1", "side": "CWS", "vig_approved": None, "polymarket_ask": 0.525}
+            ],
+            "lineup_watchlist": [],
+        }
+        after = {
+            "candidates": [
+                {
+                    "event_id": "1",
+                    "side": "CWS",
+                    "vig_approved": False,
+                    "vig_notes": "Rejected.",
+                },
+                {
+                    "event_id": "2",
+                    "side": "NYY",
+                    "vig_approved": True,
+                    "vig_notes": "Approved.",
+                    "polymarket_ask": 0.99,
+                },
+            ],
+            "lineup_watchlist": [],
+        }
+
+        errors = vig_review_gate_common.normalize_review_routing(
+            before, after, "MLB", mlb_standing_authorized=True
+        )
+
+        self.assertEqual(
+            errors,
+            ["candidate event_id:2|side:NYY was not a targeted candidate or watchlist promotion"],
+        )
+        self.assertNotEqual(after["candidates"][1].get("execution_mode"), "standing_authorized")
+
+    def test_normalize_rejects_duplicate_target_identity(self):
+        candidate = {
+            "polymarket_slug": "aec-mlb-cws-tor-2026-07-19",
+            "side": "CWS",
+            "vig_approved": None,
+            "polymarket_ask": 0.525,
+        }
+        before = {"candidates": [candidate], "lineup_watchlist": []}
+        approved = dict(candidate, vig_approved=True, vig_notes="Approved.")
+        after = {"candidates": [dict(candidate), approved], "lineup_watchlist": []}
+
+        errors = vig_review_gate_common.normalize_review_routing(
+            before, after, "MLB", mlb_standing_authorized=True
+        )
+
+        self.assertEqual(
+            errors,
+            [
+                "candidate polymarket_slug:aec-mlb-cws-tor-2026-07-19|side:CWS "
+                "appears more than once after review"
+            ],
+        )
+        self.assertNotEqual(approved.get("execution_mode"), "standing_authorized")
+
+    def test_normalize_valid_watchlist_promotion_uses_captured_ask(self):
+        before = {"candidates": [], "lineup_watchlist": [self._watch_entry()]}
+        promoted_candidate = {
+            "watchlist_id": "watch-1",
+            "side": "ABC",
+            "vig_approved": True,
+            "vig_notes": "All gates hold.",
+            "polymarket_ask": 0.51,
+        }
+        promoted = self._watch_entry(
+            status="promoted", promoted_candidate=dict(promoted_candidate)
+        )
+        after = {"candidates": [promoted_candidate], "lineup_watchlist": [promoted]}
+
+        errors = vig_review_gate_common.normalize_review_routing(
+            before, after, "MLB", mlb_standing_authorized=True
+        )
+
+        self.assertEqual(errors, [])
+        self.assertEqual(promoted_candidate["max_polymarket_price"], 0.51)
+        self.assertEqual(promoted["promoted_candidate"], promoted_candidate)
+
+    def test_normalize_soccer_approval_preserves_manual_only_state(self):
+        before = {"candidates": [{"event_id": "1", "side": "USA", "vig_approved": None}]}
+        after = {
+            "candidates": [
+                {
+                    "event_id": "1",
+                    "side": "USA",
+                    "vig_approved": True,
+                    "vig_notes": "Approved.",
+                    "execution_mode": "manual",
+                    "manual_bet_status": "awaiting_jerry",
+                    "executed": False,
+                }
+            ]
+        }
+
+        errors = vig_review_gate_common.normalize_review_routing(
+            before, after, "intl-soccer", mlb_standing_authorized=False
+        )
+
+        self.assertEqual(errors, [])
+        self.assertEqual(after["candidates"][0]["execution_mode"], "manual")
+        self.assertEqual(after["candidates"][0]["manual_bet_status"], "awaiting_jerry")
+        self.assertNotIn("sport", after)
     def test_resolve_root_falls_back_from_profile_scripts_to_default_project(self):
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp)
@@ -138,6 +348,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
                     "sport": "MLB",
                     "market_type": "moneyline",
                     "unit_size": 18,
+                    "polymarket_ask": 0.51,
                     "vig_approved": None,
                     "execution_mode": "manual",
                     "manual_bet_status": None,
@@ -150,10 +361,9 @@ class VigReviewGateCommonTests(unittest.TestCase):
                     updated.update(
                         vig_approved=True,
                         vig_notes="All gates hold.",
-                        execution_mode="standing_authorized",
-                        execution_status="pending",
-                        max_polymarket_price=0.51,
-                        manual_bet_status=None,
+                        execution_mode="manual",
+                        execution_status="pending_manual_fill",
+                        manual_bet_status="awaiting_jerry",
                     )
                     schedule_path.write_text(
                         json.dumps(
@@ -173,6 +383,15 @@ class VigReviewGateCommonTests(unittest.TestCase):
                     status = vig_review_gate_common.run_gate("MLB")
 
                 self.assertEqual(status, 0)
+                reviewed = json.loads(schedule_path.read_text())
+                self.assertEqual(reviewed["sport"], "MLB")
+                self.assertEqual(reviewed["market_type"], "moneyline")
+                self.assertEqual(
+                    reviewed["candidates"][0]["execution_mode"], "standing_authorized"
+                )
+                self.assertEqual(reviewed["candidates"][0]["execution_status"], "pending")
+                self.assertEqual(reviewed["candidates"][0]["max_polymarket_price"], 0.51)
+                self.assertNotIn("manual_bet_status", reviewed["candidates"][0])
                 latest = (root / ".picks" / "latest-action.md").read_text()
                 self.assertIn(f"{day}: MLB review complete", latest)
                 self.assertIn("1 approved standing-authorized candidate", latest)
@@ -180,6 +399,73 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 self.assertIn("0 rejected", latest)
                 self.assertIn("Approved exposure $18 / $110", latest)
                 self.assertIn("Review gate placed no bet", latest)
+            finally:
+                setattr(vig_review_gate_common, "ROOT", original_root)
+
+    def test_latest_action_failure_does_not_persist_execution_pending_routing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            original_root = getattr(vig_review_gate_common, "ROOT")
+            try:
+                root = Path(tmp)
+                setattr(vig_review_gate_common, "ROOT", root)
+                day = vig_review_gate_common.datetime.now(
+                    vig_review_gate_common.ZoneInfo("America/Chicago")
+                ).date().isoformat()
+                schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
+                schedule_path.parent.mkdir(parents=True)
+                candidate = {
+                    "event_id": "401816156",
+                    "side": "CWS",
+                    "unit_size": 18,
+                    "polymarket_ask": 0.51,
+                    "vig_approved": None,
+                    "executed": False,
+                }
+                schedule_path.write_text(
+                    json.dumps({"candidates": [candidate], "lineup_watchlist": []})
+                )
+
+                def complete_review(*args, **kwargs):
+                    updated = dict(candidate)
+                    updated.update(
+                        vig_approved=True,
+                        vig_notes="All gates hold.",
+                        execution_mode="manual",
+                        execution_status="pending_manual_fill",
+                        manual_bet_status="awaiting_jerry",
+                    )
+                    schedule_path.write_text(
+                        json.dumps({"candidates": [updated], "lineup_watchlist": []})
+                    )
+                    return vig_review_gate_common.subprocess.CompletedProcess(
+                        args[0], 0, stdout="Vig review complete", stderr=""
+                    )
+
+                with (
+                    patch.object(
+                        vig_review_gate_common.subprocess, "run", side_effect=complete_review
+                    ),
+                    patch.object(
+                        vig_review_gate_common,
+                        "standing_authorization_enabled",
+                        return_value=True,
+                    ),
+                    patch.object(
+                        vig_review_gate_common,
+                        "write_latest_action",
+                        side_effect=OSError("disk full"),
+                    ),
+                ):
+                    status = vig_review_gate_common.run_gate("MLB")
+
+                self.assertEqual(status, 1)
+                persisted = json.loads(schedule_path.read_text())
+                self.assertEqual(persisted["candidates"][0]["execution_mode"], "manual")
+                self.assertEqual(
+                    persisted["candidates"][0]["execution_status"], "pending_manual_fill"
+                )
+                self.assertNotIn("max_polymarket_price", persisted["candidates"][0])
+                self.assertNotIn("sport", persisted)
             finally:
                 setattr(vig_review_gate_common, "ROOT", original_root)
 

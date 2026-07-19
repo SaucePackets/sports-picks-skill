@@ -79,6 +79,125 @@ def candidate_identity(candidate: dict[str, Any]) -> str:
     return f"side:{candidate.get('side', '')}|game:{candidate.get('game', '')}"
 
 
+def _strict_price(value: Any) -> bool:
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and 0 < value < 1
+    )
+
+
+def _strict_polymarket_ask(
+    candidate: dict[str, Any], original: dict[str, Any] | None
+) -> int | float | None:
+    prices = [
+        candidate[field]
+        for field in ("approved_polymarket_ask", "captured_polymarket_ask")
+        if _strict_price(candidate.get(field))
+    ]
+    if original is not None:
+        for field in ("approved_polymarket_ask", "captured_polymarket_ask", "polymarket_ask"):
+            value = original.get(field)
+            if _strict_price(value):
+                prices.append(value)
+    elif _strict_price(candidate.get("polymarket_ask")):
+        prices.append(candidate["polymarket_ask"])
+    return min(prices) if prices else None
+
+
+def normalize_review_routing(
+    before: dict[str, Any],
+    after: dict[str, Any],
+    sport: str,
+    mlb_standing_authorized: bool = False,
+) -> list[str]:
+    """Deterministically route newly approved MLB candidates after child review."""
+    if sport.upper() != "MLB" or not mlb_standing_authorized:
+        return []
+
+    try:
+        before_candidates = parse_candidates(before)
+        after_candidates = parse_candidates(after)
+    except ScheduleFormatError as exc:
+        return [str(exc)]
+    seen_identities: set[str] = set()
+    duplicate_errors: list[str] = []
+    for candidate in after_candidates:
+        identity = candidate_identity(candidate)
+        if identity in seen_identities:
+            duplicate_errors.append(
+                f"candidate {identity} appears more than once after review"
+            )
+        seen_identities.add(identity)
+    if duplicate_errors:
+        return duplicate_errors
+    before_by_id = {candidate_identity(item): item for item in before_candidates}
+    before_watchlist_ids = {
+        entry.get("id")
+        for entry in before.get("lineup_watchlist", [])
+        if isinstance(entry, dict) and entry.get("id")
+    }
+    promoted_watchlist_ids = {
+        entry.get("id")
+        for entry in after.get("lineup_watchlist", [])
+        if isinstance(entry, dict)
+        and entry.get("status") == "promoted"
+        and entry.get("id") in before_watchlist_ids
+    }
+    newly_approved = [
+        candidate
+        for candidate in after_candidates
+        if candidate.get("vig_approved") is True
+        and before_by_id.get(candidate_identity(candidate), {}).get("vig_approved") is not True
+    ]
+    prices: list[tuple[dict[str, Any], int | float]] = []
+    errors: list[str] = []
+    for candidate in newly_approved:
+        identity = candidate_identity(candidate)
+        original = before_by_id.get(identity)
+        if original is None and candidate.get("watchlist_id") not in promoted_watchlist_ids:
+            errors.append(
+                f"candidate {identity} was not a targeted candidate or watchlist promotion"
+            )
+            continue
+        ask = _strict_polymarket_ask(candidate, original)
+        if ask is None:
+            errors.append(
+                f"candidate {candidate_identity(candidate)} has no strict numeric "
+                "approved Polymarket ask"
+            )
+        else:
+            prices.append((candidate, ask))
+    if errors:
+        return errors
+
+    after["sport"] = "MLB"
+    after["market_type"] = "moneyline"
+    for candidate, ask in prices:
+        candidate.update(
+            sport="MLB",
+            market_type="moneyline",
+            execution_mode="standing_authorized",
+            execution_status="pending",
+            executed=False,
+            max_polymarket_price=ask,
+        )
+        candidate.pop("manual_bet_status", None)
+
+    normalized_by_watchlist_id = {
+        candidate.get("watchlist_id"): candidate
+        for candidate, _ in prices
+        if candidate.get("watchlist_id")
+    }
+    for entry in after.get("lineup_watchlist", []):
+        if not isinstance(entry, dict):
+            continue
+        normalized = normalized_by_watchlist_id.get(entry.get("id"))
+        if normalized is not None and entry.get("status") == "promoted":
+            entry["promoted_candidate"] = dict(normalized)
+    return []
+
+
 def manual_candidate_errors(candidate: dict[str, Any]) -> list[str]:
     errors: list[str] = []
     if candidate.get("execution_mode") != "manual":
@@ -384,6 +503,15 @@ def run_gate(sport: str) -> int:
     if not isinstance(updated, dict):
         print(f"{sport} review gate ERROR: reviewed schedule must remain an object")
         return 1
+    normalization_errors = normalize_review_routing(
+        schedule, updated, sport, mlb_standing_authorized
+    )
+    if normalization_errors:
+        print(
+            f"{sport} review gate ERROR: routing normalization failed closed: "
+            f"{'; '.join(normalization_errors)}"
+        )
+        return 1
     transition_errors = validate_review_transition(
         schedule,
         updated,
@@ -397,8 +525,11 @@ def run_gate(sport: str) -> int:
         return 1
     try:
         write_latest_action(sport, day, updated, mlb_standing_authorized)
+        temporary = schedule_path.with_suffix(f"{schedule_path.suffix}.tmp")
+        temporary.write_text(json.dumps(updated, indent=2) + "\n", encoding="utf-8")
+        temporary.replace(schedule_path)
     except (OSError, ScheduleFormatError) as exc:
-        print(f"{sport} review gate ERROR: could not update latest-action.md: {exc}")
+        print(f"{sport} review gate ERROR: could not persist reviewed state: {exc}")
         return 1
 
     out = proc.stdout.strip()
