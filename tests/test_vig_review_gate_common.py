@@ -4,7 +4,7 @@ import sys
 import tempfile
 import unittest
 from contextlib import redirect_stdout
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
@@ -402,6 +402,175 @@ class VigReviewGateCommonTests(unittest.TestCase):
             finally:
                 setattr(vig_review_gate_common, "ROOT", original_root)
 
+    def test_successful_watchlist_review_ignores_exact_review_diff_payload(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            original_root = getattr(vig_review_gate_common, "ROOT")
+            try:
+                root = Path(tmp)
+                setattr(vig_review_gate_common, "ROOT", root)
+                day = vig_review_gate_common.datetime.now(
+                    vig_review_gate_common.ZoneInfo("America/Chicago")
+                ).date().isoformat()
+                schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
+                schedule_path.parent.mkdir(parents=True)
+                first_pitch = datetime.now(timezone.utc) + timedelta(minutes=75)
+                before_entry = self._watch_entry(
+                    side="MIN",
+                    game="Minnesota Twins at Chicago Cubs",
+                    bettable_to_price=105,
+                    first_pitch_utc=first_pitch.isoformat(),
+                )
+                schedule_path.write_text(
+                    json.dumps({"candidates": [], "lineup_watchlist": [before_entry]})
+                )
+                promoted_candidate = {
+                    "watchlist_id": "watch-1",
+                    "side": "MIN",
+                    "price": 123,
+                    "bettable_to_price": 105,
+                    "unit_size": 18,
+                    "vig_approved": True,
+                    "vig_notes": "All gates hold.",
+                    "captured_polymarket_ask": 0.51,
+                    "execution_mode": "manual",
+                    "manual_bet_status": "awaiting_jerry",
+                    "executed": False,
+                }
+                promoted_entry = self._watch_entry(
+                    side="MIN",
+                    game="Minnesota Twins at Chicago Cubs",
+                    bettable_to_price=105,
+                    first_pitch_utc=first_pitch.isoformat(),
+                    status="promoted",
+                    rechecked_at_utc="2026-07-19T17:00:00Z",
+                    recheck_notes="Both lineups confirmed; matchup edge still holds.",
+                    recheck={
+                        "lineups_confirmed": True,
+                        "key_injuries_refreshed": True,
+                        "price_refreshed": True,
+                        "all_original_gates_hold": True,
+                    },
+                    promoted_candidate=promoted_candidate,
+                )
+
+                def complete_review(*args, **kwargs):
+                    schedule_path.write_text(
+                        json.dumps(
+                            {
+                                "candidates": [promoted_candidate],
+                                "lineup_watchlist": [promoted_entry],
+                            }
+                        )
+                    )
+                    leaked = (
+                        "┊ review diff\n*** " "Begin Patch\n"
+                        "*** " "Update File: /home/clawdbot/private/schedule.json\n"
+                        "+{\"vig_approved\": true}\n*** " "End Patch\n"
+                    )
+                    return vig_review_gate_common.subprocess.CompletedProcess(
+                        args[0], 0, stdout=leaked, stderr=""
+                    )
+
+                output = StringIO()
+                with (
+                    patch.object(
+                        vig_review_gate_common.subprocess, "run", side_effect=complete_review
+                    ),
+                    patch.object(
+                        vig_review_gate_common,
+                        "standing_authorization_enabled",
+                        return_value=True,
+                    ),
+                    redirect_stdout(output),
+                ):
+                    status = vig_review_gate_common.run_gate("MLB")
+
+                self.assertEqual(status, 0)
+                self.assertEqual(
+                    output.getvalue(),
+                    "MLB lineup recheck — APPROVED\n"
+                    "Side: MIN\n"
+                    "Supported price: +123\n"
+                    "Bettable to: +105\n"
+                    "Reason: Both lineups confirmed; matchup edge still holds.\n"
+                    "Size: $18\n"
+                    "Status: pending execution\n",
+                )
+                self.assertNotIn("review diff", output.getvalue())
+                self.assertNotIn("Begin Patch", output.getvalue())
+                self.assertNotIn("vig_approved", output.getvalue())
+                self.assertNotIn("/home/", output.getvalue())
+            finally:
+                setattr(vig_review_gate_common, "ROOT", original_root)
+
+    def test_child_failure_is_concise_and_does_not_echo_child_output(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            original_root = getattr(vig_review_gate_common, "ROOT")
+            try:
+                root = Path(tmp)
+                setattr(vig_review_gate_common, "ROOT", root)
+                day = vig_review_gate_common.datetime.now(
+                    vig_review_gate_common.ZoneInfo("America/Chicago")
+                ).date().isoformat()
+                schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
+                schedule_path.parent.mkdir(parents=True)
+                schedule_path.write_text(
+                    json.dumps(
+                        {
+                            "candidates": [{"event_id": "1", "side": "CWS"}],
+                            "lineup_watchlist": [],
+                        }
+                    )
+                )
+                failed = vig_review_gate_common.subprocess.CompletedProcess(
+                    ["hermes"],
+                    7,
+                    stdout="┊ review diff\n{\"secret\": true}",
+                    stderr="/home/clawdbot/private/schedule.json",
+                )
+                output = StringIO()
+
+                with (
+                    patch.object(vig_review_gate_common.subprocess, "run", return_value=failed),
+                    redirect_stdout(output),
+                ):
+                    status = vig_review_gate_common.run_gate("MLB")
+
+                self.assertEqual(status, 7)
+                self.assertEqual(
+                    output.getvalue(),
+                    "MLB review gate ERROR: child reviewer exited 7; reviewed state was not "
+                    "accepted. Retry the job and inspect Vig session logs.\n",
+                )
+            finally:
+                setattr(vig_review_gate_common, "ROOT", original_root)
+
+    def test_validated_report_strips_review_diff_from_persisted_reason(self):
+        candidate = {
+            "event_id": "1",
+            "side": "CWS",
+            "vig_approved": False,
+            "vig_notes": (
+                "Price moved beyond the limit. ┊ review diff *** "
+                "Update File: /home/clawdbot/private/schedule.json "
+                "{\"vig_approved\": false}"
+            ),
+        }
+
+        report = vig_review_gate_common.build_validated_review_report(
+            {"candidates": [candidate], "lineup_watchlist": []},
+            "MLB",
+            [vig_review_gate_common.candidate_identity(candidate)],
+            [],
+            True,
+        )
+
+        self.assertIn("Price moved beyond the limit.", report)
+        self.assertNotIn("review diff", report)
+        self.assertNotIn("Update File", report)
+        self.assertNotIn("vig_approved", report)
+        self.assertNotIn("/home/", report)
+
     def test_latest_action_failure_does_not_persist_execution_pending_routing(self):
         with tempfile.TemporaryDirectory() as tmp:
             original_root = getattr(vig_review_gate_common, "ROOT")
@@ -560,6 +729,59 @@ class VigReviewGateCommonTests(unittest.TestCase):
 
         self.assertIn("watchlist watch-1 did not reach promoted or passed", errors)
 
+    def test_promoted_watch_entry_requires_approval_and_decisive_reason(self):
+        before = {"candidates": [], "lineup_watchlist": [self._watch_entry()]}
+        promoted_candidate = {
+            "watchlist_id": "watch-1",
+            "side": "ABC",
+            "sport": "MLB",
+            "market_type": "moneyline",
+            "price": -120,
+            "vig_approved": False,
+            "vig_notes": "",
+            "execution_mode": "standing_authorized",
+            "execution_status": "pending",
+            "max_polymarket_price": 0.51,
+            "executed": False,
+        }
+        promoted = self._watch_entry(
+            status="promoted",
+            rechecked_at_utc="2026-07-17T21:45:00Z",
+            recheck={
+                "lineups_confirmed": True,
+                "key_injuries_refreshed": True,
+                "price_refreshed": True,
+                "all_original_gates_hold": True,
+            },
+            promoted_candidate=promoted_candidate,
+        )
+        after = {"candidates": [promoted_candidate], "lineup_watchlist": [promoted]}
+
+        errors = vig_review_gate_common.validate_review_transition(
+            before, after, [], ["watch-1"], mlb_standing_authorized=True
+        )
+
+        self.assertIn("watchlist watch-1 promoted candidate must be vig_approved", errors)
+        self.assertIn("watchlist watch-1 promoted candidate has no decisive reason", errors)
+
+    def test_passed_watch_entry_does_not_report_original_price_as_supported(self):
+        passed = self._watch_entry(
+            status="passed",
+            rechecked_at_utc="2026-07-17T21:45:00Z",
+            recheck_notes="Supported-market price refresh was unavailable.",
+        )
+
+        report = vig_review_gate_common.build_validated_review_report(
+            {"candidates": [], "lineup_watchlist": [passed]},
+            "MLB",
+            [],
+            ["watch-1"],
+            True,
+        )
+
+        self.assertIn("Supported price: not recorded", report)
+        self.assertNotIn("Supported price: -125", report)
+
     def test_valid_standing_authorized_promotion_transition(self):
         before = {"candidates": [], "lineup_watchlist": [self._watch_entry()]}
         promoted_candidate = {
@@ -567,6 +789,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
             "side": "ABC",
             "sport": "MLB",
             "market_type": "moneyline",
+            "price": -120,
             "vig_approved": True,
             "vig_notes": "All gates hold.",
             "execution_mode": "standing_authorized",
