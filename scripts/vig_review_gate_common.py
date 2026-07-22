@@ -22,6 +22,7 @@ from mlb_lineup_watchlist import (  # noqa: E402
     WatchlistFormatError,
     build_recheck_prompt,
     due_entries,
+    fetch_lineup_snapshot,
     validate_watchlist,
 )
 from mlb_runtime_policy import standing_authorization_enabled  # noqa: E402
@@ -402,6 +403,28 @@ candidate, and total proposed exposure.
 """
 
 
+def build_lineup_recheck_prompt(
+    schedule_path: Path, watchlist: list[dict[str, Any]]
+) -> str:
+    """Fetch schedule-mapped MLB feeds and add concise lineup facts to the review."""
+    snapshots: dict[str, dict[str, Any]] = {}
+    unavailable: list[str] = []
+    for entry in watchlist:
+        entry_id = str(entry.get("id", "<missing-id>"))
+        try:
+            snapshots[entry_id] = fetch_lineup_snapshot(entry)
+        except Exception:
+            unavailable.append(entry_id)
+    prompt = build_recheck_prompt(schedule_path, watchlist, snapshots)
+    if unavailable:
+        prompt += (
+            "\nMLB lineup lookup was unavailable for: "
+            + ", ".join(unavailable)
+            + ". Fail the lineup-confirmation gate unless another live source verifies it.\n"
+        )
+    return prompt
+
+
 def _schedule_path(sport: str, day: str) -> Path:
     if sport == "MLB":
         return ROOT / ".picks" / "execute" / f"{day}-schedule.json"
@@ -638,7 +661,7 @@ def run_gate(sport: str) -> int:
             )
         )
     if watchlist:
-        prompts.append(build_recheck_prompt(schedule_path, watchlist))
+        prompts.append(build_lineup_recheck_prompt(schedule_path, watchlist))
     prompt = "\n\n".join(prompts)
     cmd = [
         HERMES,

@@ -303,6 +303,32 @@ class VigReviewGateCommonTests(unittest.TestCase):
         self.assertEqual(candidates, [])
         self.assertEqual([entry["id"] for entry in watchlist], ["due"])
 
+    def test_lineup_recheck_prompt_fetches_schedule_mapped_snapshot(self):
+        entry = self._watch_entry(
+            id="sea-watch",
+            event_id="401816229",
+            game="Cincinnati Reds at Seattle Mariners",
+        )
+        snapshot = {
+            "game_pk": 823110,
+            "away_team": "Cincinnati Reds",
+            "home_team": "Seattle Mariners",
+            "player_count": 52,
+            "away_batting_order": ["Away"] * 9,
+            "home_batting_order": ["Home"] * 9,
+        }
+
+        with patch.object(
+            vig_review_gate_common, "fetch_lineup_snapshot", return_value=snapshot
+        ) as fetch:
+            prompt = vig_review_gate_common.build_lineup_recheck_prompt(
+                Path("/tmp/schedule.json"), [entry]
+            )
+
+        fetch.assert_called_once_with(entry)
+        self.assertIn("MLB gamePk 823110", prompt)
+        self.assertNotIn("401816229/feed/live", prompt)
+
     def test_invalid_slate_prices_surface_as_gate_error(self):
         with tempfile.TemporaryDirectory() as tmp:
             original_root = getattr(vig_review_gate_common, "ROOT")

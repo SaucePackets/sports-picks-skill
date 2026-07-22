@@ -10,16 +10,19 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
+import urllib.parse
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from mlb_runtime_policy import standing_authorization_enabled
+from mlb_runtime_policy import standing_authorization_enabled  # noqa: E402
 
 MIN_MINUTES_BEFORE_FIRST_PITCH = 60
 MAX_MINUTES_BEFORE_FIRST_PITCH = 90
@@ -43,6 +46,111 @@ REQUIRED_ORIGINAL_GATES = {
 
 class WatchlistFormatError(ValueError):
     """Raised when persisted lineup-watch state is malformed."""
+
+
+class LineupLookupError(RuntimeError):
+    """Raised when a watchlist game cannot be mapped to an MLB game feed."""
+
+
+def http_json(url: str) -> dict[str, Any]:
+    request = urllib.request.Request(url, headers={"User-Agent": "HermesSportsPicks/1.0"})
+    with urllib.request.urlopen(request, timeout=30) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+    if not isinstance(payload, dict):
+        raise LineupLookupError("MLB data source returned a non-object response")
+    return payload
+
+
+def _normalized_team_name(value: Any) -> str:
+    return re.sub(r"[^a-z0-9]", "", str(value or "").lower())
+
+
+def _entry_teams(entry: dict[str, Any]) -> tuple[str, str]:
+    game = str(entry.get("game") or "").strip()
+    match = re.match(r"^(.+?)\s+(?:at|@|vs\.?|versus)\s+(.+)$", game, re.IGNORECASE)
+    if not match:
+        raise LineupLookupError("watchlist game must identify away and home teams")
+    return match.group(1).strip(), match.group(2).strip()
+
+
+def _espn_event_teams(summary: dict[str, Any]) -> tuple[str, str]:
+    competitions = summary.get("header", {}).get("competitions", [])
+    competitors = competitions[0].get("competitors", []) if competitions else []
+    names = {
+        competitor.get("homeAway"): competitor.get("team", {}).get("displayName")
+        for competitor in competitors
+        if isinstance(competitor, dict)
+    }
+    away_team = names.get("away")
+    home_team = names.get("home")
+    if not away_team or not home_team:
+        raise LineupLookupError("ESPN event did not identify away and home teams")
+    return str(away_team), str(home_team)
+
+
+def resolve_game_pk(schedule: dict[str, Any], away_team: str, home_team: str) -> int:
+    wanted = (_normalized_team_name(away_team), _normalized_team_name(home_team))
+    for date_block in schedule.get("dates", []):
+        if not isinstance(date_block, dict):
+            continue
+        for game in date_block.get("games", []):
+            if not isinstance(game, dict):
+                continue
+            teams = game.get("teams", {})
+            actual = (
+                _normalized_team_name(teams.get("away", {}).get("team", {}).get("name")),
+                _normalized_team_name(teams.get("home", {}).get("team", {}).get("name")),
+            )
+            game_pk = game.get("gamePk")
+            if actual == wanted and isinstance(game_pk, int):
+                return game_pk
+    raise LineupLookupError(f"no MLB schedule game matched {away_team} at {home_team}")
+
+
+def _batting_order(feed: dict[str, Any], side: str) -> list[str]:
+    team = feed.get("liveData", {}).get("boxscore", {}).get("teams", {}).get(side, {})
+    players = feed.get("gameData", {}).get("players", {})
+    names: list[str] = []
+    for player_id in team.get("battingOrder", []):
+        player = players.get(f"ID{player_id}", {})
+        name = player.get("fullName") or player.get("person", {}).get("fullName")
+        names.append(str(name or f"player {player_id}"))
+    return names
+
+
+def fetch_lineup_snapshot(
+    entry: dict[str, Any],
+    fetch_json: Callable[[str], dict[str, Any]] = http_json,
+) -> dict[str, Any]:
+    """Resolve a watchlist game through the MLB schedule before loading its feed."""
+    first_pitch = parse_instant(entry.get("first_pitch_utc"))
+    if first_pitch is None:
+        raise LineupLookupError("watchlist entry has no valid first pitch")
+    query = urllib.parse.urlencode({"sportId": 1, "date": first_pitch.date().isoformat()})
+    schedule = fetch_json(f"https://statsapi.mlb.com/api/v1/schedule?{query}")
+    try:
+        away_team, home_team = _entry_teams(entry)
+    except LineupLookupError:
+        event_id = entry.get("event_id") or entry.get("espn_event_id")
+        if not event_id:
+            raise
+        event_query = urllib.parse.urlencode({"event": str(event_id)})
+        summary = fetch_json(
+            "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/summary?"
+            + event_query
+        )
+        away_team, home_team = _espn_event_teams(summary)
+    game_pk = resolve_game_pk(schedule, away_team, home_team)
+    feed = fetch_json(f"https://statsapi.mlb.com/api/v1.1/game/{game_pk}/feed/live")
+    players = feed.get("gameData", {}).get("players", {})
+    return {
+        "game_pk": game_pk,
+        "away_team": away_team,
+        "home_team": home_team,
+        "player_count": len(players) if isinstance(players, dict) else 0,
+        "away_batting_order": _batting_order(feed, "away"),
+        "home_batting_order": _batting_order(feed, "home"),
+    }
 
 
 def parse_instant(value: Any) -> datetime | None:
@@ -201,7 +309,37 @@ def due_entries(schedule: dict[str, Any], now: datetime | None = None) -> list[d
     return due
 
 
-def build_recheck_prompt(schedule_path: Path, entries: list[dict[str, Any]]) -> str:
+def _lineup_context(
+    entries: list[dict[str, Any]], snapshots: dict[str, dict[str, Any]] | None
+) -> str:
+    if not snapshots:
+        return ""
+    sections: list[str] = []
+    for entry in entries:
+        snapshot = snapshots.get(str(entry.get("id")))
+        if not snapshot:
+            continue
+        away = snapshot.get("away_batting_order", [])
+        home = snapshot.get("home_batting_order", [])
+        sections.append(
+            "\n".join(
+                [
+                    f"MLB gamePk {snapshot.get('game_pk')} — {snapshot.get('player_count', 0)} roster players",
+                    f"{snapshot.get('away_team')} batting order ({len(away)}): {', '.join(away)}",
+                    f"{snapshot.get('home_team')} batting order ({len(home)}): {', '.join(home)}",
+                ]
+            )
+        )
+    if not sections:
+        return ""
+    return "\n\nResolved MLB lineup data (schedule-mapped; do not use ESPN event IDs as gamePk):\n" + "\n\n".join(sections)
+
+
+def build_recheck_prompt(
+    schedule_path: Path,
+    entries: list[dict[str, Any]],
+    snapshots: dict[str, dict[str, Any]] | None = None,
+) -> str:
     entry_ids = ", ".join(str(entry.get("id", "<missing-id>")) for entry in entries)
     if standing_authorization_enabled():
         routing = """A promotion must be copied into candidates with
@@ -214,8 +352,10 @@ The recurring MLB execution poller will refresh all gates and handle execution."
         routing = """A promotion must remain manual-only with execution_mode=manual,
 manual_bet_status=awaiting_jerry, executed=false, vig_review_needed=false, and
 vig_approved=true. It must never place or schedule a bet."""
+    lineup_context = _lineup_context(entries, snapshots)
     return f"""You are Vig performing the MLB lineup watchlist recheck.
 Read and update {schedule_path}. Recheck only these watchlist IDs: {entry_ids}.
+{lineup_context}
 
 For each entry, refresh from live sources:
 - confirmed batting lineups for both teams;

@@ -157,6 +157,123 @@ class MlbLineupWatchlistTests(unittest.TestCase):
         self.assertNotIn("awaiting_jerry", prompt)
         self.assertIn("lineup-abc-def", prompt)
 
+    def test_lineup_snapshot_maps_espn_event_to_mlb_game_pk_before_fetching_feed(self):
+        entry = self.entry(
+            event_id="401816229",
+            game="Cincinnati Reds at Seattle Mariners",
+            first_pitch_utc="2026-07-22T19:40:00Z",
+        )
+        schedule = {
+            "dates": [{
+                "games": [{
+                    "gamePk": 823110,
+                    "teams": {
+                        "away": {"team": {"name": "Cincinnati Reds"}},
+                        "home": {"team": {"name": "Seattle Mariners"}},
+                    },
+                }]
+            }]
+        }
+        away_order = list(range(1, 10))
+        home_order = list(range(10, 19))
+        players = {
+            f"ID{player_id}": {"fullName": f"Player {player_id}"}
+            for player_id in range(1, 53)
+        }
+        feed = {
+            "gameData": {"players": players},
+            "liveData": {"boxscore": {"teams": {
+                "away": {"battingOrder": away_order, "players": {}},
+                "home": {"battingOrder": home_order, "players": {}},
+            }}},
+        }
+        requested_urls = []
+
+        def fetch_json(url):
+            requested_urls.append(url)
+            if "/api/v1/schedule?" in url:
+                return schedule
+            if url.endswith("/api/v1.1/game/823110/feed/live"):
+                return feed
+            self.fail(f"unexpected URL: {url}")
+
+        snapshot = mlb_lineup_watchlist.fetch_lineup_snapshot(entry, fetch_json=fetch_json)
+
+        self.assertEqual(snapshot["game_pk"], 823110)
+        self.assertEqual(snapshot["player_count"], 52)
+        self.assertEqual(len(snapshot["away_batting_order"]), 9)
+        self.assertEqual(len(snapshot["home_batting_order"]), 9)
+        self.assertIn("date=2026-07-22", requested_urls[0])
+        self.assertNotIn("401816229/feed/live", "\n".join(requested_urls))
+
+    def test_lineup_snapshot_uses_espn_event_teams_when_game_name_is_missing(self):
+        entry = self.entry(
+            event_id="401816229",
+            game="",
+            first_pitch_utc="2026-07-22T19:40:00Z",
+        )
+        schedule = {
+            "dates": [{"games": [{
+                "gamePk": 823110,
+                "teams": {
+                    "away": {"team": {"name": "Cincinnati Reds"}},
+                    "home": {"team": {"name": "Seattle Mariners"}},
+                },
+            }]}]
+        }
+        espn = {
+            "header": {"competitions": [{"competitors": [
+                {"homeAway": "home", "team": {"displayName": "Seattle Mariners"}},
+                {"homeAway": "away", "team": {"displayName": "Cincinnati Reds"}},
+            ]}]}
+        }
+        feed = {
+            "gameData": {"players": {}},
+            "liveData": {"boxscore": {"teams": {
+                "away": {"battingOrder": []},
+                "home": {"battingOrder": []},
+            }}},
+        }
+        requested_urls = []
+
+        def fetch_json(url):
+            requested_urls.append(url)
+            if "/api/v1/schedule?" in url:
+                return schedule
+            if "site.api.espn.com" in url:
+                return espn
+            if url.endswith("/api/v1.1/game/823110/feed/live"):
+                return feed
+            self.fail(f"unexpected URL: {url}")
+
+        snapshot = mlb_lineup_watchlist.fetch_lineup_snapshot(entry, fetch_json=fetch_json)
+
+        self.assertEqual(snapshot["game_pk"], 823110)
+        self.assertIn("event=401816229", requested_urls[1])
+        self.assertTrue(requested_urls[2].endswith("/823110/feed/live"))
+
+    def test_recheck_prompt_includes_concise_resolved_mlb_lineups(self):
+        snapshot = {
+            "game_pk": 823110,
+            "away_team": "Cincinnati Reds",
+            "home_team": "Seattle Mariners",
+            "player_count": 52,
+            "away_batting_order": [f"Red {number}" for number in range(1, 10)],
+            "home_batting_order": [f"Mariner {number}" for number in range(1, 10)],
+        }
+
+        prompt = mlb_lineup_watchlist.build_recheck_prompt(
+            Path("/tmp/schedule.json"),
+            [self.entry(id="2026-07-22-SEA-ML")],
+            {"2026-07-22-SEA-ML": snapshot},
+        )
+
+        self.assertIn("MLB gamePk 823110", prompt)
+        self.assertIn("52 roster players", prompt)
+        self.assertIn("Cincinnati Reds batting order (9)", prompt)
+        self.assertIn("Seattle Mariners batting order (9)", prompt)
+        self.assertNotIn("{\"game_pk\"", prompt)
+
 
 if __name__ == "__main__":
     unittest.main()
