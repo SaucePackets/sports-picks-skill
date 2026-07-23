@@ -86,16 +86,22 @@ def main() -> int:
     else:
         print("- none yet; calibration becomes meaningful once cards carry win_probability")
 
-    slips = []
+    slips, clv_moves = [], []
     for p in settled:
-        # slate ask lives in schedule files; approximate with thesis-recorded ask when present
         entry = p.get("entry_price")
-        ask = p.get("slate_ask") or p.get("polymarket_ask")
-        if isinstance(entry, (int, float)) and isinstance(ask, (int, float)):
-            slips.append(entry - ask)
+        slate_ask = p.get("slate_ask") or p.get("polymarket_ask")
+        recheck = p.get("ask_at_recheck")
+        if isinstance(entry, (int, float)) and isinstance(slate_ask, (int, float)):
+            slips.append(entry - slate_ask)
+        if isinstance(recheck, (int, float)) and isinstance(slate_ask, (int, float)):
+            clv_moves.append(recheck - slate_ask)
     if slips:
-        print(f"\n## Slippage (fill - slate ask): avg {sum(slips) / len(slips):+.3f}, "
-              f"worst {max(slips):+.3f} over {len(slips)} picks")
+        print(f"\n## Price trail")
+        print(f"- fill vs slate ask: avg {sum(slips) / len(slips):+.3f}, worst {max(slips):+.3f} ({len(slips)} picks)")
+    if clv_moves:
+        favorable = sum(1 for m in clv_moves if m > 0)
+        print(f"- recheck vs slate ask (CLV proxy; positive = market moved toward our side): "
+              f"avg {sum(clv_moves) / len(clv_moves):+.3f}, favorable {favorable}/{len(clv_moves)}")
     return 0
 
 

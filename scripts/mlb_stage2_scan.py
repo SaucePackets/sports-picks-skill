@@ -60,6 +60,103 @@ def cached_final_boxscore(game_pk: Any) -> dict[str, Any]:
     return box
 
 
+
+# Approximate 3-year run park factors (100 = neutral). Handicap CONTEXT, not
+# precision: the slate flags extreme parks (>=105 hitter / <=96 pitcher) so the
+# Coors-class adjustment rule fires on data instead of memory.
+PARK_RUN_FACTORS = {
+    "Coors Field": 112,
+    "Fenway Park": 106,
+    "Great American Ball Park": 107,
+    "Sutter Health Park": 104,
+    "Yankee Stadium": 103,
+    "Citizens Bank Park": 103,
+    "Chase Field": 102,
+    "Wrigley Field": 102,
+    "Rate Field": 102,
+    "Guaranteed Rate Field": 102,
+    "Truist Park": 101,
+    "Kauffman Stadium": 101,
+    "Rogers Centre": 101,
+    "Nationals Park": 100,
+    "Camden Yards": 100,
+    "Oriole Park at Camden Yards": 100,
+    "American Family Field": 99,
+    "Globe Life Field": 99,
+    "Angel Stadium": 99,
+    "Comerica Park": 99,
+    "Target Field": 99,
+    "Daikin Park": 99,
+    "Minute Maid Park": 99,
+    "Busch Stadium": 98,
+    "Progressive Field": 98,
+    "Dodger Stadium": 98,
+    "Citi Field": 97,
+    "PNC Park": 97,
+    "loanDepot park": 97,
+    "George M. Steinbrenner Field": 103,
+    "Petco Park": 96,
+    "Oracle Park": 96,
+    "T-Mobile Park": 95,
+}
+
+
+
+SAVANT_CACHE = Path.home() / ".cache" / "hermes" / "savant-team-xwoba"
+
+
+def team_offense_quality(season: int) -> dict[str, dict[str, float]]:
+    """Team wOBA/xwOBA from Baseball Savant, cached per day. Empty dict on failure."""
+    import csv as _csv
+    import io as _io
+    from datetime import date as _date
+
+    SAVANT_CACHE.mkdir(parents=True, exist_ok=True)
+    cache = SAVANT_CACHE / f"{_date.today().isoformat()}-{season}.json"
+    if cache.exists():
+        try:
+            return json.loads(cache.read_text())
+        except (OSError, json.JSONDecodeError):
+            pass
+    url = (
+        "https://baseballsavant.mlb.com/leaderboard/expected_statistics"
+        f"?type=batter-team&year={season}&position=&team=&csv=true"
+    )
+    try:
+        import urllib.request
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            text = resp.read().decode("utf-8-sig")
+        out: dict[str, dict[str, float]] = {}
+        for row in _csv.DictReader(_io.StringIO(text)):
+            abbr = str(row.get("team_id") or "").strip().upper()
+            if not abbr:
+                continue
+            try:
+                out[abbr] = {
+                    "woba": float(row["woba"]),
+                    "xwoba": float(row["est_woba"]),
+                }
+            except (KeyError, TypeError, ValueError):
+                continue
+        if out:
+            cache.write_text(json.dumps(out))
+        return out
+    except Exception:
+        return {}
+
+
+def park_context(venue_name: str | None) -> dict[str, Any]:
+    factor = PARK_RUN_FACTORS.get(str(venue_name or "").strip())
+    flag = None
+    if factor is not None:
+        if factor >= 105:
+            flag = "extreme hitter park — cap confidence per park rule"
+        elif factor <= 96:
+            flag = "strong pitcher park"
+    return {"venue": venue_name, "run_factor": factor, "flag": flag}
+
+
 def american_prob(odds: str | int | None) -> float | None:
     if odds is None:
         return None
@@ -154,13 +251,28 @@ class MlbSlateCollector:
             except (TypeError, ValueError):
                 return None
 
+        k = int(stat.get("strikeOuts", 0) or 0)
+        bb = int(stat.get("baseOnBalls", 0) or 0)
+        hr = int(stat.get("homeRuns", 0) or 0)
+        hbp = int(stat.get("hitByPitch", 0) or 0)
+        bf = int(stat.get("battersFaced", 0) or 0)
+        ip_outs = outs_from_ip(stat.get("inningsPitched"))
+        # FIP strips defense/sequencing luck out of ERA; the 3.15 constant is a
+        # league-typical anchor, close enough for cross-pitcher comparison.
+        fip = None
+        if ip_outs >= 3:
+            innings = ip_outs / 3
+            fip = round((13 * hr + 3 * (bb + hbp) - 2 * k) / innings + 3.15, 2)
+        k_bb_pct = round((k - bb) / bf * 100, 1) if bf > 0 else None
         return {
             "era": as_float("era"),
             "whip": as_float("whip"),
+            "fip": fip,
+            "k_bb_pct": k_bb_pct,
             "ip": stat.get("inningsPitched"),
-            "k": int(stat.get("strikeOuts", 0) or 0),
-            "bb": int(stat.get("baseOnBalls", 0) or 0),
-            "hr": int(stat.get("homeRuns", 0) or 0),
+            "k": k,
+            "bb": bb,
+            "hr": hr,
             "starts": int(stat.get("gamesStarted", 0) or 0),
             "record": f"{stat.get('wins', 0)}-{stat.get('losses', 0)}",
         }
@@ -270,9 +382,17 @@ class MlbSlateCollector:
             "home_starter_stats": self.pitcher_stats(home_sp.get("id")),
             "away_injuries": self.injuries(away["team"]["id"]),
             "home_injuries": self.injuries(home["team"]["id"]),
+            "park": park_context((stats_game.get("venue") or {}).get("name")),
+            "away_offense": (getattr(self, "offense_quality", {}) or {}).get(
+                ALIASES.get(away_abbr, away_abbr)
+            ) or (getattr(self, "offense_quality", {}) or {}).get(away_abbr),
+            "home_offense": (getattr(self, "offense_quality", {}) or {}).get(
+                ALIASES.get(home_abbr, home_abbr)
+            ) or (getattr(self, "offense_quality", {}) or {}).get(home_abbr),
         }
 
     def collect(self) -> list[dict[str, Any]]:
+        self.offense_quality = team_offense_quality(self.season)
         date_compact = self.date.replace("-", "")
         espn = get(
             f"https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard?dates={date_compact}&limit=100",
