@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -15,14 +16,19 @@ def resolve_state_dir(home: Path | None = None) -> Path:
 
 
 def standing_authorization_enabled(state_dir: Path | None = None) -> bool:
+    """Authorization is an explicit flag file, never prose substring matching.
+
+    Prose matching was both over-broad ("standing authorization is suspended"
+    still matched) and fragile (innocent rewording silently disabled
+    automation). Fails closed on any read/parse problem.
+    """
     root = state_dir or resolve_state_dir()
     try:
-        policy = (root / "policy.md").read_text(encoding="utf-8").casefold()
-        risk = (root / "risk_limits.md").read_text(encoding="utf-8").casefold()
-    except OSError:
+        flag = json.loads((root / "standing_authorization.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
         return False
     return (
-        "standing authorization" in policy
-        and "current market path: polymarket sports moneyline" in policy
-        and "auto-entry: only standing-authorized mlb polymarket moneyline candidates" in risk
+        isinstance(flag, dict)
+        and flag.get("schema") == "vig-standing-authorization-v1"
+        and flag.get("enabled") is True
     )

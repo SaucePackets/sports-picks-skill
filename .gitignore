@@ -4,11 +4,5 @@ __pycache__/
 
 # Runtime pick state. Keep public repo templates only.
 .picks/*
-!.picks/
-!.picks/PROCESS.md
-!.picks/REFLECTIONS.md
-!.picks/INDEX.md
 # Reference docs — framework, not pick data
-!.picks/references/
-!.picks/references/intl-soccer-data.md
-!.picks/references/intl-soccer-scan-findings.md
+# Personal betting records must never be tracked in this public repo (2026-07-23)

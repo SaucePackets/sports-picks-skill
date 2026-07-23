@@ -21,10 +21,15 @@ import sys
 import time
 import urllib.error
 import urllib.parse
-import urllib.request
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
+
+_SCRIPT_DIR = str(Path(__file__).resolve().parent)
+if _SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPT_DIR)
+
+from http_util import fetch_json  # noqa: E402
 
 API_BASE = "https://api.polymarket.us"
 GATEWAY_BASE = "https://gateway.polymarket.us"
@@ -57,18 +62,21 @@ def dec(value: str | int | float | None, name: str) -> Decimal | None:
 
 
 def http_json(method: str, base: str, path: str, body: dict[str, Any] | None = None, auth: bool = False) -> dict[str, Any]:
-    data = None
     headers = {"User-Agent": "sports-picks-polymarket-guard/1.0"}
-    if body is not None:
-        data = json.dumps(body, separators=(",", ":")).encode()
-        headers["Content-Type"] = "application/json"
     if auth:
         headers.update(auth_headers(method, path))
-    req = urllib.request.Request(base + path, data=data, headers=headers, method=method)
+    # Reads retry with backoff via the shared helper; writes (order placement)
+    # stay single-shot so a lost response can never double-execute.
+    attempts = 3 if method.upper() == "GET" else 1
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            raw = resp.read().decode("utf-8", errors="replace")
-            return json.loads(raw) if raw else {}
+        return fetch_json(
+            base + path,
+            timeout=30,
+            attempts=attempts,
+            headers=headers,
+            method=method,
+            data=body,
+        )
     except urllib.error.HTTPError as e:
         raw = e.read().decode("utf-8", errors="replace")
         try:
@@ -219,11 +227,38 @@ def amount_value(obj: Any) -> Decimal | None:
     return dec(obj, "amount")
 
 
+# A single BBO snapshot is only trusted when both sides exist, are not
+# crossed, and the spread is at most this wide. Anything else is treated as
+# "no data" so complement-derived NO prices can't fabricate phantom moves.
+MAX_RELIABLE_SPREAD = Decimal("0.10")
+
+
+def bbo_book_state(bid: Decimal | None, ask: Decimal | None) -> str:
+    if bid is None or ask is None:
+        return "unreliable"
+    if bid >= ask:
+        return "unreliable"
+    if ask - bid > MAX_RELIABLE_SPREAD:
+        return "unreliable"
+    return "reliable"
+
+
 def market_prices_for_side(bbo: dict[str, Any], outcome_side: str) -> dict[str, str | None]:
     md = bbo.get("marketData", bbo)
     bid = amount_value(md.get("bestBid"))
     ask = amount_value(md.get("bestAsk"))
     current = amount_value(md.get("currentPx"))
+    # Sanity-check the raw (long/YES-side) book before deriving anything from
+    # it: missing side, crossed (bid >= ask), or wider than 10 cents means the
+    # snapshot cannot be trusted for exit/adverse-move decisions.
+    book_state = bbo_book_state(bid, ask)
+    if book_state == "unreliable":
+        return {
+            "exit_bid": None,
+            "entry_ask": None,
+            "current": None,
+            "book_state": book_state,
+        }
     one = Decimal("1")
     if outcome_side == "OUTCOME_SIDE_NO":
         # Polymarket US BBO is quoted for the long/YES side. NO is approximated
@@ -236,6 +271,7 @@ def market_prices_for_side(bbo: dict[str, Any], outcome_side: str) -> dict[str, 
         "exit_bid": str(bid) if bid is not None else None,
         "entry_ask": str(ask) if ask is not None else None,
         "current": str(current) if current is not None else None,
+        "book_state": book_state,
     }
 
 
@@ -328,7 +364,14 @@ def cmd_watch_once(args: argparse.Namespace) -> dict[str, Any]:
     if entry is None or quantity is None or profit_cents is None or loss_cents is None:
         die("entry, quantity, profit-cents, and loss-cents are required")
     exit_bid = dec(prices.get("exit_bid"), "exit_bid")
-    if exit_bid is None:
+    if prices.get("book_state") == "unreliable":
+        # Never alert off an unreliable book: a missing/crossed/wide BBO is
+        # market noise, not a real profit or adverse move.
+        status = "no_data"
+        unrealized = None
+        move = None
+        alert = "Order book unreliable (missing, crossed, or >10c wide BBO). No action; keep watching."
+    elif exit_bid is None:
         status = "no_bid"
         unrealized = None
         move = None

@@ -13,7 +13,6 @@ import json
 import re
 import sys
 import urllib.parse
-import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
@@ -22,12 +21,13 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
+from http_util import fetch_json as _retrying_fetch_json  # noqa: E402
 from mlb_runtime_policy import standing_authorization_enabled  # noqa: E402
 
 MIN_MINUTES_BEFORE_FIRST_PITCH = 60
 MAX_MINUTES_BEFORE_FIRST_PITCH = 90
 PENDING_STATUS = "pending_lineup_recheck"
-TERMINAL_STATUSES = {"promoted", "passed"}
+TERMINAL_STATUSES = {"promoted", "passed", "filled_manual"}
 VALID_STATUSES = {PENDING_STATUS, *TERMINAL_STATUSES}
 FORBIDDEN_EXECUTION_FIELDS = {
     "execution_cron_id",
@@ -53,9 +53,9 @@ class LineupLookupError(RuntimeError):
 
 
 def http_json(url: str) -> dict[str, Any]:
-    request = urllib.request.Request(url, headers={"User-Agent": "HermesSportsPicks/1.0"})
-    with urllib.request.urlopen(request, timeout=30) as response:
-        payload = json.loads(response.read().decode("utf-8"))
+    payload = _retrying_fetch_json(
+        url, timeout=30, headers={"User-Agent": "HermesSportsPicks/1.0"}
+    )
     if not isinstance(payload, dict):
         raise LineupLookupError("MLB data source returned a non-object response")
     return payload
@@ -88,8 +88,15 @@ def _espn_event_teams(summary: dict[str, Any]) -> tuple[str, str]:
     return str(away_team), str(home_team)
 
 
-def resolve_game_pk(schedule: dict[str, Any], away_team: str, home_team: str) -> int:
+def resolve_game_pk(
+    schedule: dict[str, Any],
+    away_team: str,
+    home_team: str,
+    first_pitch: datetime | None = None,
+) -> int:
+    """Map team names to a gamePk; doubleheaders resolve by nearest gameDate."""
     wanted = (_normalized_team_name(away_team), _normalized_team_name(home_team))
+    matches: list[tuple[int, datetime | None]] = []
     for date_block in schedule.get("dates", []):
         if not isinstance(date_block, dict):
             continue
@@ -102,9 +109,20 @@ def resolve_game_pk(schedule: dict[str, Any], away_team: str, home_team: str) ->
                 _normalized_team_name(teams.get("home", {}).get("team", {}).get("name")),
             )
             game_pk = game.get("gamePk")
-            if actual == wanted and isinstance(game_pk, int):
-                return game_pk
-    raise LineupLookupError(f"no MLB schedule game matched {away_team} at {home_team}")
+            if actual == wanted and isinstance(game_pk, int) and not isinstance(game_pk, bool):
+                matches.append((game_pk, parse_instant(game.get("gameDate"))))
+    if not matches:
+        raise LineupLookupError(f"no MLB schedule game matched {away_team} at {home_team}")
+    if len(matches) == 1 or first_pitch is None:
+        return matches[0][0]
+
+    def seconds_from_first_pitch(match: tuple[int, datetime | None]) -> float:
+        game_date = match[1]
+        if game_date is None:
+            return float("inf")
+        return abs((game_date - first_pitch).total_seconds())
+
+    return min(matches, key=seconds_from_first_pitch)[0]
 
 
 def _batting_order(feed: dict[str, Any], side: str) -> list[str]:
@@ -118,30 +136,57 @@ def _batting_order(feed: dict[str, Any], side: str) -> list[str]:
     return names
 
 
+def _stamped_game_pk(entry: dict[str, Any]) -> int | None:
+    game_pk = entry.get("game_pk")
+    if isinstance(game_pk, int) and not isinstance(game_pk, bool) and game_pk > 0:
+        return game_pk
+    return None
+
+
 def fetch_lineup_snapshot(
     entry: dict[str, Any],
     fetch_json: Callable[[str], dict[str, Any]] = http_json,
 ) -> dict[str, Any]:
-    """Resolve a watchlist game through the MLB schedule before loading its feed."""
+    """Load a watchlist game's live feed.
+
+    A stamped ``game_pk`` on the entry is used directly (doubleheader-proof).
+    Otherwise the game resolves through the MLB schedule; when several
+    schedule games match the team names, the one whose gameDate is nearest
+    the entry's first pitch wins.
+    """
     first_pitch = parse_instant(entry.get("first_pitch_utc"))
     if first_pitch is None:
         raise LineupLookupError("watchlist entry has no valid first pitch")
-    query = urllib.parse.urlencode({"sportId": 1, "date": first_pitch.date().isoformat()})
-    schedule = fetch_json(f"https://statsapi.mlb.com/api/v1/schedule?{query}")
-    try:
-        away_team, home_team = _entry_teams(entry)
-    except LineupLookupError:
-        event_id = entry.get("event_id") or entry.get("espn_event_id")
-        if not event_id:
-            raise
-        event_query = urllib.parse.urlencode({"event": str(event_id)})
-        summary = fetch_json(
-            "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/summary?"
-            + event_query
-        )
-        away_team, home_team = _espn_event_teams(summary)
-    game_pk = resolve_game_pk(schedule, away_team, home_team)
+    away_team: str | None = None
+    home_team: str | None = None
+    game_pk = _stamped_game_pk(entry)
+    if game_pk is None:
+        query = urllib.parse.urlencode({"sportId": 1, "date": first_pitch.date().isoformat()})
+        schedule = fetch_json(f"https://statsapi.mlb.com/api/v1/schedule?{query}")
+        try:
+            away_team, home_team = _entry_teams(entry)
+        except LineupLookupError:
+            event_id = entry.get("event_id") or entry.get("espn_event_id")
+            if not event_id:
+                raise
+            event_query = urllib.parse.urlencode({"event": str(event_id)})
+            summary = fetch_json(
+                "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/summary?"
+                + event_query
+            )
+            away_team, home_team = _espn_event_teams(summary)
+        game_pk = resolve_game_pk(schedule, away_team, home_team, first_pitch=first_pitch)
     feed = fetch_json(f"https://statsapi.mlb.com/api/v1.1/game/{game_pk}/feed/live")
+    if away_team is None or home_team is None:
+        feed_teams = feed.get("gameData", {}).get("teams", {})
+        away_team = str(feed_teams.get("away", {}).get("name") or "")
+        home_team = str(feed_teams.get("home", {}).get("name") or "")
+        if not away_team or not home_team:
+            try:
+                away_team, home_team = _entry_teams(entry)
+            except LineupLookupError:
+                away_team = away_team or "unknown away team"
+                home_team = home_team or "unknown home team"
     players = feed.get("gameData", {}).get("players", {})
     return {
         "game_pk": game_pk,
@@ -183,6 +228,9 @@ def validate_entry(entry: dict[str, Any]) -> list[str]:
         errors.append("first_pitch_utc must be a valid timestamp")
     if parse_instant(entry.get("recheck_due_utc")) is None:
         errors.append("recheck_due_utc must be a valid timestamp")
+    game_pk = entry.get("game_pk")
+    if game_pk is not None and _stamped_game_pk(entry) is None:
+        errors.append("game_pk must be a positive integer when present")
     if not _is_number(entry.get("original_price")):
         errors.append("original_price must be numeric")
     if not _is_number(entry.get("bettable_to_price")):

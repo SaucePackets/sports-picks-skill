@@ -136,7 +136,7 @@ Current heartbeat implementation:
 - Judgement/postgame cron job: `0ecc7d117a97` — `MLB Heartbeat — postgame settlement + alert judgement`
 - Judgement/postgame script: `<runtime-scripts>/mlb_polymarket_alert_review.py`
 - Judgement/postgame schedule: every 5 minutes, one minute after the watch script
-- Judgement/postgame model: spawned `hermes chat` pinned to `openai-codex / gpt-5.5`
+- Judgement/postgame model: spawned `hermes chat` pinned to `openai-codex / gpt-5.6-sol`
 - Judgement output: reply exactly `NO_OPPORTUNITY` to stay silent; only message the user for real opportunities worth considering
 - User-facing delivery: the configured picks channel/topic
 - Watch files: `.picks/watchlist/polymarket/*.json`

@@ -162,6 +162,7 @@ Do not force fake precision when the cleaner read is simply:
 - **Same-series recheck after a loss is mandatory** before backing the same side against the same opponent within 48 hours. The new starter edge must be independent of the failed pillar, and the opponent's counter-signal from the prior game must be addressed directly. If the new case is just the same broad team-over-team thesis with different pitcher names, cap at lean/pass.
 
 ### Starting Pitchers (weight current form, not reputation)
+- The slate scanner provides season FIP and K-BB% per starter. When FIP and ERA diverge by >0.75, trust the FIP direction: ERA carries defense/sequencing luck at half-season samples. K-BB% is the most stable skill signal — cite it in every starter comparison.
 - Last 2 starts: runs allowed, innings pitched, walks
 - Do not let one ugly recent outing erase a larger team-form edge by itself; ask whether it reflects a real collapse or just one blowup in an otherwise acceptable profile
 - Is the listed probable actually expected to carry the game, or is this likely a short-leash / opener / piggyback setup?
@@ -269,6 +270,8 @@ guarded execution attempt.
 ### Park / Weather
 Treat weather as a real handicap input, not an afterthought.
 
+The scanner provides `park.run_factor` (100 = neutral) per game. Cite it on every card candidate. A flagged extreme hitter park (>=105, e.g. Coors) caps confidence at Medium per the park rule; <=96 strengthens pitcher-side reads. Team `away_offense`/`home_offense` carry season wOBA and xwOBA: wOBA trailing xwOBA by >=0.010 means the offense is UNDERperforming its contact quality (fade cold-offense narratives); the reverse means it is running hot (discount recent scoring).
+
 Always check it for MLB.
 Use the dedicated `weather` skill path first when weather is needed for analysis. If `wttr.in` hangs or gets blocked, do not retry the same curl command; use Open-Meteo JSON directly with venue/city coordinates for temperature, wind speed/direction, and precipitation.
 If the game is in a dome or weather is otherwise not relevant, say that explicitly.
@@ -287,6 +290,13 @@ Always ask whether weather helps or hurts the stated win path for each side.
 ---
 
 ## Market / Price Protocol
+
+De-vig before any edge claim:
+- DK single-side implied probability includes roughly 2 points of vig. Never compare it directly to a Polymarket ask and call the difference an edge.
+- Compute both sides' implied probabilities from the two DK moneylines, then `fair = imp_side / (imp_side + imp_opp)`.
+- State your own `win_probability` (decimal) from the full handicap. If it differs from the de-vigged fair by more than 0.04, the thesis must say what the market is missing.
+- Net edge = `win_probability - polymarket_ask - 0.024` (fees). Cardable requires net edge >= 0.02.
+- Record `win_probability`, `dk_fair_prob`, and `net_edge` on every schedule candidate and ledger row — these feed the monthly calibration report (`scripts/vig_calibration_report.py`).
 
 Every MLB pick must answer:
 - What is the current price?

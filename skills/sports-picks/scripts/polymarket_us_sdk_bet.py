@@ -51,6 +51,60 @@ TIFS = {
     "TIME_IN_FORCE_FILL_OR_KILL",
 }
 
+# Polymarket US sports AMM slugs are `aec-mlb-{away}-{home}-YYYY-MM-DD` with
+# lowercase team codes that mostly match MLB abbreviations. Known exception
+# (confirmed 2026-06-11 via search-moneyline): Arizona Diamondbacks -> "az".
+# Ported from skills/sports-picks/references/polymarket-slug-abbreviations.md.
+# resolve-market always verifies a built slug via the SDK before reporting it
+# usable, so an unexpected code mismatch fails loud instead of mis-mapping.
+_MLB_TEAM_SLUG_CODES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("az", ("ari", "az", "arizona diamondbacks", "diamondbacks", "dbacks")),
+    ("ath", ("ath", "oak", "athletics", "oakland athletics", "sacramento athletics")),
+    ("atl", ("atl", "atlanta braves", "braves")),
+    ("bal", ("bal", "baltimore orioles", "orioles")),
+    ("bos", ("bos", "boston red sox", "red sox")),
+    ("chc", ("chc", "chicago cubs", "cubs")),
+    ("cws", ("cws", "chw", "chicago white sox", "white sox")),
+    ("cin", ("cin", "cincinnati reds", "reds")),
+    ("cle", ("cle", "cleveland guardians", "guardians")),
+    ("col", ("col", "colorado rockies", "rockies")),
+    ("det", ("det", "detroit tigers", "tigers")),
+    ("hou", ("hou", "houston astros", "astros")),
+    ("kc", ("kc", "kcr", "kansas city royals", "royals")),
+    ("laa", ("laa", "los angeles angels", "angels")),
+    ("lad", ("lad", "los angeles dodgers", "dodgers")),
+    ("mia", ("mia", "miami marlins", "marlins")),
+    ("mil", ("mil", "milwaukee brewers", "brewers")),
+    ("min", ("min", "minnesota twins", "twins")),
+    ("nym", ("nym", "new york mets", "mets")),
+    ("nyy", ("nyy", "new york yankees", "yankees")),
+    ("phi", ("phi", "philadelphia phillies", "phillies")),
+    ("pit", ("pit", "pittsburgh pirates", "pirates")),
+    ("sd", ("sd", "sdp", "san diego padres", "padres")),
+    ("sea", ("sea", "seattle mariners", "mariners")),
+    ("sf", ("sf", "sfg", "san francisco giants", "giants")),
+    ("stl", ("stl", "st louis cardinals", "saint louis cardinals", "cardinals")),
+    ("tb", ("tb", "tbr", "tampa bay rays", "rays")),
+    ("tex", ("tex", "texas rangers", "rangers")),
+    ("tor", ("tor", "toronto blue jays", "blue jays")),
+    ("wsh", ("wsh", "wsn", "was", "washington nationals", "nationals")),
+)
+
+
+def _normalize_team(value: Any) -> str:
+    text = re.sub(r"[^a-z0-9 ]", "", str(value or "").lower())
+    return re.sub(r"\s+", " ", text).strip()
+
+
+_TEAM_CODE_LOOKUP: dict[str, str] = {
+    alias: code for code, aliases in _MLB_TEAM_SLUG_CODES for alias in aliases
+}
+
+
+def team_slug_code(value: Any) -> str | None:
+    """Map a team name or MLB abbreviation to its Polymarket AMM slug code."""
+    return _TEAM_CODE_LOOKUP.get(_normalize_team(value))
+
 
 def die(message: str, code: int = 2) -> None:
     print(json.dumps({"ok": False, "error": message}, indent=2), file=sys.stderr)
@@ -400,13 +454,18 @@ def cmd_balance(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def cmd_search_moneyline(args: argparse.Namespace) -> dict[str, Any]:
+    sdk_error: str | None = None
     try:
         return _search_via_sdk(args)
-    except httpx.DecodingError:
-        pass  # brotli decode bug — fall through to raw API
-    except Exception:
-        pass  # any SDK error — fall through to raw API
-    return _search_via_raw_api(args)
+    except httpx.DecodingError as exc:
+        # brotli decode bug — fall through to raw API
+        sdk_error = f"httpx.DecodingError (brotli decode bug): {exc!r}"
+    except Exception as exc:
+        # any SDK error — fall through to raw API
+        sdk_error = repr(exc)
+    result = _search_via_raw_api(args)
+    result["sdk_error"] = sdk_error
+    return result
 
 
 def _search_via_sdk(args: argparse.Namespace) -> dict[str, Any]:
@@ -463,6 +522,90 @@ def _search_via_raw_api(args: argparse.Namespace) -> dict[str, Any]:
             "moneyline_markets": markets,
         })
     return {"ok": True, "query": args.query, "events": events, "fallback": "raw_api"}
+
+
+def _parse_market_outcomes(market: dict[str, Any]) -> list[str]:
+    outcomes = market.get("outcomes")
+    if isinstance(outcomes, str):
+        try:
+            outcomes = json.loads(outcomes)
+        except json.JSONDecodeError:
+            outcomes = [outcomes]
+    if not isinstance(outcomes, list):
+        outcomes = []
+    names = [str(outcome) for outcome in outcomes]
+    if not names:
+        for side in market.get("marketSides", []) or []:
+            team_name = side.get("team", {}).get("name") if isinstance(side, dict) else None
+            if team_name:
+                names.append(str(team_name))
+    return names
+
+
+def cmd_resolve_market(args: argparse.Namespace) -> dict[str, Any]:
+    """Deterministic slug construction + SDK verification for MLB moneylines.
+
+    Builds `aec-mlb-{away}-{home}-YYYY-MM-DD` from the in-code team-code map,
+    then confirms via retrieve_by_slug that the market exists and its outcome
+    names match the requested teams. Free-text search-moneyline remains the
+    fallback whenever this fails.
+    """
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", args.date):
+        die("--date must be YYYY-MM-DD")
+    away_code = team_slug_code(args.away)
+    home_code = team_slug_code(args.home)
+    unknown = [team for team, code in ((args.away, away_code), (args.home, home_code)) if not code]
+    if unknown:
+        return {
+            "ok": False,
+            "slug": None,
+            "verified": False,
+            "outcomes": [],
+            "startTime": None,
+            "error": f"unknown team(s): {', '.join(unknown)}",
+            "fallback": "use search-moneyline free-text search",
+        }
+    slug = f"aec-mlb-{away_code}-{home_code}-{args.date}"
+    client = sdk_client(require_auth=False)
+    try:
+        response = client.markets.retrieve_by_slug(slug)
+    except Exception as exc:
+        return {
+            "ok": False,
+            "slug": slug,
+            "verified": False,
+            "outcomes": [],
+            "startTime": None,
+            "error": repr(exc),
+            "fallback": "market not found by built slug; use search-moneyline free-text search",
+        }
+    finally:
+        client.close()
+
+    market = response.get("market", response) if isinstance(response, dict) else {}
+    outcomes = _parse_market_outcomes(market)
+    outcome_codes = {team_slug_code(outcome) for outcome in outcomes}
+    verified = (
+        len(outcomes) == 2
+        and {away_code, home_code} <= outcome_codes
+        and str(market.get("slug") or slug) == slug
+    )
+    result: dict[str, Any] = {
+        "ok": bool(verified),
+        "slug": slug,
+        "verified": bool(verified),
+        "outcomes": outcomes,
+        "startTime": market.get("gameStartTime") or market.get("startDate"),
+        "active": market.get("active"),
+        "closed": market.get("closed"),
+    }
+    if not verified:
+        result["error"] = (
+            f"market found but outcome names {outcomes!r} did not match requested teams "
+            f"{args.away!r}/{args.home!r}"
+        )
+        result["fallback"] = "use search-moneyline free-text search"
+    return result
 
 
 def cmd_propose(args: argparse.Namespace) -> dict[str, Any]:
@@ -618,6 +761,12 @@ def main() -> None:
     search.add_argument("--query", required=True, help="Exact matchup query, e.g. 'Atlanta Braves Los Angeles Dodgers'")
     search.add_argument("--limit", type=int, default=10)
     search.set_defaults(func=cmd_search_moneyline)
+
+    resolve = sub.add_parser("resolve-market", help="Deterministic aec-mlb slug lookup verified via the SDK")
+    resolve.add_argument("--away", required=True, help="Away team name or MLB abbreviation, e.g. ARI or 'Arizona Diamondbacks'")
+    resolve.add_argument("--home", required=True, help="Home team name or MLB abbreviation")
+    resolve.add_argument("--date", required=True, help="Slug game date YYYY-MM-DD")
+    resolve.set_defaults(func=cmd_resolve_market)
 
     propose = sub.add_parser("propose-moneyline")
     add_trade_args(propose)
