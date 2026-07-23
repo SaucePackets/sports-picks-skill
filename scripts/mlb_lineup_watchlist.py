@@ -13,7 +13,6 @@ import json
 import re
 import sys
 import urllib.parse
-import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
@@ -22,6 +21,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
+from http_util import fetch_json as _retrying_fetch_json  # noqa: E402
 from mlb_runtime_policy import standing_authorization_enabled  # noqa: E402
 
 MIN_MINUTES_BEFORE_FIRST_PITCH = 60
@@ -53,9 +53,9 @@ class LineupLookupError(RuntimeError):
 
 
 def http_json(url: str) -> dict[str, Any]:
-    request = urllib.request.Request(url, headers={"User-Agent": "HermesSportsPicks/1.0"})
-    with urllib.request.urlopen(request, timeout=30) as response:
-        payload = json.loads(response.read().decode("utf-8"))
+    payload = _retrying_fetch_json(
+        url, timeout=30, headers={"User-Agent": "HermesSportsPicks/1.0"}
+    )
     if not isinstance(payload, dict):
         raise LineupLookupError("MLB data source returned a non-object response")
     return payload

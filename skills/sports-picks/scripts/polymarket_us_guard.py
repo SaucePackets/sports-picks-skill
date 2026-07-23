@@ -21,10 +21,15 @@ import sys
 import time
 import urllib.error
 import urllib.parse
-import urllib.request
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
+
+_SCRIPT_DIR = str(Path(__file__).resolve().parent)
+if _SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPT_DIR)
+
+from http_util import fetch_json  # noqa: E402
 
 API_BASE = "https://api.polymarket.us"
 GATEWAY_BASE = "https://gateway.polymarket.us"
@@ -57,18 +62,21 @@ def dec(value: str | int | float | None, name: str) -> Decimal | None:
 
 
 def http_json(method: str, base: str, path: str, body: dict[str, Any] | None = None, auth: bool = False) -> dict[str, Any]:
-    data = None
     headers = {"User-Agent": "sports-picks-polymarket-guard/1.0"}
-    if body is not None:
-        data = json.dumps(body, separators=(",", ":")).encode()
-        headers["Content-Type"] = "application/json"
     if auth:
         headers.update(auth_headers(method, path))
-    req = urllib.request.Request(base + path, data=data, headers=headers, method=method)
+    # Reads retry with backoff via the shared helper; writes (order placement)
+    # stay single-shot so a lost response can never double-execute.
+    attempts = 3 if method.upper() == "GET" else 1
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            raw = resp.read().decode("utf-8", errors="replace")
-            return json.loads(raw) if raw else {}
+        return fetch_json(
+            base + path,
+            timeout=30,
+            attempts=attempts,
+            headers=headers,
+            method=method,
+            data=body,
+        )
     except urllib.error.HTTPError as e:
         raw = e.read().decode("utf-8", errors="replace")
         try:
