@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import fcntl
 import json
 import os
 import re
@@ -73,6 +74,56 @@ def pending_candidates(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]
     return [candidate for candidate in candidates if not isinstance(candidate.get("vig_approved"), bool)]
 
 
+# Fields owned by execution_guard.py; the review gate must never clobber them.
+EXECUTION_PROGRESS_FIELDS = (
+    "execution_lock", "executed", "executed_at", "execution_status",
+    "fill_price", "fill_quantity", "fill_notional", "commission",
+    "polymarket_order_id", "polymarket_trade_id", "duplicate_fill_count",
+    "duplicate_order_ids", "duplicate_trade_ids", "execution_note",
+    "execution_receipt", "execution_receipts",
+)
+
+
+def persist_schedule_locked(schedule_path: Path, desired: dict[str, Any]) -> None:
+    """Write the reviewed schedule under the same flock the execution guard uses.
+
+    The guard rewrites the schedule in place under flock; a tmp+os.replace here
+    swaps the inode out from under a waiting locker and loses its update. Take
+    the same lock, then merge: any execution progress the guard recorded since
+    the child reviewer read the file wins over the reviewed copy.
+    """
+    with schedule_path.open("r+") as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        try:
+            try:
+                on_disk = json.load(handle)
+            except json.JSONDecodeError:
+                on_disk = {}
+            disk_by_id = {
+                candidate_identity(item): item
+                for item in on_disk.get("candidates", [])
+                if isinstance(item, dict)
+            }
+            for candidate in desired.get("candidates", []):
+                if not isinstance(candidate, dict):
+                    continue
+                current = disk_by_id.get(candidate_identity(candidate))
+                if not isinstance(current, dict):
+                    continue
+                if current.get("execution_lock") or current.get("executed"):
+                    for field in EXECUTION_PROGRESS_FIELDS:
+                        if field in current:
+                            candidate[field] = current[field]
+            handle.seek(0)
+            json.dump(desired, handle, indent=2)
+            handle.write("\n")
+            handle.truncate()
+            handle.flush()
+            os.fsync(handle.fileno())
+        finally:
+            fcntl.flock(handle, fcntl.LOCK_UN)
+
+
 def candidate_identity(candidate: dict[str, Any]) -> str:
     for field in ("id", "watchlist_id", "polymarket_slug", "market_slug", "event_id"):
         value = candidate.get(field)
@@ -127,6 +178,7 @@ def normalize_review_routing(
     after: dict[str, Any],
     sport: str,
     mlb_standing_authorized: bool = False,
+    day: str | None = None,
 ) -> list[str]:
     """Deterministically route newly approved MLB candidates after child review."""
     if sport.upper() != "MLB" or not mlb_standing_authorized:
@@ -190,6 +242,10 @@ def normalize_review_routing(
 
     after["sport"] = "MLB"
     after["market_type"] = "moneyline"
+    if day:
+        # The execution gate fails closed on a wrong "date" header; stamp the
+        # schedule's own day so approved candidates are actually executable.
+        after["date"] = day
     for candidate, ask in prices:
         candidate.update(
             sport="MLB",
@@ -705,14 +761,26 @@ def run_gate(sport: str) -> int:
     if not isinstance(updated, dict):
         print(f"{sport} review gate ERROR: reviewed schedule must remain an object")
         return 1
+    def _restore_pre_review_state(reason: str) -> None:
+        """A rejected review must not stay live on disk where the poller reads it."""
+        try:
+            persist_schedule_locked(schedule_path, schedule)
+            print(f"{sport} review gate: pre-review schedule restored after {reason}")
+        except OSError as exc:
+            print(
+                f"{sport} review gate CRITICAL: could not restore pre-review schedule "
+                f"after {reason}: {exc}; manual inspection required: {schedule_path}"
+            )
+
     normalization_errors = normalize_review_routing(
-        schedule, updated, sport, mlb_standing_authorized
+        schedule, updated, sport, mlb_standing_authorized, day=day
     )
     if normalization_errors:
         print(
             f"{sport} review gate ERROR: routing normalization failed closed: "
             f"{'; '.join(normalization_errors)}"
         )
+        _restore_pre_review_state("normalization failure")
         return 1
     transition_errors = validate_review_transition(
         schedule,
@@ -724,12 +792,11 @@ def run_gate(sport: str) -> int:
     )
     if transition_errors:
         print(f"{sport} review gate ERROR: invalid review transition: {'; '.join(transition_errors)}")
+        _restore_pre_review_state("transition validation failure")
         return 1
     try:
         write_latest_action(sport, day, updated, mlb_standing_authorized)
-        temporary = schedule_path.with_suffix(f"{schedule_path.suffix}.tmp")
-        temporary.write_text(json.dumps(updated, indent=2) + "\n", encoding="utf-8")
-        temporary.replace(schedule_path)
+        persist_schedule_locked(schedule_path, updated)
     except (OSError, ScheduleFormatError) as exc:
         print(f"{sport} review gate ERROR: could not persist reviewed state: {exc}")
         return 1

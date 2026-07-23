@@ -179,6 +179,53 @@ def _standing_authorized_candidate(
     )
 
 
+RISK_LIMITS_PATH = Path("/home/clawdbot/.hermes/vig/state/risk_limits.json")
+CANONICAL_PICKS_PATH = Path("/home/clawdbot/notes/Sports/picks/picks.json")
+
+
+def _risk_limit_violation(
+    candidate: dict[str, Any], picks_path: Path | str | None, now: datetime
+) -> str | None:
+    """Deterministic money rails: cap, unit and price ceilings from one JSON.
+
+    Fails CLOSED — unreadable limits or ledger refuse the lock. These rails
+    were previously prompt-enforced only (and contradictory across documents).
+    """
+    try:
+        limits = json.loads(RISK_LIMITS_PATH.read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        return f"risk limits unreadable ({exc})"
+    unit_size = float(candidate.get("unit_size") or 0)
+    max_unit = float(limits.get("max_unit_usd_absolute") or 0)
+    if max_unit and unit_size > max_unit:
+        return f"unit_size {unit_size} exceeds max_unit_usd_absolute {max_unit}"
+    price_ceiling = limits.get("max_polymarket_price")
+    max_price = candidate.get("max_polymarket_price")
+    if price_ceiling is not None and isinstance(max_price, (int, float)) and max_price > float(price_ceiling):
+        return f"max_polymarket_price {max_price} exceeds ceiling {price_ceiling}"
+    daily_cap = float(limits.get("daily_cap_usd") or 0)
+    if daily_cap:
+        ledger = Path(picks_path) if picks_path else CANONICAL_PICKS_PATH
+        try:
+            picks = json.loads(ledger.read_text()).get("picks", [])
+        except (OSError, json.JSONDecodeError, AttributeError) as exc:
+            return f"canonical picks ledger unreadable for cap check ({exc})"
+        today = now.astimezone(timezone.utc).date().isoformat()
+        spent = 0.0
+        for pick in picks:
+            if not isinstance(pick, dict):
+                continue
+            stamp = str(pick.get("execution_timestamp") or pick.get("created_at") or "")
+            if stamp[:10] == today and pick.get("status") != "void":
+                spent += float(pick.get("entry_notional") or pick.get("unit_size") or 0)
+        if spent + unit_size > daily_cap:
+            return (
+                f"daily cap breach: spent {spent:.2f} + unit {unit_size:.2f} "
+                f"> cap {daily_cap:.2f}"
+            )
+    return None
+
+
 def acquire_execution_lock(
     schedule_path: Path | str,
     market_slug: str,
@@ -186,6 +233,7 @@ def acquire_execution_lock(
     *,
     require_standing_authorized: bool = False,
     now: datetime | None = None,
+    picks_path: Path | str | None = None,
 ) -> bool:
     """Set execution_lock for a candidate, refusing executed/skipped/locked rows."""
     path = Path(schedule_path)
@@ -196,9 +244,14 @@ def acquire_execution_lock(
             candidate = _candidate_for(schedule, market_slug)
             if not candidate or candidate.get("executed") or candidate.get("skipped"):
                 return False
+            moment = now or datetime.now(timezone.utc)
             if require_standing_authorized and not _standing_authorized_candidate(
-                schedule, candidate, now or datetime.now(timezone.utc)
+                schedule, candidate, moment
             ):
+                return False
+            violation = _risk_limit_violation(candidate, picks_path, moment)
+            if violation:
+                print(json.dumps({"ok": False, "risk_limit_violation": violation}, indent=2))
                 return False
             lock = candidate.get("execution_lock")
             if lock and lock.get("attempt_id") != attempt_id:
@@ -356,12 +409,21 @@ def main() -> int:
 
     check = sub.add_parser("check", parents=[common])
     check.add_argument("--mark", action="store_true", help="mark schedule executed if fills exist")
-    check.add_argument("--picks-file", help="canonical picks ledger; active slug blocks execution")
+    check.add_argument(
+        "--picks-file",
+        default=str(CANONICAL_PICKS_PATH),
+        help="canonical picks ledger; active slug blocks execution",
+    )
 
     lock = sub.add_parser("lock", parents=[common])
     lock.add_argument("--attempt-id", required=True)
     lock.add_argument("--require-standing-authorized", action="store_true")
     lock.add_argument("--now", help="UTC/offset timestamp override for deterministic checks")
+    lock.add_argument(
+        "--picks-file",
+        default=str(CANONICAL_PICKS_PATH),
+        help="canonical picks ledger for the deterministic daily-cap check",
+    )
 
     clear = sub.add_parser("clear", parents=[common])
     clear.add_argument("--attempt-id")
@@ -391,6 +453,7 @@ def main() -> int:
             args.attempt_id,
             require_standing_authorized=args.require_standing_authorized,
             now=lock_now,
+            picks_path=args.picks_file,
         )
         print(json.dumps({"ok": ok, "locked": ok}, indent=2))
         return 0 if ok else 3

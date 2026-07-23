@@ -91,8 +91,11 @@ def candidate_is_eligible(candidate: dict[str, Any], now: datetime) -> bool:
 
 def eligible_candidates(schedule: dict[str, Any], now: datetime) -> list[dict[str, Any]]:
     expected_date = now.astimezone(CENTRAL).date().isoformat()
+    # The schedule path already pins the file to today's CT date; a missing
+    # "date" header must not silently disable execution (slate/review flows
+    # historically omitted it), but a present-and-wrong one still fails closed.
     if (
-        schedule.get("date") != expected_date
+        schedule.get("date", expected_date) != expected_date
         or schedule.get("sport") != "MLB"
         or schedule.get("market_type") != "moneyline"
     ):
@@ -108,7 +111,7 @@ def eligible_candidates(schedule: dict[str, Any], now: datetime) -> list[dict[st
         and candidate.get("market_type") == "moneyline"
         and (
             (first_pitch := parse_instant(candidate.get("first_pitch_utc"))) is not None
-            and first_pitch.astimezone(CENTRAL).date().isoformat() == schedule.get("date")
+            and first_pitch.astimezone(CENTRAL).date().isoformat() == expected_date
         )
         and candidate_is_eligible(candidate, now)
     ]
@@ -218,6 +221,28 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     if not isinstance(schedule, dict) or not isinstance(schedule.get("candidates"), list):
         print("MLB execution gate ERROR: schedule must be an object with candidates")
+        return 1
+
+    pending_standing = [
+        candidate
+        for candidate in schedule["candidates"]
+        if isinstance(candidate, dict)
+        and candidate.get("execution_mode") == "standing_authorized"
+        and candidate.get("execution_status") == "pending"
+        and candidate.get("executed") is False
+    ]
+    header_ok = (
+        schedule.get("date", day) == day
+        and schedule.get("sport") == "MLB"
+        and schedule.get("market_type") == "moneyline"
+    )
+    if pending_standing and not header_ok:
+        print(
+            "MLB execution gate ERROR: schedule header malformed "
+            f"(date={schedule.get('date')!r} sport={schedule.get('sport')!r} "
+            f"market_type={schedule.get('market_type')!r}) while "
+            f"{len(pending_standing)} standing-authorized candidate(s) are pending"
+        )
         return 1
 
     prompt = build_execution_prompt(

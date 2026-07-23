@@ -27,7 +27,7 @@ from mlb_runtime_policy import standing_authorization_enabled  # noqa: E402
 MIN_MINUTES_BEFORE_FIRST_PITCH = 60
 MAX_MINUTES_BEFORE_FIRST_PITCH = 90
 PENDING_STATUS = "pending_lineup_recheck"
-TERMINAL_STATUSES = {"promoted", "passed"}
+TERMINAL_STATUSES = {"promoted", "passed", "filled_manual"}
 VALID_STATUSES = {PENDING_STATUS, *TERMINAL_STATUSES}
 FORBIDDEN_EXECUTION_FIELDS = {
     "execution_cron_id",
