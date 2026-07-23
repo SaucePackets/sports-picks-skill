@@ -252,6 +252,87 @@ class MlbLineupWatchlistTests(unittest.TestCase):
         self.assertIn("event=401816229", requested_urls[1])
         self.assertTrue(requested_urls[2].endswith("/823110/feed/live"))
 
+    def test_resolve_game_pk_picks_doubleheader_game_nearest_first_pitch(self):
+        schedule = {
+            "dates": [{
+                "games": [
+                    {
+                        "gamePk": 111,
+                        "gameDate": "2026-07-22T17:10:00Z",
+                        "teams": {
+                            "away": {"team": {"name": "Cincinnati Reds"}},
+                            "home": {"team": {"name": "Seattle Mariners"}},
+                        },
+                    },
+                    {
+                        "gamePk": 222,
+                        "gameDate": "2026-07-22T23:40:00Z",
+                        "teams": {
+                            "away": {"team": {"name": "Cincinnati Reds"}},
+                            "home": {"team": {"name": "Seattle Mariners"}},
+                        },
+                    },
+                ]
+            }]
+        }
+        nightcap_first_pitch = datetime(2026, 7, 22, 23, 40, tzinfo=timezone.utc)
+
+        game_pk = mlb_lineup_watchlist.resolve_game_pk(
+            schedule, "Cincinnati Reds", "Seattle Mariners", first_pitch=nightcap_first_pitch
+        )
+
+        self.assertEqual(game_pk, 222)
+
+        opener_first_pitch = datetime(2026, 7, 22, 17, 0, tzinfo=timezone.utc)
+        self.assertEqual(
+            mlb_lineup_watchlist.resolve_game_pk(
+                schedule, "Cincinnati Reds", "Seattle Mariners", first_pitch=opener_first_pitch
+            ),
+            111,
+        )
+
+    def test_lineup_snapshot_uses_stamped_game_pk_without_schedule_lookup(self):
+        entry = self.entry(
+            game_pk=823110,
+            game="Cincinnati Reds at Seattle Mariners",
+            first_pitch_utc="2026-07-22T19:40:00Z",
+        )
+        feed = {
+            "gameData": {
+                "players": {"ID1": {"fullName": "Player 1"}},
+                "teams": {
+                    "away": {"name": "Cincinnati Reds"},
+                    "home": {"name": "Seattle Mariners"},
+                },
+            },
+            "liveData": {"boxscore": {"teams": {
+                "away": {"battingOrder": [1]},
+                "home": {"battingOrder": []},
+            }}},
+        }
+        requested_urls = []
+
+        def fetch_json(url):
+            requested_urls.append(url)
+            if url.endswith("/api/v1.1/game/823110/feed/live"):
+                return feed
+            self.fail(f"unexpected URL: {url}")
+
+        snapshot = mlb_lineup_watchlist.fetch_lineup_snapshot(entry, fetch_json=fetch_json)
+
+        self.assertEqual(snapshot["game_pk"], 823110)
+        self.assertEqual(snapshot["away_team"], "Cincinnati Reds")
+        self.assertEqual(snapshot["home_team"], "Seattle Mariners")
+        self.assertEqual(requested_urls, ["https://statsapi.mlb.com/api/v1.1/game/823110/feed/live"])
+
+    def test_validate_entry_rejects_non_positive_or_non_integer_game_pk(self):
+        for bad in (0, -5, True, "823110", 1.5):
+            errors = mlb_lineup_watchlist.validate_entry(self.entry(game_pk=bad))
+            self.assertIn("game_pk must be a positive integer when present", errors, msg=repr(bad))
+
+        self.assertEqual(mlb_lineup_watchlist.validate_entry(self.entry(game_pk=823110)), [])
+        self.assertEqual(mlb_lineup_watchlist.validate_entry(self.entry()), [])
+
     def test_recheck_prompt_includes_concise_resolved_mlb_lineups(self):
         snapshot = {
             "game_pk": 823110,
