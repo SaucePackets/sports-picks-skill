@@ -111,6 +111,12 @@ For Polymarket execution:
 
 No explicit authorization phrase, no bet. No receipt, no success claim.
 
+Manual/recovery executions (when the automated poller failed and Jerry re-triggers a carded pick):
+- go through the exact same `execution_guard.py check` + `lock` + SDK flow as the poller — never a raw SDK order
+- carry the same full ledger row (entry_price, commission, order/trade ids, win_probability) — a null-price ledger row is a process bug
+- if the slate verdict for that side was PASS (not a carded candidate), the ledger row must include an `override_reason` field explaining why the process was overridden; overrides are tracked in the calibration report
+- every fill must reconcile: `scripts/receipts_ledger_reconcile.py` runs nightly and fails loudly on any receipt without a ledger row
+
 ---
 
 ## Runtime Lock Gate
@@ -243,7 +249,7 @@ If context is tight, keep this `SKILL.md` and `references/runtime.md` visible fi
 
 ## Official Pick Ledger Contract
 
-When saving an official pick into runtime database `pick_analyses`, every new active row must have non-empty audit fields: `sport`, `league`, `game_date`, `away_team`, `home_team`, `pick_side`, `price`, `stake`, `confidence`, `verdict`, `source_agent`, and `persona_id`. `confidence` is not an officialness flag; use controlled values only: `Low`, `Medium`, `Medium-High`, or `High` for new cards. Preserve weird raw labels in metadata, not the stored `confidence` field. If an agent creates the pick now, blanks are a bug: fix the source process before saving.
+When saving an official pick into runtime database `pick_analyses`, every new active row must have non-empty audit fields: `sport`, `league`, `game_date`, `away_team`, `home_team`, `pick_side`, `price`, `stake`, `confidence`, `win_probability` (stated decimal probability — required for calibration), `verdict`, `source_agent`, and `persona_id`. `confidence` is not an officialness flag; use controlled values only: `Low`, `Medium`, `Medium-High`, or `High` for new cards. Preserve weird raw labels in metadata, not the stored `confidence` field. If an agent creates the pick now, blanks are a bug: fix the source process before saving.
 
 ## MLB Slate Display Contract
 

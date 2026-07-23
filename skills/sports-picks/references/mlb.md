@@ -288,6 +288,13 @@ Always ask whether weather helps or hurts the stated win path for each side.
 
 ## Market / Price Protocol
 
+De-vig before any edge claim:
+- DK single-side implied probability includes roughly 2 points of vig. Never compare it directly to a Polymarket ask and call the difference an edge.
+- Compute both sides' implied probabilities from the two DK moneylines, then `fair = imp_side / (imp_side + imp_opp)`.
+- State your own `win_probability` (decimal) from the full handicap. If it differs from the de-vigged fair by more than 0.04, the thesis must say what the market is missing.
+- Net edge = `win_probability - polymarket_ask - 0.024` (fees). Cardable requires net edge >= 0.02.
+- Record `win_probability`, `dk_fair_prob`, and `net_edge` on every schedule candidate and ledger row — these feed the monthly calibration report (`scripts/vig_calibration_report.py`).
+
 Every MLB pick must answer:
 - What is the current price?
 - What is the worst number we would still take?

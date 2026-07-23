@@ -15,13 +15,23 @@ def main():
     except Exception as exc:
         print(f'Postgame gate ERROR: invalid picks.json: {exc}'); return 1
     open_picks=[p for p in picks if isinstance(p,dict) and p.get('status') in ('active','pending')]
-    if not open_picks: return 0
-    ids=', '.join(str(p.get('pick_id') or '?') for p in open_picks)
-    prompt=f'''You are Vig running settlement and reflection only because the canonical picks ledger has {len(open_picks)} active or pending official wagers: {ids}.
+    recon=subprocess.run(['python3', str(ROOT/'scripts/receipts_ledger_reconcile.py')],
+                         text=True, capture_output=True, timeout=120)
+    recon_gap = recon.returncode != 0
+    if not open_picks and not recon_gap: return 0
+    ids=', '.join(str(p.get('pick_id') or '?') for p in open_picks) or 'none'
+    recon_section = ''
+    if recon_gap:
+        recon_section = (
+            '\n\nRECEIPT AUDIT DISCREPANCIES (fix these first — every filled receipt must have a ledger row; '
+            'backfill missing rows from the execution schedule + receipt before settling):\n'
+            + recon.stdout.strip()[:2000]
+        )
+    prompt=f'''You are Vig running settlement and reflection because the canonical picks ledger has {len(open_picks)} active or pending official wagers: {ids}.{recon_section}
 
 Read /home/clawdbot/notes/Sports/picks/picks.json (canonical ledger) and /home/clawdbot/notes/Sports/picks/record.json. Settle only receipt-backed supported-venue or historically documented official wagers whose events are final. Verify official result and score. Never create or submit any order, and never restore Polymarket CLOB execution.
 
-Update canonical records atomically — including recomputing record.json counters from picks.json statuses so they match — then return a concise result plus one process lesson only when evidence supports it. If no event is final, return [SILENT].'''
+When settling, copy win_probability/dk_fair_prob/net_edge from the schedule candidate into the ledger row when present. Update canonical records atomically — recomputing record.json counters from picks.json statuses so they match. When citing the record anywhere (reflection, INDEX, Telegram), recompute it from picks.json only and present it with its Wilson 95% CI on win rate (~32 bets is small; never present streaks or day-level P&L as signal). Loss reflections must answer "what stated probability did we assign, and would we assign it again?" — "variance" is only an acceptable answer when the pre-game probability was defensible. If no event is final and no audit discrepancy exists, return [SILENT].'''
     cmd=[HERMES,'--profile','vig','--skills','betting-operations,sports-data-apis','chat','-q',prompt,'-t','terminal,file,web,skills','--quiet']
     try:
         proc=subprocess.run(cmd,cwd=ROOT,text=True,capture_output=True,timeout=1800)
