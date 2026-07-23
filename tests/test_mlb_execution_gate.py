@@ -148,6 +148,113 @@ class MlbExecutionGateTests(unittest.TestCase):
 
         self.assertEqual(mlb_execution_gate.eligible_candidates({"date": "2026-07-19", "sport": "MLB", "market_type": "moneyline", "candidates": [held]}, now), [])
 
+    def test_stale_execution_lock_is_warned_but_never_cleared(self):
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        stale = self.candidate(
+            now,
+            execution_lock={
+                "attempt_id": "attempt-1",
+                "locked_at": (now - timedelta(minutes=16)).isoformat().replace("+00:00", "Z"),
+            },
+        )
+        fresh = self.candidate(
+            now,
+            polymarket_slug="aec-mlb-ghi-jkl-2026-07-19",
+            execution_lock={
+                "attempt_id": "attempt-2",
+                "locked_at": (now - timedelta(minutes=5)).isoformat().replace("+00:00", "Z"),
+            },
+        )
+        schedule = {"date": "2026-07-19", "sport": "MLB", "market_type": "moneyline", "candidates": [stale, fresh]}
+
+        warnings = mlb_execution_gate.stale_lock_warnings(schedule, now)
+
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("stale execution lock on aec-mlb-abc-def-2026-07-19", warnings[0])
+        self.assertIn("attempt='attempt-1'", warnings[0])
+        self.assertIn("investigate before clearing", warnings[0])
+        # locks must remain untouched (no auto-clear: money safety)
+        self.assertIsNotNone(stale["execution_lock"])
+        self.assertIsNotNone(fresh["execution_lock"])
+
+    def test_unparseable_lock_timestamp_is_flagged(self):
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        broken = self.candidate(now, execution_lock={"attempt_id": "a", "locked_at": "not-a-time"})
+
+        warnings = mlb_execution_gate.stale_lock_warnings(
+            {"candidates": [broken]}, now
+        )
+
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("unparseable", warnings[0])
+
+    def test_overdue_pending_lineup_recheck_is_warned(self):
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        schedule = {
+            "candidates": [],
+            "lineup_watchlist": [
+                {
+                    "id": "LW-overdue",
+                    "status": "pending_lineup_recheck",
+                    "recheck_due_utc": (now - timedelta(minutes=31)).isoformat().replace("+00:00", "Z"),
+                },
+                {
+                    "id": "LW-barely-late",
+                    "status": "pending_lineup_recheck",
+                    "recheck_due_utc": (now - timedelta(minutes=20)).isoformat().replace("+00:00", "Z"),
+                },
+                {
+                    "id": "LW-done",
+                    "status": "promoted",
+                    "recheck_due_utc": (now - timedelta(minutes=90)).isoformat().replace("+00:00", "Z"),
+                },
+            ],
+        }
+
+        warnings = mlb_execution_gate.overdue_recheck_warnings(schedule, now)
+
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("LW-overdue", warnings[0])
+        self.assertIn("pending_lineup_recheck", warnings[0])
+
+    def test_main_prints_stale_lock_and_overdue_recheck_warnings(self):
+        now = datetime.now(timezone.utc)
+        day = str(now.astimezone(mlb_execution_gate.CENTRAL).date())
+        locked = self.candidate(
+            now,
+            execution_lock={
+                "attempt_id": "attempt-9",
+                "locked_at": (now - timedelta(minutes=45)).isoformat(),
+            },
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            schedule = root / ".picks" / "execute" / f"{day}-schedule.json"
+            schedule.parent.mkdir(parents=True)
+            schedule.write_text(json.dumps({
+                "date": day,
+                "sport": "MLB",
+                "market_type": "moneyline",
+                "candidates": [locked],
+                "lineup_watchlist": [{
+                    "id": "LW-overdue",
+                    "status": "pending_lineup_recheck",
+                    "recheck_due_utc": (now - timedelta(minutes=45)).isoformat(),
+                }],
+            }))
+            output = StringIO()
+
+            with redirect_stdout(output):
+                status = mlb_execution_gate.main(["--root", str(root), "--now", now.isoformat()])
+
+            self.assertEqual(status, 0)
+            printed = output.getvalue()
+            self.assertIn("WARNING: stale execution lock on", printed)
+            self.assertIn("WARNING: lineup recheck overdue on LW-overdue", printed)
+            # stale lock is reported, never auto-cleared
+            persisted = json.loads(schedule.read_text())
+            self.assertIsNotNone(persisted["candidates"][0]["execution_lock"])
+
     def test_main_is_silent_when_only_candidate_has_started(self):
         now = datetime.now(timezone.utc)
         with tempfile.TemporaryDirectory() as tmp:

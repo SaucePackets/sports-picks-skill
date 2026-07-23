@@ -25,6 +25,8 @@ from mlb_runtime_policy import standing_authorization_enabled
 
 CENTRAL = ZoneInfo("America/Chicago")
 MAX_MINUTES_BEFORE_FIRST_PITCH = 120
+STALE_LOCK_MINUTES = 15
+OVERDUE_RECHECK_MINUTES = 30
 
 
 def resolve_root(cwd: Path | None = None, home: Path | None = None) -> Path:
@@ -115,6 +117,68 @@ def eligible_candidates(schedule: dict[str, Any], now: datetime) -> list[dict[st
         )
         and candidate_is_eligible(candidate, now)
     ]
+
+
+def stale_lock_warnings(schedule: dict[str, Any], now: datetime) -> list[str]:
+    """Flag execution locks older than STALE_LOCK_MINUTES.
+
+    Never auto-clears: a stale lock can mean an execution attempt died
+    mid-flight, so a human must confirm no order landed before clearing.
+    """
+    warnings: list[str] = []
+    candidates = schedule.get("candidates")
+    if not isinstance(candidates, list):
+        return warnings
+    current = now.astimezone(timezone.utc)
+    for candidate in candidates:
+        if not isinstance(candidate, dict):
+            continue
+        lock = candidate.get("execution_lock")
+        if not isinstance(lock, dict):
+            continue
+        slug = candidate.get("polymarket_slug") or candidate.get("event_id") or "<unknown-market>"
+        attempt = lock.get("attempt_id")
+        locked_at = parse_instant(lock.get("locked_at"))
+        if locked_at is None:
+            warnings.append(
+                f"WARNING: stale execution lock on {slug}, "
+                f"locked_at={lock.get('locked_at')!r} (unparseable), "
+                f"attempt={attempt!r}; investigate before clearing"
+            )
+            continue
+        age_minutes = (current - locked_at).total_seconds() / 60
+        if age_minutes > STALE_LOCK_MINUTES:
+            warnings.append(
+                f"WARNING: stale execution lock on {slug}, "
+                f"locked_at={lock.get('locked_at')} ({age_minutes:.0f} min ago), "
+                f"attempt={attempt!r}; investigate before clearing"
+            )
+    return warnings
+
+
+def overdue_recheck_warnings(schedule: dict[str, Any], now: datetime) -> list[str]:
+    """Flag pending_lineup_recheck entries more than 30 minutes past due."""
+    warnings: list[str] = []
+    entries = schedule.get("lineup_watchlist")
+    if not isinstance(entries, list):
+        return warnings
+    current = now.astimezone(timezone.utc)
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("status") != "pending_lineup_recheck":
+            continue
+        due = parse_instant(entry.get("recheck_due_utc"))
+        if due is None:
+            continue
+        overdue_minutes = (current - due).total_seconds() / 60
+        if overdue_minutes > OVERDUE_RECHECK_MINUTES:
+            warnings.append(
+                f"WARNING: lineup recheck overdue on {entry.get('id') or '<missing-id>'}, "
+                f"recheck_due_utc={entry.get('recheck_due_utc')} "
+                f"({overdue_minutes:.0f} min past due) and still pending_lineup_recheck"
+            )
+    return warnings
 
 
 def build_execution_prompt(
@@ -244,6 +308,9 @@ def main(argv: list[str] | None = None) -> int:
             f"{len(pending_standing)} standing-authorized candidate(s) are pending"
         )
         return 1
+
+    for warning in (*stale_lock_warnings(schedule, now), *overdue_recheck_warnings(schedule, now)):
+        print(warning)
 
     prompt = build_execution_prompt(
         schedule_path, schedule, now, standing_authorization_enabled()
