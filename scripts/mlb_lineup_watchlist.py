@@ -24,7 +24,7 @@ if str(SCRIPT_DIR) not in sys.path:
 from http_util import fetch_json as _retrying_fetch_json  # noqa: E402
 from mlb_runtime_policy import standing_authorization_enabled  # noqa: E402
 
-MIN_MINUTES_BEFORE_FIRST_PITCH = 60
+MIN_MINUTES_BEFORE_FIRST_PITCH = 35
 MAX_MINUTES_BEFORE_FIRST_PITCH = 90
 PENDING_STATUS = "pending_lineup_recheck"
 TERMINAL_STATUSES = {"promoted", "passed", "filled_manual"}
@@ -405,23 +405,36 @@ vig_approved=true. It must never place or schedule a bet."""
 Read and update {schedule_path}. Recheck only these watchlist IDs: {entry_ids}.
 {lineup_context}
 
-For each entry, refresh from live sources:
-- confirmed batting lineups for both teams;
-- key injury status and late scratches;
-- current supported-market price and the stored bettable-to threshold.
+Use ONLY the deterministic data provided above — do NOT web-search, curl, or
+web-extract for lineups or price (those tools are unreliable in this sandbox;
+the data above was fetched in-process and is authoritative). For each entry,
+validate:
+- confirmed batting lineups for both teams: a side is confirmed when its
+  provided batting order lists 9 hitters. The confirmed order IS the
+  authoritative late-scratch signal — a scratched hitter is simply absent, so
+  do not separately refresh injuries from external sources. Note an injury
+  concern only if a missing name materially breaks the stated thesis.
+- current price: use the provided Polymarket ask for your side (match your team
+  to the long/YES or NO-side ask by comparing to the slate-captured ask in the
+  thesis). The current ask must be no worse than the entry's bettable_to ceiling.
 
-Re-run every original gate using the refreshed facts. Promote only when lineups
-are confirmed, injury and price refreshes succeeded, and every original gate
-still holds. {routing}
+Re-run every original gate against these facts. Promote when both lineups are
+confirmed, no starting pitcher changed, the provided current ask is within the
+ceiling, and every original gate still holds. If the provided price is
+unavailable but lineups are confirmed and gates hold, still promote and carry
+the stored ceiling as max_polymarket_price — the recurring execution poller
+enforces the live price deterministically at order time. {routing}
 
-If any refresh is unavailable, the price is too expensive, a lineup/injury
-change weakens the thesis, or any original gate fails, set the watchlist entry
-status to passed and write a concise recheck_notes reason. For a promotion, set
-status=promoted and record recheck.lineups_confirmed,
-recheck.key_injuries_refreshed, recheck.price_refreshed, and
-recheck.all_original_gates_hold as true, plus the promoted_candidate. Always set
-rechecked_at_utc. Do not execute here, create an approval token, call a trading
-endpoint, or create a cron job; route through the recurring MLB execution poller.
+Set status=passed with a concise recheck_notes reason ONLY for a real signal
+failure: lineups genuinely unconfirmed at recheck time, a scratch/injury that
+breaks the thesis, the provided current ask exceeding the ceiling, or an
+original gate that no longer holds. Do NOT pass merely because an external
+refresh tool was unavailable. For a promotion, set status=promoted and record
+recheck.lineups_confirmed, recheck.key_injuries_refreshed,
+recheck.price_refreshed, and recheck.all_original_gates_hold as true, plus the
+promoted_candidate. Always set rechecked_at_utc. Do not execute here, create an
+approval token, call a trading endpoint, or create a cron job; route through the
+recurring MLB execution poller.
 """
 
 

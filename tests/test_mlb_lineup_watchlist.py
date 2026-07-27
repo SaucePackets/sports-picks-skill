@@ -39,7 +39,7 @@ class MlbLineupWatchlistTests(unittest.TestCase):
         item.update(overrides)
         return item
 
-    def test_due_entry_is_selected_inside_sixty_to_ninety_minute_window(self):
+    def test_due_entry_is_selected_inside_thirtyfive_to_ninety_minute_window(self):
         schedule = {"lineup_watchlist": [self.entry()]}
         now = datetime(2026, 7, 17, 21, 45, tzinfo=timezone.utc)
 
@@ -49,7 +49,7 @@ class MlbLineupWatchlistTests(unittest.TestCase):
 
     def test_entry_is_not_due_outside_window_or_after_terminal_status(self):
         early = datetime(2026, 7, 17, 21, 20, tzinfo=timezone.utc)
-        late = datetime(2026, 7, 17, 22, 5, tzinfo=timezone.utc)
+        late = datetime(2026, 7, 17, 22, 30, tzinfo=timezone.utc)  # 30 min pre-pitch, inside the 35 min floor
         promoted_candidate = {
             "watchlist_id": "lineup-abc-def",
             "sport": "MLB",
@@ -148,8 +148,8 @@ class MlbLineupWatchlistTests(unittest.TestCase):
         prompt = mlb_lineup_watchlist.build_recheck_prompt(Path("/tmp/schedule.json"), [self.entry()])
 
         self.assertIn("confirmed batting lineups", prompt)
-        self.assertIn("key injury status", prompt)
-        self.assertIn("current supported-market price", prompt)
+        self.assertIn("late-scratch signal", prompt)
+        self.assertIn("Polymarket ask", prompt)
         self.assertIn("every original gate", prompt)
         self.assertIn("execution_mode=standing_authorized", prompt)
         self.assertIn("execution_status=pending", prompt)
