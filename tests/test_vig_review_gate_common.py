@@ -869,3 +869,30 @@ class VigReviewGateCommonTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_entry_slug_prefers_stamped_then_thesis():
+    import vig_review_gate_common as g
+    assert g._entry_slug({"polymarket_slug": "aec-mlb-nyy-cws-2026-07-27"}) == "aec-mlb-nyy-cws-2026-07-27"
+    assert g._entry_slug({"thesis": "priced aec-mlb-bos-ath-2026-07-27 at 0.62"}) == "aec-mlb-bos-ath-2026-07-27"
+    assert g._entry_slug({"thesis": "no slug here"}) is None
+
+
+def test_price_context_uses_deterministic_fetch(monkeypatch):
+    import vig_review_gate_common as g
+    monkeypatch.setattr(g, "fetch_market_price", lambda slug: {
+        "slug": slug, "open": True, "reason": "open",
+        "long_ask": "0.5750", "no_ask": "0.4300", "book_state": "reliable",
+    })
+    entries = [{"id": "e1", "polymarket_slug": "aec-mlb-nyy-cws-2026-07-27", "thesis": ""}]
+    ctx = g._price_context(entries)
+    assert "Deterministic Polymarket US prices" in ctx
+    assert "long/YES ask=0.5750" in ctx and "NO-side ask=0.4300" in ctx
+    assert "DO NOT web-search" in ctx
+
+
+def test_price_context_degrades_without_slug_or_fetch(monkeypatch):
+    import vig_review_gate_common as g
+    monkeypatch.setattr(g, "fetch_market_price", lambda slug: None)
+    ctx = g._price_context([{"id": "e2", "polymarket_slug": "aec-mlb-x-y-2026-07-27", "thesis": ""}])
+    assert "current price unavailable" in ctx  # never raises; recheck carries ceiling to poller

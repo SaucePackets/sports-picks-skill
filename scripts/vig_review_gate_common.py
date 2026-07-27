@@ -19,6 +19,15 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
+# Make polymarket_us_guard importable for deterministic in-process price fetches,
+# from both the repo layout and the deployed profile layout.
+for _guard_dir in (
+    SCRIPT_DIR.parent / "skills" / "sports-picks" / "scripts",
+    SCRIPT_DIR.parent / "skills" / "openclaw-imports" / "sports-betting-markets" / "scripts",
+):
+    if _guard_dir.is_dir() and str(_guard_dir) not in sys.path:
+        sys.path.insert(0, str(_guard_dir))
+
 from mlb_lineup_watchlist import (  # noqa: E402
     WatchlistFormatError,
     build_recheck_prompt,
@@ -459,10 +468,77 @@ candidate, and total proposed exposure.
 """
 
 
+_SLUG_RE = re.compile(r"aec-mlb-[a-z0-9]+-[a-z0-9]+-\d{4}-\d{2}-\d{2}")
+
+
+def _entry_slug(entry: dict[str, Any]) -> str | None:
+    """Structured polymarket_slug if stamped, else parse it from thesis prose."""
+    slug = entry.get("polymarket_slug")
+    if isinstance(slug, str) and slug.startswith("aec-mlb-"):
+        return slug
+    match = _SLUG_RE.search(str(entry.get("thesis", "")))
+    return match.group(0) if match else None
+
+
+def fetch_market_price(slug: str) -> dict[str, Any] | None:
+    """Deterministic in-process Polymarket US price snapshot for a slug.
+
+    urllib-based (bypasses the cron sandbox exactly like the lineup fetch), so
+    the recheck no longer depends on the reviewer's broken web tools. Returns
+    both the long/YES ask and the NO-side complement so the reviewer can match
+    the team to a side against the slate-captured ask. None on any failure —
+    the caller then carries the stored ceiling to the execution poller, which
+    enforces the live price deterministically at order time.
+    """
+    try:
+        import importlib
+
+        guard = importlib.import_module("polymarket_us_guard")
+        market, bbo = guard.market_snapshots(slug)
+        is_open, reason = guard.market_is_open(market, bbo)
+        long_side = guard.market_prices_for_side(bbo, "OUTCOME_SIDE_LONG")
+        no_side = guard.market_prices_for_side(bbo, "OUTCOME_SIDE_NO")
+        return {
+            "slug": slug,
+            "open": bool(is_open),
+            "reason": reason,
+            "long_ask": long_side.get("entry_ask"),
+            "no_ask": no_side.get("entry_ask"),
+            "book_state": long_side.get("book_state"),
+        }
+    except Exception:
+        return None
+
+
+def _price_context(watchlist: list[dict[str, Any]]) -> str:
+    lines: list[str] = []
+    for entry in watchlist:
+        slug = _entry_slug(entry)
+        if not slug:
+            lines.append(f"{entry.get('id')}: no Polymarket slug resolvable")
+            continue
+        price = fetch_market_price(slug)
+        if not price:
+            lines.append(f"{entry.get('id')}: current price unavailable ({slug})")
+            continue
+        lines.append(
+            f"{entry.get('id')} [{slug}]: market open={price['open']} ({price['reason']}), "
+            f"book={price['book_state']}, long/YES ask={price['long_ask']}, "
+            f"NO-side ask={price['no_ask']}"
+        )
+    if not lines:
+        return ""
+    return (
+        "\n\nDeterministic Polymarket US prices (fetched in-process — DO NOT web-search "
+        "or curl for price; match your side to the slate-captured ask in the thesis):\n"
+        + "\n".join(lines)
+    )
+
+
 def build_lineup_recheck_prompt(
     schedule_path: Path, watchlist: list[dict[str, Any]]
 ) -> str:
-    """Fetch schedule-mapped MLB feeds and add concise lineup facts to the review."""
+    """Fetch schedule-mapped MLB feeds + deterministic prices for the review."""
     snapshots: dict[str, dict[str, Any]] = {}
     unavailable: list[str] = []
     for entry in watchlist:
@@ -472,6 +548,7 @@ def build_lineup_recheck_prompt(
         except Exception:
             unavailable.append(entry_id)
     prompt = build_recheck_prompt(schedule_path, watchlist, snapshots)
+    prompt += _price_context(watchlist)
     if unavailable:
         prompt += (
             "\nMLB lineup lookup was unavailable for: "
