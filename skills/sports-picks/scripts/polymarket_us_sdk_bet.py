@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 """SDK-first Polymarket US sports moneyline executor.
 
 Dry-run by default. Live orders require:
@@ -11,6 +12,18 @@ This helper exists because Polymarket US sports slugs/outcome mapping can differ
 from public .com URLs. Trust SDK preview metadata, not slug or YES/NO guesses.
 """
 from __future__ import annotations
+
+# Self-heal: the Polymarket US SDK (polymarket-us) lives in the repo .venv,
+# immune to hermes runtime rebuilds that rotate the shared venv. Re-exec there
+# if the current interpreter lacks it. Idempotent (env sentinel stops loops).
+import os as _os, sys as _sys
+_SP_VENV = "/home/clawdbot/projects/sports-picks-skill/.venv/bin/python"
+if not _os.environ.get("_SP_VENV_REEXEC") and _os.path.exists(_SP_VENV):
+    try:
+        import polymarket_us as _sp_probe  # noqa: F401
+    except ModuleNotFoundError:
+        _os.environ["_SP_VENV_REEXEC"] = "1"
+        _os.execv(_SP_VENV, [_SP_VENV, *_sys.argv])
 
 import argparse
 import datetime as dt

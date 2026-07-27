@@ -6,3 +6,5 @@ __pycache__/
 .picks/*
 # Reference docs — framework, not pick data
 # Personal betting records must never be tracked in this public repo (2026-07-23)
+.venv/
+requirements-dev.txt
