@@ -806,7 +806,7 @@ def run_gate(sport: str) -> int:
         "-q",
         prompt,
         "-t",
-        "file,web,skills",
+        "file,web,skills,sports-data",
         "--quiet",
     ]
     try:
