@@ -413,7 +413,9 @@ validate:
   provided batting order lists 9 hitters. The confirmed order IS the
   authoritative late-scratch signal — a scratched hitter is simply absent, so
   do not separately refresh injuries from external sources. Note an injury
-  concern only if a missing name materially breaks the stated thesis.
+  concern only if a missing name materially breaks the stated thesis; if
+  you need the IL list, use the mlb_injuries MCP tool (mcp-sports-data) with the
+  team id — never curl or web-search for injuries.
 - current price: use the provided Polymarket ask for your side (match your team
   to the long/YES or NO-side ask by comparing to the slate-captured ask in the
   thesis). The current ask must be no worse than the entry's bettable_to ceiling.

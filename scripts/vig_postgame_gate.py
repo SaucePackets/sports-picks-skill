@@ -29,10 +29,10 @@ def main():
         )
     prompt=f'''You are Vig running settlement and reflection because the canonical picks ledger has {len(open_picks)} active or pending official wagers: {ids}.{recon_section}
 
-Read /home/clawdbot/notes/Sports/picks/picks.json (canonical ledger) and /home/clawdbot/notes/Sports/picks/record.json. Settle only receipt-backed supported-venue or historically documented official wagers whose events are final. Verify official result and score. Never create or submit any order, and never restore Polymarket CLOB execution.
+Read /home/clawdbot/notes/Sports/picks/picks.json (canonical ledger) and /home/clawdbot/notes/Sports/picks/record.json. Settle only receipt-backed supported-venue or historically documented official wagers whose events are final. Get final scores DETERMINISTICALLY via the mlb_final_scores MCP tool (mcp-sports-data) for the game date — do NOT curl or web-search for scores. Verify official result and score from that tool. Never create or submit any order, and never restore Polymarket CLOB execution.
 
 When settling, copy win_probability/dk_fair_prob/net_edge AND the price trail — slate_ask (the 10:30 polymarket_ask), captured_polymarket_ask or approved_polymarket_ask (the pre-pitch recheck price, store as ask_at_recheck) — from the schedule candidate into the ledger row when present; entry_price is the fill. This is the CLV trail: slate -> recheck -> fill. Update canonical records atomically — recomputing record.json counters from picks.json statuses so they match. When citing the record anywhere (reflection, INDEX, Telegram), recompute it from picks.json only and present it with its Wilson 95% CI on win rate (~32 bets is small; never present streaks or day-level P&L as signal). Loss reflections must answer "what stated probability did we assign, and would we assign it again?" — "variance" is only an acceptable answer when the pre-game probability was defensible. If no event is final and no audit discrepancy exists, return [SILENT].'''
-    cmd=[HERMES,'--profile','vig','--skills','betting-operations,sports-data-apis','chat','-q',prompt,'-t','terminal,file,web,skills','--quiet']
+    cmd=[HERMES,'--profile','vig','--skills','betting-operations,sports-data-apis','chat','-q',prompt,'-t','terminal,file,web,skills,sports-data','--quiet']
     try:
         proc=subprocess.run(cmd,cwd=ROOT,text=True,capture_output=True,timeout=1800)
     except subprocess.TimeoutExpired:
