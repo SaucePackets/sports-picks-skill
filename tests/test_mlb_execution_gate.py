@@ -56,6 +56,18 @@ class MlbExecutionGateTests(unittest.TestCase):
         self.assertIn("proposal receipt", prompt)
         self.assertIn("daily cap", prompt)
 
+    def test_manual_only_candidate_is_never_eligible_for_auto_execution(self):
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        # An otherwise fully-eligible standing_authorized candidate, but manual_only:
+        # the money-gate must refuse it so it can only be placed with Jerry's confirm.
+        self.assertFalse(
+            mlb_execution_gate.candidate_is_eligible(self.candidate(now, manual_only=True), now)
+        )
+        # Sanity: identical candidate without the flag IS eligible.
+        self.assertTrue(
+            mlb_execution_gate.candidate_is_eligible(self.candidate(now), now)
+        )
+
     def test_execution_prompt_is_disabled_without_local_standing_authorization(self):
         now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
         schedule = {
