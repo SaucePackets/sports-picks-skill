@@ -203,7 +203,8 @@ class MlbLineupWatchlistTests(unittest.TestCase):
         self.assertEqual(snapshot["player_count"], 52)
         self.assertEqual(len(snapshot["away_batting_order"]), 9)
         self.assertEqual(len(snapshot["home_batting_order"]), 9)
-        self.assertIn("date=2026-07-22", requested_urls[0])
+        self.assertIn("startDate=2026-07-21", requested_urls[0])
+        self.assertIn("endDate=2026-07-23", requested_urls[0])
         self.assertNotIn("401816229/feed/live", "\n".join(requested_urls))
 
     def test_lineup_snapshot_uses_espn_event_teams_when_game_name_is_missing(self):
@@ -251,6 +252,64 @@ class MlbLineupWatchlistTests(unittest.TestCase):
         self.assertEqual(snapshot["game_pk"], 823110)
         self.assertIn("event=401816229", requested_urls[1])
         self.assertTrue(requested_urls[2].endswith("/823110/feed/live"))
+
+    def test_lineup_snapshot_resolves_west_coast_game_despite_utc_date_rollover(self):
+        # Regression: a 6:40pm PT first pitch is 01:40Z the NEXT UTC day. MLB keys
+        # the game under its ballpark-local officialDate (the prior day). When the
+        # same two teams also play the following day, a single UTC-date query used
+        # to resolve the WRONG (next-day, lineup-not-posted) game and falsely pass.
+        entry = self.entry(
+            game="Boston Red Sox at Athletics",
+            side="Boston Red Sox",
+            first_pitch_utc="2026-07-28T01:40:00Z",
+        )
+        # A +/-1 day window returns BOTH same-matchup games; tonight's has lineups.
+        schedule = {
+            "dates": [
+                {"games": [{
+                    "gamePk": 824977,
+                    "gameDate": "2026-07-28T01:40:00Z",
+                    "teams": {
+                        "away": {"team": {"name": "Boston Red Sox"}},
+                        "home": {"team": {"name": "Athletics"}},
+                    },
+                }]},
+                {"games": [{
+                    "gamePk": 824976,
+                    "gameDate": "2026-07-29T01:40:00Z",
+                    "teams": {
+                        "away": {"team": {"name": "Boston Red Sox"}},
+                        "home": {"team": {"name": "Athletics"}},
+                    },
+                }]},
+            ]
+        }
+        order = [f"ID{i}" for i in range(1, 10)]
+        feed_tonight = {
+            "gameData": {"players": {f"ID{i}": {"fullName": f"P{i}"} for i in range(1, 53)}},
+            "liveData": {"boxscore": {"teams": {
+                "away": {"battingOrder": order},
+                "home": {"battingOrder": order},
+            }}},
+        }
+        requested_urls = []
+
+        def fetch_json(url):
+            requested_urls.append(url)
+            if "/api/v1/schedule?" in url:
+                return schedule
+            if url.endswith("/api/v1.1/game/824977/feed/live"):
+                return feed_tonight
+            self.fail(f"resolved wrong game / unexpected URL: {url}")
+
+        snapshot = mlb_lineup_watchlist.fetch_lineup_snapshot(entry, fetch_json=fetch_json)
+
+        # Must resolve tonight's game (nearest first pitch), NOT tomorrow's.
+        self.assertEqual(snapshot["game_pk"], 824977)
+        self.assertEqual(len(snapshot["away_batting_order"]), 9)
+        self.assertEqual(len(snapshot["home_batting_order"]), 9)
+        self.assertIn("startDate=2026-07-27", requested_urls[0])
+        self.assertIn("endDate=2026-07-29", requested_urls[0])
 
     def test_resolve_game_pk_picks_doubleheader_game_nearest_first_pitch(self):
         schedule = {

@@ -13,7 +13,7 @@ import json
 import re
 import sys
 import urllib.parse
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable
 
@@ -161,7 +161,17 @@ def fetch_lineup_snapshot(
     home_team: str | None = None
     game_pk = _stamped_game_pk(entry)
     if game_pk is None:
-        query = urllib.parse.urlencode({"sportId": 1, "date": first_pitch.date().isoformat()})
+        # MLB keys games by ballpark-LOCAL officialDate. A late West-Coast first
+        # pitch lands on the NEXT UTC calendar day, so a single UTC-date query can
+        # miss the game entirely — and, when the same two teams also play the next
+        # day, silently resolve to the WRONG game (whose lineup is not yet posted),
+        # producing a false "0 of 9 confirmed" pass. Query a +/-1 day window and let
+        # resolve_game_pk pick the game nearest the entry's first pitch.
+        window_start = (first_pitch - timedelta(days=1)).date().isoformat()
+        window_end = (first_pitch + timedelta(days=1)).date().isoformat()
+        query = urllib.parse.urlencode(
+            {"sportId": 1, "startDate": window_start, "endDate": window_end}
+        )
         schedule = fetch_json(f"https://statsapi.mlb.com/api/v1/schedule?{query}")
         try:
             away_team, home_team = _entry_teams(entry)
