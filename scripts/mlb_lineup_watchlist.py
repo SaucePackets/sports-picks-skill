@@ -231,21 +231,13 @@ def entry_is_manual_only(entry: dict[str, Any]) -> bool:
     """True when a pick must NEVER auto-execute — it routes to Jerry for manual
     confirmation regardless of the global standing-authorization toggle.
 
-    The authoritative signal is an explicit ``manual_only: true`` flag (the slate
-    should set it). Following this module's flag-file philosophy, prose is not the
-    control — BUT a ``manual-only`` note in the thesis is honored as a conservative
-    fail-safe, because here prose matching can only ever force the SAFER manual
-    route (never enable automation), so over-matching is harmless and under-matching
-    is what the explicit flag guards against.
+    The control is an explicit ``manual_only: true`` flag, never prose. Following
+    mlb_runtime_policy's flag-file philosophy, thesis wording is deliberately NOT
+    consulted: "manual-only" appears as boilerplate in slate theses, so matching it
+    would over-match — retroactively invalidating already-executed standing-authorized
+    bets and failing as a real signal. A slate that means manual-only sets the flag.
     """
-    if entry.get("manual_only") is True:
-        return True
-    thesis = entry.get("thesis")
-    if isinstance(thesis, str):
-        lowered = thesis.lower()
-        if "manual-only" in lowered or "manual only" in lowered:
-            return True
-    return False
+    return entry.get("manual_only") is True
 
 
 def validate_entry(entry: dict[str, Any]) -> list[str]:

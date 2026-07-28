@@ -144,14 +144,13 @@ class MlbLineupWatchlistTests(unittest.TestCase):
         self.assertIn("promoted_candidate.sport must be MLB", errors)
         self.assertIn("promoted_candidate.market_type must be moneyline", errors)
 
-    def test_entry_is_manual_only_by_flag_and_prose(self):
+    def test_entry_is_manual_only_requires_explicit_flag_not_prose(self):
         self.assertTrue(mlb_lineup_watchlist.entry_is_manual_only({"manual_only": True}))
-        self.assertTrue(mlb_lineup_watchlist.entry_is_manual_only(
-            {"thesis": "Promote only if lineups confirm; manual-only after Vig review."}))
-        self.assertTrue(mlb_lineup_watchlist.entry_is_manual_only(
-            {"thesis": "keep this one manual only"}))
+        # Prose is deliberately NOT the control — "manual-only" is slate boilerplate
+        # and would over-match executed standing-authorized bets.
         self.assertFalse(mlb_lineup_watchlist.entry_is_manual_only(
-            {"thesis": "standard standing-authorized pick"}))
+            {"thesis": "Promote only if lineups confirm; manual-only after Vig review."}))
+        self.assertFalse(mlb_lineup_watchlist.entry_is_manual_only({"manual_only": "yes"}))
         self.assertFalse(mlb_lineup_watchlist.entry_is_manual_only({}))
 
     def test_manual_only_entry_cannot_auto_execute_even_when_standing_auth_on(self):
