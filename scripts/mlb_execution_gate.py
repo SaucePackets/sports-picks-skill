@@ -77,6 +77,11 @@ def candidate_is_eligible(candidate: dict[str, Any], now: datetime) -> bool:
         return False
     if not _positive_number(max_price) or not isinstance(max_price, (int, float)):
         return False
+    # Money-gate: a manual-only pick must NEVER auto-execute, even if it somehow
+    # carries execution_mode=standing_authorized. It awaits Jerry's confirmation.
+    # This is the last deterministic line of defense before a real order.
+    if candidate.get("manual_only") is True:
+        return False
     return (
         candidate.get("vig_approved") is True
         and candidate.get("execution_mode") == "standing_authorized"

@@ -144,6 +144,67 @@ class MlbLineupWatchlistTests(unittest.TestCase):
         self.assertIn("promoted_candidate.sport must be MLB", errors)
         self.assertIn("promoted_candidate.market_type must be moneyline", errors)
 
+    def test_entry_is_manual_only_by_flag_and_prose(self):
+        self.assertTrue(mlb_lineup_watchlist.entry_is_manual_only({"manual_only": True}))
+        self.assertTrue(mlb_lineup_watchlist.entry_is_manual_only(
+            {"thesis": "Promote only if lineups confirm; manual-only after Vig review."}))
+        self.assertTrue(mlb_lineup_watchlist.entry_is_manual_only(
+            {"thesis": "keep this one manual only"}))
+        self.assertFalse(mlb_lineup_watchlist.entry_is_manual_only(
+            {"thesis": "standard standing-authorized pick"}))
+        self.assertFalse(mlb_lineup_watchlist.entry_is_manual_only({}))
+
+    def test_manual_only_entry_cannot_auto_execute_even_when_standing_auth_on(self):
+        from unittest import mock
+        promoted = self.entry(
+            status="promoted",
+            manual_only=True,
+            rechecked_at_utc="2026-07-17T21:45:00Z",
+            recheck={"lineups_confirmed": True, "key_injuries_refreshed": True,
+                     "price_refreshed": True, "all_original_gates_hold": True},
+            promoted_candidate={
+                "watchlist_id": "lineup-abc-def", "sport": "MLB", "market_type": "moneyline",
+                "execution_mode": "standing_authorized", "execution_status": "pending",
+                "max_polymarket_price": 0.51, "executed": False,
+            },
+        )
+        with mock.patch.object(mlb_lineup_watchlist, "standing_authorization_enabled",
+                               return_value=True):
+            errors = mlb_lineup_watchlist.validate_entry(promoted)
+        # Global standing auth is ON, but a manual-only pick must still route manual.
+        self.assertIn("promoted_candidate.execution_mode must be manual", errors)
+        self.assertIn("manual-only entry's promoted_candidate must set manual_only=true", errors)
+
+    def test_manual_only_entry_accepts_manual_route_under_standing_auth(self):
+        from unittest import mock
+        promoted = self.entry(
+            status="promoted",
+            manual_only=True,
+            rechecked_at_utc="2026-07-17T21:45:00Z",
+            recheck={"lineups_confirmed": True, "key_injuries_refreshed": True,
+                     "price_refreshed": True, "all_original_gates_hold": True},
+            promoted_candidate={
+                "watchlist_id": "lineup-abc-def", "execution_mode": "manual",
+                "manual_bet_status": "awaiting_jerry", "manual_only": True, "executed": False,
+            },
+        )
+        with mock.patch.object(mlb_lineup_watchlist, "standing_authorization_enabled",
+                               return_value=True):
+            errors = mlb_lineup_watchlist.validate_entry(promoted)
+        self.assertEqual(errors, [])
+
+    def test_lineup_context_distinguishes_pre_lineup_from_resolution_failure(self):
+        entries = [self.entry(id="loaded"), self.entry(id="sparse")]
+        snapshots = {
+            "loaded": {"game_pk": 1, "player_count": 52, "away_team": "X", "home_team": "Y",
+                       "away_batting_order": [], "home_batting_order": []},
+            "sparse": {"game_pk": 2, "player_count": 2, "away_team": "P", "home_team": "Q",
+                       "away_batting_order": [], "home_batting_order": []},
+        }
+        ctx = mlb_lineup_watchlist._lineup_context(entries, snapshots)
+        self.assertIn("genuine pre-lineup", ctx)          # loaded feed, no orders yet
+        self.assertIn("game-resolution or feed FAILURE", ctx)  # sparse feed = error, not a pass
+
     def test_recheck_prompt_routes_promotion_to_recurring_execution_poller(self):
         prompt = mlb_lineup_watchlist.build_recheck_prompt(Path("/tmp/schedule.json"), [self.entry()])
 

@@ -227,6 +227,27 @@ def _is_number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
+def entry_is_manual_only(entry: dict[str, Any]) -> bool:
+    """True when a pick must NEVER auto-execute — it routes to Jerry for manual
+    confirmation regardless of the global standing-authorization toggle.
+
+    The authoritative signal is an explicit ``manual_only: true`` flag (the slate
+    should set it). Following this module's flag-file philosophy, prose is not the
+    control — BUT a ``manual-only`` note in the thesis is honored as a conservative
+    fail-safe, because here prose matching can only ever force the SAFER manual
+    route (never enable automation), so over-matching is harmless and under-matching
+    is what the explicit flag guards against.
+    """
+    if entry.get("manual_only") is True:
+        return True
+    thesis = entry.get("thesis")
+    if isinstance(thesis, str):
+        lowered = thesis.lower()
+        if "manual-only" in lowered or "manual only" in lowered:
+            return True
+    return False
+
+
 def validate_entry(entry: dict[str, Any]) -> list[str]:
     errors: list[str] = []
     entry_id = entry.get("id")
@@ -284,7 +305,14 @@ def validate_entry(entry: dict[str, Any]) -> list[str]:
         else:
             if candidate.get("watchlist_id") != entry_id:
                 errors.append("promoted_candidate.watchlist_id must match entry id")
-            authorized = standing_authorization_enabled()
+            manual_only = entry_is_manual_only(entry)
+            # A manual-only pick is never auto-authorized, even when the global
+            # standing-authorization flag is on — it must route to manual/awaiting_jerry.
+            authorized = standing_authorization_enabled() and not manual_only
+            if manual_only and candidate.get("manual_only") is not True:
+                errors.append(
+                    "manual-only entry's promoted_candidate must set manual_only=true"
+                )
             if authorized:
                 if candidate.get("sport") != "MLB":
                     errors.append("promoted_candidate.sport must be MLB")
@@ -379,12 +407,33 @@ def _lineup_context(
             continue
         away = snapshot.get("away_batting_order", [])
         home = snapshot.get("home_batting_order", [])
+        player_count = snapshot.get("player_count", 0)
+        away_n, home_n = len(away), len(home)
+        # Distinguish a genuine pre-lineup state from a data/resolution failure so a
+        # future resolver bug shows up loudly instead of masquerading as a clean pass.
+        # A loaded feed carries the full roster (~40-60 players) well before lineups
+        # post; a near-empty feed means the game/feed did not resolve.
+        if away_n >= 9 and home_n >= 9:
+            state = "STATE: both batting orders CONFIRMED (9 and 9)."
+        elif player_count >= 20:
+            state = (
+                f"STATE: feed loaded ({player_count} roster players) but batting orders NOT "
+                f"yet posted ({away_n}/9, {home_n}/9) — this is a genuine pre-lineup state; a "
+                f"pass here is legitimate, NOT a data error."
+            )
+        else:
+            state = (
+                f"STATE: feed SPARSE ({player_count} players, orders {away_n}/9 and {home_n}/9) "
+                f"— likely a game-resolution or feed FAILURE, not a real 'no lineup'. Do NOT "
+                f"treat this as a clean pass; fail the gate as a data error."
+            )
         sections.append(
             "\n".join(
                 [
-                    f"MLB gamePk {snapshot.get('game_pk')} — {snapshot.get('player_count', 0)} roster players",
-                    f"{snapshot.get('away_team')} batting order ({len(away)}): {', '.join(away)}",
-                    f"{snapshot.get('home_team')} batting order ({len(home)}): {', '.join(home)}",
+                    f"MLB gamePk {snapshot.get('game_pk')} — {player_count} roster players",
+                    state,
+                    f"{snapshot.get('away_team')} batting order ({away_n}): {', '.join(away)}",
+                    f"{snapshot.get('home_team')} batting order ({home_n}): {', '.join(home)}",
                 ]
             )
         )
@@ -410,6 +459,16 @@ The recurring MLB execution poller will refresh all gates and handle execution."
         routing = """A promotion must remain manual-only with execution_mode=manual,
 manual_bet_status=awaiting_jerry, executed=false, vig_review_needed=false, and
 vig_approved=true. It must never place or schedule a bet."""
+    manual_only_ids = [str(e.get("id")) for e in entries if entry_is_manual_only(e)]
+    if manual_only_ids:
+        routing += (
+            "\n\nMANUAL-ONLY OVERRIDE — entries " + ", ".join(manual_only_ids) + " are "
+            "manual-only and MUST NOT auto-execute even if standing authorization is enabled. "
+            "For each of these, the promoted_candidate MUST use execution_mode=manual, "
+            "manual_bet_status=awaiting_jerry, manual_only=true, vig_approved=true, "
+            "executed=false, and no execution cron fields. They await Jerry's explicit "
+            "confirmation and are never sent to the execution poller."
+        )
     lineup_context = _lineup_context(entries, snapshots)
     return f"""You are Vig performing the MLB lineup watchlist recheck.
 Read and update {schedule_path}. Recheck only these watchlist IDs: {entry_ids}.
