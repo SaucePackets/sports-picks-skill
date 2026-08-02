@@ -160,6 +160,10 @@ Analysis can find a lean. Hard gates decide the official pick. Failed gate conve
 
 Run this lock gate immediately before outputting any official card.
 
+The gate names above are the MLB set. For NFL cards, run the NFL Runtime Lock
+Gate in `references/nfl.md` instead — identical semantics: any failed hard gate
+means PASS, never Medium.
+
 ---
 
 ## Core Betting Principle
