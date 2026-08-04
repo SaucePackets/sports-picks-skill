@@ -32,6 +32,33 @@ def marginal_cohort_stats(picks):
         lines.append(f'  {key}: {w}-{n-w} ({100*w//n}% win), per-unit ROI {roi:+.1%} over {n} settled')
     return '\n'.join(lines)
 
+def small_stake_cohort_stats(picks):
+    """Probation tracker (2026-08-04) for the two gate changes that ADD bets:
+    - small-stake tier: below-Medium +EV picks (confidence 'small') bet at $9 instead of
+      being hard-passed by the Medium win-probability sizing floor.
+    - two-sided pricing: dog-side picks (entry_price < 0.50) surfaced by pricing BOTH
+      teams every game instead of anchoring the handicap on the favorite.
+    Each cohort's settled record + per-unit ROI is reported so the loosening proves or
+    kills itself; the settlement prompt recommends reverting a cohort that runs negative."""
+    def bucket(pred):
+        rows=[]
+        for p in picks:
+            if p.get('status')!='settled' or p.get('result') not in ('win','loss'): continue
+            ask=_num(p.get('entry_price')) or _num(p.get('polymarket_ask')) or _num(p.get('ask_at_recheck'))
+            if ask is None or not (0<ask<1): continue
+            if not pred(p,ask): continue
+            pnl=(1-ask)/ask if p['result']=='win' else -1.0
+            rows.append((p['result'],pnl))
+        return rows
+    def fmt(rows):
+        if not rows: return 'no settled picks yet'
+        w=sum(1 for r,_ in rows if r=='win'); n=len(rows); roi=sum(x for _,x in rows)/n
+        return f'{w}-{n-w} ({100*w//n}% win), per-unit ROI {roi:+.1%} over {n} settled'
+    small=bucket(lambda p,ask: str(p.get('confidence') or '').strip().lower()=='small')
+    dog=bucket(lambda p,ask: ask<0.5)
+    return '\n'.join([f'  small-stake tier (confidence=small): {fmt(small)}',
+                      f'  dog-side picks (entry_price < 0.50): {fmt(dog)}'])
+
 def main():
     # Trigger off the picks ledger itself, not the denormalized record.json
     # counters (which have gone stale and silently disabled settlement).
@@ -47,6 +74,7 @@ def main():
     if not open_picks and not recon_gap: return 0
     ids=', '.join(str(p.get('pick_id') or '?') for p in open_picks) or 'none'
     cohort_section = marginal_cohort_stats(picks)
+    small_cohort_section = small_stake_cohort_stats(picks)
     recon_section = ''
     if recon_gap:
         recon_section = (
@@ -65,6 +93,10 @@ SURFACE THE REFLECTION IN TELEGRAM: your final response must give each settled p
 MARGINAL-EDGE COHORT (fee-fix probation, started 2026-08-03): the phantom 2.4% Polymarket fee was removed, unlocking picks whose true edge (win_probability - fill) sits in the 2.0-4.4% band — previously hard-passed. Track them as a cohort so the loosening proves or kills itself. Current standing computed from picks.json:
 {cohort_section}
 In your reflection, report the marginal cohort's running record + per-unit ROI on its own line (label it "Marginal-edge cohort (fee-fix probation)"). If that cohort reaches >=15 settled bets with negative per-unit ROI, explicitly recommend tightening the net-edge floor back toward 0.025-0.030 and flag it as "Promoted to data rule: raise net-edge floor". If it's positive over >=15 bets, say the loosening is validated.
+
+SMALL-STAKE / TWO-SIDED COHORTS (probation, started 2026-08-04): two gate changes now add bets — a small-stake tier ($9) for +EV picks below the Medium win-probability sizing floor, and two-sided pricing that lets the dog side qualify on the 2% net-edge floor instead of anchoring on the favorite. Track each so it proves or kills itself. Current standing computed from picks.json:
+{small_cohort_section}
+In your reflection, report BOTH lines (label them "Small-stake tier (probation)" and "Dog-side picks (two-sided probation)"). For EITHER cohort, once it reaches >=15 settled bets with negative per-unit ROI, explicitly recommend disabling that change — for the small-stake tier flag "Promoted to data rule: retire small-stake tier"; for dog-side flag "Promoted to data rule: re-anchor to favorite-only pricing". If a cohort is positive over >=15 bets, say that change is validated. Below 15 settled, report the standing and say "sample still building".
 
 If no event is final and no audit discrepancy exists, return [SILENT].'''
     cmd=[HERMES,'--profile','vig','--skills','betting-operations,sports-data-apis','chat','-q',prompt,'-t','terminal,file,web,skills,sports-data','--quiet']

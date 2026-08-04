@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from scripts.execution_guard import (
+    _risk_limit_violation,
     acquire_execution_lock,
     active_pick_exists,
     append_pick_with_dedup,
@@ -257,6 +258,82 @@ class ExecutionGuardTests(unittest.TestCase):
         self.assertEqual(result["action"], "appended")
         data = json.loads(picks_path.read_text())
         self.assertEqual(len(data["picks"]), 2)
+
+
+class SmallStakeTierRiskLimitTests(unittest.TestCase):
+    """Deterministic money rails for the small-stake tier (below-Medium +EV picks)."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.limits_path = self.root / "risk_limits.json"
+        self.limits_path.write_text(json.dumps({
+            "daily_cap_usd": 90,
+            "max_unit_usd": {"high": 25, "medium": 15, "elite": 25, "small": 9},
+            "max_unit_usd_absolute": 30,
+            "max_small_bets_per_day": 3,
+            "max_polymarket_price": 0.75,
+        }))
+        self.picks_path = self.root / "picks.json"
+        self.picks_path.write_text(json.dumps({"picks": []}))
+        self.now = datetime(2026, 8, 4, 20, 0, tzinfo=timezone.utc)
+        self.patcher = patch("scripts.execution_guard.RISK_LIMITS_PATH", self.limits_path)
+        self.patcher.start()
+
+    def tearDown(self):
+        self.patcher.stop()
+        self.tmp.cleanup()
+
+    def cand(self, **kw):
+        base = {"unit_size": 9, "confidence": "small", "max_polymarket_price": 0.55}
+        base.update(kw)
+        return base
+
+    def set_picks(self, picks):
+        self.picks_path.write_text(json.dumps({"picks": picks}))
+
+    def test_small_tier_within_cap_ok(self):
+        self.assertIsNone(_risk_limit_violation(self.cand(unit_size=9), self.picks_path, self.now))
+
+    def test_small_tier_over_cap_blocked(self):
+        v = _risk_limit_violation(self.cand(unit_size=15), self.picks_path, self.now)
+        self.assertIsNotNone(v)
+        self.assertIn("small cap", v)
+
+    def test_medium_tier_unaffected_by_small_cap(self):
+        # A real $18 Medium bet must still pass — only the absolute $30 cap applies
+        # to non-small tiers, so adding max_unit_usd.medium=15 must NOT block it.
+        self.assertIsNone(
+            _risk_limit_violation(self.cand(confidence="medium", unit_size=18), self.picks_path, self.now)
+        )
+
+    def test_small_tier_daily_count_cap(self):
+        today = "2026-08-04T18:00:00Z"
+        self.set_picks([
+            {"execution_timestamp": today, "confidence": "small", "unit_size": 9, "entry_notional": 9},
+            {"execution_timestamp": today, "confidence": "small", "unit_size": 9, "entry_notional": 9},
+            {"execution_timestamp": today, "confidence": "small", "unit_size": 9, "entry_notional": 9},
+        ])
+        v = _risk_limit_violation(self.cand(), self.picks_path, self.now)
+        self.assertIsNotNone(v)
+        self.assertIn("small-tier daily count breach", v)
+
+    def test_small_count_cap_ignores_other_tiers_and_prior_days(self):
+        self.set_picks([
+            {"execution_timestamp": "2026-08-04T18:00:00Z", "confidence": "medium", "unit_size": 18, "entry_notional": 18},
+            {"execution_timestamp": "2026-08-03T18:00:00Z", "confidence": "small", "unit_size": 9, "entry_notional": 9},
+            {"execution_timestamp": "2026-08-04T18:00:00Z", "confidence": "small", "unit_size": 9, "entry_notional": 9},
+        ])
+        # only ONE small bet counts toward today -> a second small is still allowed
+        self.assertIsNone(_risk_limit_violation(self.cand(), self.picks_path, self.now))
+
+    def test_daily_dollar_cap_still_applies_to_small(self):
+        self.set_picks([
+            {"execution_timestamp": "2026-08-04T18:00:00Z", "confidence": "medium", "unit_size": 18, "entry_notional": 85},
+        ])
+        v = _risk_limit_violation(self.cand(unit_size=9), self.picks_path, self.now)
+        self.assertIsNotNone(v)
+        self.assertIn("daily cap breach", v)
 
 
 if __name__ == "__main__":
