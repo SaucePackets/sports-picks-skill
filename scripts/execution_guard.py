@@ -20,6 +20,9 @@ from typing import Any
 
 LOCK_STALE_SECONDS = 15 * 60
 
+# Confidence label for the small-stake tier (a below-Medium +EV pick bet small).
+SMALL_TIER = "small"
+
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
@@ -199,12 +202,25 @@ def _risk_limit_violation(
     max_unit = float(limits.get("max_unit_usd_absolute") or 0)
     if max_unit and unit_size > max_unit:
         return f"unit_size {unit_size} exceeds max_unit_usd_absolute {max_unit}"
+    # Small-stake tier: a below-Medium-confidence pick that still clears the 2%
+    # net-edge floor is bet SMALL, not passed. It is capped tighter than the
+    # absolute cap so lower-conviction volume cannot size up. Keyed on the
+    # explicit confidence label, never prose. Other tiers keep only the absolute
+    # cap (adding per-tier caps here would retroactively block existing $18
+    # Medium bets against the seed max_unit_usd.medium=15).
+    tier = str(candidate.get("confidence") or "").strip().lower()
+    is_small = tier == SMALL_TIER
+    if is_small:
+        small_cap = float((limits.get("max_unit_usd") or {}).get(SMALL_TIER) or 0)
+        if small_cap and unit_size > small_cap:
+            return f"small-tier unit_size {unit_size} exceeds small cap {small_cap}"
     price_ceiling = limits.get("max_polymarket_price")
     max_price = candidate.get("max_polymarket_price")
     if price_ceiling is not None and isinstance(max_price, (int, float)) and max_price > float(price_ceiling):
         return f"max_polymarket_price {max_price} exceeds ceiling {price_ceiling}"
     daily_cap = float(limits.get("daily_cap_usd") or 0)
-    if daily_cap:
+    max_small_per_day = int(limits.get("max_small_bets_per_day") or 0)
+    if daily_cap or (is_small and max_small_per_day):
         ledger = Path(picks_path) if picks_path else CANONICAL_PICKS_PATH
         try:
             picks = json.loads(ledger.read_text()).get("picks", [])
@@ -212,16 +228,24 @@ def _risk_limit_violation(
             return f"canonical picks ledger unreadable for cap check ({exc})"
         today = now.astimezone(timezone.utc).date().isoformat()
         spent = 0.0
+        small_today = 0
         for pick in picks:
             if not isinstance(pick, dict):
                 continue
             stamp = str(pick.get("execution_timestamp") or pick.get("created_at") or "")
             if stamp[:10] == today and pick.get("status") != "void":
                 spent += float(pick.get("entry_notional") or pick.get("unit_size") or 0)
-        if spent + unit_size > daily_cap:
+                if str(pick.get("confidence") or "").strip().lower() == SMALL_TIER:
+                    small_today += 1
+        if daily_cap and spent + unit_size > daily_cap:
             return (
                 f"daily cap breach: spent {spent:.2f} + unit {unit_size:.2f} "
                 f"> cap {daily_cap:.2f}"
+            )
+        if is_small and max_small_per_day and small_today + 1 > max_small_per_day:
+            return (
+                f"small-tier daily count breach: {small_today} small bets today "
+                f"+ 1 > cap {max_small_per_day}"
             )
     return None
 
