@@ -43,6 +43,27 @@ REQUIRED_ORIGINAL_GATES = {
     "real_winner_conviction",
 }
 
+# A watchlist entry defers to a pre-pitch recheck. The morning slate scans at
+# 10:30am CT, before that day's later probable-pitcher announcements and before
+# batting orders post — so a real price edge can be blocked purely by inputs that
+# are not yet PUBLISHED (not inputs that are known-bad). Only those two
+# not-yet-published blockers are deferrable; any other blocker (a known-bad
+# starter, an efficient price, a thesis-breaking injury, a park cap) is a normal
+# pass, never a watchlist entry.
+LINEUP_BLOCKER = "lineups_unconfirmed"
+STARTER_BLOCKER = "starter_unannounced"
+ALLOWED_BLOCKERS = (LINEUP_BLOCKER, STARTER_BLOCKER)
+
+# When the opposing starter is not yet announced at slate time, the two gates that
+# require handicapping that starter cannot be evaluated. They are left null in the
+# entry and RE-DERIVED at recheck with the real announced starter; the morning
+# win_probability / net_edge / price ceiling are provisional and are recomputed
+# then. Every other gate must already hold at slate time.
+STARTER_DEFERRED_GATES = {
+    "opposing_starter_shutdown_path",
+    "real_winner_conviction",
+}
+
 
 class WatchlistFormatError(ValueError):
     """Raised when persisted lineup-watch state is malformed."""
@@ -136,6 +157,18 @@ def _batting_order(feed: dict[str, Any], side: str) -> list[str]:
     return names
 
 
+def _probable_name(entry: Any) -> str:
+    """Announced probable pitcher name from an MLB feed probablePitchers side.
+
+    Returns "" when the starter has not been posted yet — the deterministic
+    signal the recheck uses to tell "not announced" from a real announced arm.
+    """
+    if not isinstance(entry, dict):
+        return ""
+    name = entry.get("fullName") or entry.get("person", {}).get("fullName")
+    return str(name).strip() if name else ""
+
+
 def _stamped_game_pk(entry: dict[str, Any]) -> int | None:
     game_pk = entry.get("game_pk")
     if isinstance(game_pk, int) and not isinstance(game_pk, bool) and game_pk > 0:
@@ -198,6 +231,9 @@ def fetch_lineup_snapshot(
                 away_team = away_team or "unknown away team"
                 home_team = home_team or "unknown home team"
     players = feed.get("gameData", {}).get("players", {})
+    probables = feed.get("gameData", {}).get("probablePitchers", {})
+    if not isinstance(probables, dict):
+        probables = {}
     return {
         "game_pk": game_pk,
         "away_team": away_team,
@@ -205,6 +241,8 @@ def fetch_lineup_snapshot(
         "player_count": len(players) if isinstance(players, dict) else 0,
         "away_batting_order": _batting_order(feed, "away"),
         "home_batting_order": _batting_order(feed, "home"),
+        "away_probable_pitcher": _probable_name(probables.get("away")),
+        "home_probable_pitcher": _probable_name(probables.get("home")),
     }
 
 
@@ -245,8 +283,22 @@ def validate_entry(entry: dict[str, Any]) -> list[str]:
     entry_id = entry.get("id")
     if not isinstance(entry_id, str) or not entry_id.strip():
         errors.append("id must be a non-empty string")
-    if entry.get("blocked_only_by") != ["lineups_unconfirmed"]:
-        errors.append("blocked_only_by must contain only lineups_unconfirmed")
+    blockers = entry.get("blocked_only_by")
+    blocker_set: set[str] = set()
+    if (
+        not isinstance(blockers, list)
+        or not blockers
+        or any(b not in ALLOWED_BLOCKERS for b in blockers)
+        or len(set(blockers)) != len(blockers)
+    ):
+        errors.append(
+            "blocked_only_by must be a non-empty list drawn only from "
+            f"{list(ALLOWED_BLOCKERS)} with no duplicates"
+        )
+    else:
+        blocker_set = set(blockers)
+    starter_pending = STARTER_BLOCKER in blocker_set
+    lineup_pending = LINEUP_BLOCKER in blocker_set
     if parse_instant(entry.get("first_pitch_utc")) is None:
         errors.append("first_pitch_utc must be a valid timestamp")
     if parse_instant(entry.get("recheck_due_utc")) is None:
@@ -265,10 +317,22 @@ def validate_entry(entry: dict[str, Any]) -> list[str]:
     if not isinstance(gates, dict):
         errors.append("original_gate_results must be an object")
     else:
-        for gate in sorted(REQUIRED_ORIGINAL_GATES):
+        # When the opposing starter is not yet announced, the two gates that require
+        # handicapping it are deferred (left null) and re-derived at recheck; every
+        # other gate must already hold. Otherwise all six must be true, as before.
+        deferred = STARTER_DEFERRED_GATES if starter_pending else set()
+        for gate in sorted(REQUIRED_ORIGINAL_GATES - deferred):
             if gates.get(gate) is not True:
                 errors.append(f"original_gate_results.{gate} must be true")
-        if gates.get("lineups_confirmed") is not False:
+        for gate in sorted(deferred):
+            if gates.get(gate) is True:
+                errors.append(
+                    f"original_gate_results.{gate} must be null while "
+                    "starter_unannounced (it is re-derived at recheck)"
+                )
+        # A lineup-blocked entry has not seen confirmed orders yet; a starter-only
+        # entry may already have confirmed lineups, so only constrain when relevant.
+        if lineup_pending and gates.get("lineups_confirmed") is not False:
             errors.append("original_gate_results.lineups_confirmed must be false")
 
     if status in TERMINAL_STATUSES and parse_instant(entry.get("rechecked_at_utc")) is None:
@@ -285,6 +349,11 @@ def validate_entry(entry: dict[str, Any]) -> list[str]:
             "price_refreshed",
             "all_original_gates_hold",
         )
+        # A starter-pending entry may only promote after the real announced starter
+        # was handicapped and the net edge recomputed against the live ask — the
+        # morning number was provisional. These flags are the audit that it happened.
+        if starter_pending:
+            required_refreshes += ("starter_confirmed", "net_edge_recomputed")
         if not isinstance(recheck, dict):
             errors.append("promoted entry requires a recheck object")
         else:
@@ -419,11 +488,22 @@ def _lineup_context(
                 f"— likely a game-resolution or feed FAILURE, not a real 'no lineup'. Do NOT "
                 f"treat this as a clean pass; fail the gate as a data error."
             )
+        away_sp = snapshot.get("away_probable_pitcher") or ""
+        home_sp = snapshot.get("home_probable_pitcher") or ""
+        starter_line = (
+            "PROBABLE STARTERS: "
+            f"{snapshot.get('away_team')} — {away_sp or 'NOT YET ANNOUNCED'}; "
+            f"{snapshot.get('home_team')} — {home_sp or 'NOT YET ANNOUNCED'}. "
+            "For a starter_unannounced entry, an arm shown here is the authoritative "
+            "announcement — re-handicap against it; 'NOT YET ANNOUNCED' means the "
+            "starter blocker is unresolved, so do NOT promote yet."
+        )
         sections.append(
             "\n".join(
                 [
                     f"MLB gamePk {snapshot.get('game_pk')} — {player_count} roster players",
                     state,
+                    starter_line,
                     f"{snapshot.get('away_team')} batting order ({away_n}): {', '.join(away)}",
                     f"{snapshot.get('home_team')} batting order ({home_n}): {', '.join(home)}",
                 ]
@@ -451,6 +531,36 @@ The recurring MLB execution poller will refresh all gates and handle execution."
         routing = """A promotion must remain manual-only with execution_mode=manual,
 manual_bet_status=awaiting_jerry, executed=false, vig_review_needed=false, and
 vig_approved=true. It must never place or schedule a bet."""
+    starter_ids = [
+        str(e.get("id"))
+        for e in entries
+        if STARTER_BLOCKER in (e.get("blocked_only_by") or [])
+    ]
+    starter_block = ""
+    if starter_ids:
+        starter_block = (
+            "\n\nSTARTER-PENDING RE-HANDICAP — entries " + ", ".join(starter_ids) + " were "
+            "carded off a PROVISIONAL win_probability because the opposing starter had "
+            "not been announced at slate time. For each of these you MUST, before any "
+            "promotion:\n"
+            "- Read the announced PROBABLE STARTERS provided above. If your side's or the "
+            "opponent's starter still shows NOT YET ANNOUNCED, keep status "
+            "pending_lineup_recheck (do not pass, do not promote) — it is simply not "
+            "resolvable yet this cycle.\n"
+            "- Re-handicap the game against the real announced opposing starter and "
+            "recompute win_probability from the full read. Use mlb_pitcher_season "
+            "(mcp-sports-data) for that starter's line if you need it — never curl/web.\n"
+            "- Recompute net_edge = win_probability - current_ask (no fee). Promote ONLY "
+            "if net_edge >= 0.02 with the real starter AND the two deferred gates "
+            "(opposing_starter_shutdown_path, real_winner_conviction) now genuinely pass. "
+            "If the announced starter erases the edge or fails a gate, set status=passed "
+            "with the reason — this is the safety hinge; the morning number is discarded.\n"
+            "- Set the promoted_candidate max_polymarket_price to your recomputed "
+            "win_probability minus 0.02 (the true break-even-plus-floor ceiling), NOT the "
+            "provisional slate ceiling, so the execution poller cannot chase past the edge.\n"
+            "- In the recheck object, set starter_confirmed=true and "
+            "net_edge_recomputed=true to record that the re-handicap happened."
+        )
     manual_only_ids = [str(e.get("id")) for e in entries if entry_is_manual_only(e)]
     if manual_only_ids:
         routing += (
@@ -486,7 +596,7 @@ confirmed, no starting pitcher changed, the provided current ask is within the
 ceiling, and every original gate still holds. If the provided price is
 unavailable but lineups are confirmed and gates hold, still promote and carry
 the stored ceiling as max_polymarket_price — the recurring execution poller
-enforces the live price deterministically at order time. {routing}
+enforces the live price deterministically at order time. {routing}{starter_block}
 
 Set status=passed with a concise recheck_notes reason ONLY for a real signal
 failure: lineups genuinely unconfirmed at recheck time, a scratch/injury that

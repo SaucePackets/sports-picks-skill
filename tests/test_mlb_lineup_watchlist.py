@@ -1,6 +1,7 @@
 import importlib.util
 import sys
 import unittest
+from unittest import mock
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -473,6 +474,160 @@ class MlbLineupWatchlistTests(unittest.TestCase):
         self.assertIn("Cincinnati Reds batting order (9)", prompt)
         self.assertIn("Seattle Mariners batting order (9)", prompt)
         self.assertNotIn("{\"game_pk\"", prompt)
+
+
+    # --- starter-pending recheck (deferred opposing-starter gates) ---
+
+    def starter_pending_entry(self, **overrides):
+        """A near-miss whose ONLY open blockers are unconfirmed lineups AND an
+        opposing starter not yet announced at slate time."""
+        entry = self.entry(
+            blocked_only_by=["lineups_unconfirmed", "starter_unannounced"],
+        )
+        # The two starter-dependent gates are deferred (null), re-derived at recheck.
+        entry["original_gate_results"]["opposing_starter_shutdown_path"] = None
+        entry["original_gate_results"]["real_winner_conviction"] = None
+        entry.update(overrides)
+        return entry
+
+    def test_starter_pending_entry_defers_opposing_starter_gates(self):
+        errors = mlb_lineup_watchlist.validate_entry(self.starter_pending_entry())
+        self.assertEqual(errors, [])
+
+    def test_starter_only_blocker_allows_confirmed_lineups(self):
+        entry = self.entry(blocked_only_by=["starter_unannounced"])
+        entry["original_gate_results"]["opposing_starter_shutdown_path"] = None
+        entry["original_gate_results"]["real_winner_conviction"] = None
+        entry["original_gate_results"]["lineups_confirmed"] = True
+        self.assertEqual(mlb_lineup_watchlist.validate_entry(entry), [])
+
+    def test_starter_pending_rejects_asserted_deferred_gate(self):
+        entry = self.starter_pending_entry()
+        entry["original_gate_results"]["opposing_starter_shutdown_path"] = True
+        errors = mlb_lineup_watchlist.validate_entry(entry)
+        self.assertIn(
+            "original_gate_results.opposing_starter_shutdown_path must be null while "
+            "starter_unannounced (it is re-derived at recheck)",
+            errors,
+        )
+
+    def test_non_starter_entry_still_requires_all_six_gates(self):
+        entry = self.entry()
+        entry["original_gate_results"]["opposing_starter_shutdown_path"] = None
+        errors = mlb_lineup_watchlist.validate_entry(entry)
+        self.assertIn(
+            "original_gate_results.opposing_starter_shutdown_path must be true", errors
+        )
+
+    def test_unknown_blocker_is_rejected(self):
+        entry = self.entry(blocked_only_by=["lineups_unconfirmed", "price_discipline"])
+        errors = mlb_lineup_watchlist.validate_entry(entry)
+        self.assertTrue(any("blocked_only_by must be a non-empty list" in e for e in errors))
+
+    def test_empty_blocker_list_is_rejected(self):
+        errors = mlb_lineup_watchlist.validate_entry(self.entry(blocked_only_by=[]))
+        self.assertTrue(any("blocked_only_by must be a non-empty list" in e for e in errors))
+
+    def test_starter_pending_promotion_requires_rehandicap_flags(self):
+        promoted = self.starter_pending_entry(
+            status="promoted",
+            rechecked_at_utc="2026-07-17T21:45:00Z",
+            recheck={
+                "lineups_confirmed": True,
+                "key_injuries_refreshed": True,
+                "price_refreshed": True,
+                "all_original_gates_hold": True,
+                # starter_confirmed / net_edge_recomputed intentionally missing
+            },
+            promoted_candidate={
+                "watchlist_id": "lineup-abc-def",
+                "sport": "MLB",
+                "market_type": "moneyline",
+                "execution_mode": "standing_authorized",
+                "execution_status": "pending",
+                "max_polymarket_price": 0.53,
+                "executed": False,
+            },
+        )
+        with mock.patch.object(
+            mlb_lineup_watchlist, "standing_authorization_enabled", return_value=True
+        ):
+            errors = mlb_lineup_watchlist.validate_entry(promoted)
+        self.assertIn("recheck.starter_confirmed must be true", errors)
+        self.assertIn("recheck.net_edge_recomputed must be true", errors)
+
+    def test_starter_pending_promotion_with_rehandicap_flags_passes(self):
+        promoted = self.starter_pending_entry(
+            status="promoted",
+            rechecked_at_utc="2026-07-17T21:45:00Z",
+            recheck={
+                "lineups_confirmed": True,
+                "key_injuries_refreshed": True,
+                "price_refreshed": True,
+                "all_original_gates_hold": True,
+                "starter_confirmed": True,
+                "net_edge_recomputed": True,
+            },
+            promoted_candidate={
+                "watchlist_id": "lineup-abc-def",
+                "sport": "MLB",
+                "market_type": "moneyline",
+                "execution_mode": "standing_authorized",
+                "execution_status": "pending",
+                "max_polymarket_price": 0.53,
+                "executed": False,
+            },
+        )
+        with mock.patch.object(
+            mlb_lineup_watchlist, "standing_authorization_enabled", return_value=True
+        ):
+            errors = mlb_lineup_watchlist.validate_entry(promoted)
+        self.assertEqual(errors, [])
+
+    def test_snapshot_extracts_announced_probable_pitchers(self):
+        entry = self.entry(game_pk=823110)
+        feed = {
+            "gameData": {
+                "players": {f"ID{n}": {"fullName": f"P{n}"} for n in range(1, 40)},
+                "probablePitchers": {
+                    "away": {"id": 1, "fullName": "Logan Webb"},
+                    "home": {},  # not yet announced
+                },
+            },
+            "liveData": {"boxscore": {"teams": {
+                "away": {"battingOrder": list(range(1, 10))},
+                "home": {"battingOrder": []},
+            }}},
+        }
+
+        def fetch_json(url):
+            self.assertTrue(url.endswith("/api/v1.1/game/823110/feed/live"))
+            return feed
+
+        snapshot = mlb_lineup_watchlist.fetch_lineup_snapshot(entry, fetch_json=fetch_json)
+        self.assertEqual(snapshot["away_probable_pitcher"], "Logan Webb")
+        self.assertEqual(snapshot["home_probable_pitcher"], "")
+
+    def test_recheck_prompt_includes_starter_rehandicap_block(self):
+        snapshot = {
+            "game_pk": 823110,
+            "away_team": "Cincinnati Reds",
+            "home_team": "Seattle Mariners",
+            "player_count": 52,
+            "away_batting_order": [f"Red {n}" for n in range(1, 10)],
+            "home_batting_order": [f"Mariner {n}" for n in range(1, 10)],
+            "away_probable_pitcher": "Hunter Greene",
+            "home_probable_pitcher": "",
+        }
+        entry = self.starter_pending_entry(id="2026-07-22-SEA-ML")
+        prompt = mlb_lineup_watchlist.build_recheck_prompt(
+            Path("/tmp/schedule.json"), [entry], {"2026-07-22-SEA-ML": snapshot}
+        )
+        self.assertIn("STARTER-PENDING RE-HANDICAP", prompt)
+        self.assertIn("net_edge = win_probability - current_ask", prompt)
+        self.assertIn("PROBABLE STARTERS", prompt)
+        self.assertIn("Hunter Greene", prompt)
+        self.assertIn("NOT YET ANNOUNCED", prompt)
 
 
 if __name__ == "__main__":
