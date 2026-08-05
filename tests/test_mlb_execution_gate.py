@@ -321,6 +321,36 @@ class MlbExecutionGateTests(unittest.TestCase):
                     mlb_execution_gate._liquidity_defer_ready(self.candidate(now, liquidity_defer=marker), now)
                 )
 
+    # --- partial fills: take available depth at <= cap down to a floor ---
+
+    def test_partial_fill_floor_is_greater_of_absolute_and_fraction(self):
+        limits = {"partial_fill_floor_usd": 5, "partial_fill_min_fraction": 0.5}
+        # 18 -> max(5, 9) = 9 ; 9 -> max(5, 4.5) = 5 ; 30 -> max(5, 15) = 15
+        self.assertEqual(mlb_execution_gate.partial_fill_floor_usd({"unit_size": 18}, limits), 9.0)
+        self.assertEqual(mlb_execution_gate.partial_fill_floor_usd({"unit_size": 9}, limits), 5.0)
+        self.assertEqual(mlb_execution_gate.partial_fill_floor_usd({"unit_size": 30}, limits), 15.0)
+
+    def test_partial_fill_floor_falls_back_to_defaults(self):
+        # no limits provided for these keys -> module defaults (5.0 / 0.5)
+        self.assertEqual(
+            mlb_execution_gate.partial_fill_floor_usd({"unit_size": 18}, {}),
+            round(max(mlb_execution_gate.PARTIAL_FILL_FLOOR_USD, 0.5 * 18), 2),
+        )
+
+    def test_execution_prompt_documents_partial_fill_ladder_and_floor(self):
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        prompt = mlb_execution_gate.build_execution_prompt(
+            Path("/runtime/.picks/execute/2026-07-19-schedule.json"),
+            {"date": "2026-07-19", "sport": "MLB", "market_type": "moneyline", "candidates": [self.candidate(now)]},
+            now,
+            mlb_standing_authorized=True,
+        )
+        self.assertIn("PARTIAL-FILL LADDER", prompt)
+        self.assertIn("ACCEPT the partial fill", prompt)
+        self.assertIn("PARTIAL-FILL FLOOR per candidate", prompt)
+        # the computed floor for the fixture's slug is present in the injected map
+        self.assertIn(self.candidate(now)["polymarket_slug"], prompt)
+
     def test_execution_prompt_documents_defer_vs_skip(self):
         now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
         prompt = mlb_execution_gate.build_execution_prompt(

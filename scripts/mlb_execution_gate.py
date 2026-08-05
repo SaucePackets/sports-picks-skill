@@ -34,6 +34,37 @@ OVERDUE_RECHECK_MINUTES = 30
 # again only every N minutes so retries don't spam proposals on every 2-min poll.
 # The first-pitch window still bounds total retries.
 LIQUIDITY_RETRY_MINUTES = 10
+# Partial fills: an approved pick whose full size can't fill at/under the price cap
+# should still take whatever depth IS available at that cap (IOC fills-and-kills the
+# rest, so a partial never chases), rather than placing nothing. We only take a
+# partial down to a floor — the greater of an absolute USD floor and a fraction of
+# the intended stake — so we never log a trivially tiny bet. Below the floor it
+# defers and retries instead. Both are overridable via risk_limits.json.
+PARTIAL_FILL_FLOOR_USD = 5.0
+PARTIAL_FILL_MIN_FRACTION = 0.5
+RISK_LIMITS_PATH = Path("/home/clawdbot/.hermes/vig/state/risk_limits.json")
+
+
+def _load_risk_limits() -> dict[str, Any]:
+    try:
+        data = json.loads(RISK_LIMITS_PATH.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def partial_fill_floor_usd(candidate: dict[str, Any], limits: dict[str, Any] | None = None) -> float:
+    """Smallest acceptable partial fill for a candidate, in USD.
+
+    The greater of the absolute floor and a fraction of the intended stake, so a
+    partial is always a meaningful bet. A book that can fill at least this much at
+    or under the price cap is taken as a partial; below it the poller defers/retries.
+    """
+    limits = limits if limits is not None else _load_risk_limits()
+    unit = float(candidate.get("unit_size") or 0)
+    floor_usd = float(limits.get("partial_fill_floor_usd", PARTIAL_FILL_FLOOR_USD) or 0)
+    fraction = float(limits.get("partial_fill_min_fraction", PARTIAL_FILL_MIN_FRACTION) or 0)
+    return round(max(floor_usd, fraction * unit), 2)
 
 
 def resolve_root(cwd: Path | None = None, home: Path | None = None) -> Path:
@@ -247,6 +278,11 @@ def build_execution_prompt(
     root = schedule_path.parents[2]
     guard = SCRIPT_DIR / "execution_guard.py"
     sdk = root / "skills" / "sports-picks" / "scripts" / "polymarket_us_sdk_bet.py"
+    limits = _load_risk_limits()
+    floor_map = json.dumps(
+        {c.get("polymarket_slug"): partial_fill_floor_usd(c, limits) for c in candidates},
+        sort_keys=True,
+    )
     return f"""MLB standing-authorization execution gate found eligible candidates.
 
 Schedule: {schedule_path}
@@ -265,8 +301,9 @@ For each candidate, immediately re-read the schedule and the Vig policy, risk-li
 and process files. Refuse if held, skipped, already executed, no longer pending, or
 first pitch has started. Refresh and verify exact game/date/side mapping, starter,
 both confirmed lineups, late scratches, injuries, weather, market active status,
-current executable price, and sufficient BBO liquidity. The current price must not
-exceed max_polymarket_price; never chase. Recompute remaining daily cap using all
+current executable price, and BBO liquidity (how much depth is enough is defined by
+the PARTIAL-FILL LADDER below — a thin book is a partial or a defer, not an auto-skip).
+The current price must not exceed max_polymarket_price; never chase. Recompute remaining daily cap using all
 canonical fills/receipts and refuse any amount above the smaller of unit_size and
 remaining cap. Do not expand sport, market type, size, cap, or authorize exits.
 
@@ -284,17 +321,33 @@ expected outcome, explicit --price, --cash-order-qty, --max-notional, and
 token to order-moneyline with --execute, --i-accept-live-trading, and
 --write-watchlist. Keep the SDK brotli identity/fallback workaround intact.
 
+PARTIAL-FILL LADDER (never chase; every share fills at or under max_polymarket_price):
+From the preview, compute the notional fillable at or under max_polymarket_price
+(available ask depth x price). Compare it to the capped target (unit_size, also bounded
+by remaining daily cap) and the per-candidate PARTIAL-FILL FLOOR below:
+- fillable >= target: fill the full capped size (normal path).
+- floor <= fillable < target: SUBMIT the IOC anyway and ACCEPT the partial fill at
+  <= max price. The IOC time-in-force fills only what rests at your price and cancels
+  the remainder, so a partial never chases. Record the ACTUAL filled shares/notional/
+  price from the receipt as the pick size — it is a COMPLETE pick at the smaller size;
+  do NOT top up, re-order, or raise max_polymarket_price. This is expected, not an error.
+- fillable < floor: do NOT submit; treat it as the TRANSIENT liquidity case below.
+PARTIAL-FILL FLOOR per candidate (USD, deterministic): {floor_map}
+
 Afterward, atomically record canonical execution_status plus fill_price,
 fill_quantity, fill_notional, commission, polymarket_order_id,
-polymarket_trade_id, and receipt/watchlist paths.
+polymarket_trade_id, and receipt/watchlist paths. For a partial fill, fill_notional
+and fill_quantity are the actual filled amounts (less than unit_size) and the pick is
+executed=true at that size.
 
 SKIP vs DEFER on failure:
 - TERMINAL failure -> set skipped=true, execution_status=skipped, a precise skip_reason,
   and clear liquidity_defer. Terminal means: starter changed or a scratch breaks the
   thesis, current executable price is above max_polymarket_price, market inactive/closed,
   first pitch has started, manual_only, or an existing fill/active canonical pick.
-- TRANSIENT liquidity-only failure (the book cannot fill the capped order at or under
-  max_polymarket_price without chasing, but every other gate still holds) -> do NOT skip.
+- TRANSIENT liquidity-only failure (the depth fillable at or under max_polymarket_price
+  is below the PARTIAL-FILL FLOOR above, so not even a partial is worth taking, but every
+  other gate still holds) -> do NOT skip.
   Leave skipped false and execution_status=pending, and set
   liquidity_defer={{"reason": <short>, "depth": <shares>, "needed": <shares>,
   "at": "<UTC now ISO8601 Z>", "count": <previous count + 1 or 1>}}. The poller re-checks
@@ -304,8 +357,9 @@ SKIP vs DEFER on failure:
 Always clear the execution lock.
 Use `python3 {guard} clear --schedule {schedule_path} --market-slug <exact-slug>
 --attempt-id <same-id>` for that cleanup.
-No receipt means no success claim. Send a concise executed/skipped result; stay silent
-only when there was no eligible candidate.
+No receipt means no success claim. Send a concise EXECUTED (note FULL or PARTIAL and the
+filled notional), DEFERRED, or SKIPPED result; stay silent only when there was no
+eligible candidate.
 """
 
 
