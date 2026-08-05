@@ -283,5 +283,56 @@ class MlbExecutionGateTests(unittest.TestCase):
             self.assertEqual(output.getvalue(), "")
 
 
+    # --- liquidity defer: a transient thin book is RETRYABLE, not a terminal skip ---
+
+    def test_recent_liquidity_defer_is_throttled_not_eligible(self):
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        # deferred 4 min ago (< 10-min throttle) -> not yet retried
+        deferred = self.candidate(now, liquidity_defer={
+            "reason": "insufficient BBO depth", "depth": 27, "needed": 34,
+            "at": (now - timedelta(minutes=4)).isoformat().replace("+00:00", "Z"), "count": 1,
+        })
+        self.assertFalse(mlb_execution_gate.candidate_is_eligible(deferred, now))
+
+    def test_stale_liquidity_defer_becomes_eligible_again(self):
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        # deferred 12 min ago (>= throttle) -> retry now, as the book may have deepened
+        deferred = self.candidate(now, liquidity_defer={
+            "reason": "insufficient BBO depth", "depth": 27, "needed": 34,
+            "at": (now - timedelta(minutes=12)).isoformat().replace("+00:00", "Z"), "count": 1,
+        })
+        self.assertTrue(mlb_execution_gate.candidate_is_eligible(deferred, now))
+
+    def test_liquidity_defer_keeps_candidate_pending_unlike_terminal_skip(self):
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        # A terminal skip stays dead; a liquidity defer past the throttle is revived.
+        terminal = self.candidate(now, skipped=True, execution_status="skipped")
+        revived = self.candidate(now, liquidity_defer={
+            "at": (now - timedelta(minutes=15)).isoformat().replace("+00:00", "Z"), "count": 2,
+        })
+        self.assertFalse(mlb_execution_gate.candidate_is_eligible(terminal, now))
+        self.assertTrue(mlb_execution_gate.candidate_is_eligible(revived, now))
+
+    def test_malformed_liquidity_defer_fails_open_to_ready(self):
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        for marker in ("not-a-dict", {"at": "not-a-time"}, {}):
+            with self.subTest(marker=marker):
+                self.assertTrue(
+                    mlb_execution_gate._liquidity_defer_ready(self.candidate(now, liquidity_defer=marker), now)
+                )
+
+    def test_execution_prompt_documents_defer_vs_skip(self):
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        prompt = mlb_execution_gate.build_execution_prompt(
+            Path("/runtime/.picks/execute/2026-07-19-schedule.json"),
+            {"date": "2026-07-19", "sport": "MLB", "market_type": "moneyline", "candidates": [self.candidate(now)]},
+            now,
+            mlb_standing_authorized=True,
+        )
+        self.assertIn("liquidity_defer", prompt)
+        self.assertIn("TRANSIENT liquidity-only failure", prompt)
+        self.assertIn("TERMINAL failure", prompt)
+
+
 if __name__ == "__main__":
     unittest.main()
