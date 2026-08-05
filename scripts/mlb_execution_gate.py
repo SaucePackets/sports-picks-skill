@@ -27,6 +27,13 @@ CENTRAL = ZoneInfo("America/Chicago")
 MAX_MINUTES_BEFORE_FIRST_PITCH = 120
 STALE_LOCK_MINUTES = 15
 OVERDUE_RECHECK_MINUTES = 30
+# A thin order book is TRANSIENT: an approved pick that could not fill without
+# chasing should be retried as the book deepens, not killed for the day like a
+# terminal gate failure (starter change, price over ceiling). The poller records
+# a liquidity_defer marker instead of skipped=true; this throttle keeps it eligible
+# again only every N minutes so retries don't spam proposals on every 2-min poll.
+# The first-pitch window still bounds total retries.
+LIQUIDITY_RETRY_MINUTES = 10
 
 
 def resolve_root(cwd: Path | None = None, home: Path | None = None) -> Path:
@@ -61,6 +68,24 @@ def _positive_number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0
 
 
+def _liquidity_defer_ready(candidate: dict[str, Any], now: datetime) -> bool:
+    """True unless a recent liquidity deferral is still inside the retry throttle.
+
+    A candidate with no liquidity_defer marker (never deferred, or deferred long
+    enough ago) is ready. This is what makes a transient thin-book skip RETRYABLE
+    without churning a fresh proposal on every 2-minute poll. Fails OPEN (ready) on
+    a malformed/missing timestamp so a bad marker can never permanently wedge a pick.
+    """
+    defer = candidate.get("liquidity_defer")
+    if not isinstance(defer, dict):
+        return True
+    last = parse_instant(defer.get("at"))
+    if last is None:
+        return True
+    minutes_since = (now.astimezone(timezone.utc) - last).total_seconds() / 60
+    return minutes_since >= LIQUIDITY_RETRY_MINUTES
+
+
 def candidate_is_eligible(candidate: dict[str, Any], now: datetime) -> bool:
     first_pitch = parse_instant(candidate.get("first_pitch_utc"))
     if first_pitch is None:
@@ -93,6 +118,7 @@ def candidate_is_eligible(candidate: dict[str, Any], now: datetime) -> bool:
         and 0 < minutes_to_pitch <= MAX_MINUTES_BEFORE_FIRST_PITCH
         and _positive_number(candidate.get("unit_size"))
         and max_price < 1
+        and _liquidity_defer_ready(candidate, now)
     )
 
 
@@ -260,8 +286,22 @@ token to order-moneyline with --execute, --i-accept-live-trading, and
 
 Afterward, atomically record canonical execution_status plus fill_price,
 fill_quantity, fill_notional, commission, polymarket_order_id,
-polymarket_trade_id, and receipt/watchlist paths. If any gate fails, set skipped=true,
-execution_status=skipped, and a precise skip_reason. Always clear the execution lock.
+polymarket_trade_id, and receipt/watchlist paths.
+
+SKIP vs DEFER on failure:
+- TERMINAL failure -> set skipped=true, execution_status=skipped, a precise skip_reason,
+  and clear liquidity_defer. Terminal means: starter changed or a scratch breaks the
+  thesis, current executable price is above max_polymarket_price, market inactive/closed,
+  first pitch has started, manual_only, or an existing fill/active canonical pick.
+- TRANSIENT liquidity-only failure (the book cannot fill the capped order at or under
+  max_polymarket_price without chasing, but every other gate still holds) -> do NOT skip.
+  Leave skipped false and execution_status=pending, and set
+  liquidity_defer={{"reason": <short>, "depth": <shares>, "needed": <shares>,
+  "at": "<UTC now ISO8601 Z>", "count": <previous count + 1 or 1>}}. The poller re-checks
+  every gate and retries after a throttle interval as the book deepens; the first-pitch
+  cutoff still stops it. Report it as DEFERRED (not SKIPPED). On a later successful fill,
+  the executed fields supersede the marker.
+Always clear the execution lock.
 Use `python3 {guard} clear --schedule {schedule_path} --market-slug <exact-slug>
 --attempt-id <same-id>` for that cleanup.
 No receipt means no success claim. Send a concise executed/skipped result; stay silent
