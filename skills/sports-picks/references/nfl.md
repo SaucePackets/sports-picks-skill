@@ -153,6 +153,15 @@ Minimum set per team, both sides of the ball:
 ```bash
 sports-skills nfl get_injuries          # league-wide report with status
 ```
+If `sports-skills` returns an ESPN "Access Denied" (Akamai blocks
+`site.api.espn.com` from data-center clients), load the repo shim first —
+it mirrors requests to the public `site.web.api.espn.com` host with the
+same routes and payload shape:
+```python
+import scripts.sports_skills_espn_shim  # noqa: F401  (apply before importing sports_skills)
+from sports_skills import nfl
+injuries = nfl.get_injuries()
+```
 ```python
 # ESPN core injuries per team (same $ref pattern as MLB)
 url = 'https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/teams/{tid}/injuries'

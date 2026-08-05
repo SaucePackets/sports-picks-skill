@@ -80,5 +80,71 @@ class FetchJsonTests(unittest.TestCase):
         sleep.assert_not_called()
 
 
+class EspnMirrorTests(unittest.TestCase):
+    PRIMARY = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?week=1"
+    MIRROR = "https://site.web.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?week=1"
+
+    def test_mirror_url_maps_only_site_api_host(self):
+        self.assertEqual(
+            http_util.espn_mirror_url(self.PRIMARY),
+            self.MIRROR,
+        )
+        self.assertIsNone(http_util.espn_mirror_url(self.MIRROR))
+        self.assertIsNone(http_util.espn_mirror_url("https://sports.core.api.espn.com/v2/x"))
+        self.assertIsNone(http_util.espn_mirror_url("https://example.test/x"))
+
+    def test_403_on_primary_falls_back_to_web_mirror(self):
+        def fake_urlopen(request, timeout=0):
+            if request.full_url.startswith("https://site.api.espn.com/"):
+                raise _http_error(403)
+            return _response({"ok": True})
+
+        with mock.patch.object(http_util.urllib.request, "urlopen", side_effect=fake_urlopen) as urlopen:
+            result = http_util.fetch_json(self.PRIMARY)
+
+        self.assertEqual(result, {"ok": True})
+        urls = [call[0][0].full_url for call in urlopen.call_args_list]
+        self.assertEqual(urls, [self.PRIMARY, self.MIRROR])
+        mirror_req = urlopen.call_args_list[-1][0][0]
+        self.assertIn("Mozilla", mirror_req.get_header("User-agent"))
+
+    def test_404_on_primary_also_mirrors(self):
+        def fake_urlopen(request, timeout=0):
+            if request.full_url.startswith("https://site.api.espn.com/"):
+                raise _http_error(404)
+            return _response({"events": []})
+
+        with mock.patch.object(http_util.urllib.request, "urlopen", side_effect=fake_urlopen):
+            self.assertEqual(http_util.fetch_json(self.PRIMARY), {"events": []})
+
+    def test_mirror_failure_is_fail_closed_and_raises_original_error(self):
+        with mock.patch.object(http_util.urllib.request, "urlopen", side_effect=_http_error(403)):
+            with self.assertRaises(urllib.error.HTTPError) as ctx:
+                http_util.fetch_json(self.PRIMARY, attempts=1)
+
+        self.assertEqual(ctx.exception.code, 403)
+
+    def test_non_espn_403_does_not_mirror(self):
+        with mock.patch.object(http_util.urllib.request, "urlopen", side_effect=_http_error(403)) as urlopen:
+            with self.assertRaises(urllib.error.HTTPError):
+                http_util.fetch_json("https://example.test/x")
+
+        self.assertEqual(urlopen.call_count, 1)
+
+    def test_mirror_disabled_via_flag(self):
+        with mock.patch.object(http_util.urllib.request, "urlopen", side_effect=_http_error(403)) as urlopen:
+            with self.assertRaises(urllib.error.HTTPError):
+                http_util.fetch_json(self.PRIMARY, allow_espn_mirror=False)
+
+        self.assertEqual(urlopen.call_count, 1)
+
+    def test_post_requests_do_not_mirror(self):
+        with mock.patch.object(http_util.urllib.request, "urlopen", side_effect=_http_error(403)) as urlopen:
+            with self.assertRaises(urllib.error.HTTPError):
+                http_util.fetch_json(self.PRIMARY, method="POST", data={"a": 1})
+
+        self.assertEqual(urlopen.call_count, 1)
+
+
 if __name__ == "__main__":
     unittest.main()
