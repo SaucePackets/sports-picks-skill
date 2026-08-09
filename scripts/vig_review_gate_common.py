@@ -461,6 +461,13 @@ Read {schedule_path}. Review only pending candidates: {sides}. Refresh decisive
 inputs and current supported-market prices, then apply every original hard gate.
 Update each reviewed candidate with boolean vig_approved and concise vig_notes.
 
+PRICE DISCIPLINE (compute this exactly — do NOT invent a fee):
+net_edge = win_probability - polymarket_ask. Polymarket US charges ZERO trading
+fees (confirmed 0 bps on every executed receipt). Do NOT subtract a 0.024 fee,
+a 2.4% rail, or any other phantom fee — no fee exists. A candidate stays cardable
+whenever net_edge >= 0.02 at the refreshed ask; only reject on price when the
+live ask leaves win_probability - polymarket_ask below 0.02.
+
 {routing}
 
 Return a concise card review with approved/rejected count, decisive reason per

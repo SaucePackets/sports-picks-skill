@@ -285,8 +285,10 @@ Identical math to MLB — de-vig before any edge claim:
   differs from de-vigged fair by more than 0.04, the thesis must say what the
   market is missing — and the NFL market misses less than MLB's, because there
   is one game a week and armies of pricing attention on each.
-- Net edge = `win_probability - exchange_ask - 0.024` (fees) when an exchange
-  market cleanly matches. Cardable requires net edge >= 0.02.
+- Net edge = `win_probability - exchange_ask` when an exchange market cleanly
+  matches. Polymarket US charges ZERO trading fees (confirmed 0 bps on every
+  executed receipt) — do NOT subtract a phantom fee. Cardable requires net edge
+  >= 0.02.
 - Record `win_probability`, `dk_fair_prob`, and `net_edge` on every schedule
   candidate and ledger row — they feed the monthly calibration report.
 
