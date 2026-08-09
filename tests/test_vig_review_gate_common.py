@@ -690,11 +690,15 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 [{"side": "ABC"}],
                 **kwargs,
             )
-            self.assertIn("net_edge = win_probability - polymarket_ask", prompt)
-            self.assertIn("ZERO trading", prompt)
-            # The phantom fee that wrongly rejected the 2026-08-09 Brewers pick.
+            # The ceiling is the single guardrail: judge the real cost to buy
+            # against max_polymarket_price = win_probability - 0.02, no fee math.
+            self.assertIn("max_polymarket_price = win_probability - 0.02", prompt)
+            self.assertIn("cost to buy", prompt)
+            self.assertIn("ZERO", prompt)
+            # No phantom-fee SUBTRACTION (the bug that rejected the 2026-08-09
+            # Brewers pick); naming 0.024 as forbidden is fine, subtracting is not.
             self.assertNotIn("- 0.024", prompt)
-            self.assertIn("Do NOT subtract", prompt)
+            self.assertNotIn("net_edge = win_probability - polymarket_ask - 0.024", prompt)
 
     def test_soccer_review_prompt_remains_manual_only(self):
         prompt = vig_review_gate_common.build_regular_review_prompt(
