@@ -296,6 +296,7 @@ De-vig before any edge claim:
 - Compute both sides' implied probabilities from the two DK moneylines, then `fair = imp_side / (imp_side + imp_opp)`.
 - State your own `win_probability` (decimal) from the full handicap. If it differs from the de-vigged fair by more than 0.04, the thesis must say what the market is missing.
 - Net edge = `win_probability - polymarket_ask`. Polymarket US charges ZERO trading fees (confirmed 0 bps on every executed receipt) — do NOT subtract a phantom fee. Cardable requires net edge >= 0.02.
+- Equivalently — and this is the guardrail the execution poller actually enforces — the real executable ask must be at or under your price ceiling `max_polymarket_price = win_probability - 0.02`. That ceiling (not any fee) is the single source of truth: judge price on the true cost to buy, and any real fee is fine as long as the all-in price stays at or under the ceiling. Execution is an IOC limit placed AT the ceiling, so the book can only ever fill at or under your number.
 - Record `win_probability`, `dk_fair_prob`, and `net_edge` on every schedule candidate and ledger row — these feed the monthly calibration report (`scripts/vig_calibration_report.py`).
 
 Every MLB pick must answer:

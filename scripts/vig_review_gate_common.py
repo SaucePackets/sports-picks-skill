@@ -461,12 +461,18 @@ Read {schedule_path}. Review only pending candidates: {sides}. Refresh decisive
 inputs and current supported-market prices, then apply every original hard gate.
 Update each reviewed candidate with boolean vig_approved and concise vig_notes.
 
-PRICE DISCIPLINE (compute this exactly — do NOT invent a fee):
-net_edge = win_probability - polymarket_ask. Polymarket US charges ZERO trading
-fees (confirmed 0 bps on every executed receipt). Do NOT subtract a 0.024 fee,
-a 2.4% rail, or any other phantom fee — no fee exists. A candidate stays cardable
-whenever net_edge >= 0.02 at the refreshed ask; only reject on price when the
-live ask leaves win_probability - polymarket_ask below 0.02.
+PRICE DISCIPLINE (the ceiling is the ONLY guardrail — do NOT do fee arithmetic):
+Recompute win_probability from the refreshed handicap, then set the price ceiling
+max_polymarket_price = win_probability - 0.02 (our required 2-point edge). Judge
+price on the REAL cost to buy: approve whenever the current executable ask — what
+you would actually pay right now — is at or under that ceiling; reject on price
+only when the live ask is above the ceiling. This is fee-agnostic on purpose: any
+venue fee is already baked into the executable price, so paying it is fine AS LONG
+AS the all-in price stays at or under the ceiling. Polymarket US currently charges
+ZERO fees (confirmed 0 bps on every executed receipt), so today the executable ask
+equals the quoted ask. Never invent, add, or subtract a phantom fee (no 0.024, no
+2.4% rail). Execution is an IOC limit placed AT the ceiling, so the book can only
+ever fill at or under your number and can never push you past the suggested odds.
 
 {routing}
 
