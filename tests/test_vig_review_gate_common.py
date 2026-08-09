@@ -678,6 +678,24 @@ class VigReviewGateCommonTests(unittest.TestCase):
         self.assertIn("recurring MLB execution poller", prompt)
         self.assertNotIn("awaiting_jerry", prompt)
 
+    def test_review_prompt_states_zero_fee_and_no_phantom_fee(self):
+        for sport, kwargs in (
+            ("MLB", {"mlb_standing_authorized": True}),
+            ("SOCCER", {}),
+        ):
+            prompt = vig_review_gate_common.build_regular_review_prompt(
+                sport,
+                "2026-08-09",
+                Path("/tmp/schedule.json"),
+                [{"side": "ABC"}],
+                **kwargs,
+            )
+            self.assertIn("net_edge = win_probability - polymarket_ask", prompt)
+            self.assertIn("ZERO trading", prompt)
+            # The phantom fee that wrongly rejected the 2026-08-09 Brewers pick.
+            self.assertNotIn("- 0.024", prompt)
+            self.assertIn("Do NOT subtract", prompt)
+
     def test_soccer_review_prompt_remains_manual_only(self):
         prompt = vig_review_gate_common.build_regular_review_prompt(
             "SOCCER", "2026-07-17", Path("/tmp/schedule.json"), [{"side": "ABC"}]
