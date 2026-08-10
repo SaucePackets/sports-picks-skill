@@ -103,6 +103,99 @@ class ExecutionGuardTests(unittest.TestCase):
         self.assertEqual(candidate["polymarket_order_id"], "ORDER1")
         self.assertIn("dedup regression", candidate["execution_note"])
 
+    def write_buy_short_receipt(self, name="20260809-181500-sdk-order-aec-mlb-nyy-kc-2026-05-27.json"):
+        """BUY_SHORT fill: orderbook lastPx is the LONG-side complement price."""
+        path = self.receipts / name
+        path.write_text(json.dumps({
+            "market_slug": "aec-mlb-nyy-kc-2026-05-27",
+            "response": {
+                "executions": [{
+                    "type": "EXECUTION_TYPE_FILL",
+                    "lastPx": {"value": "0.520"},
+                    "lastShares": "37.000",
+                    "tradeId": "TRADE-SHORT",
+                    "order": {
+                        "id": "ORDER-SHORT",
+                        "intent": "ORDER_INTENT_BUY_SHORT",
+                        "state": "ORDER_STATE_FILLED",
+                        "marketSlug": "aec-mlb-nyy-kc-2026-05-27",
+                        "cumQuantity": 37,
+                        "price": {"value": "0.52"},
+                    },
+                    "commissionNotionalCollected": {"value": "0.100"},
+                }],
+            },
+        }))
+        return path
+
+    def test_buy_short_receipt_normalizes_to_selected_outcome(self):
+        self.write_buy_short_receipt()
+
+        fills = find_filled_receipts(self.receipts, "aec-mlb-nyy-kc-2026-05-27")
+
+        self.assertEqual(len(fills), 1)
+        fill = fills[0]
+        # Selected-outcome price is 1 - 0.52 = 0.48, not the raw long-side lastPx.
+        self.assertAlmostEqual(fill["fill_price"], 0.48, places=6)
+        # Actual cash staked on the short outcome is 0.48 * 37 = 17.76, not 19.24.
+        self.assertAlmostEqual(fill["fill_notional"], 17.76, places=2)
+        self.assertEqual(fill["fill_quantity"], 37)
+        self.assertEqual(fill["outcome_side"], "short")
+        self.assertEqual(fill["intent"], "ORDER_INTENT_BUY_SHORT")
+
+    def test_mark_execution_from_receipts_buy_short_records_outcome_fields(self):
+        self.write_buy_short_receipt()
+
+        changed = mark_execution_from_receipts(
+            self.schedule_path,
+            "aec-mlb-nyy-kc-2026-05-27",
+            self.receipts,
+        )
+
+        self.assertTrue(changed)
+        schedule = json.loads(self.schedule_path.read_text())
+        candidate = schedule["candidates"][0]
+        self.assertTrue(candidate["executed"])
+        self.assertAlmostEqual(candidate["fill_price"], 0.48, places=6)
+        self.assertAlmostEqual(candidate["fill_notional"], 17.76, places=2)
+        self.assertEqual(candidate["fill_quantity"], 37)
+        self.assertEqual(candidate["outcome_side"], "short")
+        self.assertEqual(candidate["order_intent"], "ORDER_INTENT_BUY_SHORT")
+        # Canonical pre-fill fields must not be corrupted by --check --mark.
+        self.assertEqual(candidate["unit_size"], 15)
+        self.assertEqual(candidate["max_polymarket_price"], 0.60)
+        self.assertEqual(candidate["pick_side"], "New York Yankees")
+        self.assertFalse(candidate["skipped"])
+
+    def test_buy_short_check_mark_cli_cannot_corrupt_canonical_fields(self):
+        self.write_buy_short_receipt()
+        picks_path = self.root / "picks.json"
+        picks_path.write_text(json.dumps({"picks": []}))
+        before = json.loads(self.schedule_path.read_text())["candidates"][0]
+        canonical = {k: before[k] for k in (
+            "polymarket_slug", "pick_side", "unit_size", "max_polymarket_price",
+            "first_pitch_utc", "vig_approved", "execution_mode", "execution_status",
+        )}
+        output = StringIO()
+        argv = [
+            "execution_guard.py", "check",
+            "--schedule", str(self.schedule_path),
+            "--market-slug", "aec-mlb-nyy-kc-2026-05-27",
+            "--receipts-dir", str(self.receipts),
+            "--picks-file", str(picks_path),
+            "--mark",
+        ]
+
+        with patch("sys.argv", argv), redirect_stdout(output):
+            status = main()
+
+        self.assertEqual(status, 2)
+        after = json.loads(self.schedule_path.read_text())["candidates"][0]
+        for key, value in canonical.items():
+            self.assertEqual(after[key], value, f"canonical field {key} was corrupted")
+        self.assertAlmostEqual(after["fill_price"], 0.48, places=6)
+        self.assertAlmostEqual(after["fill_notional"], 17.76, places=2)
+
     def test_sell_receipt_does_not_count_as_existing_buy_execution(self):
         path = self.receipts / "20260527-215509-sdk-order-aec-mlb-nyy-kc-2026-05-27.json"
         path.write_text(json.dumps({

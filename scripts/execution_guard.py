@@ -87,6 +87,19 @@ def _merge_number(existing: Any, incoming: Any) -> Any:
     return _money(total)
 
 
+SHORT_INTENT_MARKERS = ("BUY_SHORT", "SELL_SHORT")
+
+
+def _intent_is_short(intent: Any) -> bool:
+    """True when the order intent buys/sells the SHORT (inverse) outcome."""
+    return any(marker in str(intent or "") for marker in SHORT_INTENT_MARKERS)
+
+
+def _short_outcome_price(price: Decimal) -> Decimal:
+    """Convert a long-side orderbook price into the selected SHORT outcome price."""
+    return Decimal("1") - price
+
+
 def _extract_fills(receipt: dict[str, Any], fallback_slug: str) -> list[dict[str, Any]]:
     fills: list[dict[str, Any]] = []
     response = receipt.get("response") or {}
@@ -101,17 +114,27 @@ def _extract_fills(receipt: dict[str, Any], fallback_slug: str) -> list[dict[str
         slug = order.get("marketSlug") or receipt.get("market_slug") or receipt.get("marketSlug")
         if slug != fallback_slug:
             continue
-        fill_price = _dec_value(execution.get("lastPx") or order.get("price"))
+        raw_price = _dec_value(execution.get("lastPx") or order.get("price"))
         fill_qty = _dec_value(execution.get("lastShares") or order.get("cumQuantity"))
         commission = _dec_value(execution.get("commissionNotionalCollected"))
+        # Polymarket SDK receipts report prices in long-side orderbook terms.
+        # For BUY_SHORT fills the canonical schedule must record the SELECTED
+        # outcome's price (1 - lastPx) and the actual cash staked, which for a
+        # short entry is (1 - price) * shares. Raw lastPx * shares would record
+        # the long-side cost of the complement and corrupt entry notional.
+        short = _intent_is_short(intent)
+        outcome_price = _short_outcome_price(raw_price) if short else raw_price
+        cash_spent = _short_outcome_price(raw_price) * fill_qty if short else raw_price * fill_qty
         fills.append(
             {
                 "receipt_path": None,
                 "order_id": order.get("id") or response.get("id"),
                 "trade_id": execution.get("tradeId") or execution.get("id"),
-                "fill_price": float(fill_price),
+                "intent": intent or None,
+                "outcome_side": "short" if short else "long",
+                "fill_price": float(outcome_price),
                 "fill_quantity": int(fill_qty) if fill_qty == fill_qty.to_integral_value() else float(fill_qty),
-                "fill_notional": _money(fill_price * fill_qty),
+                "fill_notional": _money(cash_spent),
                 "commission": _money(commission),
                 "transact_time": execution.get("transactTime"),
             }
@@ -382,6 +405,9 @@ def mark_execution_from_receipts(
             candidate["commission"] = _money(commission)
             candidate["polymarket_order_id"] = last.get("order_id")
             candidate["polymarket_trade_id"] = last.get("trade_id")
+            if last.get("intent"):
+                candidate["order_intent"] = last["intent"]
+            candidate["outcome_side"] = last.get("outcome_side")
             if len(fills) > 1:
                 candidate["duplicate_fill_count"] = len(fills)
                 candidate["duplicate_order_ids"] = [fill.get("order_id") for fill in fills]
