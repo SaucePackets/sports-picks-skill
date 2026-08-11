@@ -160,6 +160,53 @@ class VigReviewGateCommonTests(unittest.TestCase):
         self.assertIn("missing/non-numeric probability contract fields", candidate["vig_notes"])
         self.assertNotEqual(candidate.get("execution_mode"), "standing_authorized")
 
+    def test_normalize_new_mlb_approval_rejected_with_non_finite_probability(self):
+        # Routing regression for the NaN/Inf fail-closed defect: a candidate
+        # carrying a full contract but a non-finite probability/ask field must
+        # NOT route to standing-authorized execution. NaN comparisons are all
+        # false, so a poisoned field can never be treated as meeting the floor.
+        for field in (
+            "dk_fair_prob",
+            "raw_probability",
+            "uncertainty_haircut",
+            "conservative_probability",
+            "current_ask",
+            "projected_edge_at_current_ask",
+        ):
+            for bad in (float("nan"), float("inf"), float("-inf")):
+                before = {
+                    "candidates": [
+                        self._routing_candidate("1", "AAA", 0.51, 0.60),
+                    ]
+                }
+                after = json.loads(json.dumps(before))
+                contract = _contract(conservative_probability=0.60, current_ask=0.51)
+                contract[field] = bad
+                after["candidates"][0].update(
+                    vig_approved=True,
+                    vig_notes="All gates hold.",
+                    **contract,
+                )
+
+                with _patched_policy():
+                    errors = vig_review_gate_common.normalize_review_routing(
+                        before, after, "MLB", mlb_standing_authorized=True
+                    )
+
+                self.assertEqual(errors, [])
+                candidate = after["candidates"][0]
+                self.assertIs(
+                    candidate["vig_approved"],
+                    False,
+                    f"{field}={bad} must fail closed at routing",
+                )
+                self.assertIn(
+                    "missing/non-numeric probability contract fields",
+                    candidate["vig_notes"],
+                    f"{field}={bad} should be reported by the contract check",
+                )
+                self.assertNotEqual(candidate.get("execution_mode"), "standing_authorized")
+
     @staticmethod
     def _routing_candidate(event_id, side, ask, edge_prob, **overrides):
         candidate = {
