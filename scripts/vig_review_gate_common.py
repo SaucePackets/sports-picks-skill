@@ -260,17 +260,32 @@ def normalize_review_routing(
     # conservative edge and reject the tail even when each price passes alone.
     # Missing/invalid policy FAILS CLOSED: no standing-authorized routing can
     # proceed without the shared machine-readable rails.
+    #
+    # The cap pool is the set of candidates that WILL route to standing
+    # authorization: candidates already standing-authorized plus every newly
+    # approved MLB child. Newly approved children arrive in manual state and
+    # are rewritten to standing_authorized below, so they must count against
+    # the cap BEFORE the rewrite — filtering on execution_mode here would let
+    # three manual-state approvals bypass the cap and then all be rewritten.
+    # Genuinely manual-only candidates (never rewritten) are excluded by
+    # membership in newly_approved, not by transient execution_mode.
     policy = load_mlb_selection_policy()
     if policy is None:
         return [
             "shared MLB selection policy missing or invalid in risk_limits.json; "
             "standing-authorized routing is disabled until the policy block loads"
         ]
+    newly_approved_identities = {
+        candidate_identity(candidate) for candidate in newly_approved
+    }
     day_approved = [
         candidate
         for candidate in after_candidates
         if candidate.get("vig_approved") is True
-        and candidate.get("execution_mode") != "manual"
+        and (
+            candidate.get("execution_mode") == "standing_authorized"
+            or candidate_identity(candidate) in newly_approved_identities
+        )
     ]
     kept, rejected = enforce_daily_candidate_limit(day_approved, policy)
     if rejected:

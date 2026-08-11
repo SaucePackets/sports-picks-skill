@@ -372,6 +372,98 @@ class VigReviewGateCommonTests(unittest.TestCase):
         self.assertNotIn("event_id:2|side:CWS", errors[0])
         self.assertNotIn("event_id:3|side:CWS", errors[0])
 
+    def test_normalize_caps_manual_state_new_approvals_before_rewrite(self):
+        # Regression: three newly approved MLB children arrive in manual state
+        # (the routing flow repairs them to standing_authorized below). The
+        # daily cap must count them BEFORE the rewrite; filtering the cap pool
+        # on execution_mode would let all three bypass the cap and then all be
+        # rewritten to standing_authorized.
+        def _candidate(event_id, edge):
+            return {
+                "event_id": event_id,
+                "side": "CWS",
+                "polymarket_ask": 0.48,
+                "vig_approved": None,
+                "dk_fair_prob": 0.55,
+                "raw_probability": 0.57,
+                "uncertainty_haircut": 0.03,
+                "conservative_probability": 0.48 + edge,
+                "current_ask": 0.48,
+                "projected_edge_at_current_ask": edge,
+                "model_version": "market-only-fallback-v1",
+            }
+
+        before = {
+            "candidates": [
+                _candidate("1", 0.07),
+                _candidate("2", 0.12),
+                _candidate("3", 0.09),
+            ],
+            "lineup_watchlist": [],
+        }
+        after = json.loads(json.dumps(before))
+        for candidate in after["candidates"]:
+            candidate.update(
+                vig_approved=True,
+                vig_notes="All gates hold.",
+                execution_mode="manual",
+                manual_bet_status="awaiting_jerry",
+                execution_status="pending_manual_fill",
+                executed=False,
+            )
+
+        errors = vig_review_gate_common.normalize_review_routing(
+            before, after, "MLB", mlb_standing_authorized=True
+        )
+
+        self.assertEqual(len(errors), 1)
+        self.assertIn("daily candidate limit 2 exceeded", errors[0])
+        # Lowest edge (event_id 1) is the rejected tail; nothing may be
+        # rewritten to standing_authorized because the cap rejects first.
+        for candidate in after["candidates"]:
+            self.assertEqual(candidate["execution_mode"], "manual")
+
+    def test_normalize_cap_preserves_genuinely_manual_only_candidate(self):
+        # A pre-existing manual-only candidate (never rewritten, not newly
+        # approved) must not consume a standing-authorized cap slot.
+        def _candidate(event_id, edge, vig_approved=None):
+            return {
+                "event_id": event_id,
+                "side": "CWS",
+                "polymarket_ask": 0.48,
+                "vig_approved": vig_approved,
+                "dk_fair_prob": 0.55,
+                "raw_probability": 0.57,
+                "uncertainty_haircut": 0.03,
+                "conservative_probability": 0.48 + edge,
+                "current_ask": 0.48,
+                "projected_edge_at_current_ask": edge,
+                "model_version": "market-only-fallback-v1",
+            }
+
+        before = {
+            "candidates": [
+                _candidate("manual", 0.20, vig_approved=True),
+                _candidate("1", 0.07),
+                _candidate("2", 0.12),
+            ],
+            "lineup_watchlist": [],
+        }
+        after = json.loads(json.dumps(before))
+        after["candidates"][0]["execution_mode"] = "manual"
+        after["candidates"][0]["manual_bet_status"] = "awaiting_jerry"
+        for candidate in after["candidates"][1:]:
+            candidate.update(vig_approved=True, vig_notes="All gates hold.")
+
+        errors = vig_review_gate_common.normalize_review_routing(
+            before, after, "MLB", mlb_standing_authorized=True
+        )
+
+        # The manual-only candidate is excluded from the cap pool, so the two
+        # new approvals fit within the cap of two.
+        self.assertEqual(errors, [])
+        self.assertEqual(after["candidates"][0]["execution_mode"], "manual")
+
     def test_normalize_rejects_approval_below_conservative_edge_floor(self):
         before = {
             "candidates": [
