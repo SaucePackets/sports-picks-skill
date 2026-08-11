@@ -171,6 +171,30 @@ class ExecutionGuardTests(unittest.TestCase):
             )
         )
 
+    def test_standing_authorized_lock_refuses_non_finite_probability(self):
+        now = datetime(2026, 5, 27, 21, 0, tzinfo=timezone.utc)
+        for field in (
+            "conservative_probability",
+            "current_ask",
+            "projected_edge_at_current_ask",
+        ):
+            candidate = json.loads(self.schedule_path.read_text())["candidates"][0]
+            candidate[field] = float("nan")
+            self.schedule_path.write_text(json.dumps({
+                "date": "2026-05-27", "sport": "MLB", "market_type": "moneyline",
+                "candidates": [candidate],
+            }))
+            self.assertFalse(
+                acquire_execution_lock(
+                    self.schedule_path,
+                    "aec-mlb-nyy-kc-2026-05-27",
+                    f"attempt-nan-{field}",
+                    require_standing_authorized=True,
+                    now=now,
+                ),
+                f"{field}=NaN must fail closed at lock time",
+            )
+
     def test_check_cli_blocks_active_canonical_pick(self):
         picks_path = self.root / "picks.json"
         picks_path.write_text(

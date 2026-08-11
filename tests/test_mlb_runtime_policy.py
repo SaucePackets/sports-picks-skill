@@ -173,6 +173,61 @@ class MlbPolicyLoaderTests(unittest.TestCase):
             len(mlb_runtime_policy.REQUIRED_EXECUTION_PROBABILITY_FIELDS),
         )
 
+    def test_missing_probability_fields_rejects_non_finite(self):
+        complete = {
+            "dk_fair_prob": 0.55,
+            "raw_probability": 0.63,
+            "uncertainty_haircut": 0.03,
+            "conservative_probability": 0.60,
+            "current_ask": 0.51,
+            "projected_edge_at_current_ask": 0.09,
+            "model_version": "market-prior-v1",
+        }
+        for bad in (float("nan"), float("inf"), float("-inf")):
+            candidate = dict(complete, conservative_probability=bad)
+            self.assertIn(
+                "conservative_probability",
+                mlb_runtime_policy.missing_probability_fields(candidate),
+            )
+            edge_candidate = dict(complete, projected_edge_at_current_ask=bad)
+            self.assertIn(
+                "projected_edge_at_current_ask",
+                mlb_runtime_policy.missing_probability_fields(edge_candidate),
+            )
+
+    def test_missing_probability_fields_rejects_out_of_range(self):
+        complete = {
+            "dk_fair_prob": 0.55,
+            "raw_probability": 0.63,
+            "uncertainty_haircut": 0.03,
+            "conservative_probability": 0.60,
+            "current_ask": 0.51,
+            "projected_edge_at_current_ask": 0.09,
+            "model_version": "market-prior-v1",
+        }
+        for bad in (0.0, 1.0, 1.5, -0.2):
+            candidate = dict(complete, conservative_probability=bad)
+            self.assertIn(
+                "conservative_probability",
+                mlb_runtime_policy.missing_probability_fields(candidate),
+            )
+        # Edge is signed and unbounded; only finiteness applies.
+        self.assertEqual(
+            mlb_runtime_policy.missing_probability_fields(
+                dict(complete, projected_edge_at_current_ask=-0.25)
+            ),
+            [],
+        )
+
+    def test_projected_edge_rejects_non_finite(self):
+        self.assertIsNone(mlb_runtime_policy.projected_edge(float("nan"), 0.51))
+        self.assertIsNone(mlb_runtime_policy.projected_edge(0.60, float("inf")))
+        self.assertIsNone(
+            mlb_runtime_policy.executable_price_ceiling(
+                float("nan"), {"min_conservative_edge": 0.05}
+            )
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

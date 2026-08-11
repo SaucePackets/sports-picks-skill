@@ -98,6 +98,20 @@ class MlbExecutionGateTests(unittest.TestCase):
         stale = self.candidate(now, current_ask=None)
         self.assertFalse(mlb_execution_gate.candidate_is_eligible(stale, now))
 
+    def test_candidate_with_non_finite_probability_is_ineligible(self):
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        for field in (
+            "conservative_probability",
+            "current_ask",
+            "projected_edge_at_current_ask",
+        ):
+            for bad in (float("nan"), float("inf"), float("-inf")):
+                poisoned = self.candidate(now, **{field: bad})
+                self.assertFalse(
+                    mlb_execution_gate.candidate_is_eligible(poisoned, now),
+                    f"{field}={bad} must fail closed",
+                )
+
     def test_live_edge_below_policy_floor_is_ineligible(self):
         now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
         # Stored morning edge says 0.07, but the live recomputed edge

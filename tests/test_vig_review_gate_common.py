@@ -220,6 +220,85 @@ class VigReviewGateCommonTests(unittest.TestCase):
         self.assertIs(weakest["vig_approved"], False)
         self.assertIn("daily official-bet limit", weakest["vig_notes"])
 
+    def test_daily_limit_counts_existing_approvals_as_consumed_slots(self):
+        # Cap is 2. One candidate was already approved earlier today (edge
+        # 0.06). Two stronger new approvals (0.10, 0.08) arrive in this
+        # review: the existing approval consumes a slot, so only the strongest
+        # new candidate may keep its approval — all three must NOT stay
+        # approved.
+        existing = self._routing_candidate("9", "OLD", 0.50, 0.56)
+        existing["vig_approved"] = True
+        existing["vig_notes"] = "Approved in an earlier review."
+        existing.update(
+            _contract(conservative_probability=0.56, current_ask=0.50)
+        )
+        before = {
+            "candidates": [
+                existing,
+                self._routing_candidate("1", "AAA", 0.50, 0.60),
+                self._routing_candidate("2", "BBB", 0.50, 0.58),
+            ]
+        }
+        after = json.loads(json.dumps(before))
+        for candidate, edge_prob in zip(after["candidates"][1:], [0.60, 0.58]):
+            candidate.update(
+                vig_approved=True,
+                vig_notes="All gates hold.",
+                **_contract(
+                    conservative_probability=edge_prob,
+                    current_ask=candidate["polymarket_ask"],
+                ),
+            )
+
+        with _patched_policy():
+            errors = vig_review_gate_common.normalize_review_routing(
+                before, after, "MLB", mlb_standing_authorized=True
+            )
+
+        self.assertEqual(errors, [])
+        approved_sides = [
+            c["side"] for c in after["candidates"] if c.get("vig_approved") is True
+        ]
+        self.assertEqual(approved_sides, ["OLD", "AAA"])
+        weakest = after["candidates"][2]
+        self.assertIs(weakest["vig_approved"], False)
+        self.assertIn("daily official-bet limit", weakest["vig_notes"])
+
+    def test_small_bet_limit_counts_existing_small_approvals(self):
+        # Probation small-tier cap is 1/day. An existing small approval
+        # consumes the slot; a new small candidate, even with a stronger edge,
+        # must be demoted.
+        existing = self._routing_candidate(
+            "9", "OLD", 0.50, 0.56, confidence="small", unit_size=9
+        )
+        existing["vig_approved"] = True
+        existing.update(_contract(conservative_probability=0.56, current_ask=0.50))
+        before = {
+            "candidates": [
+                existing,
+                self._routing_candidate(
+                    "1", "AAA", 0.50, 0.60, confidence="small", unit_size=9
+                ),
+            ]
+        }
+        after = json.loads(json.dumps(before))
+        after["candidates"][1].update(
+            vig_approved=True,
+            vig_notes="All gates hold.",
+            **_contract(conservative_probability=0.60, current_ask=0.50),
+        )
+
+        with _patched_policy():
+            errors = vig_review_gate_common.normalize_review_routing(
+                before, after, "MLB", mlb_standing_authorized=True
+            )
+
+        self.assertEqual(errors, [])
+        self.assertIs(after["candidates"][0]["vig_approved"], True)
+        newcomer = after["candidates"][1]
+        self.assertIs(newcomer["vig_approved"], False)
+        self.assertIn("probation small-bet daily limit", newcomer["vig_notes"])
+
     def test_daily_limit_keeps_highest_edge_not_first_listed(self):
         before = {
             "candidates": [

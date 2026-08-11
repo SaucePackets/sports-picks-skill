@@ -256,40 +256,47 @@ def apply_daily_candidate_limits(
         new_by_day.setdefault(_daily_limits_key(candidate), []).append(candidate)
 
     for day, day_new in new_by_day.items():
-        pool = approved_by_day.get(day, []) + day_new
-        if max_official >= 1 and len(pool) > max_official:
-            ranked = sorted(
-                pool,
-                key=lambda c: (edge_of(c), gate_strength(c)),
-                reverse=True,
-            )
-            kept_ids = {id(c) for c in ranked[:max_official]}
-            for candidate in day_new:
-                if id(candidate) not in kept_ids:
-                    demotions[candidate_identity(candidate)] = (
-                        f"daily official-bet limit: day {day or '<unknown>'} has "
-                        f"{len(pool)} qualified candidates, policy allows "
-                        f"{max_official}; this candidate ranked below the cutoff "
-                        "on conservative edge"
-                    )
+        # Existing same-day approvals reserve their slots: they were approved
+        # earlier in the day, so new candidates compete only for the remaining
+        # capacity. Ranking new candidates against the FULL pool and then only
+        # demoting members of day_new lets total approvals exceed the cap.
+        existing = approved_by_day.get(day, [])
+        if max_official >= 1:
+            remaining = max_official - len(existing)
+            if len(day_new) > max(remaining, 0):
+                ranked = sorted(
+                    day_new,
+                    key=lambda c: (edge_of(c), gate_strength(c)),
+                    reverse=True,
+                )
+                kept_ids = {id(c) for c in ranked[: max(remaining, 0)]}
+                for candidate in day_new:
+                    if id(candidate) not in kept_ids:
+                        demotions[candidate_identity(candidate)] = (
+                            f"daily official-bet limit: day {day or '<unknown>'} has "
+                            f"{len(existing) + len(day_new)} qualified candidates, policy allows "
+                            f"{max_official}; this candidate ranked below the cutoff "
+                            "on conservative edge"
+                        )
         if max_small >= 1:
             surviving_new = [
                 c for c in day_new if candidate_identity(c) not in demotions
             ]
-            small_pool = [c for c in approved_by_day.get(day, []) if is_small(c)]
-            small_pool += [c for c in surviving_new if is_small(c)]
-            if len(small_pool) > max_small:
+            existing_small = [c for c in existing if is_small(c)]
+            new_small = [c for c in surviving_new if is_small(c)]
+            remaining_small = max_small - len(existing_small)
+            if len(new_small) > max(remaining_small, 0):
                 ranked_small = sorted(
-                    small_pool,
+                    new_small,
                     key=lambda c: (edge_of(c), gate_strength(c)),
                     reverse=True,
                 )
-                kept_small = {id(c) for c in ranked_small[:max_small]}
-                for candidate in surviving_new:
-                    if is_small(candidate) and id(candidate) not in kept_small:
+                kept_small = {id(c) for c in ranked_small[: max(remaining_small, 0)]}
+                for candidate in new_small:
+                    if id(candidate) not in kept_small:
                         demotions[candidate_identity(candidate)] = (
                             f"probation small-bet daily limit: day {day or '<unknown>'} has "
-                            f"{len(small_pool)} small-tier candidates, policy allows "
+                            f"{len(existing_small) + len(new_small)} small-tier candidates, policy allows "
                             f"{max_small}; this candidate ranked below the cutoff "
                             "on conservative edge"
                         )

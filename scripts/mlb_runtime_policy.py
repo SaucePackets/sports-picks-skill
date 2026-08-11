@@ -11,6 +11,7 @@ conservative defaults, never to a looser rail than intended.
 from __future__ import annotations
 
 import json
+import math
 import os
 from pathlib import Path
 from typing import Any
@@ -77,7 +78,12 @@ def standing_authorization_enabled(state_dir: Path | None = None) -> bool:
 
 def _clean_probability(value: Any) -> float | None:
     if isinstance(value, (int, float)) and not isinstance(value, bool):
-        return float(value)
+        cleaned = float(value)
+        # NaN/Inf are not probabilities: a non-finite value must fail closed
+        # everywhere this helper is used, never bypass a `< floor` check.
+        if not math.isfinite(cleaned):
+            return None
+        return cleaned
     return None
 
 
@@ -175,18 +181,32 @@ def edge_meets_floor(
 
 
 def missing_probability_fields(candidate: dict[str, Any]) -> list[str]:
-    """Return the required probability/edge fields that are absent or non-numeric.
+    """Return the required probability/edge fields that are absent or invalid.
 
-    ``model_version`` is a string field; the rest must be clean numbers. A
-    candidate with ANY missing field is ineligible for standing-authorized
-    routing — stale or absent probability data must fail closed.
+    ``model_version`` is a string field; probability/ask fields must be finite
+    numbers in (0, 1); edge fields must be finite numbers. A candidate with
+    ANY missing or invalid field is ineligible for standing-authorized
+    routing — stale, absent, NaN/Inf, or out-of-range probability data must
+    fail closed.
     """
+    # Fields that must lie in the open unit interval to be meaningful.
+    unit_interval_fields = {
+        "dk_fair_prob",
+        "raw_probability",
+        "uncertainty_haircut",
+        "conservative_probability",
+        "current_ask",
+    }
     missing: list[str] = []
     for field in REQUIRED_EXECUTION_PROBABILITY_FIELDS:
         value = candidate.get(field)
         if field == "model_version":
             if not isinstance(value, str) or not value.strip():
                 missing.append(field)
-        elif _clean_probability(value) is None:
+            continue
+        cleaned = _clean_probability(value)
+        if cleaned is None:
+            missing.append(field)
+        elif field in unit_interval_fields and not 0 < cleaned < 1:
             missing.append(field)
     return missing
