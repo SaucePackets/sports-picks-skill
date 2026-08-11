@@ -366,16 +366,16 @@ class SmallStakeTierRiskLimitTests(unittest.TestCase):
             }
         }))
         self.set_picks([
-            {"execution_timestamp": "2026-08-04T18:00:00Z", "confidence": "small", "unit_size": 9, "entry_notional": 9},
+            {"execution_timestamp": "2026-08-04T18:00:00Z", "confidence": "small", "sport": "MLB", "unit_size": 9, "entry_notional": 9},
         ])
         with patch.dict("os.environ", {"VIG_STATE_DIR": str(state)}):
             # One small already today: a second is refused under probation…
-            v = _risk_limit_violation(self.cand(), self.picks_path, self.now)
+            v = _risk_limit_violation(self.cand(sport="MLB"), self.picks_path, self.now)
             self.assertIsNotNone(v)
             self.assertIn("small-tier daily count breach", v or "")
             # …while the FIRST small of the day is still allowed.
             self.set_picks([])
-            self.assertIsNone(_risk_limit_violation(self.cand(), self.picks_path, self.now))
+            self.assertIsNone(_risk_limit_violation(self.cand(sport="MLB"), self.picks_path, self.now))
 
     def test_probation_small_cap_zero_is_a_full_freeze(self):
         # F1 regression: a schema-valid `max_small_bets_per_day_probation: 0` is
@@ -399,15 +399,15 @@ class SmallStakeTierRiskLimitTests(unittest.TestCase):
         with patch.dict("os.environ", {"VIG_STATE_DIR": str(state)}):
             # Two small bets already today -> the third is refused.
             self.set_picks([
-                {"execution_timestamp": today, "confidence": "small", "unit_size": 9, "entry_notional": 9},
-                {"execution_timestamp": today, "confidence": "small", "unit_size": 9, "entry_notional": 9},
+                {"execution_timestamp": today, "confidence": "small", "sport": "MLB", "unit_size": 9, "entry_notional": 9},
+                {"execution_timestamp": today, "confidence": "small", "sport": "MLB", "unit_size": 9, "entry_notional": 9},
             ])
-            v = _risk_limit_violation(self.cand(), self.picks_path, self.now)
+            v = _risk_limit_violation(self.cand(sport="MLB"), self.picks_path, self.now)
             self.assertIsNotNone(v)
             self.assertIn("small-tier daily count breach", v or "")
             # Empty ledger -> even the FIRST small of the day is refused.
             self.set_picks([])
-            v = _risk_limit_violation(self.cand(), self.picks_path, self.now)
+            v = _risk_limit_violation(self.cand(sport="MLB"), self.picks_path, self.now)
             self.assertIsNotNone(v)
             self.assertIn("small-tier daily count breach", v or "")
 
@@ -428,12 +428,57 @@ class SmallStakeTierRiskLimitTests(unittest.TestCase):
             }
         }))
         self.set_picks([
-            {"execution_timestamp": "2026-08-04T18:00:00Z", "confidence": "small", "unit_size": 9, "entry_notional": 9},
+            {"execution_timestamp": "2026-08-04T18:00:00Z", "confidence": "small", "sport": "MLB", "unit_size": 9, "entry_notional": 9},
         ])
         with patch.dict("os.environ", {"VIG_STATE_DIR": str(state)}):
-            v = _risk_limit_violation(self.cand(), self.picks_path, self.now)
+            v = _risk_limit_violation(self.cand(sport="MLB"), self.picks_path, self.now)
             self.assertIsNotNone(v)
             self.assertIn("small-tier daily count breach", v or "")
+
+    def test_probation_small_cap_only_applies_to_mlb(self):
+        # Scope regression from PR #42 review: the MLB selection policy's
+        # probation Small-count rail must constrain MLB Small candidates only.
+        # Manual-only soccer (or any non-MLB) Small picks keep the legacy
+        # max_small_bets_per_day cap and are NOT limited by probation.
+        state = Path(self.tmp.name) / "policy-scope-state"
+        state.mkdir()
+        (state / "risk_limits.json").write_text(json.dumps({
+            "mlb_selection_policy": {
+                "schema": "vig-mlb-selection-policy-v1",
+                "policy_version": "test",
+                "effective_at": "2026-08-11T00:00:00Z",
+                "min_conservative_edge": 0.05,
+                "max_mlb_official_bets_per_day": 2,
+                "starter_pending_promotions_enabled": False,
+                "max_small_bets_per_day_probation": 1,
+            }
+        }))
+        today = "2026-08-04T18:00:00Z"
+        with patch.dict("os.environ", {"VIG_STATE_DIR": str(state)}):
+            # One Small manual soccer bet already today -> a second Small soccer
+            # candidate is allowed because the legacy cap is 3 and probation
+            # does not apply to non-MLB sports.
+            self.set_picks([
+                {"execution_timestamp": today, "confidence": "small", "sport": "SOCCER", "unit_size": 9, "entry_notional": 9},
+            ])
+            self.assertIsNone(
+                _risk_limit_violation(self.cand(sport="SOCCER"), self.picks_path, self.now)
+            )
+
+            # One Small MLB bet already today -> a second Small MLB candidate
+            # is refused because the probation cap of 1 applies to MLB.
+            self.set_picks([
+                {"execution_timestamp": today, "confidence": "small", "sport": "MLB", "unit_size": 9, "entry_notional": 9},
+            ])
+            v = _risk_limit_violation(self.cand(sport="MLB"), self.picks_path, self.now)
+            self.assertIsNotNone(v)
+            self.assertIn("small-tier daily count breach", v or "")
+
+            # Empty ledger -> the first Small MLB candidate is still allowed.
+            self.set_picks([])
+            self.assertIsNone(
+                _risk_limit_violation(self.cand(sport="MLB"), self.picks_path, self.now)
+            )
 
 
 class FinalLockPolicyIntegrationTests(unittest.TestCase):

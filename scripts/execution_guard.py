@@ -252,17 +252,18 @@ def _risk_limit_violation(
     daily_cap = float(limits.get("daily_cap_usd") or 0)
     max_small_per_day = int(limits.get("max_small_bets_per_day") or 0)
     # Probation rail: while the MLB selection policy is in probation rollout,
-    # the tighter of the base cap and the policy's probation cap wins. Stake
-    # caps themselves are untouched. A missing/invalid policy FAILS CLOSED to
-    # the stricter probation cap, never back to the looser legacy cap.
+    # the tighter of the base cap and the policy's probation cap wins — but
+    # ONLY for MLB candidates. Manual-only soccer/non-MLB Small picks must keep
+    # the legacy ``max_small_bets_per_day`` behavior unchanged.
     #
     # ``max_small_per_day`` may legitimately be 0: the policy loader accepts
     # ``max_small_bets_per_day_probation >= 0`` so 0 is a representable FULL
     # Small freeze. ``small_cap_enforced`` records whether the small count rail
-    # is in effect at all (legacy cap set, or policy present) so a 0 cap is
+    # is in effect at all (legacy cap set, or MLB policy present) so a 0 cap is
     # ENFORCED as zero — never treated as "limit disabled" by falsy checks.
     small_cap_enforced = max_small_per_day > 0
-    if policy is not None:
+    is_mlb_candidate = str(candidate.get("sport") or "").strip().upper() == "MLB"
+    if policy is not None and is_mlb_candidate:
         small_cap_enforced = True
         if max_small_per_day:
             max_small_per_day = min(max_small_per_day, policy.max_small_bets_per_day_probation)
