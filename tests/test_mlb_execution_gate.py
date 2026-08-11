@@ -35,6 +35,13 @@ class MlbExecutionGateTests(unittest.TestCase):
             "execution_status": "pending",
             "executed": False,
             "skipped": False,
+            "dk_fair_prob": 0.55,
+            "raw_probability": 0.59,
+            "uncertainty_haircut": 0.01,
+            "conservative_probability": 0.58,
+            "current_ask": 0.51,
+            "projected_edge_at_current_ask": 0.07,
+            "model_version": "test-model-v1",
         }
         item.update(overrides)
         return item
@@ -67,6 +74,51 @@ class MlbExecutionGateTests(unittest.TestCase):
         self.assertTrue(
             mlb_execution_gate.candidate_is_eligible(self.candidate(now), now)
         )
+
+    def test_candidate_missing_probability_contract_is_ineligible(self):
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        for field in (
+            "dk_fair_prob",
+            "raw_probability",
+            "uncertainty_haircut",
+            "conservative_probability",
+            "current_ask",
+            "projected_edge_at_current_ask",
+            "model_version",
+        ):
+            stripped = self.candidate(now)
+            stripped.pop(field)
+            self.assertFalse(
+                mlb_execution_gate.candidate_is_eligible(stripped, now),
+                f"candidate missing {field} must be ineligible",
+            )
+
+    def test_candidate_with_stale_null_probability_field_is_ineligible(self):
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        stale = self.candidate(now, current_ask=None)
+        self.assertFalse(mlb_execution_gate.candidate_is_eligible(stale, now))
+
+    def test_live_edge_below_policy_floor_is_ineligible(self):
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        # Stored morning edge says 0.07, but the live recomputed edge
+        # (0.58 - 0.54 = 0.04) is below the 0.05 floor: fail closed.
+        deteriorated = self.candidate(
+            now, current_ask=0.54, projected_edge_at_current_ask=0.07
+        )
+        self.assertFalse(mlb_execution_gate.candidate_is_eligible(deteriorated, now))
+
+    def test_live_edge_boundary(self):
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        passing = self.candidate(
+            now, conservative_probability=0.62, current_ask=0.57,
+            projected_edge_at_current_ask=0.05,
+        )
+        self.assertTrue(mlb_execution_gate.candidate_is_eligible(passing, now))
+        failing = self.candidate(
+            now, conservative_probability=0.60, current_ask=0.551,
+            projected_edge_at_current_ask=0.049,
+        )
+        self.assertFalse(mlb_execution_gate.candidate_is_eligible(failing, now))
 
     def test_execution_prompt_is_disabled_without_local_standing_authorization(self):
         now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)

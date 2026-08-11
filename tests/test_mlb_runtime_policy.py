@@ -65,5 +65,114 @@ class MlbRuntimePolicyTests(unittest.TestCase):
             self.assertFalse(mlb_runtime_policy.standing_authorization_enabled(state))
 
 
+class MlbPolicyLoaderTests(unittest.TestCase):
+    def _write(self, path: Path, payload: dict) -> None:
+        path.write_text(json.dumps(payload))
+
+    def test_absent_file_fails_closed_to_conservative_defaults(self):
+        policy = mlb_runtime_policy.load_mlb_policy(Path("/nonexistent/risk_limits.json"))
+        self.assertEqual(policy["min_conservative_edge"], 0.05)
+        self.assertEqual(policy["max_mlb_official_bets_per_day"], 2)
+        self.assertIs(policy["starter_pending_promotions_enabled"], False)
+        self.assertEqual(policy["max_small_bets_per_day_during_probation"], 1)
+        self.assertEqual(policy["policy_version"], "vig-mlb-policy-v1")
+
+    def test_valid_section_loads(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "risk_limits.json"
+            self._write(
+                path,
+                {
+                    "mlb_policy": {
+                        "min_conservative_edge": 0.06,
+                        "max_mlb_official_bets_per_day": 3,
+                        "starter_pending_promotions_enabled": True,
+                        "max_small_bets_per_day_during_probation": 2,
+                        "policy_version": "vig-mlb-policy-v2",
+                        "policy_effective_at": "2026-08-12T00:00:00Z",
+                    }
+                },
+            )
+            policy = mlb_runtime_policy.load_mlb_policy(path)
+            self.assertEqual(policy["min_conservative_edge"], 0.06)
+            self.assertEqual(policy["max_mlb_official_bets_per_day"], 3)
+            self.assertIs(policy["starter_pending_promotions_enabled"], True)
+            self.assertEqual(policy["max_small_bets_per_day_during_probation"], 2)
+            self.assertEqual(policy["policy_version"], "vig-mlb-policy-v2")
+            self.assertEqual(policy["policy_effective_at"], "2026-08-12T00:00:00Z")
+
+    def test_malformed_values_fail_closed_per_key(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "risk_limits.json"
+            self._write(
+                path,
+                {
+                    "mlb_policy": {
+                        "min_conservative_edge": "0.05",
+                        "max_mlb_official_bets_per_day": 0,
+                        "starter_pending_promotions_enabled": "yes",
+                        "max_small_bets_per_day_during_probation": -1,
+                    }
+                },
+            )
+            policy = mlb_runtime_policy.load_mlb_policy(path)
+            self.assertEqual(policy["min_conservative_edge"], 0.05)
+            self.assertEqual(policy["max_mlb_official_bets_per_day"], 2)
+            self.assertIs(policy["starter_pending_promotions_enabled"], False)
+            self.assertEqual(policy["max_small_bets_per_day_during_probation"], 1)
+
+    def test_corrupt_json_fails_closed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "risk_limits.json"
+            path.write_text("{not json")
+            policy = mlb_runtime_policy.load_mlb_policy(path)
+            self.assertEqual(policy["min_conservative_edge"], 0.05)
+
+    def test_executable_price_ceiling_math(self):
+        policy = {"min_conservative_edge": 0.05}
+        self.assertAlmostEqual(
+            mlb_runtime_policy.executable_price_ceiling(0.60, policy), 0.55
+        )
+
+    def test_executable_price_ceiling_boundary(self):
+        policy = {"min_conservative_edge": 0.05}
+        # 0.049 edge-equivalent ceiling stays positive; a probability at or
+        # under the floor leaves no positive ceiling and fails closed.
+        self.assertIsNotNone(mlb_runtime_policy.executable_price_ceiling(0.051, policy))
+        self.assertIsNone(mlb_runtime_policy.executable_price_ceiling(0.05, policy))
+        self.assertIsNone(mlb_runtime_policy.executable_price_ceiling(0.04, policy))
+
+    def test_executable_price_ceiling_rejects_bad_probability(self):
+        self.assertIsNone(mlb_runtime_policy.executable_price_ceiling("0.60", {"min_conservative_edge": 0.05}))
+        self.assertIsNone(mlb_runtime_policy.executable_price_ceiling(1.2, {"min_conservative_edge": 0.05}))
+
+    def test_projected_edge(self):
+        self.assertAlmostEqual(mlb_runtime_policy.projected_edge(0.60, 0.55), 0.05)
+        self.assertIsNone(mlb_runtime_policy.projected_edge(0.60, "0.55"))
+        self.assertIsNone(mlb_runtime_policy.projected_edge(None, 0.55))
+
+    def test_missing_probability_fields(self):
+        complete = {
+            "dk_fair_prob": 0.55,
+            "raw_probability": 0.63,
+            "uncertainty_haircut": 0.03,
+            "conservative_probability": 0.60,
+            "current_ask": 0.51,
+            "projected_edge_at_current_ask": 0.09,
+            "model_version": "market-prior-v1",
+        }
+        self.assertEqual(mlb_runtime_policy.missing_probability_fields(complete), [])
+        stale = dict(complete, current_ask=None)
+        self.assertEqual(mlb_runtime_policy.missing_probability_fields(stale), ["current_ask"])
+        no_version = dict(complete, model_version="")
+        self.assertEqual(
+            mlb_runtime_policy.missing_probability_fields(no_version), ["model_version"]
+        )
+        self.assertEqual(
+            len(mlb_runtime_policy.missing_probability_fields({})),
+            len(mlb_runtime_policy.REQUIRED_EXECUTION_PROBABILITY_FIELDS),
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

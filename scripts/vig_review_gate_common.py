@@ -35,7 +35,14 @@ from mlb_lineup_watchlist import (  # noqa: E402
     fetch_lineup_snapshot,
     validate_watchlist,
 )
-from mlb_runtime_policy import standing_authorization_enabled  # noqa: E402
+from mlb_runtime_policy import (  # noqa: E402
+    EDGE_FLOOR_EPSILON,
+    executable_price_ceiling,
+    load_mlb_policy,
+    missing_probability_fields,
+    projected_edge,
+    standing_authorization_enabled,
+)
 
 HERMES = os.environ.get("HERMES_BIN") or shutil.which("hermes") or "/home/clawdbot/.local/bin/hermes"
 
@@ -182,6 +189,147 @@ def _watchlist_supported_price(
     return None
 
 
+def _daily_limits_key(candidate: dict[str, Any]) -> str:
+    """UTC day the candidate counts against for official/small daily limits."""
+    first_pitch = candidate.get("first_pitch_utc")
+    if isinstance(first_pitch, str) and len(first_pitch) >= 10:
+        return first_pitch[:10]
+    slug = candidate.get("polymarket_slug")
+    if isinstance(slug, str):
+        return slug[-10:]
+    return ""
+
+
+def apply_daily_candidate_limits(
+    newly_approved: list[dict[str, Any]],
+    all_candidates: list[dict[str, Any]],
+    policy: dict[str, Any],
+) -> dict[str, str]:
+    """Enforce max official bets/day and the probation small-bet/day cap.
+
+    Returns {identity: reason} for newly approved candidates that must be
+    demoted back to vig_approved=false. Ranks same-day qualified candidates by
+    conservative edge (live recomputation when the fields exist, else the
+    stored projected edge), ties broken by baseball-gate strength (count of
+    true original_gate_results), then keeps only the top
+    ``max_mlb_official_bets_per_day`` per UTC day. Small-tier volume during
+    probation is separately capped at
+    ``max_small_bets_per_day_during_probation`` per day.
+    """
+    demotions: dict[str, str] = {}
+    max_official = int(policy.get("max_mlb_official_bets_per_day") or 0)
+    max_small = int(policy.get("max_small_bets_per_day_during_probation") or 0)
+    if max_official < 1 and max_small < 1:
+        return demotions
+
+    def edge_of(candidate: dict[str, Any]) -> float:
+        live = projected_edge(
+            candidate.get("conservative_probability"), candidate.get("current_ask")
+        )
+        if live is not None:
+            return live
+        stored = candidate.get("projected_edge_at_current_ask")
+        if isinstance(stored, (int, float)) and not isinstance(stored, bool):
+            return float(stored)
+        return float("-inf")
+
+    def gate_strength(candidate: dict[str, Any]) -> int:
+        gates = candidate.get("original_gate_results")
+        if not isinstance(gates, dict):
+            return 0
+        return sum(1 for value in gates.values() if value is True)
+
+    def is_small(candidate: dict[str, Any]) -> bool:
+        return str(candidate.get("confidence") or "").strip().lower() == "small"
+
+    approved_by_day: dict[str, list[dict[str, Any]]] = {}
+    for candidate in all_candidates:
+        if (
+            isinstance(candidate, dict)
+            and candidate.get("vig_approved") is True
+            and candidate not in newly_approved
+        ):
+            approved_by_day.setdefault(_daily_limits_key(candidate), []).append(candidate)
+
+    new_by_day: dict[str, list[dict[str, Any]]] = {}
+    for candidate in newly_approved:
+        new_by_day.setdefault(_daily_limits_key(candidate), []).append(candidate)
+
+    for day, day_new in new_by_day.items():
+        pool = approved_by_day.get(day, []) + day_new
+        if max_official >= 1 and len(pool) > max_official:
+            ranked = sorted(
+                pool,
+                key=lambda c: (edge_of(c), gate_strength(c)),
+                reverse=True,
+            )
+            kept_ids = {id(c) for c in ranked[:max_official]}
+            for candidate in day_new:
+                if id(candidate) not in kept_ids:
+                    demotions[candidate_identity(candidate)] = (
+                        f"daily official-bet limit: day {day or '<unknown>'} has "
+                        f"{len(pool)} qualified candidates, policy allows "
+                        f"{max_official}; this candidate ranked below the cutoff "
+                        "on conservative edge"
+                    )
+        if max_small >= 1:
+            surviving_new = [
+                c for c in day_new if candidate_identity(c) not in demotions
+            ]
+            small_pool = [c for c in approved_by_day.get(day, []) if is_small(c)]
+            small_pool += [c for c in surviving_new if is_small(c)]
+            if len(small_pool) > max_small:
+                ranked_small = sorted(
+                    small_pool,
+                    key=lambda c: (edge_of(c), gate_strength(c)),
+                    reverse=True,
+                )
+                kept_small = {id(c) for c in ranked_small[:max_small]}
+                for candidate in surviving_new:
+                    if is_small(candidate) and id(candidate) not in kept_small:
+                        demotions[candidate_identity(candidate)] = (
+                            f"probation small-bet daily limit: day {day or '<unknown>'} has "
+                            f"{len(small_pool)} small-tier candidates, policy allows "
+                            f"{max_small}; this candidate ranked below the cutoff "
+                            "on conservative edge"
+                        )
+    return demotions
+
+
+def _validate_newly_approved_probability_contract(
+    candidate: dict[str, Any], policy: dict[str, Any]
+) -> list[str]:
+    """Standing-authorized candidates must carry the full probability contract.
+
+    Recomputes the live edge from conservative_probability and current_ask;
+    the stored morning number can never substitute for live arithmetic.
+    """
+    errors: list[str] = []
+    missing = missing_probability_fields(candidate)
+    if missing:
+        errors.append(
+            "missing/non-numeric probability contract fields: " + ", ".join(missing)
+        )
+        return errors
+    live_edge = projected_edge(
+        candidate.get("conservative_probability"), candidate.get("current_ask")
+    )
+    min_edge = float(policy["min_conservative_edge"])
+    if live_edge is None:
+        errors.append("live conservative edge could not be recomputed")
+    elif live_edge < min_edge - EDGE_FLOOR_EPSILON:
+        errors.append(
+            f"live conservative edge {live_edge:.4f} below min_conservative_edge "
+            f"{min_edge:.4f}"
+        )
+    ceiling = executable_price_ceiling(
+        candidate.get("conservative_probability"), policy
+    )
+    if ceiling is None:
+        errors.append("executable price ceiling could not be derived")
+    return errors
+
+
 def normalize_review_routing(
     before: dict[str, Any],
     after: dict[str, Any],
@@ -228,6 +376,73 @@ def normalize_review_routing(
         if candidate.get("vig_approved") is True
         and before_by_id.get(candidate_identity(candidate), {}).get("vig_approved") is not True
     ]
+
+    policy = load_mlb_policy()
+
+    # Fail loud first: injected candidates and non-numeric asks are review
+    # integrity errors, not policy demotions — they must surface as errors and
+    # abort routing, never be silently downgraded by the contract check below.
+    integrity_errors: list[str] = []
+    for candidate in newly_approved:
+        identity = candidate_identity(candidate)
+        original = before_by_id.get(identity)
+        if original is None and candidate.get("watchlist_id") not in promoted_watchlist_ids:
+            integrity_errors.append(
+                f"candidate {identity} was not a targeted candidate or watchlist promotion"
+            )
+            candidate["vig_approved"] = False
+            continue
+        if _strict_polymarket_ask(candidate, original) is None:
+            integrity_errors.append(
+                f"candidate {identity} has no strict numeric "
+                "approved Polymarket ask"
+            )
+            candidate["vig_approved"] = False
+    if integrity_errors:
+        return integrity_errors
+
+    # Standing-authorized routing requires the full probability contract with a
+    # live recomputed conservative edge at/above the policy floor. Candidates
+    # that fail stay in the review as manual-only approvals (vig_approved stays
+    # true but they never reach the execution poller).
+    routing_eligible: list[dict[str, Any]] = []
+    for candidate in newly_approved:
+        contract_errors = _validate_newly_approved_probability_contract(candidate, policy)
+        if contract_errors:
+            candidate["vig_approved"] = False
+            note = (
+                "rejected by shared MLB policy at routing: " + "; ".join(contract_errors)
+            )
+            existing = candidate.get("vig_notes")
+            candidate["vig_notes"] = (
+                f"{existing} [{note}]" if isinstance(existing, str) and existing.strip() else note
+            )
+            continue
+        routing_eligible.append(candidate)
+
+    # Daily volume rails: max N official bets/day and 1 small/day during
+    # probation, ranked by conservative edge. Fail closed (demote) when over.
+    demotions = apply_daily_candidate_limits(
+        routing_eligible, after_candidates, policy
+    )
+    eligible_identities = set()
+    for candidate in routing_eligible:
+        identity = candidate_identity(candidate)
+        if identity in demotions:
+            candidate["vig_approved"] = False
+            note = f"rejected by shared MLB policy at routing: {demotions[identity]}"
+            existing = candidate.get("vig_notes")
+            candidate["vig_notes"] = (
+                f"{existing} [{note}]" if isinstance(existing, str) and existing.strip() else note
+            )
+        else:
+            eligible_identities.add(identity)
+    newly_approved = [
+        candidate
+        for candidate in routing_eligible
+        if candidate_identity(candidate) in eligible_identities
+    ]
+
     prices: list[tuple[dict[str, Any], int | float]] = []
     errors: list[str] = []
     for candidate in newly_approved:
@@ -432,6 +647,21 @@ def review_work(
     return candidates, watchlist
 
 
+def _policy_clause(mlb: bool) -> str:
+    policy = load_mlb_policy()
+    edge = policy["min_conservative_edge"]
+    if mlb:
+        return (
+            f"Recompute the conservative probability from the refreshed handicap, then set the\n"
+            f"price ceiling max_polymarket_price = conservative_probability - {edge:.3f} (the\n"
+            f"shared policy's min_conservative_edge). Judge"
+        )
+    return (
+        f"Recompute win_probability from the refreshed handicap, then set the price ceiling\n"
+        f"max_polymarket_price = win_probability - {edge:.3f} (our required edge floor). Judge"
+    )
+
+
 def build_regular_review_prompt(
     sport: str,
     day: str,
@@ -456,14 +686,36 @@ approval token, or trading command. An approved candidate is only a reminder for
 Jerry and must never place or schedule a bet.
 """
     )
+    contract_clause = ""
+    if sport.upper() == "MLB" and mlb_standing_authorized:
+        policy = load_mlb_policy()
+        min_edge = policy["min_conservative_edge"]
+        max_official = policy["max_mlb_official_bets_per_day"]
+        max_small = policy["max_small_bets_per_day_during_probation"]
+        contract_clause = f"""
+MLB PROBABILITY CONTRACT (shared policy v{policy['policy_version']} — enforced
+deterministically at routing; a candidate missing any piece is NOT routed to
+execution):
+- Provide dk_fair_prob (de-vigged DraftKings fair probability), raw_probability,
+  uncertainty_haircut, conservative_probability (raw minus the haircut), the live
+  current_ask, projected_edge_at_current_ask (= conservative_probability -
+  current_ask), and model_version.
+- The executable ceiling is max_polymarket_price = conservative_probability -
+  min_conservative_edge ({min_edge:.3f}). A live recomputed conservative edge
+  below {min_edge:.3f} is ineligible no matter what the morning number said.
+- At most {max_official} official MLB bet(s) per day and {max_small} Small-tier
+  bet(s) per day during probation; qualified candidates are ranked by
+  conservative edge and baseball-gate strength and the rest are cut.
+"""
+    price_clause = _policy_clause(sport.upper() == "MLB")
     return f"""You are Vig performing the independent {sport} card review for {day}.
 Read {schedule_path}. Review only pending candidates: {sides}. Refresh decisive
 inputs and current supported-market prices, then apply every original hard gate.
 Update each reviewed candidate with boolean vig_approved and concise vig_notes.
+{contract_clause}
 
 PRICE DISCIPLINE (the ceiling is the ONLY guardrail — do NOT do fee arithmetic):
-Recompute win_probability from the refreshed handicap, then set the price ceiling
-max_polymarket_price = win_probability - 0.02 (our required 2-point edge). Judge
+{price_clause}
 price on the REAL cost to buy: approve whenever the current executable ask — what
 you would actually pay right now — is at or under that ceiling; reject on price
 only when the live ask is above the ceiling. This is fee-agnostic on purpose: any

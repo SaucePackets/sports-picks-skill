@@ -22,7 +22,12 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from http_util import fetch_json as _retrying_fetch_json  # noqa: E402
-from mlb_runtime_policy import standing_authorization_enabled  # noqa: E402
+from mlb_runtime_policy import (  # noqa: E402
+    executable_price_ceiling,
+    load_mlb_policy,
+    projected_edge,
+    standing_authorization_enabled,
+)
 
 MIN_MINUTES_BEFORE_FIRST_PITCH = 35
 MAX_MINUTES_BEFORE_FIRST_PITCH = 90
@@ -342,6 +347,11 @@ def validate_entry(entry: dict[str, Any]) -> list[str]:
         if not isinstance(notes, str) or not notes.strip():
             errors.append("passed entry requires non-empty recheck_notes")
     if status == "promoted":
+        if starter_pending and not load_mlb_policy()["starter_pending_promotions_enabled"]:
+            errors.append(
+                "starter-pending promotion refused: shared MLB policy sets "
+                "starter_pending_promotions_enabled=false"
+            )
         recheck = entry.get("recheck")
         required_refreshes = (
             "lineups_confirmed",
@@ -538,29 +548,44 @@ vig_approved=true. It must never place or schedule a bet."""
     ]
     starter_block = ""
     if starter_ids:
-        starter_block = (
-            "\n\nSTARTER-PENDING RE-HANDICAP — entries " + ", ".join(starter_ids) + " were "
-            "carded off a PROVISIONAL win_probability because the opposing starter had "
-            "not been announced at slate time. For each of these you MUST, before any "
-            "promotion:\n"
-            "- Read the announced PROBABLE STARTERS provided above. If your side's or the "
-            "opponent's starter still shows NOT YET ANNOUNCED, keep status "
-            "pending_lineup_recheck (do not pass, do not promote) — it is simply not "
-            "resolvable yet this cycle.\n"
-            "- Re-handicap the game against the real announced opposing starter and "
-            "recompute win_probability from the full read. Use mlb_pitcher_season "
-            "(mcp-sports-data) for that starter's line if you need it — never curl/web.\n"
-            "- Recompute net_edge = win_probability - current_ask (no fee). Promote ONLY "
-            "if net_edge >= 0.02 with the real starter AND the two deferred gates "
-            "(opposing_starter_shutdown_path, real_winner_conviction) now genuinely pass. "
-            "If the announced starter erases the edge or fails a gate, set status=passed "
-            "with the reason — this is the safety hinge; the morning number is discarded.\n"
-            "- Set the promoted_candidate max_polymarket_price to your recomputed "
-            "win_probability minus 0.02 (the true break-even-plus-floor ceiling), NOT the "
-            "provisional slate ceiling, so the execution poller cannot chase past the edge.\n"
-            "- In the recheck object, set starter_confirmed=true and "
-            "net_edge_recomputed=true to record that the re-handicap happened."
-        )
+        starter_policy = load_mlb_policy()
+        edge_floor = starter_policy["min_conservative_edge"]
+        if not starter_policy["starter_pending_promotions_enabled"]:
+            starter_block = (
+                "\n\nSTARTER-PENDING PROMOTIONS DISABLED — entries "
+                + ", ".join(starter_ids)
+                + " were deferred because a starter was unannounced at slate time. "
+                "The shared MLB policy (starter_pending_promotions_enabled=false) "
+                "disables promotion of starter-pending entries until starter-role and "
+                "bulk-path verification are deterministic. Set status=passed for each "
+                "of these with recheck_notes explaining the policy pass; do NOT promote "
+                "them regardless of the announced starter or current price."
+            )
+        else:
+            starter_block = (
+                "\n\nSTARTER-PENDING RE-HANDICAP — entries " + ", ".join(starter_ids) + " were "
+                "carded off a PROVISIONAL conservative probability because the opposing starter had "
+                "not been announced at slate time. For each of these you MUST, before any "
+                "promotion:\n"
+                "- Read the announced PROBABLE STARTERS provided above. If your side's or the "
+                "opponent's starter still shows NOT YET ANNOUNCED, keep status "
+                "pending_lineup_recheck (do not pass, do not promote) — it is simply not "
+                "resolvable yet this cycle.\n"
+                "- Re-handicap the game against the real announced opposing starter and "
+                "recompute the conservative probability from the full read. Use mlb_pitcher_season "
+                "(mcp-sports-data) for that starter's line if you need it — never curl/web.\n"
+                f"- Recompute projected_edge = conservative_probability - current_ask (no fee). "
+                f"Promote ONLY if that live edge >= {edge_floor:.3f} with the real starter AND the "
+                "two deferred gates "
+                "(opposing_starter_shutdown_path, real_winner_conviction) now genuinely pass. "
+                "If the announced starter erases the edge or fails a gate, set status=passed "
+                "with the reason — this is the safety hinge; the morning number is discarded.\n"
+                f"- Set the promoted_candidate max_polymarket_price to your recomputed "
+                f"conservative_probability minus {edge_floor:.3f} (the shared policy ceiling), NOT the "
+                "provisional slate ceiling, so the execution poller cannot chase past the edge.\n"
+                "- In the recheck object, set starter_confirmed=true and "
+                "net_edge_recomputed=true to record that the re-handicap happened."
+            )
     manual_only_ids = [str(e.get("id")) for e in entries if entry_is_manual_only(e)]
     if manual_only_ids:
         routing += (

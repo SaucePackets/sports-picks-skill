@@ -44,6 +44,13 @@ class ExecutionGuardTests(unittest.TestCase):
                 "executed": False,
                 "skipped": False,
                 "execution_lock": None,
+                "dk_fair_prob": 0.62,
+                "raw_probability": 0.66,
+                "uncertainty_haircut": 0.01,
+                "conservative_probability": 0.65,
+                "current_ask": 0.59,
+                "projected_edge_at_current_ask": 0.06,
+                "model_version": "test-model-v1",
             }],
         }))
 
@@ -285,7 +292,18 @@ class SmallStakeTierRiskLimitTests(unittest.TestCase):
         self.tmp.cleanup()
 
     def cand(self, **kw):
-        base = {"unit_size": 9, "confidence": "small", "max_polymarket_price": 0.55}
+        base = {
+            "unit_size": 9,
+            "confidence": "small",
+            "max_polymarket_price": 0.55,
+            "dk_fair_prob": 0.60,
+            "raw_probability": 0.63,
+            "uncertainty_haircut": 0.01,
+            "conservative_probability": 0.62,
+            "current_ask": 0.55,
+            "projected_edge_at_current_ask": 0.07,
+            "model_version": "test-model-v1",
+        }
         base.update(kw)
         return base
 

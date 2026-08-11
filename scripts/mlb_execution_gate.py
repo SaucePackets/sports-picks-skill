@@ -21,7 +21,13 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from mlb_runtime_policy import standing_authorization_enabled
+from mlb_runtime_policy import (
+    EDGE_FLOOR_EPSILON,
+    load_mlb_policy,
+    missing_probability_fields,
+    projected_edge,
+    standing_authorization_enabled,
+)
 
 CENTRAL = ZoneInfo("America/Chicago")
 MAX_MINUTES_BEFORE_FIRST_PITCH = 120
@@ -117,7 +123,11 @@ def _liquidity_defer_ready(candidate: dict[str, Any], now: datetime) -> bool:
     return minutes_since >= LIQUIDITY_RETRY_MINUTES
 
 
-def candidate_is_eligible(candidate: dict[str, Any], now: datetime) -> bool:
+def candidate_is_eligible(
+    candidate: dict[str, Any],
+    now: datetime,
+    policy: dict[str, Any] | None = None,
+) -> bool:
     first_pitch = parse_instant(candidate.get("first_pitch_utc"))
     if first_pitch is None:
         return False
@@ -137,6 +147,17 @@ def candidate_is_eligible(candidate: dict[str, Any], now: datetime) -> bool:
     # carries execution_mode=standing_authorized. It awaits Jerry's confirmation.
     # This is the last deterministic line of defense before a real order.
     if candidate.get("manual_only") is True:
+        return False
+    # Probability contract: a candidate with stale or missing probability/edge
+    # fields is ineligible, and the LIVE recomputed conservative edge must clear
+    # the shared policy floor — the stored morning edge can never substitute.
+    if missing_probability_fields(candidate):
+        return False
+    resolved = policy or load_mlb_policy()
+    live_edge = projected_edge(
+        candidate.get("conservative_probability"), candidate.get("current_ask")
+    )
+    if live_edge is None or live_edge < float(resolved["min_conservative_edge"]) - EDGE_FLOOR_EPSILON:
         return False
     return (
         candidate.get("vig_approved") is True
@@ -167,7 +188,8 @@ def eligible_candidates(schedule: dict[str, Any], now: datetime) -> list[dict[st
     candidates = schedule.get("candidates")
     if not isinstance(candidates, list):
         return []
-    return [
+    policy = load_mlb_policy()
+    todays = [
         candidate
         for candidate in candidates
         if isinstance(candidate, dict)
@@ -177,8 +199,40 @@ def eligible_candidates(schedule: dict[str, Any], now: datetime) -> list[dict[st
             (first_pitch := parse_instant(candidate.get("first_pitch_utc"))) is not None
             and first_pitch.astimezone(CENTRAL).date().isoformat() == expected_date
         )
-        and candidate_is_eligible(candidate, now)
     ]
+    # Daily official-bet volume rail, enforced at execution too: candidates
+    # already executed (or locked mid-flight) today consume slots first, then
+    # the remaining eligible pool is ranked by live conservative edge and
+    # baseball-gate strength and capped at the policy limit.
+    max_official = int(policy.get("max_mlb_official_bets_per_day") or 0)
+    already_taken = [
+        candidate
+        for candidate in todays
+        if candidate.get("executed") is True or candidate.get("execution_lock")
+    ]
+    eligible = [
+        candidate for candidate in todays if candidate_is_eligible(candidate, now, policy)
+    ]
+    if max_official < 1:
+        return eligible
+    remaining = max_official - len(already_taken)
+    if remaining <= 0:
+        return []
+
+    def _edge(candidate: dict[str, Any]) -> float:
+        live = projected_edge(
+            candidate.get("conservative_probability"), candidate.get("current_ask")
+        )
+        return live if live is not None else float("-inf")
+
+    def _gate_strength(candidate: dict[str, Any]) -> int:
+        gates = candidate.get("original_gate_results")
+        if not isinstance(gates, dict):
+            return 0
+        return sum(1 for value in gates.values() if value is True)
+
+    ranked = sorted(eligible, key=lambda c: (_edge(c), _gate_strength(c)), reverse=True)
+    return ranked[:remaining]
 
 
 def stale_lock_warnings(schedule: dict[str, Any], now: datetime) -> list[str]:
@@ -305,7 +359,13 @@ current executable price, and BBO liquidity (how much depth is enough is defined
 the PARTIAL-FILL LADDER below — a thin book is a partial or a defer, not an auto-skip).
 The current price must not exceed max_polymarket_price; never chase. Recompute remaining daily cap using all
 canonical fills/receipts and refuse any amount above the smaller of unit_size and
-remaining cap. Do not expand sport, market type, size, cap, or authorize exits.
+remaining cap. Immediately before any order, REFRESH the live ask and recompute
+the conservative edge (conservative_probability - live ask): if the live edge is
+below the shared policy min_conservative_edge, or the stored
+projected_edge_at_current_ask disagrees with the recomputation from the stored
+probability fields, set skipped=true with a stale-edge reason and do NOT order —
+the morning edge is never the executed edge. Record the recomputed edge and ask
+in the execution note. Do not expand sport, market type, size, cap, or authorize exits.
 
 Before any order, resolve the canonical picks ledger path and fail closed if it
 cannot be read. Run `python3 {guard} check --schedule {schedule_path}

@@ -28,6 +28,37 @@ assert execution_gate_spec.loader is not None
 execution_gate_spec.loader.exec_module(mlb_execution_gate)
 
 
+POLICY = {
+    "min_conservative_edge": 0.05,
+    "max_mlb_official_bets_per_day": 2,
+    "starter_pending_promotions_enabled": False,
+    "max_small_bets_per_day_during_probation": 1,
+    "policy_version": "vig-mlb-policy-v1",
+    "policy_effective_at": "2026-08-11T00:00:00Z",
+}
+
+
+def _contract(conservative_probability=0.60, current_ask=0.51, **overrides):
+    """Full PR-1 probability contract for a routing-eligible MLB candidate."""
+    fields = {
+        "dk_fair_prob": 0.55,
+        "raw_probability": 0.63,
+        "uncertainty_haircut": 0.03,
+        "conservative_probability": conservative_probability,
+        "current_ask": current_ask,
+        "projected_edge_at_current_ask": round(
+            conservative_probability - current_ask, 4
+        ),
+        "model_version": "market-prior-v1",
+    }
+    fields.update(overrides)
+    return fields
+
+
+def _patched_policy():
+    return patch.object(vig_review_gate_common, "load_mlb_policy", return_value=dict(POLICY))
+
+
 class VigReviewGateCommonTests(unittest.TestCase):
     def test_normalize_new_mlb_approval_repairs_manual_child_state_for_execution_gate(self):
         now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
@@ -53,11 +84,13 @@ class VigReviewGateCommonTests(unittest.TestCase):
             manual_bet_status="awaiting_jerry",
             execution_status="pending_manual_fill",
             executed=False,
+            **_contract(current_ask=0.525),
         )
 
-        errors = vig_review_gate_common.normalize_review_routing(
-            before, after, "MLB", mlb_standing_authorized=True
-        )
+        with _patched_policy():
+            errors = vig_review_gate_common.normalize_review_routing(
+                before, after, "MLB", mlb_standing_authorized=True
+            )
 
         self.assertEqual(errors, [])
         candidate = after["candidates"][0]
@@ -93,11 +126,238 @@ class VigReviewGateCommonTests(unittest.TestCase):
             before, after, "MLB", mlb_standing_authorized=True
         )
 
-        self.assertEqual(
-            errors,
-            ["candidate event_id:1|side:CWS has no strict numeric approved Polymarket ask"],
+        self.assertEqual(len(errors), 1)
+        self.assertIn(
+            "candidate event_id:1|side:CWS has no strict numeric approved Polymarket ask",
+            errors[0],
         )
         self.assertNotEqual(after["candidates"][0].get("execution_mode"), "standing_authorized")
+
+    def test_normalize_new_mlb_approval_rejected_without_probability_contract(self):
+        before = {
+            "candidates": [
+                {
+                    "event_id": "1",
+                    "side": "CWS",
+                    "first_pitch_utc": "2026-07-19T18:15:00Z",
+                    "polymarket_slug": "aec-mlb-cws-tor-2026-07-19",
+                    "polymarket_ask": 0.51,
+                    "vig_approved": None,
+                }
+            ]
+        }
+        after = json.loads(json.dumps(before))
+        after["candidates"][0].update(vig_approved=True, vig_notes="Approved.")
+
+        with _patched_policy():
+            errors = vig_review_gate_common.normalize_review_routing(
+                before, after, "MLB", mlb_standing_authorized=True
+            )
+
+        self.assertEqual(errors, [])
+        candidate = after["candidates"][0]
+        self.assertIs(candidate["vig_approved"], False)
+        self.assertIn("missing/non-numeric probability contract fields", candidate["vig_notes"])
+        self.assertNotEqual(candidate.get("execution_mode"), "standing_authorized")
+
+    @staticmethod
+    def _routing_candidate(event_id, side, ask, edge_prob, **overrides):
+        candidate = {
+            "event_id": event_id,
+            "side": side,
+            "first_pitch_utc": "2026-07-19T18:15:00Z",
+            "polymarket_slug": f"aec-mlb-{side.lower()}-opp-2026-07-19",
+            "polymarket_ask": ask,
+            "vig_approved": None,
+            "original_gate_results": {
+                "starter_floor": True,
+                "opposing_starter_shutdown_path": True,
+                "bullpen_close_game_survival": True,
+                "cold_fade_reset": True,
+                "price_discipline": True,
+                "real_winner_conviction": True,
+            },
+        }
+        candidate.update(overrides)
+        return candidate
+
+    def _approve_all(self, before, edges):
+        after = json.loads(json.dumps(before))
+        for candidate, edge_prob in zip(after["candidates"], edges):
+            candidate.update(
+                vig_approved=True,
+                vig_notes="All gates hold.",
+                **_contract(
+                    conservative_probability=edge_prob,
+                    current_ask=candidate["polymarket_ask"],
+                ),
+            )
+        return after
+
+    def test_third_qualified_daily_candidate_rejected_by_rank_limit(self):
+        before = {
+            "candidates": [
+                self._routing_candidate("1", "AAA", 0.50, 0.60),
+                self._routing_candidate("2", "BBB", 0.50, 0.58),
+                self._routing_candidate("3", "CCC", 0.50, 0.56),
+            ]
+        }
+        after = self._approve_all(before, [0.60, 0.58, 0.56])
+
+        with _patched_policy():
+            errors = vig_review_gate_common.normalize_review_routing(
+                before, after, "MLB", mlb_standing_authorized=True
+            )
+
+        self.assertEqual(errors, [])
+        routed = [
+            c["side"]
+            for c in after["candidates"]
+            if c.get("execution_mode") == "standing_authorized"
+        ]
+        self.assertEqual(routed, ["AAA", "BBB"])
+        weakest = after["candidates"][2]
+        self.assertIs(weakest["vig_approved"], False)
+        self.assertIn("daily official-bet limit", weakest["vig_notes"])
+
+    def test_daily_limit_keeps_highest_edge_not_first_listed(self):
+        before = {
+            "candidates": [
+                self._routing_candidate("1", "AAA", 0.50, 0.56),
+                self._routing_candidate("2", "BBB", 0.50, 0.60),
+                self._routing_candidate("3", "CCC", 0.50, 0.58),
+            ]
+        }
+        after = self._approve_all(before, [0.56, 0.60, 0.58])
+
+        with _patched_policy():
+            vig_review_gate_common.normalize_review_routing(
+                before, after, "MLB", mlb_standing_authorized=True
+            )
+
+        routed = {
+            c["side"]
+            for c in after["candidates"]
+            if c.get("execution_mode") == "standing_authorized"
+        }
+        self.assertEqual(routed, {"BBB", "CCC"})
+
+    def test_edge_boundary_at_routing(self):
+        # 0.049 live edge fails the 0.05 floor; 0.05+ passes.
+        before = {
+            "candidates": [
+                self._routing_candidate("1", "AAA", 0.55, 0.60),
+                self._routing_candidate("2", "BBB", 0.551, 0.60),
+            ]
+        }
+        after = self._approve_all(before, [0.60, 0.60])
+
+        with _patched_policy():
+            errors = vig_review_gate_common.normalize_review_routing(
+                before, after, "MLB", mlb_standing_authorized=True
+            )
+
+        self.assertEqual(errors, [])
+        passing, failing = after["candidates"]
+        self.assertEqual(passing["execution_mode"], "standing_authorized")
+        self.assertIs(failing["vig_approved"], False)
+        self.assertIn("below min_conservative_edge", failing["vig_notes"])
+
+    def test_price_deterioration_since_morning_rejects_at_routing(self):
+        # Stored projected_edge_at_current_ask claims 0.09, but the live
+        # recomputed edge from conservative_probability - current_ask is 0.04.
+        before = {"candidates": [self._routing_candidate("1", "AAA", 0.50, 0.60)]}
+        after = json.loads(json.dumps(before))
+        after["candidates"][0].update(
+            vig_approved=True,
+            vig_notes="All gates hold.",
+            **_contract(
+                conservative_probability=0.60,
+                current_ask=0.56,
+                projected_edge_at_current_ask=0.09,
+            ),
+        )
+
+        with _patched_policy():
+            errors = vig_review_gate_common.normalize_review_routing(
+                before, after, "MLB", mlb_standing_authorized=True
+            )
+
+        self.assertEqual(errors, [])
+        candidate = after["candidates"][0]
+        self.assertIs(candidate["vig_approved"], False)
+        self.assertIn("below min_conservative_edge", candidate["vig_notes"])
+
+    def test_second_small_bet_same_day_rejected_during_probation(self):
+        before = {
+            "candidates": [
+                self._routing_candidate("1", "AAA", 0.50, 0.60, confidence="small", unit_size=9),
+                self._routing_candidate("2", "BBB", 0.50, 0.58, confidence="small", unit_size=9),
+            ]
+        }
+        after = self._approve_all(before, [0.60, 0.58])
+
+        with _patched_policy():
+            errors = vig_review_gate_common.normalize_review_routing(
+                before, after, "MLB", mlb_standing_authorized=True
+            )
+
+        self.assertEqual(errors, [])
+        smalls_routed = [
+            c["side"]
+            for c in after["candidates"]
+            if c.get("execution_mode") == "standing_authorized"
+        ]
+        self.assertEqual(smalls_routed, ["AAA"])
+        self.assertIn("probation small-bet daily limit", after["candidates"][1]["vig_notes"])
+
+    def test_different_days_do_not_share_daily_limit(self):
+        before = {
+            "candidates": [
+                self._routing_candidate("1", "AAA", 0.50, 0.60),
+                self._routing_candidate("2", "BBB", 0.50, 0.58),
+                self._routing_candidate(
+                    "3", "CCC", 0.50, 0.56,
+                    first_pitch_utc="2026-07-20T18:15:00Z",
+                    polymarket_slug="aec-mlb-ccc-opp-2026-07-20",
+                ),
+            ]
+        }
+        after = self._approve_all(before, [0.60, 0.58, 0.56])
+
+        with _patched_policy():
+            errors = vig_review_gate_common.normalize_review_routing(
+                before, after, "MLB", mlb_standing_authorized=True
+            )
+
+        self.assertEqual(errors, [])
+        routed = [
+            c["side"]
+            for c in after["candidates"]
+            if c.get("execution_mode") == "standing_authorized"
+        ]
+        self.assertEqual(sorted(routed), ["AAA", "BBB", "CCC"])
+
+    def test_stale_stored_edge_cannot_override_live_arithmetic(self):
+        # projected_edge_at_current_ask field is stale-high; live fields govern.
+        before = {"candidates": [self._routing_candidate("1", "AAA", 0.50, 0.60)]}
+        after = json.loads(json.dumps(before))
+        after["candidates"][0].update(
+            vig_approved=True,
+            vig_notes="All gates hold.",
+            **_contract(conservative_probability=0.60, current_ask=0.53),
+        )
+        after["candidates"][0]["projected_edge_at_current_ask"] = 0.005  # stale low
+
+        with _patched_policy():
+            errors = vig_review_gate_common.normalize_review_routing(
+                before, after, "MLB", mlb_standing_authorized=True
+            )
+
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            after["candidates"][0]["execution_mode"], "standing_authorized"
+        )
 
     def test_normalize_uses_original_captured_ask_when_child_mutates_generic_ask(self):
         before = {
@@ -115,11 +375,13 @@ class VigReviewGateCommonTests(unittest.TestCase):
             vig_approved=True,
             vig_notes="Approved.",
             polymarket_ask=0.99,
+            **_contract(current_ask=0.525),
         )
 
-        errors = vig_review_gate_common.normalize_review_routing(
-            before, after, "MLB", mlb_standing_authorized=True
-        )
+        with _patched_policy():
+            errors = vig_review_gate_common.normalize_review_routing(
+                before, after, "MLB", mlb_standing_authorized=True
+            )
 
         self.assertEqual(errors, [])
         self.assertEqual(after["candidates"][0]["max_polymarket_price"], 0.525)
@@ -159,6 +421,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
             ["candidate event_id:2|side:NYY was not a targeted candidate or watchlist promotion"],
         )
         self.assertNotEqual(after["candidates"][1].get("execution_mode"), "standing_authorized")
+        self.assertNotEqual(after["candidates"][1].get("vig_approved"), True)
 
     def test_normalize_rejects_duplicate_target_identity(self):
         candidate = {
@@ -192,15 +455,17 @@ class VigReviewGateCommonTests(unittest.TestCase):
             "vig_approved": True,
             "vig_notes": "All gates hold.",
             "polymarket_ask": 0.51,
+            **_contract(current_ask=0.51),
         }
         promoted = self._watch_entry(
             status="promoted", promoted_candidate=dict(promoted_candidate)
         )
         after = {"candidates": [promoted_candidate], "lineup_watchlist": [promoted]}
 
-        errors = vig_review_gate_common.normalize_review_routing(
-            before, after, "MLB", mlb_standing_authorized=True
-        )
+        with _patched_policy():
+            errors = vig_review_gate_common.normalize_review_routing(
+                before, after, "MLB", mlb_standing_authorized=True
+            )
 
         self.assertEqual(errors, [])
         self.assertEqual(promoted_candidate["max_polymarket_price"], 0.51)
@@ -390,6 +655,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
                         execution_mode="manual",
                         execution_status="pending_manual_fill",
                         manual_bet_status="awaiting_jerry",
+                        **_contract(current_ask=0.51),
                     )
                     schedule_path.write_text(
                         json.dumps(
@@ -405,7 +671,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
                         args[0], 0, stdout="Vig review complete", stderr=""
                     )
 
-                with patch.object(vig_review_gate_common.subprocess, "run", side_effect=complete_review):
+                with patch.object(vig_review_gate_common.subprocess, "run", side_effect=complete_review), _patched_policy():
                     status = vig_review_gate_common.run_gate("MLB")
 
                 self.assertEqual(status, 0)
@@ -461,6 +727,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
                     "execution_mode": "manual",
                     "manual_bet_status": "awaiting_jerry",
                     "executed": False,
+                    **_contract(current_ask=0.51),
                 }
                 promoted_entry = self._watch_entry(
                     side="MIN",
@@ -507,6 +774,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
                         "standing_authorization_enabled",
                         return_value=True,
                     ),
+                    _patched_policy(),
                     redirect_stdout(output),
                 ):
                     status = vig_review_gate_common.run_gate("MLB")
@@ -683,16 +951,19 @@ class VigReviewGateCommonTests(unittest.TestCase):
             ("MLB", {"mlb_standing_authorized": True}),
             ("SOCCER", {}),
         ):
-            prompt = vig_review_gate_common.build_regular_review_prompt(
-                sport,
-                "2026-08-09",
-                Path("/tmp/schedule.json"),
-                [{"side": "ABC"}],
-                **kwargs,
-            )
+            with _patched_policy():
+                prompt = vig_review_gate_common.build_regular_review_prompt(
+                    sport,
+                    "2026-08-09",
+                    Path("/tmp/schedule.json"),
+                    [{"side": "ABC"}],
+                    **kwargs,
+                )
             # The ceiling is the single guardrail: judge the real cost to buy
-            # against max_polymarket_price = win_probability - 0.02, no fee math.
-            self.assertIn("max_polymarket_price = win_probability - 0.02", prompt)
+            # against max_polymarket_price = probability - min_conservative_edge,
+            # no fee math.
+            self.assertIn("max_polymarket_price = ", prompt)
+            self.assertIn("- 0.050", prompt)
             self.assertIn("cost to buy", prompt)
             self.assertIn("ZERO", prompt)
             # No phantom-fee SUBTRACTION (the bug that rejected the 2026-08-09
@@ -918,3 +1189,114 @@ def test_price_context_degrades_without_slug_or_fetch(monkeypatch):
     monkeypatch.setattr(g, "fetch_market_price", lambda slug: None)
     ctx = g._price_context([{"id": "e2", "polymarket_slug": "aec-mlb-x-y-2026-07-27", "thesis": ""}])
     assert "current price unavailable" in ctx  # never raises; recheck carries ceiling to poller
+
+
+class MlbPolicyBoundaryTests(unittest.TestCase):
+    """PR-1 acceptance boundaries: edge floor, daily rank limit, stale edge."""
+
+    def _approval_pair(self, contract_kwargs, slug="aec-mlb-cws-tor-2026-07-19"):
+        before = {
+            "candidates": [
+                {
+                    "event_id": "1",
+                    "side": "CWS",
+                    "first_pitch_utc": "2026-07-19T18:15:00Z",
+                    "polymarket_slug": slug,
+                    "polymarket_ask": contract_kwargs.get("current_ask", 0.51),
+                    "unit_size": 18,
+                    "vig_approved": None,
+                }
+            ]
+        }
+        after = json.loads(json.dumps(before))
+        after["candidates"][0].update(
+            vig_approved=True,
+            vig_notes="All gates hold.",
+            **_contract(**contract_kwargs),
+        )
+        return before, after
+
+    def _normalize(self, before, after):
+        with _patched_policy():
+            return vig_review_gate_common.normalize_review_routing(
+                before, after, "MLB", mlb_standing_authorized=True
+            )
+
+    def test_edge_just_below_floor_rejected(self):
+        # 0.049 conservative edge must fail when the floor is 0.05.
+        before, after = self._approval_pair(
+            {"conservative_probability": 0.599, "current_ask": 0.55}
+        )
+        errors = self._normalize(before, after)
+        self.assertEqual(errors, [])
+        candidate = after["candidates"][0]
+        self.assertIs(candidate["vig_approved"], False)
+        self.assertIn("below min_conservative_edge", candidate["vig_notes"])
+        self.assertNotEqual(candidate.get("execution_mode"), "standing_authorized")
+
+    def test_edge_exactly_at_floor_routes(self):
+        # 0.050 conservative edge passes the floor.
+        before, after = self._approval_pair(
+            {"conservative_probability": 0.60, "current_ask": 0.55}
+        )
+        errors = self._normalize(before, after)
+        self.assertEqual(errors, [])
+        candidate = after["candidates"][0]
+        self.assertIs(candidate["vig_approved"], True)
+        self.assertEqual(candidate.get("execution_mode"), "standing_authorized")
+
+    def test_third_qualified_candidate_cut_by_daily_limit(self):
+        def cand(event_id, slug, edge):
+            return {
+                "event_id": event_id,
+                "side": f"T{event_id}",
+                "first_pitch_utc": "2026-07-19T18:15:00Z",
+                "polymarket_slug": slug,
+                "polymarket_ask": 0.50,
+                "unit_size": 18,
+                "vig_approved": None,
+            }
+
+        before = {
+            "candidates": [
+                cand("1", "aec-mlb-a-b-2026-07-19", 0.08),
+                cand("2", "aec-mlb-c-d-2026-07-19", 0.07),
+                cand("3", "aec-mlb-e-f-2026-07-19", 0.06),
+            ]
+        }
+        after = json.loads(json.dumps(before))
+        for item, edge in zip(after["candidates"], (0.08, 0.07, 0.06)):
+            item.update(
+                vig_approved=True,
+                vig_notes="All gates hold.",
+                **_contract(
+                    conservative_probability=0.50 + edge,
+                    current_ask=0.50,
+                ),
+            )
+        errors = self._normalize(before, after)
+        self.assertEqual(errors, [])
+        routed = [
+            c for c in after["candidates"]
+            if c.get("execution_mode") == "standing_authorized"
+        ]
+        self.assertEqual(len(routed), 2)
+        weakest = after["candidates"][2]
+        self.assertIs(weakest["vig_approved"], False)
+        self.assertIn("daily official-bet limit", weakest["vig_notes"])
+
+    def test_stale_stored_edge_cannot_override_live_arithmetic(self):
+        # stored projected edge says 0.08, but live recomputation from the
+        # probability fields yields 0.02 < floor: the candidate must be cut.
+        before, after = self._approval_pair(
+            {
+                "conservative_probability": 0.57,
+                "current_ask": 0.55,
+                "projected_edge_at_current_ask": 0.08,
+            }
+        )
+        errors = self._normalize(before, after)
+        self.assertEqual(errors, [])
+        candidate = after["candidates"][0]
+        self.assertIs(candidate["vig_approved"], False)
+        self.assertIn("below min_conservative_edge", candidate["vig_notes"])

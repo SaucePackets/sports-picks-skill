@@ -17,6 +17,17 @@ from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 from typing import Any
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from mlb_runtime_policy import (  # noqa: E402
+    EDGE_FLOOR_EPSILON,
+    load_mlb_policy,
+    missing_probability_fields,
+    projected_edge,
+)
+
 
 LOCK_STALE_SECONDS = 15 * 60
 
@@ -186,6 +197,39 @@ RISK_LIMITS_PATH = Path("/home/clawdbot/.hermes/vig/state/risk_limits.json")
 CANONICAL_PICKS_PATH = Path("/home/clawdbot/notes/Sports/picks/picks.json")
 
 
+def _probability_contract_violation(candidate: dict[str, Any]) -> str | None:
+    """Standing-authorized candidates must carry the shared probability contract.
+
+    Missing or non-numeric probability/edge fields, or a live recomputed
+    conservative edge below the shared policy floor, refuse the lock. A stored
+    projected_edge that disagrees with the recomputation from the stored
+    probability fields is stale and also refuses. The morning edge is never
+    the executed edge.
+    """
+    missing = missing_probability_fields(candidate)
+    if missing:
+        return "missing/non-numeric probability fields: " + ", ".join(missing)
+    live_edge = projected_edge(
+        candidate.get("conservative_probability"), candidate.get("current_ask")
+    )
+    if live_edge is None:
+        return "live conservative edge could not be recomputed"
+    policy = load_mlb_policy()
+    min_edge = float(policy["min_conservative_edge"])
+    if live_edge < min_edge - EDGE_FLOOR_EPSILON:
+        return (
+            f"live conservative edge {live_edge:.4f} below policy "
+            f"min_conservative_edge {min_edge:.4f}"
+        )
+    stored = candidate.get("projected_edge_at_current_ask")
+    if abs(float(stored) - live_edge) > 1e-9:
+        return (
+            f"stale stored edge {float(stored):.4f} != recomputed "
+            f"{live_edge:.4f} from probability fields"
+        )
+    return None
+
+
 def _risk_limit_violation(
     candidate: dict[str, Any], picks_path: Path | str | None, now: datetime
 ) -> str | None:
@@ -198,6 +242,9 @@ def _risk_limit_violation(
         limits = json.loads(RISK_LIMITS_PATH.read_text())
     except (OSError, json.JSONDecodeError) as exc:
         return f"risk limits unreadable ({exc})"
+    contract_violation = _probability_contract_violation(candidate)
+    if contract_violation:
+        return f"probability contract violation ({contract_violation})"
     unit_size = float(candidate.get("unit_size") or 0)
     max_unit = float(limits.get("max_unit_usd_absolute") or 0)
     if max_unit and unit_size > max_unit:
@@ -220,6 +267,13 @@ def _risk_limit_violation(
         return f"max_polymarket_price {max_price} exceeds ceiling {price_ceiling}"
     daily_cap = float(limits.get("daily_cap_usd") or 0)
     max_small_per_day = int(limits.get("max_small_bets_per_day") or 0)
+    if candidate.get("execution_mode") == "standing_authorized":
+        # Probation rail: standing-authorized small-tier volume is governed by
+        # the shared MLB policy, which is stricter than the legacy ledger cap.
+        policy_small = load_mlb_policy()["max_small_bets_per_day_during_probation"]
+        max_small_per_day = min(
+            value for value in (max_small_per_day, int(policy_small)) if value > 0
+        ) if (max_small_per_day or policy_small) else 0
     if daily_cap or (is_small and max_small_per_day):
         ledger = Path(picks_path) if picks_path else CANONICAL_PICKS_PATH
         try:
