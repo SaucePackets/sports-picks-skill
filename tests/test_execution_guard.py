@@ -279,8 +279,15 @@ class SmallStakeTierRiskLimitTests(unittest.TestCase):
         self.now = datetime(2026, 8, 4, 20, 0, tzinfo=timezone.utc)
         self.patcher = patch("scripts.execution_guard.RISK_LIMITS_PATH", self.limits_path)
         self.patcher.start()
+        # Isolate the shared MLB selection policy: these tests exercise the base
+        # money rails, so no policy block means no probation tightening.
+        self.env_patcher = patch.dict(
+            "os.environ", {"VIG_STATE_DIR": str(self.root / "no-policy-state")}
+        )
+        self.env_patcher.start()
 
     def tearDown(self):
+        self.env_patcher.stop()
         self.patcher.stop()
         self.tmp.cleanup()
 
@@ -334,6 +341,34 @@ class SmallStakeTierRiskLimitTests(unittest.TestCase):
         v = _risk_limit_violation(self.cand(unit_size=9), self.picks_path, self.now)
         self.assertIsNotNone(v)
         self.assertIn("daily cap breach", v)
+
+    def test_probation_policy_tightens_small_daily_count_to_one(self):
+        # With the shared MLB selection policy present, at most ONE Small bet per
+        # day during probation — tighter than the base max_small_bets_per_day=3.
+        state = Path(self.tmp.name) / "policy-state"
+        state.mkdir()
+        (state / "risk_limits.json").write_text(json.dumps({
+            "mlb_selection_policy": {
+                "schema": "vig-mlb-selection-policy-v1",
+                "policy_version": "test",
+                "effective_at": "2026-08-11T00:00:00Z",
+                "min_conservative_edge": 0.05,
+                "max_mlb_official_bets_per_day": 2,
+                "starter_pending_promotions_enabled": False,
+                "max_small_bets_per_day_probation": 1,
+            }
+        }))
+        self.set_picks([
+            {"execution_timestamp": "2026-08-04T18:00:00Z", "confidence": "small", "unit_size": 9, "entry_notional": 9},
+        ])
+        with patch.dict("os.environ", {"VIG_STATE_DIR": str(state)}):
+            # One small already today: a second is refused under probation…
+            v = _risk_limit_violation(self.cand(), self.picks_path, self.now)
+            self.assertIsNotNone(v)
+            self.assertIn("small-tier daily count breach", v or "")
+            # …while the FIRST small of the day is still allowed.
+            self.set_picks([])
+            self.assertIsNone(_risk_limit_violation(self.cand(), self.picks_path, self.now))
 
 
 if __name__ == "__main__":

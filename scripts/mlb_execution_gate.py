@@ -21,7 +21,13 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from mlb_runtime_policy import standing_authorization_enabled
+from mlb_runtime_policy import (
+    enforce_daily_candidate_limit,
+    live_conservative_edge,
+    load_mlb_selection_policy,
+    stale_probability_field_errors,
+    standing_authorization_enabled,
+)
 
 CENTRAL = ZoneInfo("America/Chicago")
 MAX_MINUTES_BEFORE_FIRST_PITCH = 120
@@ -138,6 +144,21 @@ def candidate_is_eligible(candidate: dict[str, Any], now: datetime) -> bool:
     # This is the last deterministic line of defense before a real order.
     if candidate.get("manual_only") is True:
         return False
+    # Probability contract: a standing-authorized candidate must carry the full
+    # numeric probability trail and a stored edge that matches the LIVE
+    # recomputation (conservative_probability - current_ask). Missing or stale
+    # fields make the candidate ineligible — a stale stored edge never
+    # overrides live arithmetic.
+    if stale_probability_field_errors(candidate):
+        return False
+    # Edge floor: the live conservative edge must clear the shared policy
+    # floor (default 5 points) at gate time, not just at slate/review time.
+    policy = load_mlb_selection_policy()
+    if policy is None:
+        return False
+    live_edge = live_conservative_edge(candidate)
+    if live_edge is None or live_edge + 1e-9 < policy.min_conservative_edge:
+        return False
     return (
         candidate.get("vig_approved") is True
         and candidate.get("execution_mode") == "standing_authorized"
@@ -167,7 +188,7 @@ def eligible_candidates(schedule: dict[str, Any], now: datetime) -> list[dict[st
     candidates = schedule.get("candidates")
     if not isinstance(candidates, list):
         return []
-    return [
+    eligible = [
         candidate
         for candidate in candidates
         if isinstance(candidate, dict)
@@ -179,6 +200,15 @@ def eligible_candidates(schedule: dict[str, Any], now: datetime) -> list[dict[st
         )
         and candidate_is_eligible(candidate, now)
     ]
+    # Daily candidate limit: when more candidates qualify than the shared
+    # policy allows for the day, fail closed — rank by live conservative edge
+    # and keep only the top max_mlb_official_bets_per_day. Candidate three is
+    # rejected even when its individual price passes.
+    policy = load_mlb_selection_policy()
+    if policy is None:
+        return []
+    kept, _ = enforce_daily_candidate_limit(eligible, policy)
+    return kept
 
 
 def stale_lock_warnings(schedule: dict[str, Any], now: datetime) -> list[str]:
@@ -303,6 +333,12 @@ first pitch has started. Refresh and verify exact game/date/side mapping, starte
 both confirmed lineups, late scratches, injuries, weather, market active status,
 current executable price, and BBO liquidity (how much depth is enough is defined by
 the PARTIAL-FILL LADDER below — a thin book is a partial or a defer, not an auto-skip).
+EDGE RECOMPUTATION AT FILL: refresh current_ask, recompute the conservative edge as
+conservative_probability - current_ask with the refreshed price, and stamp the
+candidate's projected_edge_at_current_ask with that recomputed value. The morning
+net_edge is NEVER the executed edge. If the recomputed edge is below the shared
+policy floor (min_conservative_edge, currently 0.05) the candidate is ineligible —
+treat it as a TERMINAL price/edge failure and skip.
 The current price must not exceed max_polymarket_price; never chase. Recompute remaining daily cap using all
 canonical fills/receipts and refuse any amount above the smaller of unit_size and
 remaining cap. Do not expand sport, market type, size, cap, or authorize exits.

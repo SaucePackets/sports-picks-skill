@@ -35,7 +35,13 @@ from mlb_lineup_watchlist import (  # noqa: E402
     fetch_lineup_snapshot,
     validate_watchlist,
 )
-from mlb_runtime_policy import standing_authorization_enabled  # noqa: E402
+from mlb_runtime_policy import (  # noqa: E402
+    enforce_daily_candidate_limit,
+    live_conservative_edge,
+    load_mlb_selection_policy,
+    stale_probability_field_errors,
+    standing_authorization_enabled,
+)
 
 HERMES = os.environ.get("HERMES_BIN") or shutil.which("hermes") or "/home/clawdbot/.local/bin/hermes"
 
@@ -249,6 +255,25 @@ def normalize_review_routing(
     if errors:
         return errors
 
+    # Daily candidate limit: approved candidates for the day (pre-existing plus
+    # newly approved) may not exceed the shared policy cap. Rank by live
+    # conservative edge and reject the tail even when each price passes alone.
+    policy = load_mlb_selection_policy()
+    if policy is not None:
+        day_approved = [
+            candidate
+            for candidate in after_candidates
+            if candidate.get("vig_approved") is True
+            and candidate.get("execution_mode") != "manual"
+        ]
+        kept, rejected = enforce_daily_candidate_limit(day_approved, policy)
+        if rejected:
+            return [
+                f"daily candidate limit {policy.max_mlb_official_bets_per_day} "
+                f"exceeded: {len(day_approved)} approved, rejected "
+                + ", ".join(candidate_identity(c) for c in rejected)
+            ]
+
     after["sport"] = "MLB"
     after["market_type"] = "moneyline"
     if day:
@@ -319,12 +344,26 @@ def approved_candidate_errors(
     if candidate.get("executed") is not False:
         errors.append("executed must be false")
     max_price = candidate.get("max_polymarket_price")
-    if (
+    if max_price is None or (
         not isinstance(max_price, (int, float))
         or isinstance(max_price, bool)
         or not 0 < max_price < 1
     ):
         errors.append("max_polymarket_price must be between 0 and 1")
+    # Probability contract: a standing-authorized approval must carry the full
+    # numeric probability trail and a stored edge that matches the live
+    # recomputation. Missing or stale fields make the approval invalid.
+    errors.extend(stale_probability_field_errors(candidate))
+    # Edge floor: the live conservative edge must clear the shared policy
+    # floor (default 5 points). The haircut is an uncertainty buffer, never a fee.
+    policy = load_mlb_selection_policy()
+    if policy is not None:
+        live = live_conservative_edge(candidate)
+        if live is not None and live + 1e-9 < policy.min_conservative_edge:
+            errors.append(
+                f"live conservative edge {live:.4f} is below the shared policy "
+                f"floor min_conservative_edge={policy.min_conservative_edge}"
+            )
     forbidden = sorted(
         field
         for field in ("execution_cron_id", "execution_cron_fire_utc", "approval_token")
@@ -456,14 +495,22 @@ approval token, or trading command. An approved candidate is only a reminder for
 Jerry and must never place or schedule a bet.
 """
     )
+    policy = load_mlb_selection_policy()
+    edge_floor = policy.min_conservative_edge if policy is not None else 0.05
     return f"""You are Vig performing the independent {sport} card review for {day}.
 Read {schedule_path}. Review only pending candidates: {sides}. Refresh decisive
 inputs and current supported-market prices, then apply every original hard gate.
 Update each reviewed candidate with boolean vig_approved and concise vig_notes.
 
 PRICE DISCIPLINE (the ceiling is the ONLY guardrail — do NOT do fee arithmetic):
-Recompute win_probability from the refreshed handicap, then set the price ceiling
-max_polymarket_price = win_probability - 0.02 (our required 2-point edge). Judge
+Start from de-vigged DraftKings fair probability (dk_fair_prob) as the market
+prior, apply your adjustments as explicit components to get raw_probability, then
+apply the documented uncertainty_haircut to get conservative_probability — the
+ONLY probability used for edge and execution. The haircut is a model-uncertainty
+buffer, NEVER a venue fee. Recompute the edge from the refreshed handicap, then
+set the price ceiling
+max_polymarket_price = conservative_probability - {edge_floor} (the shared policy
+minimum conservative edge, currently {edge_floor:.2f}). Judge
 price on the REAL cost to buy: approve whenever the current executable ask — what
 you would actually pay right now — is at or under that ceiling; reject on price
 only when the live ask is above the ceiling. This is fee-agnostic on purpose: any
@@ -473,6 +520,14 @@ ZERO fees (confirmed 0 bps on every executed receipt), so today the executable a
 equals the quoted ask. Never invent, add, or subtract a phantom fee (no 0.024, no
 2.4% rail). Execution is an IOC limit placed AT the ceiling, so the book can only
 ever fill at or under your number and can never push you past the suggested odds.
+
+PROBABILITY CONTRACT (required on every approved MLB candidate — an approval
+missing any of these is invalid and will be rejected deterministically):
+dk_fair_prob, raw_probability, uncertainty_haircut, conservative_probability,
+current_ask, projected_edge_at_current_ask, model_version. Set
+projected_edge_at_current_ask = conservative_probability - current_ask from the
+REFRESHED price; the morning net_edge is never carried forward as the executed
+edge. The edge must clear the shared {edge_floor:.2f} floor AFTER the haircut.
 
 {routing}
 

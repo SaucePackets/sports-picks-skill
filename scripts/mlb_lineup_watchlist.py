@@ -22,7 +22,11 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from http_util import fetch_json as _retrying_fetch_json  # noqa: E402
-from mlb_runtime_policy import standing_authorization_enabled  # noqa: E402
+from mlb_runtime_policy import (  # noqa: E402
+    MlbSelectionPolicy,
+    load_mlb_selection_policy,
+    standing_authorization_enabled,
+)
 
 MIN_MINUTES_BEFORE_FIRST_PITCH = 35
 MAX_MINUTES_BEFORE_FIRST_PITCH = 90
@@ -342,6 +346,17 @@ def validate_entry(entry: dict[str, Any]) -> list[str]:
         if not isinstance(notes, str) or not notes.strip():
             errors.append("passed entry requires non-empty recheck_notes")
     if status == "promoted":
+        # Starter-pending promotions are disabled during the hardening rollout:
+        # an entry blocked by starter_unannounced may never promote while the
+        # shared policy switch is off (the deterministic default).
+        if starter_pending:
+            policy = load_mlb_selection_policy()
+            if policy is None or not policy.starter_pending_promotions_enabled:
+                errors.append(
+                    "starter_unannounced entries cannot be promoted: "
+                    "starter_pending_promotions_enabled is false in the shared "
+                    "MLB selection policy"
+                )
         recheck = entry.get("recheck")
         required_refreshes = (
             "lineups_confirmed",
@@ -536,8 +551,18 @@ vig_approved=true. It must never place or schedule a bet."""
         for e in entries
         if STARTER_BLOCKER in (e.get("blocked_only_by") or [])
     ]
+    policy = load_mlb_selection_policy()
+    edge_floor = policy.min_conservative_edge if policy is not None else 0.05
     starter_block = ""
-    if starter_ids:
+    if starter_ids and policy is not None and not policy.starter_pending_promotions_enabled:
+        starter_block = (
+            "\n\nSTARTER-PENDING PROMOTIONS DISABLED — entries " + ", ".join(starter_ids)
+            + " are blocked by starter_unannounced. The shared MLB selection policy "
+            "currently sets starter_pending_promotions_enabled=false, so these entries "
+            "MUST NOT be promoted under any circumstances this cycle: set status=passed "
+            "with the reason, regardless of the announced starter or recomputed edge."
+        )
+    elif starter_ids:
         starter_block = (
             "\n\nSTARTER-PENDING RE-HANDICAP — entries " + ", ".join(starter_ids) + " were "
             "carded off a PROVISIONAL win_probability because the opposing starter had "
@@ -551,12 +576,12 @@ vig_approved=true. It must never place or schedule a bet."""
             "recompute win_probability from the full read. Use mlb_pitcher_season "
             "(mcp-sports-data) for that starter's line if you need it — never curl/web.\n"
             "- Recompute net_edge = win_probability - current_ask (no fee). Promote ONLY "
-            "if net_edge >= 0.02 with the real starter AND the two deferred gates "
+            f"if net_edge >= {edge_floor} with the real starter AND the two deferred gates "
             "(opposing_starter_shutdown_path, real_winner_conviction) now genuinely pass. "
             "If the announced starter erases the edge or fails a gate, set status=passed "
             "with the reason — this is the safety hinge; the morning number is discarded.\n"
             "- Set the promoted_candidate max_polymarket_price to your recomputed "
-            "win_probability minus 0.02 (the true break-even-plus-floor ceiling), NOT the "
+            f"win_probability minus {edge_floor} (the true break-even-plus-floor ceiling), NOT the "
             "provisional slate ceiling, so the execution poller cannot chase past the edge.\n"
             "- In the recheck object, set starter_confirmed=true and "
             "net_edge_recomputed=true to record that the re-handicap happened."

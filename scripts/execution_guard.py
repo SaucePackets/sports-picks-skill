@@ -17,6 +17,12 @@ from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 from typing import Any
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from mlb_runtime_policy import load_mlb_selection_policy  # noqa: E402
+
 
 LOCK_STALE_SECONDS = 15 * 60
 
@@ -220,6 +226,14 @@ def _risk_limit_violation(
         return f"max_polymarket_price {max_price} exceeds ceiling {price_ceiling}"
     daily_cap = float(limits.get("daily_cap_usd") or 0)
     max_small_per_day = int(limits.get("max_small_bets_per_day") or 0)
+    # Probation rail: while the MLB selection policy is in probation rollout,
+    # at most one Small bet per day — the tighter of the base cap and the
+    # policy's probation cap wins. Stake caps themselves are untouched.
+    policy = load_mlb_selection_policy()
+    if policy is not None and max_small_per_day:
+        max_small_per_day = min(max_small_per_day, policy.max_small_bets_per_day_probation)
+    elif policy is not None:
+        max_small_per_day = policy.max_small_bets_per_day_probation
     if daily_cap or (is_small and max_small_per_day):
         ledger = Path(picks_path) if picks_path else CANONICAL_PICKS_PATH
         try:

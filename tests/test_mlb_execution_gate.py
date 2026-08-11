@@ -7,6 +7,7 @@ from contextlib import redirect_stdout
 from datetime import datetime, timedelta, timezone
 from io import StringIO
 from pathlib import Path
+from unittest.mock import patch
 
 
 SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "mlb_execution_gate.py"
@@ -19,6 +20,29 @@ spec.loader.exec_module(mlb_execution_gate)
 
 
 class MlbExecutionGateTests(unittest.TestCase):
+    def setUp(self):
+        # Shared policy rails from a temp VIG_STATE_DIR so the gate's edge
+        # floor / daily cap read a known vig-mlb-selection-policy-v1 block.
+        self.tmp = tempfile.TemporaryDirectory()
+        state = Path(self.tmp.name)
+        (state / "risk_limits.json").write_text(json.dumps({
+            "mlb_selection_policy": {
+                "schema": "vig-mlb-selection-policy-v1",
+                "policy_version": "test",
+                "effective_at": "2026-08-11T00:00:00Z",
+                "min_conservative_edge": 0.05,
+                "max_mlb_official_bets_per_day": 2,
+                "starter_pending_promotions_enabled": False,
+                "max_small_bets_per_day_probation": 1,
+            }
+        }))
+        self.env_patcher = patch.dict("os.environ", {"VIG_STATE_DIR": str(state)})
+        self.env_patcher.start()
+
+    def tearDown(self):
+        self.env_patcher.stop()
+        self.tmp.cleanup()
+
     def candidate(self, now: datetime, **overrides):
         item = {
             "event_id": "401816999",
@@ -35,6 +59,13 @@ class MlbExecutionGateTests(unittest.TestCase):
             "execution_status": "pending",
             "executed": False,
             "skipped": False,
+            "dk_fair_prob": 0.55,
+            "raw_probability": 0.57,
+            "uncertainty_haircut": 0.03,
+            "conservative_probability": 0.54,
+            "current_ask": 0.48,
+            "projected_edge_at_current_ask": 0.06,
+            "model_version": "market-only-fallback-v1",
         }
         item.update(overrides)
         return item
@@ -362,6 +393,102 @@ class MlbExecutionGateTests(unittest.TestCase):
         self.assertIn("liquidity_defer", prompt)
         self.assertIn("TRANSIENT liquidity-only failure", prompt)
         self.assertIn("TERMINAL failure", prompt)
+
+    # --- PR 1 hardening: shared edge floor, stale-edge rejection, daily cap ---
+
+    def test_edge_just_below_floor_is_ineligible(self):
+        # A 4.9-point conservative edge fails when the floor is 5 points.
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        candidate = self.candidate(
+            now,
+            conservative_probability=0.529,
+            current_ask=0.48,
+            projected_edge_at_current_ask=0.049,
+        )
+        self.assertFalse(mlb_execution_gate.candidate_is_eligible(candidate, now))
+
+    def test_edge_exactly_at_floor_is_eligible(self):
+        # A 5-point edge passes the floor (baseball gates are out of scope here).
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        candidate = self.candidate(
+            now,
+            conservative_probability=0.53,
+            current_ask=0.48,
+            projected_edge_at_current_ask=0.05,
+        )
+        self.assertTrue(mlb_execution_gate.candidate_is_eligible(candidate, now))
+
+    def test_price_deterioration_makes_candidate_ineligible(self):
+        # Morning edge passed; the refreshed (recheck) ask erases it. The stored
+        # morning edge cannot rescue the candidate — it is stamped stale, so the
+        # candidate fails BOTH the stale-edge and live-floor checks.
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        candidate = self.candidate(
+            now,
+            current_ask=0.52,
+            projected_edge_at_current_ask=0.02,  # 0.54 - 0.52 live; morning said 0.06
+        )
+        self.assertFalse(mlb_execution_gate.candidate_is_eligible(candidate, now))
+
+    def test_stale_stored_edge_never_overrides_live_arithmetic(self):
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        candidate = self.candidate(
+            now,
+            current_ask=0.52,
+            projected_edge_at_current_ask=0.06,  # stale morning value
+        )
+        self.assertFalse(mlb_execution_gate.candidate_is_eligible(candidate, now))
+
+    def test_missing_probability_fields_are_ineligible(self):
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        for field in (
+            "dk_fair_prob",
+            "raw_probability",
+            "uncertainty_haircut",
+            "conservative_probability",
+            "current_ask",
+            "projected_edge_at_current_ask",
+            "model_version",
+        ):
+            candidate = self.candidate(now)
+            candidate.pop(field)
+            self.assertFalse(
+                mlb_execution_gate.candidate_is_eligible(candidate, now),
+                msg=f"missing {field} must be ineligible",
+            )
+
+    def test_missing_policy_block_fails_closed(self):
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.dict("os.environ", {"VIG_STATE_DIR": tmp}):
+                self.assertFalse(
+                    mlb_execution_gate.candidate_is_eligible(self.candidate(now), now)
+                )
+
+    def test_third_qualified_daily_candidate_is_rejected(self):
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        slug_date = now.date().isoformat()
+        schedule = {
+            "date": slug_date,
+            "sport": "MLB",
+            "market_type": "moneyline",
+            "candidates": [
+                self.candidate(now, polymarket_slug=f"aec-mlb-aaa-bbb-{slug_date}",
+                               conservative_probability=0.55, current_ask=0.48,
+                               projected_edge_at_current_ask=0.07),
+                self.candidate(now, polymarket_slug=f"aec-mlb-ccc-ddd-{slug_date}",
+                               conservative_probability=0.60, current_ask=0.48,
+                               projected_edge_at_current_ask=0.12),
+                self.candidate(now, polymarket_slug=f"aec-mlb-eee-fff-{slug_date}",
+                               conservative_probability=0.57, current_ask=0.48,
+                               projected_edge_at_current_ask=0.09),
+            ],
+        }
+        eligible = mlb_execution_gate.eligible_candidates(schedule, now)
+        self.assertEqual(
+            [c["polymarket_slug"] for c in eligible],
+            [f"aec-mlb-ccc-ddd-{slug_date}", f"aec-mlb-eee-fff-{slug_date}"],
+        )
 
 
 if __name__ == "__main__":

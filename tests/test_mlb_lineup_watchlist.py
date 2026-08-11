@@ -556,7 +556,9 @@ class MlbLineupWatchlistTests(unittest.TestCase):
         self.assertIn("recheck.starter_confirmed must be true", errors)
         self.assertIn("recheck.net_edge_recomputed must be true", errors)
 
-    def test_starter_pending_promotion_with_rehandicap_flags_passes(self):
+    def test_starter_pending_promotion_with_rehandicap_flags_blocked_by_default_policy(self):
+        # Default policy disables starter-pending promotions: a fully re-handicapped
+        # promotion is still rejected while the shared switch is off.
         promoted = self.starter_pending_entry(
             status="promoted",
             rechecked_at_utc="2026-07-17T21:45:00Z",
@@ -580,6 +582,48 @@ class MlbLineupWatchlistTests(unittest.TestCase):
         )
         with mock.patch.object(
             mlb_lineup_watchlist, "standing_authorization_enabled", return_value=True
+        ):
+            errors = mlb_lineup_watchlist.validate_entry(promoted)
+        self.assertIn(
+            "starter_unannounced entries cannot be promoted: "
+            "starter_pending_promotions_enabled is false in the shared MLB selection policy",
+            errors,
+        )
+
+    def test_starter_pending_promotion_with_rehandicap_flags_passes(self):
+        promoted = self.starter_pending_entry(
+            status="promoted",
+            rechecked_at_utc="2026-07-17T21:45:00Z",
+            recheck={
+                "lineups_confirmed": True,
+                "key_injuries_refreshed": True,
+                "price_refreshed": True,
+                "all_original_gates_hold": True,
+                "starter_confirmed": True,
+                "net_edge_recomputed": True,
+            },
+            promoted_candidate={
+                "watchlist_id": "lineup-abc-def",
+                "sport": "MLB",
+                "market_type": "moneyline",
+                "execution_mode": "standing_authorized",
+                "execution_status": "pending",
+                "max_polymarket_price": 0.53,
+                "executed": False,
+            },
+        )
+        policy = mlb_lineup_watchlist.MlbSelectionPolicy(
+            min_conservative_edge=0.05,
+            max_mlb_official_bets_per_day=2,
+            starter_pending_promotions_enabled=True,
+            max_small_bets_per_day_probation=1,
+            policy_version="test",
+            effective_at="2026-08-11T00:00:00Z",
+        )
+        with mock.patch.object(
+            mlb_lineup_watchlist, "standing_authorization_enabled", return_value=True
+        ), mock.patch.object(
+            mlb_lineup_watchlist, "load_mlb_selection_policy", return_value=policy
         ):
             errors = mlb_lineup_watchlist.validate_entry(promoted)
         self.assertEqual(errors, [])
@@ -620,14 +664,54 @@ class MlbLineupWatchlistTests(unittest.TestCase):
             "home_probable_pitcher": "",
         }
         entry = self.starter_pending_entry(id="2026-07-22-SEA-ML")
-        prompt = mlb_lineup_watchlist.build_recheck_prompt(
-            Path("/tmp/schedule.json"), [entry], {"2026-07-22-SEA-ML": snapshot}
+        policy = mlb_lineup_watchlist.MlbSelectionPolicy(
+            min_conservative_edge=0.05,
+            max_mlb_official_bets_per_day=2,
+            starter_pending_promotions_enabled=True,
+            max_small_bets_per_day_probation=1,
+            policy_version="test",
+            effective_at="2026-08-11T00:00:00Z",
         )
+        with mock.patch.object(
+            mlb_lineup_watchlist, "load_mlb_selection_policy", return_value=policy
+        ):
+            prompt = mlb_lineup_watchlist.build_recheck_prompt(
+                Path("/tmp/schedule.json"), [entry], {"2026-07-22-SEA-ML": snapshot}
+            )
         self.assertIn("STARTER-PENDING RE-HANDICAP", prompt)
         self.assertIn("net_edge = win_probability - current_ask", prompt)
+        self.assertIn("net_edge >= 0.05", prompt)
+        self.assertNotIn("net_edge >= 0.02", prompt)
         self.assertIn("PROBABLE STARTERS", prompt)
         self.assertIn("Hunter Greene", prompt)
         self.assertIn("NOT YET ANNOUNCED", prompt)
+
+    def test_recheck_prompt_blocks_starter_pending_when_policy_disables_promotions(self):
+        snapshot = {
+            "game_pk": 823110,
+            "away_team": "Cincinnati Reds",
+            "home_team": "Seattle Mariners",
+            "player_count": 52,
+            "away_batting_order": [f"Red {n}" for n in range(1, 10)],
+            "home_batting_order": [f"Mariner {n}" for n in range(1, 10)],
+        }
+        entry = self.starter_pending_entry(id="2026-07-22-SEA-ML")
+        policy = mlb_lineup_watchlist.MlbSelectionPolicy(
+            min_conservative_edge=0.05,
+            max_mlb_official_bets_per_day=2,
+            starter_pending_promotions_enabled=False,
+            max_small_bets_per_day_probation=1,
+            policy_version="test",
+            effective_at="2026-08-11T00:00:00Z",
+        )
+        with mock.patch.object(
+            mlb_lineup_watchlist, "load_mlb_selection_policy", return_value=policy
+        ):
+            prompt = mlb_lineup_watchlist.build_recheck_prompt(
+                Path("/tmp/schedule.json"), [entry], {"2026-07-22-SEA-ML": snapshot}
+            )
+        self.assertIn("STARTER-PENDING PROMOTIONS DISABLED", prompt)
+        self.assertNotIn("STARTER-PENDING RE-HANDICAP", prompt)
 
 
 if __name__ == "__main__":
