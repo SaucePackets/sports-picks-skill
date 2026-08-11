@@ -179,6 +179,20 @@ class ProbabilityContractTests(unittest.TestCase):
             )
             self.assertTrue(errors, msg=f"conservative_probability={bad!r}")
 
+    def test_non_finite_fields_are_rejected(self):
+        # Root-parser regression: NaN/Inf must be rejected by the strict
+        # helpers so no downstream guard can treat a poisoned probability as
+        # meeting a floor (all NaN comparisons are false).
+        for field in mlb_runtime_policy.REQUIRED_EXECUTION_NUMERIC_FIELDS:
+            for bad in (float("nan"), float("inf"), float("-inf")):
+                errors = mlb_runtime_policy.stale_probability_field_errors(
+                    _trail_candidate(**{field: bad})
+                )
+                self.assertTrue(
+                    errors,
+                    msg=f"{field}={bad} must be rejected by the contract",
+                )
+
     def test_missing_model_version_is_rejected(self):
         errors = mlb_runtime_policy.stale_probability_field_errors(
             _trail_candidate(model_version="")

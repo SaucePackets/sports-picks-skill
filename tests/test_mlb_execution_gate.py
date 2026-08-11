@@ -457,6 +457,27 @@ class MlbExecutionGateTests(unittest.TestCase):
                 msg=f"missing {field} must be ineligible",
             )
 
+    def test_non_finite_probability_fields_are_ineligible(self):
+        # Execution-gate regression for the NaN/Inf fail-closed defect: a
+        # standing-authorized candidate carrying a non-finite probability or
+        # edge field must be ineligible. NaN comparisons are all false, so a
+        # poisoned field can never be treated as meeting the floor.
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        for field in (
+            "dk_fair_prob",
+            "raw_probability",
+            "uncertainty_haircut",
+            "conservative_probability",
+            "current_ask",
+            "projected_edge_at_current_ask",
+        ):
+            for bad in (float("nan"), float("inf"), float("-inf")):
+                candidate = self.candidate(now, **{field: bad})
+                self.assertFalse(
+                    mlb_execution_gate.candidate_is_eligible(candidate, now),
+                    msg=f"{field}={bad} must be ineligible",
+                )
+
     def test_missing_policy_block_fails_closed(self):
         now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
         with tempfile.TemporaryDirectory() as tmp:

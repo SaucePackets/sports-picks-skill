@@ -129,6 +129,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
                     "vig_approved": True,
                     "vig_notes": "Approved.",
                     "polymarket_ask": "0.525",
+                    **PROBABILITY_TRAIL,
                 }
             ]
         }
@@ -142,6 +143,56 @@ class VigReviewGateCommonTests(unittest.TestCase):
             ["candidate event_id:1|side:CWS has no strict numeric approved Polymarket ask"],
         )
         self.assertNotEqual(after["candidates"][0].get("execution_mode"), "standing_authorized")
+
+    def test_normalize_new_mlb_approval_rejected_with_non_finite_probability(self):
+        # Routing regression for the NaN/Inf fail-closed defect: a candidate
+        # carrying a full contract but a non-finite probability/ask field must
+        # NOT route to standing-authorized execution. NaN comparisons are all
+        # false, so a poisoned field can never be treated as meeting the floor.
+        for field in (
+            "dk_fair_prob",
+            "raw_probability",
+            "uncertainty_haircut",
+            "conservative_probability",
+            "current_ask",
+            "projected_edge_at_current_ask",
+        ):
+            for bad in (float("nan"), float("inf"), float("-inf")):
+                before = {
+                    "candidates": [
+                        {
+                            "event_id": "1",
+                            "side": "CWS",
+                            "polymarket_ask": 0.48,
+                            "vig_approved": None,
+                        }
+                    ]
+                }
+                after = json.loads(json.dumps(before))
+                contract = dict(PROBABILITY_TRAIL)
+                contract[field] = bad
+                after["candidates"][0].update(
+                    contract, vig_approved=True, vig_notes="All gates hold."
+                )
+
+                errors = vig_review_gate_common.normalize_review_routing(
+                    before, after, "MLB", mlb_standing_authorized=True
+                )
+
+                self.assertTrue(
+                    errors,
+                    msg=f"{field}={bad} must fail closed at routing",
+                )
+                self.assertIn(
+                    "probability contract violation",
+                    errors[0],
+                    msg=f"{field}={bad} should be reported by the contract check",
+                )
+                self.assertNotEqual(
+                    after["candidates"][0].get("execution_mode"),
+                    "standing_authorized",
+                    msg=f"{field}={bad} must not route to standing_authorized",
+                )
 
     def test_normalize_uses_original_captured_ask_when_child_mutates_generic_ask(self):
         before = {

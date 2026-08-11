@@ -470,6 +470,24 @@ class FinalLockPolicyIntegrationTests(unittest.TestCase):
         self.assertIsNotNone(v)
         self.assertIn("probability contract violation", v)
 
+    def test_non_finite_probability_fields_refused(self):
+        # Final-lock regression for the NaN/Inf fail-closed defect: a
+        # standing-authorized candidate carrying a non-finite probability or
+        # edge field must refuse the lock. NaN comparisons are all false, so a
+        # poisoned field can never be treated as meeting the floor.
+        self._write_policy(self.DEPLOYED_POLICY_BLOCK)
+        for field in (
+            "dk_fair_prob", "raw_probability", "uncertainty_haircut",
+            "conservative_probability", "current_ask",
+            "projected_edge_at_current_ask",
+        ):
+            for bad in (float("nan"), float("inf"), float("-inf")):
+                candidate = self._candidate(**{field: bad})
+                with patch.dict("os.environ", {"VIG_STATE_DIR": str(self.state)}):
+                    v = _risk_limit_violation(candidate, self.picks_path, self.now)
+                self.assertIsNotNone(v, msg=f"{field}={bad} must refuse the lock")
+                self.assertIn("probability contract violation", v or "")
+
     def test_stale_stored_edge_refused(self):
         self._write_policy(self.DEPLOYED_POLICY_BLOCK)
         # Stored edge claims +0.06 but live recomputation gives -0.06.

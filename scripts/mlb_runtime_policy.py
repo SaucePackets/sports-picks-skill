@@ -11,6 +11,7 @@ any read/parse problem.
 from __future__ import annotations
 
 import json
+import math
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -69,6 +70,7 @@ def _strict_probability(value) -> bool:
     return (
         isinstance(value, (int, float))
         and not isinstance(value, bool)
+        and math.isfinite(value)
         and 0 < value < 1
     )
 
@@ -77,6 +79,7 @@ def _strict_nonnegative(value) -> bool:
     return (
         isinstance(value, (int, float))
         and not isinstance(value, bool)
+        and math.isfinite(value)
         and value >= 0
     )
 

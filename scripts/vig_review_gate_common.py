@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import fcntl
 import json
+import math
 import os
 import re
 import shutil
@@ -151,6 +152,7 @@ def _strict_price(value: Any) -> bool:
     return (
         isinstance(value, (int, float))
         and not isinstance(value, bool)
+        and math.isfinite(value)
         and 0 < value < 1
     )
 
@@ -252,6 +254,18 @@ def normalize_review_routing(
             )
         else:
             prices.append((candidate, ask))
+        # Probability contract at ROUTING time: a standing-authorized candidate
+        # must already carry the full numeric probability trail with a live
+        # recomputed edge. NaN/Inf fields are rejected here (not just at the
+        # execution gate and final lock) so a poisoned candidate never reaches
+        # the rewrite below. `stale_probability_field_errors` rejects missing,
+        # non-numeric, non-finite, out-of-range, and stale-edge fields.
+        contract_errors = stale_probability_field_errors(candidate)
+        if contract_errors:
+            errors.append(
+                f"candidate {identity} probability contract violation: "
+                + "; ".join(contract_errors)
+            )
     if errors:
         return errors
 
