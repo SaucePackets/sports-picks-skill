@@ -377,6 +377,41 @@ class SmallStakeTierRiskLimitTests(unittest.TestCase):
         self.assertIsNotNone(v)
         self.assertIn("daily cap breach", v)
 
+    def test_manual_candidate_without_mlb_contract_passes_risk_rails(self):
+        # A manual candidate carries no MLB probability fields by design; the
+        # probability-contract check is scoped to standing-authorized MLB
+        # execution, so this candidate must reach (and pass) the ordinary
+        # risk rails instead of being rejected on missing contract fields.
+        manual = self.cand(
+            execution_mode="manual",
+            dk_fair_prob=None,
+            raw_probability=None,
+            uncertainty_haircut=None,
+            conservative_probability=None,
+            current_ask=None,
+            projected_edge_at_current_ask=None,
+            model_version="",
+        )
+        self.assertIsNone(_risk_limit_violation(manual, self.picks_path, self.now))
+
+    def test_manual_candidate_still_hits_ordinary_risk_rails(self):
+        # Scoping the contract must not bypass the ordinary rails: a manual
+        # candidate over the unit cap is still refused.
+        manual = self.cand(
+            execution_mode="manual",
+            unit_size=99,
+            dk_fair_prob=None,
+            raw_probability=None,
+            uncertainty_haircut=None,
+            conservative_probability=None,
+            current_ask=None,
+            projected_edge_at_current_ask=None,
+            model_version="",
+        )
+        v = _risk_limit_violation(manual, self.picks_path, self.now)
+        self.assertIsNotNone(v)
+        self.assertIn("max_unit_usd_absolute", v)
+
 
 if __name__ == "__main__":
     unittest.main()

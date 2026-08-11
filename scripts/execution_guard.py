@@ -242,7 +242,13 @@ def _risk_limit_violation(
         limits = json.loads(RISK_LIMITS_PATH.read_text())
     except (OSError, json.JSONDecodeError) as exc:
         return f"risk limits unreadable ({exc})"
-    contract_violation = _probability_contract_violation(candidate)
+    contract_violation = None
+    if candidate.get("execution_mode") == "standing_authorized":
+        # The MLB probability contract is scoped to standing-authorized MLB
+        # execution only. Manual/non-authorized candidates (including legacy
+        # manual picks) must still reach the ordinary risk rails below; they
+        # carry no MLB probability fields by design.
+        contract_violation = _probability_contract_violation(candidate)
     if contract_violation:
         return f"probability contract violation ({contract_violation})"
     unit_size = float(candidate.get("unit_size") or 0)
