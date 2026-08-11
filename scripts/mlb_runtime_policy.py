@@ -220,16 +220,13 @@ def enforce_daily_candidate_limit(
     ``(kept, rejected)`` with stable schedule order inside each bucket.
     """
     scored: list[tuple[float, int, dict]] = []
-    rejected: list[dict] = []
     for index, candidate in enumerate(approved):
         edge = live_conservative_edge(candidate)
         if edge is None:
-            rejected.append(candidate)
             continue
         scored.append((-edge, index, candidate))
     scored.sort(key=lambda item: (item[0], item[1]))
     kept = [candidate for _, _, candidate in scored[: policy.max_mlb_official_bets_per_day]]
-    rejected.extend(candidate for _, _, candidate in scored[policy.max_mlb_official_bets_per_day :])
     kept_ids = {id(candidate) for candidate in kept}
     return (
         [candidate for candidate in approved if id(candidate) in kept_ids],

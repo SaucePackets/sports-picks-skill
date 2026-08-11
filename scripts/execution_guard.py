@@ -252,22 +252,31 @@ def _risk_limit_violation(
     daily_cap = float(limits.get("daily_cap_usd") or 0)
     max_small_per_day = int(limits.get("max_small_bets_per_day") or 0)
     # Probation rail: while the MLB selection policy is in probation rollout,
-    # at most one Small bet per day — the tighter of the base cap and the
-    # policy's probation cap wins. Stake caps themselves are untouched. A
-    # missing/invalid policy FAILS CLOSED to the stricter probation cap, never
-    # back to the looser legacy cap.
-    if policy is not None and max_small_per_day:
-        max_small_per_day = min(max_small_per_day, policy.max_small_bets_per_day_probation)
-    elif policy is not None:
-        max_small_per_day = policy.max_small_bets_per_day_probation
+    # the tighter of the base cap and the policy's probation cap wins. Stake
+    # caps themselves are untouched. A missing/invalid policy FAILS CLOSED to
+    # the stricter probation cap, never back to the looser legacy cap.
+    #
+    # ``max_small_per_day`` may legitimately be 0: the policy loader accepts
+    # ``max_small_bets_per_day_probation >= 0`` so 0 is a representable FULL
+    # Small freeze. ``small_cap_enforced`` records whether the small count rail
+    # is in effect at all (legacy cap set, or policy present) so a 0 cap is
+    # ENFORCED as zero — never treated as "limit disabled" by falsy checks.
+    small_cap_enforced = max_small_per_day > 0
+    if policy is not None:
+        small_cap_enforced = True
+        if max_small_per_day:
+            max_small_per_day = min(max_small_per_day, policy.max_small_bets_per_day_probation)
+        else:
+            max_small_per_day = policy.max_small_bets_per_day_probation
     elif candidate.get("execution_mode") == "standing_authorized":
         max_small_per_day = min(max_small_per_day, 1) if max_small_per_day else 1
+        small_cap_enforced = True
     max_official_per_day = (
         policy.max_mlb_official_bets_per_day if policy is not None else 0
     )
     need_ledger = (
         daily_cap
-        or (is_small and max_small_per_day)
+        or (is_small and small_cap_enforced)
         or (
             candidate.get("execution_mode") == "standing_authorized"
             and max_official_per_day
@@ -298,7 +307,7 @@ def _risk_limit_violation(
                 f"daily cap breach: spent {spent:.2f} + unit {unit_size:.2f} "
                 f"> cap {daily_cap:.2f}"
             )
-        if is_small and max_small_per_day and small_today + 1 > max_small_per_day:
+        if is_small and small_cap_enforced and small_today + 1 > max_small_per_day:
             return (
                 f"small-tier daily count breach: {small_today} small bets today "
                 f"+ 1 > cap {max_small_per_day}"

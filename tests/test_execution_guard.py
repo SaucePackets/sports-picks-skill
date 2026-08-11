@@ -377,6 +377,64 @@ class SmallStakeTierRiskLimitTests(unittest.TestCase):
             self.set_picks([])
             self.assertIsNone(_risk_limit_violation(self.cand(), self.picks_path, self.now))
 
+    def test_probation_small_cap_zero_is_a_full_freeze(self):
+        # F1 regression: a schema-valid `max_small_bets_per_day_probation: 0` is
+        # a FULL Small freeze, not "limit disabled". Two Small bets already in
+        # today's ledger must refuse a third — and even the FIRST small of the
+        # day must be refused while the freeze is in effect.
+        state = Path(self.tmp.name) / "policy-freeze-state"
+        state.mkdir()
+        (state / "risk_limits.json").write_text(json.dumps({
+            "mlb_selection_policy": {
+                "schema": "vig-mlb-selection-policy-v1",
+                "policy_version": "test",
+                "effective_at": "2026-08-11T00:00:00Z",
+                "min_conservative_edge": 0.05,
+                "max_mlb_official_bets_per_day": 2,
+                "starter_pending_promotions_enabled": False,
+                "max_small_bets_per_day_probation": 0,
+            }
+        }))
+        today = "2026-08-04T18:00:00Z"
+        with patch.dict("os.environ", {"VIG_STATE_DIR": str(state)}):
+            # Two small bets already today -> the third is refused.
+            self.set_picks([
+                {"execution_timestamp": today, "confidence": "small", "unit_size": 9, "entry_notional": 9},
+                {"execution_timestamp": today, "confidence": "small", "unit_size": 9, "entry_notional": 9},
+            ])
+            v = _risk_limit_violation(self.cand(), self.picks_path, self.now)
+            self.assertIsNotNone(v)
+            self.assertIn("small-tier daily count breach", v or "")
+            # Empty ledger -> even the FIRST small of the day is refused.
+            self.set_picks([])
+            v = _risk_limit_violation(self.cand(), self.picks_path, self.now)
+            self.assertIsNotNone(v)
+            self.assertIn("small-tier daily count breach", v or "")
+
+    def test_probation_small_cap_zero_deployed_key_also_freezes(self):
+        # The deployed state-file key family (max_small_bets_per_day_during_probation)
+        # must carry the same freeze semantics as the reviewed key.
+        state = Path(self.tmp.name) / "policy-freeze-deployed"
+        state.mkdir()
+        (state / "risk_limits.json").write_text(json.dumps({
+            "mlb_policy": {
+                "schema": "vig-mlb-selection-policy-v1",
+                "policy_version": "test",
+                "policy_effective_at": "2026-08-11T00:00:00Z",
+                "min_conservative_edge": 0.05,
+                "max_mlb_official_bets_per_day": 2,
+                "starter_pending_promotions_enabled": False,
+                "max_small_bets_per_day_during_probation": 0,
+            }
+        }))
+        self.set_picks([
+            {"execution_timestamp": "2026-08-04T18:00:00Z", "confidence": "small", "unit_size": 9, "entry_notional": 9},
+        ])
+        with patch.dict("os.environ", {"VIG_STATE_DIR": str(state)}):
+            v = _risk_limit_violation(self.cand(), self.picks_path, self.now)
+            self.assertIsNotNone(v)
+            self.assertIn("small-tier daily count breach", v or "")
+
 
 class FinalLockPolicyIntegrationTests(unittest.TestCase):
     """PR-1 review integration coverage: the final lock must fail closed on
