@@ -554,11 +554,19 @@ vig_approved=true. It must never place or schedule a bet."""
     policy = load_mlb_selection_policy()
     edge_floor = policy.min_conservative_edge if policy is not None else 0.05
     starter_block = ""
-    if starter_ids and policy is not None and not policy.starter_pending_promotions_enabled:
+    if starter_ids and (policy is None or not policy.starter_pending_promotions_enabled):
+        # Fail closed: a missing policy means promotions are disabled too — the
+        # prompt must match the validator, which refuses starter-pending
+        # promotions whenever the policy does not explicitly enable them.
+        reason = (
+            "no loadable shared MLB selection policy"
+            if policy is None
+            else "the shared MLB selection policy sets "
+            "starter_pending_promotions_enabled=false"
+        )
         starter_block = (
             "\n\nSTARTER-PENDING PROMOTIONS DISABLED — entries " + ", ".join(starter_ids)
-            + " are blocked by starter_unannounced. The shared MLB selection policy "
-            "currently sets starter_pending_promotions_enabled=false, so these entries "
+            + f" are blocked by starter_unannounced, and {reason}, so these entries "
             "MUST NOT be promoted under any circumstances this cycle: set status=passed "
             "with the reason, regardless of the announced starter or recomputed edge."
         )

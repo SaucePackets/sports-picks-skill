@@ -37,6 +37,9 @@ PROBABILITY_TRAIL = {
     "projected_edge_at_current_ask": 0.06,
     "model_version": "market-only-fallback-v1",
 }
+# The executable ceiling normalization stamps on each routed candidate:
+# conservative_probability - min_conservative_edge (0.54 - 0.05).
+POLICY_CEILING = round(0.54 - 0.05, 6)
 
 _POLICY_STATE = None
 
@@ -108,7 +111,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
         self.assertEqual(candidate["market_type"], "moneyline")
         self.assertEqual(candidate["execution_mode"], "standing_authorized")
         self.assertEqual(candidate["execution_status"], "pending")
-        self.assertEqual(candidate["max_polymarket_price"], 0.525)
+        self.assertEqual(candidate["max_polymarket_price"], POLICY_CEILING)
         self.assertIs(candidate["executed"], False)
         self.assertNotIn("manual_bet_status", candidate)
         self.assertEqual(
@@ -164,7 +167,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
         )
 
         self.assertEqual(errors, [])
-        self.assertEqual(after["candidates"][0]["max_polymarket_price"], 0.525)
+        self.assertEqual(after["candidates"][0]["max_polymarket_price"], POLICY_CEILING)
 
     def test_normalize_rejects_injected_approved_candidate(self):
         before = {
@@ -246,8 +249,88 @@ class VigReviewGateCommonTests(unittest.TestCase):
         )
 
         self.assertEqual(errors, [])
-        self.assertEqual(promoted_candidate["max_polymarket_price"], 0.51)
+        self.assertEqual(promoted_candidate["max_polymarket_price"], POLICY_CEILING)
         self.assertEqual(promoted["promoted_candidate"], promoted_candidate)
+
+    def test_routing_fails_closed_when_policy_missing(self):
+        # With no shared policy block loadable, standing-authorized routing must
+        # refuse the entire review — never silently fall back to partial rails.
+        state = Path(self.tmp.name) / "empty-state"
+        state.mkdir()
+        (state / "risk_limits.json").write_text(json.dumps({}))
+        (state / "standing_authorization.json").write_text(json.dumps({
+            "schema": "vig-standing-authorization-v1",
+            "enabled": True,
+        }))
+        before = {
+            "candidates": [
+                {
+                    "event_id": "1",
+                    "side": "CWS",
+                    "vig_approved": None,
+                    "polymarket_ask": 0.48,
+                }
+            ]
+        }
+        after = json.loads(json.dumps(before))
+        after["candidates"][0].update(
+            PROBABILITY_TRAIL, vig_approved=True, vig_notes="All gates hold."
+        )
+        with patch.dict("os.environ", {"VIG_STATE_DIR": str(state)}):
+            errors = vig_review_gate_common.normalize_review_routing(
+                before, after, "MLB", mlb_standing_authorized=True
+            )
+        self.assertTrue(errors)
+        self.assertIn("policy missing or invalid", errors[0])
+        self.assertNotEqual(
+            after["candidates"][0].get("execution_mode"), "standing_authorized"
+        )
+
+    def test_routing_with_deployed_policy_shape_stamps_policy_ceiling(self):
+        # Integration with the canonical DEPLOYED key names (mlb_policy,
+        # policy_effective_at, max_small_bets_per_day_during_probation):
+        # normalization must stamp conservative_probability - floor, not the ask.
+        state = Path(self.tmp.name) / "deployed-state"
+        state.mkdir()
+        (state / "risk_limits.json").write_text(json.dumps({
+            "mlb_policy": {
+                "schema": "vig-mlb-selection-policy-v1",
+                "policy_version": "2026-08-11-hardening-pr1",
+                "policy_effective_at": "2026-08-11T00:00:00Z",
+                "min_conservative_edge": 0.05,
+                "max_mlb_official_bets_per_day": 2,
+                "starter_pending_promotions_enabled": False,
+                "max_small_bets_per_day_during_probation": 1,
+            }
+        }))
+        before = {
+            "candidates": [
+                {
+                    "event_id": "1",
+                    "side": "CWS",
+                    "vig_approved": None,
+                    "polymarket_ask": 0.50,
+                }
+            ]
+        }
+        after = json.loads(json.dumps(before))
+        after["candidates"][0].update(
+            PROBABILITY_TRAIL,
+            vig_approved=True,
+            vig_notes="All gates hold.",
+            conservative_probability=0.58,
+            current_ask=0.50,
+            projected_edge_at_current_ask=0.08,
+        )
+        with patch.dict("os.environ", {"VIG_STATE_DIR": str(state)}):
+            errors = vig_review_gate_common.normalize_review_routing(
+                before, after, "MLB", mlb_standing_authorized=True
+            )
+        self.assertEqual(errors, [])
+        # 0.58 - 0.05 = 0.53, NOT the 0.50 ask.
+        self.assertAlmostEqual(
+            after["candidates"][0]["max_polymarket_price"], 0.53, places=6
+        )
 
     def test_normalize_rejects_third_approved_candidate_beyond_daily_limit(self):
         # Three approvals each with a passing price: the shared policy caps the
@@ -540,7 +623,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
                     reviewed["candidates"][0]["execution_mode"], "standing_authorized"
                 )
                 self.assertEqual(reviewed["candidates"][0]["execution_status"], "pending")
-                self.assertEqual(reviewed["candidates"][0]["max_polymarket_price"], 0.51)
+                self.assertEqual(reviewed["candidates"][0]["max_polymarket_price"], POLICY_CEILING)
                 self.assertNotIn("manual_bet_status", reviewed["candidates"][0])
                 latest = (root / ".picks" / "latest-action.md").read_text()
                 self.assertIn(f"{day}: MLB review complete", latest)
@@ -579,6 +662,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
                     "price": 123,
                     "bettable_to_price": 105,
                     "unit_size": 18,
+                    **PROBABILITY_TRAIL,
                     "vig_approved": True,
                     "vig_notes": "All gates hold.",
                     "captured_polymarket_ask": 0.51,

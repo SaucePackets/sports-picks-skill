@@ -258,21 +258,27 @@ def normalize_review_routing(
     # Daily candidate limit: approved candidates for the day (pre-existing plus
     # newly approved) may not exceed the shared policy cap. Rank by live
     # conservative edge and reject the tail even when each price passes alone.
+    # Missing/invalid policy FAILS CLOSED: no standing-authorized routing can
+    # proceed without the shared machine-readable rails.
     policy = load_mlb_selection_policy()
-    if policy is not None:
-        day_approved = [
-            candidate
-            for candidate in after_candidates
-            if candidate.get("vig_approved") is True
-            and candidate.get("execution_mode") != "manual"
+    if policy is None:
+        return [
+            "shared MLB selection policy missing or invalid in risk_limits.json; "
+            "standing-authorized routing is disabled until the policy block loads"
         ]
-        kept, rejected = enforce_daily_candidate_limit(day_approved, policy)
-        if rejected:
-            return [
-                f"daily candidate limit {policy.max_mlb_official_bets_per_day} "
-                f"exceeded: {len(day_approved)} approved, rejected "
-                + ", ".join(candidate_identity(c) for c in rejected)
-            ]
+    day_approved = [
+        candidate
+        for candidate in after_candidates
+        if candidate.get("vig_approved") is True
+        and candidate.get("execution_mode") != "manual"
+    ]
+    kept, rejected = enforce_daily_candidate_limit(day_approved, policy)
+    if rejected:
+        return [
+            f"daily candidate limit {policy.max_mlb_official_bets_per_day} "
+            f"exceeded: {len(day_approved)} approved, rejected "
+            + ", ".join(candidate_identity(c) for c in rejected)
+        ]
 
     after["sport"] = "MLB"
     after["market_type"] = "moneyline"
@@ -281,13 +287,35 @@ def normalize_review_routing(
         # schedule's own day so approved candidates are actually executable.
         after["date"] = day
     for candidate, ask in prices:
+        # The executable ceiling is the shared-policy ceiling
+        # (conservative_probability - min_conservative_edge), never the current
+        # ask: a valid later fill between the original ask and the true ceiling
+        # must not be rejected. Fail closed when the candidate cannot produce
+        # a ceiling (missing/non-numeric conservative probability).
+        ceiling = candidate.get("conservative_probability")
+        if not (
+            isinstance(ceiling, (int, float))
+            and not isinstance(ceiling, bool)
+            and 0 < ceiling < 1
+        ):
+            return [
+                f"candidate {candidate_identity(candidate)} cannot derive an "
+                "executable ceiling: conservative_probability missing or invalid"
+            ]
+        executable_ceiling = policy.ceiling_for(float(ceiling))
+        if not 0 < executable_ceiling < 1:
+            return [
+                f"candidate {candidate_identity(candidate)} has a non-positive "
+                f"executable ceiling ({executable_ceiling}); edge does not clear "
+                "the policy floor"
+            ]
         candidate.update(
             sport="MLB",
             market_type="moneyline",
             execution_mode="standing_authorized",
             execution_status="pending",
             executed=False,
-            max_polymarket_price=ask,
+            max_polymarket_price=executable_ceiling,
         )
         candidate.pop("manual_bet_status", None)
 
@@ -356,8 +384,15 @@ def approved_candidate_errors(
     errors.extend(stale_probability_field_errors(candidate))
     # Edge floor: the live conservative edge must clear the shared policy
     # floor (default 5 points). The haircut is an uncertainty buffer, never a fee.
+    # A missing/invalid policy FAILS CLOSED — the approval is invalid without
+    # the shared machine-readable rail.
     policy = load_mlb_selection_policy()
-    if policy is not None:
+    if policy is None:
+        errors.append(
+            "shared MLB selection policy missing or invalid in risk_limits.json; "
+            "standing-authorized approval is invalid until the policy block loads"
+        )
+    else:
         live = live_conservative_edge(candidate)
         if live is not None and live + 1e-9 < policy.min_conservative_edge:
             errors.append(
@@ -496,6 +531,17 @@ Jerry and must never place or schedule a bet.
 """
     )
     policy = load_mlb_selection_policy()
+    if policy is None:
+        # Fail closed in the prompt too: with no loadable shared policy the
+        # reviewer must know every approval will be rejected at validation, not
+        # be quoted a hard-coded floor that suggests routing can succeed.
+        edge_floor_text = (
+            "UNAVAILABLE — the shared MLB selection policy in risk_limits.json is "
+            "missing or invalid, so every standing-authorized approval will be "
+            "rejected deterministically at validation; do not approve for execution"
+        )
+    else:
+        edge_floor_text = f"{policy.min_conservative_edge}"
     edge_floor = policy.min_conservative_edge if policy is not None else 0.05
     return f"""You are Vig performing the independent {sport} card review for {day}.
 Read {schedule_path}. Review only pending candidates: {sides}. Refresh decisive
@@ -510,7 +556,7 @@ ONLY probability used for edge and execution. The haircut is a model-uncertainty
 buffer, NEVER a venue fee. Recompute the edge from the refreshed handicap, then
 set the price ceiling
 max_polymarket_price = conservative_probability - {edge_floor} (the shared policy
-minimum conservative edge, currently {edge_floor:.2f}). Judge
+minimum conservative edge, currently {edge_floor_text}). Judge
 price on the REAL cost to buy: approve whenever the current executable ask — what
 you would actually pay right now — is at or under that ceiling; reject on price
 only when the live ask is above the ceiling. This is fee-agnostic on purpose: any

@@ -114,7 +114,11 @@ def load_mlb_selection_policy(state_dir: Path | None = None) -> MlbSelectionPoli
         return None
     if not isinstance(data, dict):
         return None
+    # Accept both the reviewed key (mlb_selection_policy) and the deployed
+    # state-file key (mlb_policy); reject anything without the schema marker.
     block = data.get("mlb_selection_policy")
+    if not isinstance(block, dict):
+        block = data.get("mlb_policy")
     if not isinstance(block, dict) or block.get("schema") != POLICY_SCHEMA:
         return None
 
@@ -123,11 +127,15 @@ def load_mlb_selection_policy(state_dir: Path | None = None) -> MlbSelectionPoli
         "max_mlb_official_bets_per_day", DEFAULT_MAX_MLB_OFFICIAL_BETS_PER_DAY
     )
     max_small = block.get(
-        "max_small_bets_per_day_probation", DEFAULT_MAX_SMALL_BETS_PER_DAY_PROBATION
+        "max_small_bets_per_day_probation",
+        block.get(
+            "max_small_bets_per_day_during_probation",
+            DEFAULT_MAX_SMALL_BETS_PER_DAY_PROBATION,
+        ),
     )
     promotions = block.get("starter_pending_promotions_enabled", False)
     version = block.get("policy_version")
-    effective = block.get("effective_at")
+    effective = block.get("effective_at") or block.get("policy_effective_at")
 
     if not _strict_probability(min_edge):
         return None
