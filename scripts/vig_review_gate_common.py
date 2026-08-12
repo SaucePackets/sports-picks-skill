@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import fcntl
 import json
+import math
 import os
 import re
 import shutil
@@ -35,7 +36,13 @@ from mlb_lineup_watchlist import (  # noqa: E402
     fetch_lineup_snapshot,
     validate_watchlist,
 )
-from mlb_runtime_policy import standing_authorization_enabled  # noqa: E402
+from mlb_runtime_policy import (  # noqa: E402
+    enforce_daily_candidate_limit,
+    live_conservative_edge,
+    load_mlb_selection_policy,
+    stale_probability_field_errors,
+    standing_authorization_enabled,
+)
 
 HERMES = os.environ.get("HERMES_BIN") or shutil.which("hermes") or "/home/clawdbot/.local/bin/hermes"
 
@@ -145,6 +152,7 @@ def _strict_price(value: Any) -> bool:
     return (
         isinstance(value, (int, float))
         and not isinstance(value, bool)
+        and math.isfinite(value)
         and 0 < value < 1
     )
 
@@ -246,8 +254,60 @@ def normalize_review_routing(
             )
         else:
             prices.append((candidate, ask))
+        # Probability contract at ROUTING time: a standing-authorized candidate
+        # must already carry the full numeric probability trail with a live
+        # recomputed edge. NaN/Inf fields are rejected here (not just at the
+        # execution gate and final lock) so a poisoned candidate never reaches
+        # the rewrite below. `stale_probability_field_errors` rejects missing,
+        # non-numeric, non-finite, out-of-range, and stale-edge fields.
+        contract_errors = stale_probability_field_errors(candidate)
+        if contract_errors:
+            errors.append(
+                f"candidate {identity} probability contract violation: "
+                + "; ".join(contract_errors)
+            )
     if errors:
         return errors
+
+    # Daily candidate limit: approved candidates for the day (pre-existing plus
+    # newly approved) may not exceed the shared policy cap. Rank by live
+    # conservative edge and reject the tail even when each price passes alone.
+    # Missing/invalid policy FAILS CLOSED: no standing-authorized routing can
+    # proceed without the shared machine-readable rails.
+    #
+    # The cap pool is the set of candidates that WILL route to standing
+    # authorization: candidates already standing-authorized plus every newly
+    # approved MLB child. Newly approved children arrive in manual state and
+    # are rewritten to standing_authorized below, so they must count against
+    # the cap BEFORE the rewrite — filtering on execution_mode here would let
+    # three manual-state approvals bypass the cap and then all be rewritten.
+    # Genuinely manual-only candidates (never rewritten) are excluded by
+    # membership in newly_approved, not by transient execution_mode.
+    policy = load_mlb_selection_policy()
+    if policy is None:
+        return [
+            "shared MLB selection policy missing or invalid in risk_limits.json; "
+            "standing-authorized routing is disabled until the policy block loads"
+        ]
+    newly_approved_identities = {
+        candidate_identity(candidate) for candidate in newly_approved
+    }
+    day_approved = [
+        candidate
+        for candidate in after_candidates
+        if candidate.get("vig_approved") is True
+        and (
+            candidate.get("execution_mode") == "standing_authorized"
+            or candidate_identity(candidate) in newly_approved_identities
+        )
+    ]
+    kept, rejected = enforce_daily_candidate_limit(day_approved, policy)
+    if rejected:
+        return [
+            f"daily candidate limit {policy.max_mlb_official_bets_per_day} "
+            f"exceeded: {len(day_approved)} approved, rejected "
+            + ", ".join(candidate_identity(c) for c in rejected)
+        ]
 
     after["sport"] = "MLB"
     after["market_type"] = "moneyline"
@@ -256,13 +316,35 @@ def normalize_review_routing(
         # schedule's own day so approved candidates are actually executable.
         after["date"] = day
     for candidate, ask in prices:
+        # The executable ceiling is the shared-policy ceiling
+        # (conservative_probability - min_conservative_edge), never the current
+        # ask: a valid later fill between the original ask and the true ceiling
+        # must not be rejected. Fail closed when the candidate cannot produce
+        # a ceiling (missing/non-numeric conservative probability).
+        ceiling = candidate.get("conservative_probability")
+        if not (
+            isinstance(ceiling, (int, float))
+            and not isinstance(ceiling, bool)
+            and 0 < ceiling < 1
+        ):
+            return [
+                f"candidate {candidate_identity(candidate)} cannot derive an "
+                "executable ceiling: conservative_probability missing or invalid"
+            ]
+        executable_ceiling = policy.ceiling_for(float(ceiling))
+        if not 0 < executable_ceiling < 1:
+            return [
+                f"candidate {candidate_identity(candidate)} has a non-positive "
+                f"executable ceiling ({executable_ceiling}); edge does not clear "
+                "the policy floor"
+            ]
         candidate.update(
             sport="MLB",
             market_type="moneyline",
             execution_mode="standing_authorized",
             execution_status="pending",
             executed=False,
-            max_polymarket_price=ask,
+            max_polymarket_price=executable_ceiling,
         )
         candidate.pop("manual_bet_status", None)
 
@@ -319,12 +401,33 @@ def approved_candidate_errors(
     if candidate.get("executed") is not False:
         errors.append("executed must be false")
     max_price = candidate.get("max_polymarket_price")
-    if (
+    if max_price is None or (
         not isinstance(max_price, (int, float))
         or isinstance(max_price, bool)
         or not 0 < max_price < 1
     ):
         errors.append("max_polymarket_price must be between 0 and 1")
+    # Probability contract: a standing-authorized approval must carry the full
+    # numeric probability trail and a stored edge that matches the live
+    # recomputation. Missing or stale fields make the approval invalid.
+    errors.extend(stale_probability_field_errors(candidate))
+    # Edge floor: the live conservative edge must clear the shared policy
+    # floor (default 5 points). The haircut is an uncertainty buffer, never a fee.
+    # A missing/invalid policy FAILS CLOSED — the approval is invalid without
+    # the shared machine-readable rail.
+    policy = load_mlb_selection_policy()
+    if policy is None:
+        errors.append(
+            "shared MLB selection policy missing or invalid in risk_limits.json; "
+            "standing-authorized approval is invalid until the policy block loads"
+        )
+    else:
+        live = live_conservative_edge(candidate)
+        if live is not None and live + 1e-9 < policy.min_conservative_edge:
+            errors.append(
+                f"live conservative edge {live:.4f} is below the shared policy "
+                f"floor min_conservative_edge={policy.min_conservative_edge}"
+            )
     forbidden = sorted(
         field
         for field in ("execution_cron_id", "execution_cron_fire_utc", "approval_token")
@@ -456,14 +559,33 @@ approval token, or trading command. An approved candidate is only a reminder for
 Jerry and must never place or schedule a bet.
 """
     )
+    policy = load_mlb_selection_policy()
+    if policy is None:
+        # Fail closed in the prompt too: with no loadable shared policy the
+        # reviewer must know every approval will be rejected at validation, not
+        # be quoted a hard-coded floor that suggests routing can succeed.
+        edge_floor_text = (
+            "UNAVAILABLE — the shared MLB selection policy in risk_limits.json is "
+            "missing or invalid, so every standing-authorized approval will be "
+            "rejected deterministically at validation; do not approve for execution"
+        )
+    else:
+        edge_floor_text = f"{policy.min_conservative_edge}"
+    edge_floor = policy.min_conservative_edge if policy is not None else 0.05
     return f"""You are Vig performing the independent {sport} card review for {day}.
 Read {schedule_path}. Review only pending candidates: {sides}. Refresh decisive
 inputs and current supported-market prices, then apply every original hard gate.
 Update each reviewed candidate with boolean vig_approved and concise vig_notes.
 
 PRICE DISCIPLINE (the ceiling is the ONLY guardrail — do NOT do fee arithmetic):
-Recompute win_probability from the refreshed handicap, then set the price ceiling
-max_polymarket_price = win_probability - 0.02 (our required 2-point edge). Judge
+Start from de-vigged DraftKings fair probability (dk_fair_prob) as the market
+prior, apply your adjustments as explicit components to get raw_probability, then
+apply the documented uncertainty_haircut to get conservative_probability — the
+ONLY probability used for edge and execution. The haircut is a model-uncertainty
+buffer, NEVER a venue fee. Recompute the edge from the refreshed handicap, then
+set the price ceiling
+max_polymarket_price = conservative_probability - {edge_floor} (the shared policy
+minimum conservative edge, currently {edge_floor_text}). Judge
 price on the REAL cost to buy: approve whenever the current executable ask — what
 you would actually pay right now — is at or under that ceiling; reject on price
 only when the live ask is above the ceiling. This is fee-agnostic on purpose: any
@@ -473,6 +595,14 @@ ZERO fees (confirmed 0 bps on every executed receipt), so today the executable a
 equals the quoted ask. Never invent, add, or subtract a phantom fee (no 0.024, no
 2.4% rail). Execution is an IOC limit placed AT the ceiling, so the book can only
 ever fill at or under your number and can never push you past the suggested odds.
+
+PROBABILITY CONTRACT (required on every approved MLB candidate — an approval
+missing any of these is invalid and will be rejected deterministically):
+dk_fair_prob, raw_probability, uncertainty_haircut, conservative_probability,
+current_ask, projected_edge_at_current_ask, model_version. Set
+projected_edge_at_current_ask = conservative_probability - current_ask from the
+REFRESHED price; the morning net_edge is never carried forward as the executed
+edge. The edge must clear the shared {edge_floor:.2f} floor AFTER the haircut.
 
 {routing}
 

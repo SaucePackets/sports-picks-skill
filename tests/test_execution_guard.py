@@ -44,6 +44,13 @@ class ExecutionGuardTests(unittest.TestCase):
                 "executed": False,
                 "skipped": False,
                 "execution_lock": None,
+                "dk_fair_prob": 0.62,
+                "raw_probability": 0.66,
+                "uncertainty_haircut": 0.01,
+                "conservative_probability": 0.65,
+                "current_ask": 0.59,
+                "projected_edge_at_current_ask": 0.06,
+                "model_version": "test-model-v1",
             }],
         }))
 
@@ -279,8 +286,15 @@ class SmallStakeTierRiskLimitTests(unittest.TestCase):
         self.now = datetime(2026, 8, 4, 20, 0, tzinfo=timezone.utc)
         self.patcher = patch("scripts.execution_guard.RISK_LIMITS_PATH", self.limits_path)
         self.patcher.start()
+        # Isolate the shared MLB selection policy: these tests exercise the base
+        # money rails, so no policy block means no probation tightening.
+        self.env_patcher = patch.dict(
+            "os.environ", {"VIG_STATE_DIR": str(self.root / "no-policy-state")}
+        )
+        self.env_patcher.start()
 
     def tearDown(self):
+        self.env_patcher.stop()
         self.patcher.stop()
         self.tmp.cleanup()
 
@@ -334,6 +348,304 @@ class SmallStakeTierRiskLimitTests(unittest.TestCase):
         v = _risk_limit_violation(self.cand(unit_size=9), self.picks_path, self.now)
         self.assertIsNotNone(v)
         self.assertIn("daily cap breach", v)
+
+    def test_probation_policy_tightens_small_daily_count_to_one(self):
+        # With the shared MLB selection policy present, at most ONE Small bet per
+        # day during probation — tighter than the base max_small_bets_per_day=3.
+        state = Path(self.tmp.name) / "policy-state"
+        state.mkdir()
+        (state / "risk_limits.json").write_text(json.dumps({
+            "mlb_selection_policy": {
+                "schema": "vig-mlb-selection-policy-v1",
+                "policy_version": "test",
+                "effective_at": "2026-08-11T00:00:00Z",
+                "min_conservative_edge": 0.05,
+                "max_mlb_official_bets_per_day": 2,
+                "starter_pending_promotions_enabled": False,
+                "max_small_bets_per_day_probation": 1,
+            }
+        }))
+        self.set_picks([
+            {"execution_timestamp": "2026-08-04T18:00:00Z", "confidence": "small", "sport": "MLB", "unit_size": 9, "entry_notional": 9},
+        ])
+        with patch.dict("os.environ", {"VIG_STATE_DIR": str(state)}):
+            # One small already today: a second is refused under probation…
+            v = _risk_limit_violation(self.cand(sport="MLB"), self.picks_path, self.now)
+            self.assertIsNotNone(v)
+            self.assertIn("small-tier daily count breach", v or "")
+            # …while the FIRST small of the day is still allowed.
+            self.set_picks([])
+            self.assertIsNone(_risk_limit_violation(self.cand(sport="MLB"), self.picks_path, self.now))
+
+    def test_probation_small_cap_zero_is_a_full_freeze(self):
+        # F1 regression: a schema-valid `max_small_bets_per_day_probation: 0` is
+        # a FULL Small freeze, not "limit disabled". Two Small bets already in
+        # today's ledger must refuse a third — and even the FIRST small of the
+        # day must be refused while the freeze is in effect.
+        state = Path(self.tmp.name) / "policy-freeze-state"
+        state.mkdir()
+        (state / "risk_limits.json").write_text(json.dumps({
+            "mlb_selection_policy": {
+                "schema": "vig-mlb-selection-policy-v1",
+                "policy_version": "test",
+                "effective_at": "2026-08-11T00:00:00Z",
+                "min_conservative_edge": 0.05,
+                "max_mlb_official_bets_per_day": 2,
+                "starter_pending_promotions_enabled": False,
+                "max_small_bets_per_day_probation": 0,
+            }
+        }))
+        today = "2026-08-04T18:00:00Z"
+        with patch.dict("os.environ", {"VIG_STATE_DIR": str(state)}):
+            # Two small bets already today -> the third is refused.
+            self.set_picks([
+                {"execution_timestamp": today, "confidence": "small", "sport": "MLB", "unit_size": 9, "entry_notional": 9},
+                {"execution_timestamp": today, "confidence": "small", "sport": "MLB", "unit_size": 9, "entry_notional": 9},
+            ])
+            v = _risk_limit_violation(self.cand(sport="MLB"), self.picks_path, self.now)
+            self.assertIsNotNone(v)
+            self.assertIn("small-tier daily count breach", v or "")
+            # Empty ledger -> even the FIRST small of the day is refused.
+            self.set_picks([])
+            v = _risk_limit_violation(self.cand(sport="MLB"), self.picks_path, self.now)
+            self.assertIsNotNone(v)
+            self.assertIn("small-tier daily count breach", v or "")
+
+    def test_probation_small_cap_zero_deployed_key_also_freezes(self):
+        # The deployed state-file key family (max_small_bets_per_day_during_probation)
+        # must carry the same freeze semantics as the reviewed key.
+        state = Path(self.tmp.name) / "policy-freeze-deployed"
+        state.mkdir()
+        (state / "risk_limits.json").write_text(json.dumps({
+            "mlb_policy": {
+                "schema": "vig-mlb-selection-policy-v1",
+                "policy_version": "test",
+                "policy_effective_at": "2026-08-11T00:00:00Z",
+                "min_conservative_edge": 0.05,
+                "max_mlb_official_bets_per_day": 2,
+                "starter_pending_promotions_enabled": False,
+                "max_small_bets_per_day_during_probation": 0,
+            }
+        }))
+        self.set_picks([
+            {"execution_timestamp": "2026-08-04T18:00:00Z", "confidence": "small", "sport": "MLB", "unit_size": 9, "entry_notional": 9},
+        ])
+        with patch.dict("os.environ", {"VIG_STATE_DIR": str(state)}):
+            v = _risk_limit_violation(self.cand(sport="MLB"), self.picks_path, self.now)
+            self.assertIsNotNone(v)
+            self.assertIn("small-tier daily count breach", v or "")
+
+    def test_probation_small_cap_only_applies_to_mlb(self):
+        # Scope regression from PR #42 review: the MLB selection policy's
+        # probation Small-count rail must constrain MLB Small candidates only.
+        # Manual-only soccer (or any non-MLB) Small picks keep the legacy
+        # max_small_bets_per_day cap and are NOT limited by probation.
+        state = Path(self.tmp.name) / "policy-scope-state"
+        state.mkdir()
+        (state / "risk_limits.json").write_text(json.dumps({
+            "mlb_selection_policy": {
+                "schema": "vig-mlb-selection-policy-v1",
+                "policy_version": "test",
+                "effective_at": "2026-08-11T00:00:00Z",
+                "min_conservative_edge": 0.05,
+                "max_mlb_official_bets_per_day": 2,
+                "starter_pending_promotions_enabled": False,
+                "max_small_bets_per_day_probation": 1,
+            }
+        }))
+        today = "2026-08-04T18:00:00Z"
+        with patch.dict("os.environ", {"VIG_STATE_DIR": str(state)}):
+            # One Small manual soccer bet already today -> a second Small soccer
+            # candidate is allowed because the legacy cap is 3 and probation
+            # does not apply to non-MLB sports.
+            self.set_picks([
+                {"execution_timestamp": today, "confidence": "small", "sport": "SOCCER", "unit_size": 9, "entry_notional": 9},
+            ])
+            self.assertIsNone(
+                _risk_limit_violation(self.cand(sport="SOCCER"), self.picks_path, self.now)
+            )
+
+            # One Small MLB bet already today -> a second Small MLB candidate
+            # is refused because the probation cap of 1 applies to MLB.
+            self.set_picks([
+                {"execution_timestamp": today, "confidence": "small", "sport": "MLB", "unit_size": 9, "entry_notional": 9},
+            ])
+            v = _risk_limit_violation(self.cand(sport="MLB"), self.picks_path, self.now)
+            self.assertIsNotNone(v)
+            self.assertIn("small-tier daily count breach", v or "")
+
+            # Empty ledger -> the first Small MLB candidate is still allowed.
+            self.set_picks([])
+            self.assertIsNone(
+                _risk_limit_violation(self.cand(sport="MLB"), self.picks_path, self.now)
+            )
+
+
+class FinalLockPolicyIntegrationTests(unittest.TestCase):
+    """PR-1 review integration coverage: the final lock must fail closed on
+    missing/invalid policy, missing/stale probability trail, and a third
+    official MLB bet — using the canonical DEPLOYED policy JSON shape."""
+
+    DEPLOYED_POLICY_BLOCK = {
+        # Mirrors /home/clawdbot/.hermes/vig/state/risk_limits.json exactly:
+        # deployed key names, not the reviewed key names.
+        "mlb_policy": {
+            "schema": "vig-mlb-selection-policy-v1",
+            "policy_version": "2026-08-11-hardening-pr1",
+            "policy_effective_at": "2026-08-11T00:00:00Z",
+            "min_conservative_edge": 0.05,
+            "max_mlb_official_bets_per_day": 2,
+            "starter_pending_promotions_enabled": False,
+            "max_small_bets_per_day_during_probation": 1,
+        }
+    }
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.limits_path = self.root / "risk_limits.json"
+        self.limits_path.write_text(json.dumps({
+            "daily_cap_usd": 90,
+            "max_unit_usd_absolute": 30,
+            "max_polymarket_price": 0.75,
+        }))
+        self.picks_path = self.root / "picks.json"
+        self.picks_path.write_text(json.dumps({"picks": []}))
+        self.now = datetime(2026, 8, 11, 20, 0, tzinfo=timezone.utc)
+        self.limits_patcher = patch(
+            "scripts.execution_guard.RISK_LIMITS_PATH", self.limits_path
+        )
+        self.limits_patcher.start()
+        self.state = self.root / "state"
+        self.state.mkdir()
+
+    def tearDown(self):
+        self.limits_patcher.stop()
+        self.tmp.cleanup()
+
+    def _write_policy(self, block):
+        (self.state / "risk_limits.json").write_text(json.dumps(block))
+
+    def _candidate(self, **kw):
+        base = {
+            "unit_size": 15,
+            "confidence": "medium",
+            "max_polymarket_price": 0.60,
+            "execution_mode": "standing_authorized",
+            "dk_fair_prob": 0.62,
+            "raw_probability": 0.66,
+            "uncertainty_haircut": 0.01,
+            "conservative_probability": 0.65,
+            "current_ask": 0.59,
+            "projected_edge_at_current_ask": 0.06,
+            "model_version": "test-model-v1",
+        }
+        base.update(kw)
+        return base
+
+    def test_deployed_policy_shape_loads_and_allows_valid_candidate(self):
+        self._write_policy(self.DEPLOYED_POLICY_BLOCK)
+        with patch.dict("os.environ", {"VIG_STATE_DIR": str(self.state)}):
+            self.assertIsNone(
+                _risk_limit_violation(self._candidate(), self.picks_path, self.now)
+            )
+
+    def test_missing_policy_fails_closed(self):
+        # No policy block at all: standing-authorized lock must refuse, never
+        # fall back to legacy rails.
+        self._write_policy({})
+        with patch.dict("os.environ", {"VIG_STATE_DIR": str(self.state)}):
+            v = _risk_limit_violation(self._candidate(), self.picks_path, self.now)
+        self.assertIsNotNone(v)
+        self.assertIn("policy missing or invalid", v)
+
+    def test_missing_probability_trail_refused(self):
+        self._write_policy(self.DEPLOYED_POLICY_BLOCK)
+        candidate = self._candidate()
+        for field in (
+            "dk_fair_prob", "raw_probability", "uncertainty_haircut",
+            "conservative_probability", "current_ask",
+            "projected_edge_at_current_ask", "model_version",
+        ):
+            candidate.pop(field)
+        with patch.dict("os.environ", {"VIG_STATE_DIR": str(self.state)}):
+            v = _risk_limit_violation(candidate, self.picks_path, self.now)
+        self.assertIsNotNone(v)
+        self.assertIn("probability contract violation", v)
+
+    def test_non_finite_probability_fields_refused(self):
+        # Final-lock regression for the NaN/Inf fail-closed defect: a
+        # standing-authorized candidate carrying a non-finite probability or
+        # edge field must refuse the lock. NaN comparisons are all false, so a
+        # poisoned field can never be treated as meeting the floor.
+        self._write_policy(self.DEPLOYED_POLICY_BLOCK)
+        for field in (
+            "dk_fair_prob", "raw_probability", "uncertainty_haircut",
+            "conservative_probability", "current_ask",
+            "projected_edge_at_current_ask",
+        ):
+            for bad in (float("nan"), float("inf"), float("-inf")):
+                candidate = self._candidate(**{field: bad})
+                with patch.dict("os.environ", {"VIG_STATE_DIR": str(self.state)}):
+                    v = _risk_limit_violation(candidate, self.picks_path, self.now)
+                self.assertIsNotNone(v, msg=f"{field}={bad} must refuse the lock")
+                self.assertIn("probability contract violation", v or "")
+
+    def test_stale_stored_edge_refused(self):
+        self._write_policy(self.DEPLOYED_POLICY_BLOCK)
+        # Stored edge claims +0.06 but live recomputation gives -0.06.
+        candidate = self._candidate(
+            conservative_probability=0.54,
+            current_ask=0.60,
+            projected_edge_at_current_ask=0.06,
+        )
+        with patch.dict("os.environ", {"VIG_STATE_DIR": str(self.state)}):
+            v = _risk_limit_violation(candidate, self.picks_path, self.now)
+        self.assertIsNotNone(v)
+        self.assertIn("stale", v)
+
+    def test_live_edge_below_floor_refused(self):
+        self._write_policy(self.DEPLOYED_POLICY_BLOCK)
+        # Consistent stored/live edge of 0.03 < 0.05 floor.
+        candidate = self._candidate(
+            conservative_probability=0.56,
+            current_ask=0.53,
+            projected_edge_at_current_ask=0.03,
+        )
+        with patch.dict("os.environ", {"VIG_STATE_DIR": str(self.state)}):
+            v = _risk_limit_violation(candidate, self.picks_path, self.now)
+        self.assertIsNotNone(v)
+        self.assertIn("below policy floor", v)
+
+    def test_third_official_mlb_bet_refused(self):
+        self._write_policy(self.DEPLOYED_POLICY_BLOCK)
+        self.set_picks_two_official_mlb_today()
+        with patch.dict("os.environ", {"VIG_STATE_DIR": str(self.state)}):
+            v = _risk_limit_violation(self._candidate(), self.picks_path, self.now)
+        self.assertIsNotNone(v)
+        self.assertIn("official MLB daily count breach", v)
+
+    def set_picks_two_official_mlb_today(self):
+        self.picks_path.write_text(json.dumps({"picks": [
+            {"execution_timestamp": "2026-08-11T18:00:00Z", "sport": "MLB",
+             "confidence": "medium", "unit_size": 18, "entry_notional": 18},
+            {"execution_timestamp": "2026-08-11T19:00:00Z", "sport": "MLB",
+             "confidence": "medium", "unit_size": 15, "entry_notional": 15},
+        ]}))
+
+    def test_two_official_mlb_with_edge_below_floor_still_refused(self):
+        # Combined adversarial case from the review: missing fields AND a third
+        # bet AND negative live edge — any one alone must refuse.
+        self._write_policy(self.DEPLOYED_POLICY_BLOCK)
+        self.set_picks_two_official_mlb_today()
+        candidate = self._candidate(
+            conservative_probability=0.54,
+            current_ask=0.60,
+            projected_edge_at_current_ask=0.06,
+        )
+        with patch.dict("os.environ", {"VIG_STATE_DIR": str(self.state)}):
+            v = _risk_limit_violation(candidate, self.picks_path, self.now)
+        self.assertIsNotNone(v)
 
 
 if __name__ == "__main__":

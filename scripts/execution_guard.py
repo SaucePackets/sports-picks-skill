@@ -17,6 +17,16 @@ from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 from typing import Any
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from mlb_runtime_policy import (  # noqa: E402
+    live_conservative_edge,
+    load_mlb_selection_policy,
+    stale_probability_field_errors,
+)
+
 
 LOCK_STALE_SECONDS = 15 * 60
 
@@ -198,6 +208,27 @@ def _risk_limit_violation(
         limits = json.loads(RISK_LIMITS_PATH.read_text())
     except (OSError, json.JSONDecodeError) as exc:
         return f"risk limits unreadable ({exc})"
+    # The final lock is the last deterministic money gate: it must fail closed
+    # independently of the upstream prompt/gate. For standing-authorized
+    # candidates, enforce the shared MLB selection policy, the full probability
+    # contract, and the live conservative edge floor HERE, at lock time.
+    policy = load_mlb_selection_policy()
+    if candidate.get("execution_mode") == "standing_authorized":
+        if policy is None:
+            return (
+                "shared MLB selection policy missing or invalid in "
+                "risk_limits.json; standing-authorized execution is disabled "
+                "until the policy block loads"
+            )
+        contract_errors = stale_probability_field_errors(candidate)
+        if contract_errors:
+            return "probability contract violation: " + "; ".join(contract_errors)
+        live_edge = live_conservative_edge(candidate)
+        if live_edge is None or live_edge + 1e-9 < policy.min_conservative_edge:
+            return (
+                f"live conservative edge {live_edge} below policy floor "
+                f"{policy.min_conservative_edge}"
+            )
     unit_size = float(candidate.get("unit_size") or 0)
     max_unit = float(limits.get("max_unit_usd_absolute") or 0)
     if max_unit and unit_size > max_unit:
@@ -220,7 +251,39 @@ def _risk_limit_violation(
         return f"max_polymarket_price {max_price} exceeds ceiling {price_ceiling}"
     daily_cap = float(limits.get("daily_cap_usd") or 0)
     max_small_per_day = int(limits.get("max_small_bets_per_day") or 0)
-    if daily_cap or (is_small and max_small_per_day):
+    # Probation rail: while the MLB selection policy is in probation rollout,
+    # the tighter of the base cap and the policy's probation cap wins — but
+    # ONLY for MLB candidates. Manual-only soccer/non-MLB Small picks must keep
+    # the legacy ``max_small_bets_per_day`` behavior unchanged.
+    #
+    # ``max_small_per_day`` may legitimately be 0: the policy loader accepts
+    # ``max_small_bets_per_day_probation >= 0`` so 0 is a representable FULL
+    # Small freeze. ``small_cap_enforced`` records whether the small count rail
+    # is in effect at all (legacy cap set, or MLB policy present) so a 0 cap is
+    # ENFORCED as zero — never treated as "limit disabled" by falsy checks.
+    small_cap_enforced = max_small_per_day > 0
+    is_mlb_candidate = str(candidate.get("sport") or "").strip().upper() == "MLB"
+    if policy is not None and is_mlb_candidate:
+        small_cap_enforced = True
+        if max_small_per_day:
+            max_small_per_day = min(max_small_per_day, policy.max_small_bets_per_day_probation)
+        else:
+            max_small_per_day = policy.max_small_bets_per_day_probation
+    elif candidate.get("execution_mode") == "standing_authorized":
+        max_small_per_day = min(max_small_per_day, 1) if max_small_per_day else 1
+        small_cap_enforced = True
+    max_official_per_day = (
+        policy.max_mlb_official_bets_per_day if policy is not None else 0
+    )
+    need_ledger = (
+        daily_cap
+        or (is_small and small_cap_enforced)
+        or (
+            candidate.get("execution_mode") == "standing_authorized"
+            and max_official_per_day
+        )
+    )
+    if need_ledger:
         ledger = Path(picks_path) if picks_path else CANONICAL_PICKS_PATH
         try:
             picks = json.loads(ledger.read_text()).get("picks", [])
@@ -229,6 +292,7 @@ def _risk_limit_violation(
         today = now.astimezone(timezone.utc).date().isoformat()
         spent = 0.0
         small_today = 0
+        official_mlb_today = 0
         for pick in picks:
             if not isinstance(pick, dict):
                 continue
@@ -237,15 +301,26 @@ def _risk_limit_violation(
                 spent += float(pick.get("entry_notional") or pick.get("unit_size") or 0)
                 if str(pick.get("confidence") or "").strip().lower() == SMALL_TIER:
                     small_today += 1
+                if str(pick.get("sport") or "").strip().upper() == "MLB":
+                    official_mlb_today += 1
         if daily_cap and spent + unit_size > daily_cap:
             return (
                 f"daily cap breach: spent {spent:.2f} + unit {unit_size:.2f} "
                 f"> cap {daily_cap:.2f}"
             )
-        if is_small and max_small_per_day and small_today + 1 > max_small_per_day:
+        if is_small and small_cap_enforced and small_today + 1 > max_small_per_day:
             return (
                 f"small-tier daily count breach: {small_today} small bets today "
                 f"+ 1 > cap {max_small_per_day}"
+            )
+        if (
+            candidate.get("execution_mode") == "standing_authorized"
+            and max_official_per_day
+            and official_mlb_today + 1 > max_official_per_day
+        ):
+            return (
+                f"official MLB daily count breach: {official_mlb_today} official "
+                f"MLB bets today + 1 > cap {max_official_per_day}"
             )
     return None
 
