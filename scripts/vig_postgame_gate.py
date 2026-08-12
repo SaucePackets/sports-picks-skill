@@ -2,6 +2,10 @@
 from __future__ import annotations
 import json, subprocess, sys
 from pathlib import Path
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+from mlb_postgame_evidence import postgame_prompt_section  # noqa: E402
 HERMES='/home/clawdbot/.local/bin/hermes'
 PICKS=Path('/home/clawdbot/notes/Sports/picks/picks.json')
 ROOT=Path('/home/clawdbot/projects/sports-picks-skill')
@@ -82,23 +86,13 @@ def main():
             'backfill missing rows from the execution schedule + receipt before settling):\n'
             + recon.stdout.strip()[:2000]
         )
-    prompt=f'''You are Vig running settlement and reflection because the canonical picks ledger has {len(open_picks)} active or pending official wagers: {ids}.{recon_section}
-
-Read /home/clawdbot/notes/Sports/picks/picks.json (canonical ledger) and /home/clawdbot/notes/Sports/picks/record.json. Settle only receipt-backed supported-venue or historically documented official wagers whose events are final. Get final scores DETERMINISTICALLY via the mlb_final_scores MCP tool (mcp-sports-data) for the game date — do NOT curl or web-search for scores. Verify official result and score from that tool. Never create or submit any order, and never restore Polymarket CLOB execution.
-
-When settling, copy win_probability/dk_fair_prob/net_edge AND the price trail — slate_ask (the 10:30 polymarket_ask), captured_polymarket_ask or approved_polymarket_ask (the pre-pitch recheck price, store as ask_at_recheck) — from the schedule candidate into the ledger row when present; entry_price is the fill. This is the CLV trail: slate -> recheck -> fill. Update canonical records atomically — recomputing record.json counters from picks.json statuses so they match. When citing the record anywhere (reflection, INDEX, Telegram), recompute it from picks.json only and present it with its Wilson 95% CI on win rate (~32 bets is small; never present streaks or day-level P&L as signal). Loss reflections must answer "what stated probability did we assign, and would we assign it again?" — "variance" is only an acceptable answer when the pre-game probability was defensible.
-
-SURFACE THE REFLECTION IN TELEGRAM: your final response must give each settled pick a one-line reflection takeaway directly under its result line, not bury it in the vault. For a LOSS: the single most important "what changes going forward" lesson, plus whether it was a bad read or a bad result. For a WIN: whether the edge actually held or variance carried it. Keep it to one line per pick — the full postmortem stays in REFLECTIONS.md. If a loss taught a repeatable, durable rule, also say one line: "Promoted to data rule: <name>" so Jerry sees the gate got tightened.
-
-MARGINAL-EDGE COHORT (fee-fix probation, started 2026-08-03): the phantom 2.4% Polymarket fee was removed, unlocking picks whose true edge (win_probability - fill) sits in the 2.0-4.4% band — previously hard-passed. Track them as a cohort so the loosening proves or kills itself. Current standing computed from picks.json:
-{cohort_section}
-In your reflection, report the marginal cohort's running record + per-unit ROI on its own line (label it "Marginal-edge cohort (fee-fix probation)"). If that cohort reaches >=15 settled bets with negative per-unit ROI, explicitly recommend tightening the net-edge floor back toward 0.025-0.030 and flag it as "Promoted to data rule: raise net-edge floor". If it's positive over >=15 bets, say the loosening is validated.
-
-SMALL-STAKE / TWO-SIDED COHORTS (probation, started 2026-08-04): two gate changes now add bets — a small-stake tier ($9) for +EV picks below the Medium win-probability sizing floor, and two-sided pricing that lets the dog side qualify on the 2% net-edge floor instead of anchoring on the favorite. Track each so it proves or kills itself. Current standing computed from picks.json:
-{small_cohort_section}
-In your reflection, report BOTH lines (label them "Small-stake tier (probation)" and "Dog-side picks (two-sided probation)"). For EITHER cohort, once it reaches >=15 settled bets with negative per-unit ROI, explicitly recommend disabling that change — for the small-stake tier flag "Promoted to data rule: retire small-stake tier"; for dog-side flag "Promoted to data rule: re-anchor to favorite-only pricing". If a cohort is positive over >=15 bets, say that change is validated. Below 15 settled, report the standing and say "sample still building".
-
-If no event is final and no audit discrepancy exists, return [SILENT].'''
+    prompt=build_settlement_prompt(
+        open_pick_ids=ids,
+        open_count=len(open_picks),
+        cohort_section=cohort_section,
+        small_cohort_section=small_cohort_section,
+        recon_section=recon_section,
+    )
     cmd=[HERMES,'--profile','vig','--skills','betting-operations,sports-data-apis','chat','-q',prompt,'-t','terminal,file,web,skills,sports-data','--quiet']
     try:
         proc=subprocess.run(cmd,cwd=ROOT,text=True,capture_output=True,timeout=1800)
@@ -109,4 +103,27 @@ If no event is final and no audit discrepancy exists, return [SILENT].'''
     out=proc.stdout.strip()
     if out and out!='[SILENT]': print(out)
     return 0
+
+
+def build_settlement_prompt(*, open_pick_ids, open_count, cohort_section,
+                            small_cohort_section, recon_section):
+    return f'''You are Vig running settlement and reflection because the canonical picks ledger has {open_count} active or pending official wagers: {open_pick_ids}.{recon_section}
+
+Read /home/clawdbot/notes/Sports/picks/picks.json (canonical ledger) and /home/clawdbot/notes/Sports/picks/record.json. Settle only receipt-backed supported-venue or historically documented official wagers whose events are final. Get final scores DETERMINISTICALLY via the mlb_final_scores MCP tool (mcp-sports-data) for the game date — do NOT curl or web-search for scores. Verify official result and score from that tool. Never create or submit any order, and never restore Polymarket CLOB execution.
+
+When settling, copy win_probability/dk_fair_prob/net_edge AND the price trail — slate_ask (the 10:30 polymarket_ask), captured_polymarket_ask or approved_polymarket_ask (the pre-pitch recheck price, store as ask_at_recheck) — from the schedule candidate into the ledger row when present; entry_price is the fill. This is the CLV trail: slate -> recheck -> fill. Update canonical records atomically — recomputing record.json counters from picks.json statuses so they match. When citing the record anywhere (reflection, INDEX, Telegram), recompute it from picks.json only and present it with its Wilson 95% CI on win rate (~32 bets is small; never present streaks or day-level P&L as signal). Loss reflections must state the pre-game probability we assigned, but "variance" is never a self-declared verdict — it is only the validated process_grade below.
+
+{postgame_prompt_section()}
+
+SURFACE THE REFLECTION IN TELEGRAM: your final response must give each settled pick a one-line reflection takeaway directly under its result line, not bury it in the vault. For a LOSS: the single most important "what changes going forward" lesson, plus the validated process_grade. For a WIN: whether the edge actually held or variance carried it (its process_grade). Keep it to one line per pick — the full postmortem stays in REFLECTIONS.md. If a loss taught a repeatable, durable rule, also say one line: "Promoted to data rule: <name>" so Jerry sees the gate got tightened.
+
+MARGINAL-EDGE COHORT (fee-fix probation, started 2026-08-03): the phantom 2.4% Polymarket fee was removed, unlocking picks whose true edge (win_probability - fill) sits in the 2.0-4.4% band — previously hard-passed. Track them as a cohort so the loosening proves or kills itself. Current standing computed from picks.json:
+{cohort_section}
+In your reflection, report the marginal cohort's running record + per-unit ROI on its own line (label it "Marginal-edge cohort (fee-fix probation)"). If that cohort reaches >=15 settled bets with negative per-unit ROI, explicitly recommend tightening the net-edge floor back toward 0.025-0.030 and flag it as "Promoted to data rule: raise net-edge floor". If it's positive over >=15 bets, say the loosening is validated.
+
+SMALL-STAKE / TWO-SIDED COHORTS (probation, started 2026-08-04): two gate changes now add bets — a small-stake tier ($9) for +EV picks below the Medium win-probability sizing floor, and two-sided pricing that lets the dog side qualify on the 2% net-edge floor instead of anchoring on the favorite. Track each so it proves or kills itself. Current standing computed from picks.json:
+{small_cohort_section}
+In your reflection, report BOTH lines (label them "Small-stake tier (probation)" and "Dog-side picks (two-sided probation)"). For EITHER cohort, once it reaches >=15 settled bets with negative per-unit ROI, explicitly recommend disabling that change — for the small-stake tier flag "Promoted to data rule: retire small-stake tier"; for dog-side flag "Promoted to data rule: re-anchor to favorite-only pricing". If a cohort is positive over >=15 bets, say that change is validated. Below 15 settled, report the standing and say "sample still building".
+
+If no event is final and no audit discrepancy exists, return [SILENT].'''
 if __name__=='__main__': sys.exit(main())

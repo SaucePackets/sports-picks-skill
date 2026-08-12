@@ -1,0 +1,193 @@
+{
+  "description": "Detroit regression: pick backed Detroit on a conventional-starter thesis; the actual game script was an opener (5 outs) plus a bulk reliever (13 outs). starter_role fails deterministically; grading the loss variance must be rejected.",
+  "team": "Detroit Tigers",
+  "result": "loss",
+  "baseball_evidence": {
+    "starter_role": "starter",
+    "expected_ip": 5.5,
+    "named_risks": []
+  },
+  "feed": {
+    "gamePk": 901001,
+    "gameData": {
+      "status": {
+        "detailedState": "Final"
+      },
+      "teams": {
+        "away": {
+          "name": "Detroit Tigers"
+        },
+        "home": {
+          "name": "San Francisco Giants"
+        }
+      },
+      "datetime": {
+        "officialDate": "2026-08-04"
+      }
+    },
+    "liveData": {
+      "boxscore": {
+        "teams": {
+          "away": {
+            "pitchers": [
+              101,
+              102,
+              103
+            ],
+            "players": {
+              "ID101": {
+                "person": {
+                  "fullName": "Det Opener"
+                },
+                "stats": {
+                  "pitching": {
+                    "inningsPitched": "1.2",
+                    "outs": 5,
+                    "hits": 3,
+                    "runs": 1,
+                    "earnedRuns": 1,
+                    "strikeOuts": 2,
+                    "baseOnBalls": 1,
+                    "homeRuns": 0,
+                    "numberOfPitches": 34,
+                    "battersFaced": 9
+                  }
+                }
+              },
+              "ID102": {
+                "person": {
+                  "fullName": "Det Bulk"
+                },
+                "stats": {
+                  "pitching": {
+                    "inningsPitched": "4.1",
+                    "outs": 13,
+                    "hits": 6,
+                    "runs": 4,
+                    "earnedRuns": 4,
+                    "strikeOuts": 3,
+                    "baseOnBalls": 2,
+                    "homeRuns": 1,
+                    "numberOfPitches": 78,
+                    "battersFaced": 20
+                  }
+                }
+              },
+              "ID103": {
+                "person": {
+                  "fullName": "Det Reliever"
+                },
+                "stats": {
+                  "pitching": {
+                    "inningsPitched": "2.0",
+                    "outs": 6,
+                    "hits": 2,
+                    "runs": 1,
+                    "earnedRuns": 1,
+                    "strikeOuts": 2,
+                    "baseOnBalls": 0,
+                    "homeRuns": 0,
+                    "numberOfPitches": 28,
+                    "battersFaced": 8
+                  }
+                }
+              }
+            },
+            "teamStats": {
+              "batting": {
+                "runs": 2,
+                "hits": 6,
+                "baseOnBalls": 2,
+                "strikeOuts": 9,
+                "homeRuns": 0
+              }
+            }
+          },
+          "home": {
+            "pitchers": [
+              201
+            ],
+            "players": {
+              "ID201": {
+                "person": {
+                  "fullName": "SF Starter"
+                },
+                "stats": {
+                  "pitching": {
+                    "inningsPitched": "9.0",
+                    "outs": 27,
+                    "hits": 6,
+                    "runs": 2,
+                    "earnedRuns": 2,
+                    "strikeOuts": 8,
+                    "baseOnBalls": 1,
+                    "homeRuns": 0,
+                    "numberOfPitches": 104,
+                    "battersFaced": 33
+                  }
+                }
+              }
+            },
+            "teamStats": {
+              "batting": {
+                "runs": 6,
+                "hits": 11,
+                "baseOnBalls": 3,
+                "strikeOuts": 7,
+                "homeRuns": 2
+              }
+            }
+          }
+        }
+      },
+      "linescore": {
+        "teams": {
+          "away": {
+            "runs": 2
+          },
+          "home": {
+            "runs": 6
+          }
+        }
+      },
+      "plays": {
+        "allPlays": []
+      }
+    }
+  },
+  "expected": {
+    "actual_role": "opener_bulk",
+    "auto": {
+      "starter_role": "failed",
+      "starter_quality": "failed",
+      "bullpen_availability": "failed",
+      "offense_conversion": "failed",
+      "named_risk": "held"
+    },
+    "process_grade": "bad_read_starter_role"
+  },
+  "reviewer_pillars": {
+    "starter_role": {
+      "grade": "failed",
+      "evidence": "Expected conventional starter; got opener (5 outs) + bulk (13 outs)"
+    },
+    "starter_quality": {
+      "grade": "failed",
+      "evidence": "First pitcher recorded 5 outs vs 5.5 IP expectation"
+    },
+    "bullpen_availability": {
+      "grade": "failed",
+      "evidence": "Relievers allowed 5 runs behind the opener"
+    },
+    "offense_conversion": {
+      "grade": "failed",
+      "evidence": "Scored 2 runs on 6 hits"
+    },
+    "named_risk": {
+      "grade": "held",
+      "evidence": "No named risks recorded at bet time"
+    }
+  },
+  "rejected_process_grade": "good_read_bad_variance",
+  "process_grade": "bad_read_starter_role"
+}

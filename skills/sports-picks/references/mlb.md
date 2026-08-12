@@ -458,6 +458,40 @@ Reflection prompts:
 3. Bad bet or bad result?
 4. What changes going forward?
 
+### Postgame evidence & process grade (Phase 5 hardening)
+
+Question 3 is no longer answered by judgment alone. Before writing any reflection,
+collect deterministic game-script evidence with
+`scripts/mlb_postgame_evidence.py collect` (MLB Stats API `feed/live`): starter and
+bulk-pitcher lines, expected-vs-actual role (`starter | opener_bulk | short_start |
+unknown`), bullpen usage, offense conversion, and the scoring sequence. The
+collector exits non-zero when evidence is insufficient — settlement fails loud, it
+never guesses.
+
+Then write a structured `process_grade` on the ledger row and validate it with
+`scripts/mlb_postgame_evidence.py grade`:
+
+- `process_grade`: `good_read_bad_variance` (loss) | `good_read_edge_held` (win) |
+  `good_read_execution_issue` | `bad_read_starter_role` | `bad_read_starter_quality` |
+  `bad_read_bullpen_availability` | `bad_read_offense_conversion` |
+  `bad_read_named_risk` | `insufficient_evidence`
+- `pillars`: every thesis pillar (`starter_role`, `starter_quality`,
+  `bullpen_availability`, `offense_conversion`, `named_risk`) graded
+  `held | failed | mixed | unknown` with written evidence citing the collected numbers.
+
+Hard rules the validator enforces:
+
+- Pillar grades the boxscore decides deterministically (`held`/`failed`) cannot be
+  overridden by the reviewer.
+- A loss is `good_read_bad_variance` ONLY when every pillar is graded `held` with
+  evidence — a loss can never be called variance without complete pillar evidence.
+- Missing postgame evidence forces `insufficient_evidence`: mark the review pending;
+  never default to "I would assign it again".
+- Wins are graded too: a win carried by variance still gets its `bad_read_*` grade.
+
+Promote a durable rule to `PROCESS.md` only after a repeated or structural failure;
+match-specific detail stays in `REFLECTIONS.md`.
+
 Known recurring failure modes to watch for:
 - Cold offense + heavy juice (check run scoring trend FIRST)
 - Reputation bias (career ERA, famous roster — discount for current form)

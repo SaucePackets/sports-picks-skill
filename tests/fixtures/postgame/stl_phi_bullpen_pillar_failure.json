@@ -1,0 +1,193 @@
+{
+  "description": "St. Louis-Philadelphia regression: starter held and the offense scored 4, but relievers allowed 5 runs \u2014 the primary bullpen_availability pillar failed.",
+  "team": "St. Louis Cardinals",
+  "result": "loss",
+  "baseball_evidence": {
+    "starter_role": "starter",
+    "expected_ip": 5.5,
+    "named_risks": []
+  },
+  "feed": {
+    "gamePk": 901004,
+    "gameData": {
+      "status": {
+        "detailedState": "Final"
+      },
+      "teams": {
+        "away": {
+          "name": "St. Louis Cardinals"
+        },
+        "home": {
+          "name": "Philadelphia Phillies"
+        }
+      },
+      "datetime": {
+        "officialDate": "2026-08-10"
+      }
+    },
+    "liveData": {
+      "boxscore": {
+        "teams": {
+          "away": {
+            "pitchers": [
+              131,
+              132,
+              133
+            ],
+            "players": {
+              "ID131": {
+                "person": {
+                  "fullName": "STL Starter"
+                },
+                "stats": {
+                  "pitching": {
+                    "inningsPitched": "6.1",
+                    "outs": 19,
+                    "hits": 6,
+                    "runs": 2,
+                    "earnedRuns": 2,
+                    "strikeOuts": 6,
+                    "baseOnBalls": 2,
+                    "homeRuns": 0,
+                    "numberOfPitches": 99,
+                    "battersFaced": 26
+                  }
+                }
+              },
+              "ID132": {
+                "person": {
+                  "fullName": "STL Reliever A"
+                },
+                "stats": {
+                  "pitching": {
+                    "inningsPitched": "0.2",
+                    "outs": 2,
+                    "hits": 4,
+                    "runs": 4,
+                    "earnedRuns": 4,
+                    "strikeOuts": 0,
+                    "baseOnBalls": 1,
+                    "homeRuns": 1,
+                    "numberOfPitches": 24,
+                    "battersFaced": 7
+                  }
+                }
+              },
+              "ID133": {
+                "person": {
+                  "fullName": "STL Reliever B"
+                },
+                "stats": {
+                  "pitching": {
+                    "inningsPitched": "1.0",
+                    "outs": 3,
+                    "hits": 1,
+                    "runs": 1,
+                    "earnedRuns": 1,
+                    "strikeOuts": 1,
+                    "baseOnBalls": 0,
+                    "homeRuns": 0,
+                    "numberOfPitches": 16,
+                    "battersFaced": 5
+                  }
+                }
+              }
+            },
+            "teamStats": {
+              "batting": {
+                "runs": 4,
+                "hits": 10,
+                "baseOnBalls": 3,
+                "strikeOuts": 6,
+                "homeRuns": 1
+              }
+            }
+          },
+          "home": {
+            "pitchers": [
+              231
+            ],
+            "players": {
+              "ID231": {
+                "person": {
+                  "fullName": "PHI Starter"
+                },
+                "stats": {
+                  "pitching": {
+                    "inningsPitched": "9.0",
+                    "outs": 27,
+                    "hits": 10,
+                    "runs": 4,
+                    "earnedRuns": 4,
+                    "strikeOuts": 6,
+                    "baseOnBalls": 3,
+                    "homeRuns": 1,
+                    "numberOfPitches": 112,
+                    "battersFaced": 36
+                  }
+                }
+              }
+            },
+            "teamStats": {
+              "batting": {
+                "runs": 7,
+                "hits": 12,
+                "baseOnBalls": 3,
+                "strikeOuts": 8,
+                "homeRuns": 2
+              }
+            }
+          }
+        }
+      },
+      "linescore": {
+        "teams": {
+          "away": {
+            "runs": 4
+          },
+          "home": {
+            "runs": 7
+          }
+        }
+      },
+      "plays": {
+        "allPlays": []
+      }
+    }
+  },
+  "expected": {
+    "actual_role": "starter",
+    "auto": {
+      "starter_role": "held",
+      "starter_quality": "held",
+      "bullpen_availability": "failed",
+      "offense_conversion": "held",
+      "named_risk": "held"
+    },
+    "process_grade": "bad_read_bullpen_availability"
+  },
+  "reviewer_pillars": {
+    "starter_role": {
+      "grade": "held",
+      "evidence": "Conventional starter as expected (19 outs)"
+    },
+    "starter_quality": {
+      "grade": "held",
+      "evidence": "6.1 IP, 2 ER against a 5.5 IP expectation"
+    },
+    "bullpen_availability": {
+      "grade": "failed",
+      "evidence": "Relievers allowed 5 runs in 1.2 IP"
+    },
+    "offense_conversion": {
+      "grade": "held",
+      "evidence": "Scored 4 runs on 10 hits"
+    },
+    "named_risk": {
+      "grade": "held",
+      "evidence": "No named risks recorded at bet time"
+    }
+  },
+  "rejected_process_grade": "good_read_bad_variance",
+  "process_grade": "bad_read_bullpen_availability"
+}
