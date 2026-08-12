@@ -1,0 +1,193 @@
+{
+  "description": "Milwaukee-Minnesota regression: starter and bullpen held, but the offense converted 1 run \u2014 the primary offense_conversion pillar failed. The loss cannot be graded variance.",
+  "team": "Milwaukee Brewers",
+  "result": "loss",
+  "baseball_evidence": {
+    "starter_role": "starter",
+    "expected_ip": 5.5,
+    "named_risks": []
+  },
+  "feed": {
+    "gamePk": 901003,
+    "gameData": {
+      "status": {
+        "detailedState": "Final"
+      },
+      "teams": {
+        "away": {
+          "name": "Milwaukee Brewers"
+        },
+        "home": {
+          "name": "Minnesota Twins"
+        }
+      },
+      "datetime": {
+        "officialDate": "2026-08-09"
+      }
+    },
+    "liveData": {
+      "boxscore": {
+        "teams": {
+          "away": {
+            "pitchers": [
+              121,
+              122,
+              123
+            ],
+            "players": {
+              "ID121": {
+                "person": {
+                  "fullName": "MIL Starter"
+                },
+                "stats": {
+                  "pitching": {
+                    "inningsPitched": "6.0",
+                    "outs": 18,
+                    "hits": 5,
+                    "runs": 2,
+                    "earnedRuns": 2,
+                    "strikeOuts": 7,
+                    "baseOnBalls": 1,
+                    "homeRuns": 1,
+                    "numberOfPitches": 96,
+                    "battersFaced": 24
+                  }
+                }
+              },
+              "ID122": {
+                "person": {
+                  "fullName": "MIL Reliever A"
+                },
+                "stats": {
+                  "pitching": {
+                    "inningsPitched": "1.0",
+                    "outs": 3,
+                    "hits": 1,
+                    "runs": 1,
+                    "earnedRuns": 1,
+                    "strikeOuts": 1,
+                    "baseOnBalls": 0,
+                    "homeRuns": 0,
+                    "numberOfPitches": 15,
+                    "battersFaced": 4
+                  }
+                }
+              },
+              "ID123": {
+                "person": {
+                  "fullName": "MIL Reliever B"
+                },
+                "stats": {
+                  "pitching": {
+                    "inningsPitched": "1.0",
+                    "outs": 3,
+                    "hits": 0,
+                    "runs": 0,
+                    "earnedRuns": 0,
+                    "strikeOuts": 2,
+                    "baseOnBalls": 0,
+                    "homeRuns": 0,
+                    "numberOfPitches": 13,
+                    "battersFaced": 3
+                  }
+                }
+              }
+            },
+            "teamStats": {
+              "batting": {
+                "runs": 1,
+                "hits": 4,
+                "baseOnBalls": 1,
+                "strikeOuts": 11,
+                "homeRuns": 0
+              }
+            }
+          },
+          "home": {
+            "pitchers": [
+              221
+            ],
+            "players": {
+              "ID221": {
+                "person": {
+                  "fullName": "MIN Starter"
+                },
+                "stats": {
+                  "pitching": {
+                    "inningsPitched": "9.0",
+                    "outs": 27,
+                    "hits": 4,
+                    "runs": 1,
+                    "earnedRuns": 1,
+                    "strikeOuts": 9,
+                    "baseOnBalls": 1,
+                    "homeRuns": 0,
+                    "numberOfPitches": 101,
+                    "battersFaced": 31
+                  }
+                }
+              }
+            },
+            "teamStats": {
+              "batting": {
+                "runs": 3,
+                "hits": 8,
+                "baseOnBalls": 2,
+                "strikeOuts": 9,
+                "homeRuns": 1
+              }
+            }
+          }
+        }
+      },
+      "linescore": {
+        "teams": {
+          "away": {
+            "runs": 1
+          },
+          "home": {
+            "runs": 3
+          }
+        }
+      },
+      "plays": {
+        "allPlays": []
+      }
+    }
+  },
+  "expected": {
+    "actual_role": "starter",
+    "auto": {
+      "starter_role": "held",
+      "starter_quality": "held",
+      "bullpen_availability": "held",
+      "offense_conversion": "failed",
+      "named_risk": "held"
+    },
+    "process_grade": "bad_read_offense_conversion"
+  },
+  "reviewer_pillars": {
+    "starter_role": {
+      "grade": "held",
+      "evidence": "Conventional starter as expected (18 outs)"
+    },
+    "starter_quality": {
+      "grade": "held",
+      "evidence": "6.0 IP, 2 ER against a 5.5 IP expectation"
+    },
+    "bullpen_availability": {
+      "grade": "held",
+      "evidence": "Relievers allowed 1 run"
+    },
+    "offense_conversion": {
+      "grade": "failed",
+      "evidence": "Scored 1 run on 4 hits with 11 strikeouts"
+    },
+    "named_risk": {
+      "grade": "held",
+      "evidence": "No named risks recorded at bet time"
+    }
+  },
+  "rejected_process_grade": "good_read_bad_variance",
+  "process_grade": "bad_read_offense_conversion"
+}

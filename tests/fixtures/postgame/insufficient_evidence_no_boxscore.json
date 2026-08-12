@@ -1,0 +1,57 @@
+{
+  "description": "Insufficient-evidence regression: the feed has no boxscore and the game is not Final. Every pillar is unknown and only insufficient_evidence validates.",
+  "team": "Detroit Tigers",
+  "result": "loss",
+  "baseball_evidence": {
+    "starter_role": "starter",
+    "expected_ip": 5.5,
+    "named_risks": []
+  },
+  "feed": {
+    "gamePk": 901005,
+    "gameData": {
+      "status": {
+        "detailedState": "Suspended"
+      },
+      "teams": {
+        "away": {
+          "name": "Detroit Tigers"
+        },
+        "home": {
+          "name": "San Francisco Giants"
+        }
+      },
+      "datetime": {
+        "officialDate": "2026-08-05"
+      }
+    },
+    "liveData": {}
+  },
+  "expected": {
+    "evidence_status": "insufficient"
+  },
+  "reviewer_pillars": {
+    "starter_role": {
+      "grade": "unknown",
+      "evidence": "No boxscore retrieved"
+    },
+    "starter_quality": {
+      "grade": "unknown",
+      "evidence": "No boxscore retrieved"
+    },
+    "bullpen_availability": {
+      "grade": "unknown",
+      "evidence": "No boxscore retrieved"
+    },
+    "offense_conversion": {
+      "grade": "unknown",
+      "evidence": "No boxscore retrieved"
+    },
+    "named_risk": {
+      "grade": "unknown",
+      "evidence": "No boxscore retrieved"
+    }
+  },
+  "rejected_process_grade": "good_read_bad_variance",
+  "process_grade": "insufficient_evidence"
+}

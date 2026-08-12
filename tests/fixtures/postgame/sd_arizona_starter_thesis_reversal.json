@@ -1,0 +1,193 @@
+{
+  "description": "San Diego-Arizona regression: conventional starter completed 4 IP (role held) but allowed 7 ER against a 6 IP quality expectation \u2014 a complete starter-thesis reversal. starter_quality fails deterministically.",
+  "team": "San Diego Padres",
+  "result": "loss",
+  "baseball_evidence": {
+    "starter_role": "starter",
+    "expected_ip": 6.0,
+    "named_risks": []
+  },
+  "feed": {
+    "gamePk": 901002,
+    "gameData": {
+      "status": {
+        "detailedState": "Final"
+      },
+      "teams": {
+        "away": {
+          "name": "San Diego Padres"
+        },
+        "home": {
+          "name": "Arizona Diamondbacks"
+        }
+      },
+      "datetime": {
+        "officialDate": "2026-08-07"
+      }
+    },
+    "liveData": {
+      "boxscore": {
+        "teams": {
+          "away": {
+            "pitchers": [
+              111,
+              112,
+              113
+            ],
+            "players": {
+              "ID111": {
+                "person": {
+                  "fullName": "SD Starter"
+                },
+                "stats": {
+                  "pitching": {
+                    "inningsPitched": "4.0",
+                    "outs": 12,
+                    "hits": 10,
+                    "runs": 7,
+                    "earnedRuns": 7,
+                    "strikeOuts": 3,
+                    "baseOnBalls": 3,
+                    "homeRuns": 3,
+                    "numberOfPitches": 92,
+                    "battersFaced": 24
+                  }
+                }
+              },
+              "ID112": {
+                "person": {
+                  "fullName": "SD Reliever A"
+                },
+                "stats": {
+                  "pitching": {
+                    "inningsPitched": "3.0",
+                    "outs": 9,
+                    "hits": 2,
+                    "runs": 1,
+                    "earnedRuns": 1,
+                    "strikeOuts": 4,
+                    "baseOnBalls": 0,
+                    "homeRuns": 0,
+                    "numberOfPitches": 40,
+                    "battersFaced": 11
+                  }
+                }
+              },
+              "ID113": {
+                "person": {
+                  "fullName": "SD Reliever B"
+                },
+                "stats": {
+                  "pitching": {
+                    "inningsPitched": "1.0",
+                    "outs": 3,
+                    "hits": 0,
+                    "runs": 0,
+                    "earnedRuns": 0,
+                    "strikeOuts": 1,
+                    "baseOnBalls": 0,
+                    "homeRuns": 0,
+                    "numberOfPitches": 12,
+                    "battersFaced": 3
+                  }
+                }
+              }
+            },
+            "teamStats": {
+              "batting": {
+                "runs": 4,
+                "hits": 9,
+                "baseOnBalls": 2,
+                "strikeOuts": 8,
+                "homeRuns": 1
+              }
+            }
+          },
+          "home": {
+            "pitchers": [
+              211
+            ],
+            "players": {
+              "ID211": {
+                "person": {
+                  "fullName": "AZ Starter"
+                },
+                "stats": {
+                  "pitching": {
+                    "inningsPitched": "9.0",
+                    "outs": 27,
+                    "hits": 9,
+                    "runs": 4,
+                    "earnedRuns": 4,
+                    "strikeOuts": 7,
+                    "baseOnBalls": 2,
+                    "homeRuns": 1,
+                    "numberOfPitches": 110,
+                    "battersFaced": 35
+                  }
+                }
+              }
+            },
+            "teamStats": {
+              "batting": {
+                "runs": 8,
+                "hits": 12,
+                "baseOnBalls": 4,
+                "strikeOuts": 6,
+                "homeRuns": 3
+              }
+            }
+          }
+        }
+      },
+      "linescore": {
+        "teams": {
+          "away": {
+            "runs": 4
+          },
+          "home": {
+            "runs": 8
+          }
+        }
+      },
+      "plays": {
+        "allPlays": []
+      }
+    }
+  },
+  "expected": {
+    "actual_role": "starter",
+    "auto": {
+      "starter_role": "held",
+      "starter_quality": "failed",
+      "bullpen_availability": "held",
+      "offense_conversion": "held",
+      "named_risk": "held"
+    },
+    "process_grade": "bad_read_starter_quality"
+  },
+  "reviewer_pillars": {
+    "starter_role": {
+      "grade": "held",
+      "evidence": "Conventional starter as expected (12 outs)"
+    },
+    "starter_quality": {
+      "grade": "failed",
+      "evidence": "Expected 6 IP; actual 4.0 IP with 7 ER \u2014 thesis reversed"
+    },
+    "bullpen_availability": {
+      "grade": "held",
+      "evidence": "Relievers allowed 1 run over 4 IP"
+    },
+    "offense_conversion": {
+      "grade": "held",
+      "evidence": "Scored 4 runs on 9 hits"
+    },
+    "named_risk": {
+      "grade": "held",
+      "evidence": "No named risks recorded at bet time"
+    }
+  },
+  "rejected_process_grade": "good_read_bad_variance",
+  "process_grade": "bad_read_starter_quality"
+}
