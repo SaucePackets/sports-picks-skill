@@ -1,0 +1,57 @@
+{
+  "valid": true,
+  "description": "July 27 NYY regression: valid opener/bulk plan with schema-complete evidence",
+  "baseball_evidence": {
+    "starter_role": "opener",
+    "expected_ip": 6.0,
+    "expected_pitch_count": 95,
+    "starter_sample_ip": 52.0,
+    "starter_games_started": 9,
+    "starter_floor_evidence": "Last two starts 6 IP/2 ER, K-BB% 18%, FIP 3.60",
+    "opponent_shutdown_path": "Opposing starter has 6+ IP in 6 of last 7; bullpen taxed yesterday",
+    "candidate_failure_path": "Early hook + cold offense against a shutdown path erases the edge",
+    "contact_hr_risk": {
+      "magnitude": "small",
+      "notes": "GB-heavy, limited hard contact"
+    },
+    "bullpen_availability": {
+      "magnitude": "small",
+      "leverage_arms_available": true,
+      "notes": "Core leverage arms rested"
+    },
+    "likely_leverage_arms": "Closer + setup rested",
+    "offense_quality": {
+      "magnitude": "moderate",
+      "notes": "Top-7 wOBA over last 7 games"
+    },
+    "lineup_quality": {
+      "magnitude": "moderate",
+      "notes": "Confirmed lineup, no key scratches"
+    },
+    "environment": {
+      "park_factor": 100,
+      "temperature": 72,
+      "notes": "Neutral park"
+    },
+    "named_risks": [
+      {
+        "name": "opener/bulk uncertainty",
+        "status": "resolved",
+        "evidence": "Confirmed conventional starter via pre-game probables"
+      }
+    ],
+    "primary_thesis_pillar": true,
+    "support_layers": [
+      {
+        "pillar": "offense",
+        "magnitude": "large"
+      },
+      {
+        "pillar": "bullpen",
+        "magnitude": "moderate"
+      }
+    ],
+    "probability_delta_explanation": "Raw 0.57 vs DK fair 0.55: +0.02 from starter floor",
+    "bulk_path_plan": "Opener 1-2 IP, long reliever covers innings 3-6, rested bridge to leverage arms"
+  }
+}
