@@ -14,6 +14,34 @@ assert spec.loader is not None
 sys.modules["mlb_lineup_watchlist"] = mlb_lineup_watchlist
 spec.loader.exec_module(mlb_lineup_watchlist)
 
+from mlb_baseball_evidence import valid_baseball_evidence  # noqa: E402
+
+
+def enabled_starter_policy(min_conservative_edge=0.05):
+    return mlb_lineup_watchlist.MlbSelectionPolicy(
+        min_conservative_edge=min_conservative_edge,
+        max_mlb_official_bets_per_day=2,
+        starter_pending_promotions_enabled=True,
+        max_small_bets_per_day_probation=1,
+        policy_version="test",
+        effective_at="2026-08-11T00:00:00Z",
+    )
+
+
+def prob_block(**overrides):
+    """A self-consistent probability-components block (edge = cons - ask)."""
+    block = {
+        "dk_fair_prob": 0.55,
+        "raw_probability": 0.57,
+        "uncertainty_haircut": 0.02,
+        "conservative_probability": 0.55,
+        "current_ask": 0.50,
+        "projected_edge_at_current_ask": 0.05,
+        "model_version": "market-prior-v1",
+    }
+    block.update(overrides)
+    return block
+
 
 class MlbLineupWatchlistTests(unittest.TestCase):
     def entry(self, **overrides):
@@ -59,15 +87,20 @@ class MlbLineupWatchlistTests(unittest.TestCase):
             "execution_status": "pending",
             "max_polymarket_price": 0.51,
             "executed": False,
+            "baseball_evidence": valid_baseball_evidence(),
+            **prob_block(),
         }
         promoted = self.entry(
             status="promoted",
             rechecked_at_utc="2026-07-17T21:45:00Z",
+            slate_probability=prob_block(),
             recheck={
                 "lineups_confirmed": True,
                 "key_injuries_refreshed": True,
                 "price_refreshed": True,
                 "all_original_gates_hold": True,
+                "probability": prob_block(),
+                "material_changes": [],
             },
             promoted_candidate=promoted_candidate,
         )
@@ -476,6 +509,250 @@ class MlbLineupWatchlistTests(unittest.TestCase):
         self.assertNotIn("{\"game_pk\"", prompt)
 
 
+    # --- Phase 4 refresh contract (standing-authorized promotions) ---
+
+    def refresh_promoted_entry(self, morning=None, refreshed=None, recheck_extra=None,
+                               candidate_extra=None, **overrides):
+        """A fully refresh-contract-compliant standing-authorized promotion."""
+        morning = morning if morning is not None else prob_block()
+        refreshed = refreshed if refreshed is not None else prob_block()
+        recheck = {
+            "lineups_confirmed": True,
+            "key_injuries_refreshed": True,
+            "price_refreshed": True,
+            "all_original_gates_hold": True,
+            "probability": refreshed,
+            "material_changes": [],
+        }
+        recheck.update(recheck_extra or {})
+        candidate = {
+            "watchlist_id": "lineup-abc-def",
+            "sport": "MLB",
+            "market_type": "moneyline",
+            "execution_mode": "standing_authorized",
+            "execution_status": "pending",
+            "max_polymarket_price": 0.5,
+            "executed": False,
+            "baseball_evidence": valid_baseball_evidence(),
+            **refreshed,
+        }
+        candidate.update(candidate_extra or {})
+        entry = self.entry(
+            status="promoted",
+            rechecked_at_utc="2026-07-17T21:45:00Z",
+            slate_probability=morning,
+            recheck=recheck,
+            promoted_candidate=candidate,
+        )
+        entry.update(overrides)
+        return entry
+
+    def validate_authorized(self, entry):
+        with mock.patch.object(
+            mlb_lineup_watchlist, "standing_authorization_enabled", return_value=True
+        ):
+            return mlb_lineup_watchlist.validate_entry(entry)
+
+    def test_refresh_contract_compliant_promotion_passes(self):
+        self.assertEqual(self.validate_authorized(self.refresh_promoted_entry()), [])
+
+    def test_promotion_that_merely_asserts_gates_hold_is_rejected(self):
+        # No slate_probability, no recheck.probability, no material_changes, no
+        # refreshed evidence — the pre-Phase-4 shape must now fail.
+        promoted = self.entry(
+            status="promoted",
+            rechecked_at_utc="2026-07-17T21:45:00Z",
+            recheck={
+                "lineups_confirmed": True,
+                "key_injuries_refreshed": True,
+                "price_refreshed": True,
+                "all_original_gates_hold": True,
+            },
+            promoted_candidate={
+                "watchlist_id": "lineup-abc-def",
+                "sport": "MLB",
+                "market_type": "moneyline",
+                "execution_mode": "standing_authorized",
+                "execution_status": "pending",
+                "max_polymarket_price": 0.51,
+                "executed": False,
+            },
+        )
+        errors = self.validate_authorized(promoted)
+        self.assertTrue(any("slate_probability must be an object" in e for e in errors), errors)
+        self.assertTrue(
+            any("merely asserts all original gates hold is invalid" in e for e in errors), errors
+        )
+        self.assertTrue(any("recheck.material_changes must be a list" in e for e in errors), errors)
+        self.assertTrue(any("baseball evidence" in e for e in errors), errors)
+
+    def test_changed_probability_component_requires_written_reason(self):
+        refreshed = prob_block(
+            raw_probability=0.58,
+            conservative_probability=0.56,
+            projected_edge_at_current_ask=0.06,
+        )
+        promoted = self.refresh_promoted_entry(refreshed=refreshed)
+        errors = self.validate_authorized(promoted)
+        self.assertIn(
+            "recheck.probability_change_reasons.raw_probability is required: "
+            "raw_probability changed from the morning slate",
+            errors,
+        )
+        self.assertIn(
+            "recheck.probability_change_reasons.conservative_probability is required: "
+            "conservative_probability changed from the morning slate",
+            errors,
+        )
+
+    def test_probability_increase_requires_quantified_upgrade(self):
+        refreshed = prob_block(
+            raw_probability=0.58,
+            conservative_probability=0.56,
+            projected_edge_at_current_ask=0.06,
+        )
+        reasons = {
+            "raw_probability": "confirmed order upgraded the offense",
+            "conservative_probability": "raw moved; haircut unchanged",
+        }
+        no_upgrade = self.refresh_promoted_entry(
+            refreshed=refreshed,
+            recheck_extra={"probability_change_reasons": reasons},
+        )
+        errors = self.validate_authorized(no_upgrade)
+        self.assertTrue(
+            any("lineup confirmation alone adds zero probability" in e for e in errors),
+            errors,
+        )
+
+        wrong_delta = self.refresh_promoted_entry(
+            refreshed=refreshed,
+            recheck_extra={
+                "probability_change_reasons": reasons,
+                "quantified_upgrade": {
+                    "component": "lineup",
+                    "delta": 0.05,
+                    "evidence": "Confirmed order carries both platoon bats",
+                },
+            },
+        )
+        errors = self.validate_authorized(wrong_delta)
+        self.assertTrue(
+            any("quantified_upgrade.delta must equal" in e for e in errors), errors
+        )
+
+        quantified = self.refresh_promoted_entry(
+            refreshed=refreshed,
+            recheck_extra={
+                "probability_change_reasons": reasons,
+                "quantified_upgrade": {
+                    "component": "lineup",
+                    "delta": 0.01,
+                    "evidence": "Confirmed order carries both platoon bats",
+                },
+            },
+        )
+        self.assertEqual(self.validate_authorized(quantified), [])
+
+    def test_material_change_with_unchanged_probability_requires_justification(self):
+        promoted = self.refresh_promoted_entry(
+            recheck_extra={"material_changes": ["bullpen: closer threw 25 pitches yesterday"]},
+        )
+        errors = self.validate_authorized(promoted)
+        self.assertTrue(
+            any("probability_unchanged_justification is required" in e for e in errors),
+            errors,
+        )
+
+        justified = self.refresh_promoted_entry(
+            recheck_extra={
+                "material_changes": ["bullpen: closer threw 25 pitches yesterday"],
+                "probability_unchanged_justification": (
+                    "Setup arm covers the ninth at equivalent leverage quality; "
+                    "haircut already priced bullpen fatigue"
+                ),
+            },
+        )
+        self.assertEqual(self.validate_authorized(justified), [])
+
+    def test_promoted_candidate_cannot_route_morning_numbers(self):
+        refreshed = prob_block(
+            raw_probability=0.58,
+            conservative_probability=0.56,
+            projected_edge_at_current_ask=0.06,
+        )
+        promoted = self.refresh_promoted_entry(
+            refreshed=refreshed,
+            recheck_extra={
+                "probability_change_reasons": {
+                    "raw_probability": "announced arm weaker",
+                    "conservative_probability": "raw moved",
+                },
+                "quantified_upgrade": {
+                    "component": "opposing_starter",
+                    "delta": 0.01,
+                    "evidence": "6.1 ERA arm announced",
+                },
+            },
+            # Candidate silently keeps the MORNING numbers — must be rejected.
+            candidate_extra=prob_block(),
+        )
+        errors = self.validate_authorized(promoted)
+        self.assertTrue(
+            any(
+                "promoted_candidate.raw_probability must equal "
+                "recheck.probability.raw_probability" in e
+                for e in errors
+            ),
+            errors,
+        )
+
+    def test_manual_only_promotion_is_exempt_from_refresh_contract(self):
+        # Manual/awaiting_jerry routing is not standing-authorized; the Phase 4
+        # contract deliberately does not apply (PR2 scoping precedent).
+        promoted = self.entry(
+            status="promoted",
+            manual_only=True,
+            rechecked_at_utc="2026-07-17T21:45:00Z",
+            recheck={"lineups_confirmed": True, "key_injuries_refreshed": True,
+                     "price_refreshed": True, "all_original_gates_hold": True},
+            promoted_candidate={
+                "watchlist_id": "lineup-abc-def", "execution_mode": "manual",
+                "manual_bet_status": "awaiting_jerry", "manual_only": True, "executed": False,
+            },
+        )
+        self.assertEqual(self.validate_authorized(promoted), [])
+
+    def test_recheck_prompt_carries_refresh_contract_and_policy_floor(self):
+        with mock.patch.object(
+            mlb_lineup_watchlist, "standing_authorization_enabled", return_value=True
+        ), mock.patch.object(
+            mlb_lineup_watchlist, "load_mlb_selection_policy",
+            return_value=enabled_starter_policy(),
+        ):
+            prompt = mlb_lineup_watchlist.build_recheck_prompt(
+                Path("/tmp/schedule.json"), [self.entry()]
+            )
+        self.assertIn("RECHECK REFRESH CONTRACT", prompt)
+        self.assertIn("adds ZERO win probability", prompt)
+        self.assertIn("recheck.probability", prompt)
+        self.assertIn("recheck.material_changes", prompt)
+        self.assertIn("merely asserts the original gates hold", prompt)
+
+    def test_starter_rehandicap_prompt_floor_comes_from_policy_not_hardcode(self):
+        entry = self.entry(blocked_only_by=["lineups_unconfirmed", "starter_unannounced"])
+        entry["original_gate_results"]["opposing_starter_shutdown_path"] = None
+        entry["original_gate_results"]["real_winner_conviction"] = None
+        with mock.patch.object(
+            mlb_lineup_watchlist, "load_mlb_selection_policy",
+            return_value=enabled_starter_policy(min_conservative_edge=0.07),
+        ):
+            prompt = mlb_lineup_watchlist.build_recheck_prompt(
+                Path("/tmp/schedule.json"), [entry]
+            )
+        self.assertIn("net_edge >= 0.07", prompt)
+        self.assertNotIn("0.05", prompt)
+
     # --- starter-pending recheck (deferred opposing-starter gates) ---
 
     def starter_pending_entry(self, **overrides):
@@ -491,7 +768,48 @@ class MlbLineupWatchlistTests(unittest.TestCase):
         return entry
 
     def test_starter_pending_entry_defers_opposing_starter_gates(self):
-        errors = mlb_lineup_watchlist.validate_entry(self.starter_pending_entry())
+        # Admissible only when the shared policy re-enables starter-pending work.
+        with mock.patch.object(
+            mlb_lineup_watchlist, "load_mlb_selection_policy",
+            return_value=enabled_starter_policy(),
+        ):
+            errors = mlb_lineup_watchlist.validate_entry(self.starter_pending_entry())
+        self.assertEqual(errors, [])
+
+    def test_pending_starter_entry_is_inadmissible_while_policy_disables_it(self):
+        # Phase 4: the live watchlist is lineups_unconfirmed-only. A pending
+        # starter_unannounced entry fails validation under the deployed default
+        # policy AND when no policy loads at all (fail closed).
+        disabled = mlb_lineup_watchlist.MlbSelectionPolicy(
+            min_conservative_edge=0.05,
+            max_mlb_official_bets_per_day=2,
+            starter_pending_promotions_enabled=False,
+            max_small_bets_per_day_probation=1,
+            policy_version="test",
+            effective_at="2026-08-11T00:00:00Z",
+        )
+        for policy in (None, disabled):
+            with mock.patch.object(
+                mlb_lineup_watchlist, "load_mlb_selection_policy", return_value=policy
+            ):
+                errors = mlb_lineup_watchlist.validate_entry(self.starter_pending_entry())
+            self.assertTrue(
+                any("starter_unannounced entries are not admissible" in e for e in errors),
+                errors,
+            )
+
+    def test_terminal_starter_entry_remains_valid_historical_record(self):
+        # Transition rule: an already-passed starter entry from before the
+        # restriction is historical record, not a live violation.
+        passed = self.starter_pending_entry(
+            status="passed",
+            rechecked_at_utc="2026-07-17T21:45:00Z",
+            recheck_notes="Announced starter erased the edge.",
+        )
+        with mock.patch.object(
+            mlb_lineup_watchlist, "load_mlb_selection_policy", return_value=None
+        ):
+            errors = mlb_lineup_watchlist.validate_entry(passed)
         self.assertEqual(errors, [])
 
     def test_starter_only_blocker_allows_confirmed_lineups(self):
@@ -499,7 +817,11 @@ class MlbLineupWatchlistTests(unittest.TestCase):
         entry["original_gate_results"]["opposing_starter_shutdown_path"] = None
         entry["original_gate_results"]["real_winner_conviction"] = None
         entry["original_gate_results"]["lineups_confirmed"] = True
-        self.assertEqual(mlb_lineup_watchlist.validate_entry(entry), [])
+        with mock.patch.object(
+            mlb_lineup_watchlist, "load_mlb_selection_policy",
+            return_value=enabled_starter_policy(),
+        ):
+            self.assertEqual(mlb_lineup_watchlist.validate_entry(entry), [])
 
     def test_starter_pending_rejects_asserted_deferred_gate(self):
         entry = self.starter_pending_entry()
@@ -591,9 +913,18 @@ class MlbLineupWatchlistTests(unittest.TestCase):
         )
 
     def test_starter_pending_promotion_with_rehandicap_flags_passes(self):
+        # The announced starter changed the read: raw/conservative moved and the
+        # refresh contract records the reasons + the quantified upgrade.
+        morning = prob_block()
+        refreshed = prob_block(
+            raw_probability=0.58,
+            conservative_probability=0.56,
+            projected_edge_at_current_ask=0.06,
+        )
         promoted = self.starter_pending_entry(
             status="promoted",
             rechecked_at_utc="2026-07-17T21:45:00Z",
+            slate_probability=morning,
             recheck={
                 "lineups_confirmed": True,
                 "key_injuries_refreshed": True,
@@ -601,6 +932,17 @@ class MlbLineupWatchlistTests(unittest.TestCase):
                 "all_original_gates_hold": True,
                 "starter_confirmed": True,
                 "net_edge_recomputed": True,
+                "probability": refreshed,
+                "material_changes": ["opposing starter announced: soft-contact rookie"],
+                "probability_change_reasons": {
+                    "raw_probability": "announced opposing starter is a weaker arm than priced",
+                    "conservative_probability": "haircut unchanged; raw moved up on the announced arm",
+                },
+                "quantified_upgrade": {
+                    "component": "opposing_starter",
+                    "delta": 0.01,
+                    "evidence": "Announced starter: 6.1 ERA, 8% K-BB over last 5 starts",
+                },
             },
             promoted_candidate={
                 "watchlist_id": "lineup-abc-def",
@@ -608,22 +950,17 @@ class MlbLineupWatchlistTests(unittest.TestCase):
                 "market_type": "moneyline",
                 "execution_mode": "standing_authorized",
                 "execution_status": "pending",
-                "max_polymarket_price": 0.53,
+                "max_polymarket_price": 0.51,
                 "executed": False,
+                "baseball_evidence": valid_baseball_evidence(),
+                **refreshed,
             },
-        )
-        policy = mlb_lineup_watchlist.MlbSelectionPolicy(
-            min_conservative_edge=0.05,
-            max_mlb_official_bets_per_day=2,
-            starter_pending_promotions_enabled=True,
-            max_small_bets_per_day_probation=1,
-            policy_version="test",
-            effective_at="2026-08-11T00:00:00Z",
         )
         with mock.patch.object(
             mlb_lineup_watchlist, "standing_authorization_enabled", return_value=True
         ), mock.patch.object(
-            mlb_lineup_watchlist, "load_mlb_selection_policy", return_value=policy
+            mlb_lineup_watchlist, "load_mlb_selection_policy",
+            return_value=enabled_starter_policy(),
         ):
             errors = mlb_lineup_watchlist.validate_entry(promoted)
         self.assertEqual(errors, [])
