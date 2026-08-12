@@ -43,6 +43,11 @@ from mlb_runtime_policy import (  # noqa: E402
     stale_probability_field_errors,
     standing_authorization_enabled,
 )
+from mlb_baseball_evidence import (  # noqa: E402
+    baseball_evidence_errors,
+    execution_checks_errors,
+    review_prompt_evidence_section,
+)
 
 HERMES = os.environ.get("HERMES_BIN") or shutil.which("hermes") or "/home/clawdbot/.local/bin/hermes"
 
@@ -266,6 +271,23 @@ def normalize_review_routing(
                 f"candidate {identity} probability contract violation: "
                 + "; ".join(contract_errors)
             )
+        # Baseball evidence (Phase 2 hard validators): a standing-authorized
+        # candidate must have deterministic starter role, resolved named risks,
+        # and a valid support layer. Fails closed before daily-cap ranking.
+        baseball_errors = baseball_evidence_errors(candidate)
+        if baseball_errors:
+            errors.append(
+                f"candidate {identity} baseball evidence violation: "
+                + "; ".join(baseball_errors)
+            )
+        # Execution checks (Phase 2): confirm tradeability without touching
+        # probability. A candidate missing these fails closed at routing.
+        exec_errors = execution_checks_errors(candidate)
+        if exec_errors:
+            errors.append(
+                f"candidate {identity} execution checks violation: "
+                + "; ".join(exec_errors)
+            )
     if errors:
         return errors
 
@@ -411,6 +433,17 @@ def approved_candidate_errors(
     # numeric probability trail and a stored edge that matches the live
     # recomputation. Missing or stale fields make the approval invalid.
     errors.extend(stale_probability_field_errors(candidate))
+    # Baseball evidence hard validators (Phase 2): separate baseball gates from
+    # execution checks so a candidate cannot route on price/liquidity alone.
+    errors.extend(
+        f"baseball evidence: {message}"
+        for message in baseball_evidence_errors(candidate)
+    )
+    # Execution checks hard validators (Phase 2): separate tradeability gates.
+    errors.extend(
+        f"execution checks: {message}"
+        for message in execution_checks_errors(candidate)
+    )
     # Edge floor: the live conservative edge must clear the shared policy
     # floor (default 5 points). The haircut is an uncertainty buffer, never a fee.
     # A missing/invalid policy FAILS CLOSED — the approval is invalid without
@@ -572,6 +605,15 @@ Jerry and must never place or schedule a bet.
     else:
         edge_floor_text = f"{policy.min_conservative_edge}"
     edge_floor = policy.min_conservative_edge if policy is not None else 0.05
+    # Phase 2: the hard validators reject any standing-authorized approval that
+    # lacks structured baseball_evidence/execution_checks, so the reviewer must
+    # be handed the schema in the same prompt. Soccer/manual reviews carry no
+    # evidence contract and stay unchanged.
+    evidence_section = (
+        "\n" + review_prompt_evidence_section() + "\n"
+        if sport.upper() == "MLB" and mlb_standing_authorized
+        else ""
+    )
     return f"""You are Vig performing the independent {sport} card review for {day}.
 Read {schedule_path}. Review only pending candidates: {sides}. Refresh decisive
 inputs and current supported-market prices, then apply every original hard gate.
@@ -603,7 +645,7 @@ current_ask, projected_edge_at_current_ask, model_version. Set
 projected_edge_at_current_ask = conservative_probability - current_ask from the
 REFRESHED price; the morning net_edge is never carried forward as the executed
 edge. The edge must clear the shared {edge_floor:.2f} floor AFTER the haircut.
-
+{evidence_section}
 {routing}
 
 Return a concise card review with approved/rejected count, decisive reason per

@@ -18,6 +18,8 @@ assert spec.loader is not None
 sys.modules["vig_review_gate_common"] = vig_review_gate_common
 spec.loader.exec_module(vig_review_gate_common)
 
+from mlb_baseball_evidence import valid_baseball_evidence, valid_execution_checks
+
 EXECUTION_GATE_PATH = Path(__file__).resolve().parents[1] / "scripts" / "mlb_execution_gate.py"
 execution_gate_spec = importlib.util.spec_from_file_location(
     "mlb_execution_gate_for_review_test", EXECUTION_GATE_PATH
@@ -36,6 +38,8 @@ PROBABILITY_TRAIL = {
     "current_ask": 0.48,
     "projected_edge_at_current_ask": 0.06,
     "model_version": "market-only-fallback-v1",
+    "baseball_evidence": valid_baseball_evidence(),
+    "execution_checks": valid_execution_checks(supported_price=0.48),
 }
 # The executable ceiling normalization stamps on each routed candidate:
 # conservative_probability - min_conservative_edge (0.54 - 0.05).
@@ -399,6 +403,8 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 "current_ask": 0.48,
                 "projected_edge_at_current_ask": edge,
                 "model_version": "market-only-fallback-v1",
+                "baseball_evidence": valid_baseball_evidence(),
+                "execution_checks": valid_execution_checks(supported_price=0.48),
             }
 
         before = {
@@ -442,6 +448,8 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 "current_ask": 0.48,
                 "projected_edge_at_current_ask": edge,
                 "model_version": "market-only-fallback-v1",
+                "baseball_evidence": valid_baseball_evidence(),
+                "execution_checks": valid_execution_checks(supported_price=0.48),
             }
 
         before = {
@@ -490,6 +498,8 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 "current_ask": 0.48,
                 "projected_edge_at_current_ask": edge,
                 "model_version": "market-only-fallback-v1",
+                "baseball_evidence": valid_baseball_evidence(),
+                "execution_checks": valid_execution_checks(supported_price=0.48),
             }
 
         before = {
@@ -1030,6 +1040,34 @@ class VigReviewGateCommonTests(unittest.TestCase):
         self.assertIn("recurring MLB execution poller", prompt)
         self.assertNotIn("awaiting_jerry", prompt)
 
+    def test_mlb_review_prompt_includes_evidence_schema(self):
+        # Phase 2 hard validators reject any approval without structured
+        # baseball_evidence/execution_checks, so the review prompt must hand
+        # Vig the schema — otherwise every approval fails closed at routing.
+        prompt = vig_review_gate_common.build_regular_review_prompt(
+            "MLB",
+            "2026-07-17",
+            Path("/tmp/schedule.json"),
+            [{"side": "ABC"}],
+            mlb_standing_authorized=True,
+        )
+
+        self.assertIn("BASEBALL EVIDENCE (required object", prompt)
+        self.assertIn("EXECUTION CHECKS (required object", prompt)
+        self.assertIn("bullpen_availability.leverage_arms_available must be true", prompt)
+        self.assertIn('named_risks: list of {name, status: "resolved" | "unresolved", evidence}', prompt)
+        self.assertIn("probability_delta_explanation", prompt)
+
+    def test_soccer_and_manual_review_prompts_omit_evidence_schema(self):
+        # Soccer and non-standing-authorized MLB reviews carry no evidence
+        # contract; their prompts stay unchanged.
+        for sport in ("SOCCER", "MLB"):
+            prompt = vig_review_gate_common.build_regular_review_prompt(
+                sport, "2026-07-17", Path("/tmp/schedule.json"), [{"side": "ABC"}]
+            )
+            self.assertNotIn("BASEBALL EVIDENCE", prompt)
+            self.assertNotIn("EXECUTION CHECKS (required object", prompt)
+
     def test_review_prompt_states_zero_fee_and_no_phantom_fee(self):
         for sport, kwargs in (
             ("MLB", {"mlb_standing_authorized": True}),
@@ -1225,6 +1263,31 @@ class VigReviewGateCommonTests(unittest.TestCase):
             vig_review_gate_common.validate_review_transition(
                 before, after, [], ["watch-1"], mlb_standing_authorized=True
             ),
+            [],
+        )
+
+    def test_valid_baseball_evidence_passes_review_routing(self):
+        # Positive-path fixture: a candidate with valid Phase-2 evidence and
+        # execution checks must route without errors. The regression fixtures
+        # prove the gate can say no; this proves it can say yes when it should.
+        before = {"candidates": [], "lineup_watchlist": []}
+        approved_candidate = {
+            "id": "pos-1",
+            "sport": "MLB",
+            "market_type": "moneyline",
+            "side": "NYY",
+            "price": -130,
+            "vig_approved": True,
+            "vig_notes": "All gates hold.",
+            "execution_mode": "manual",
+            "manual_bet_status": "awaiting_jerry",
+            "executed": False,
+            **PROBABILITY_TRAIL,
+        }
+        after = {"candidates": [approved_candidate], "lineup_watchlist": []}
+        identity = vig_review_gate_common.candidate_identity(approved_candidate)
+        self.assertEqual(
+            vig_review_gate_common.validate_review_transition(before, after, [identity], []),
             [],
         )
 

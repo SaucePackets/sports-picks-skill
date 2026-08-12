@@ -27,6 +27,7 @@ from mlb_runtime_policy import (  # noqa: E402
     load_mlb_selection_policy,
     standing_authorization_enabled,
 )
+from mlb_baseball_evidence import review_prompt_evidence_section  # noqa: E402
 
 MIN_MINUTES_BEFORE_FIRST_PITCH = 35
 MAX_MINUTES_BEFORE_FIRST_PITCH = 90
@@ -630,6 +631,8 @@ ceiling, and every original gate still holds. If the provided price is
 unavailable but lineups are confirmed and gates hold, still promote and carry
 the stored ceiling as max_polymarket_price — the recurring execution poller
 enforces the live price deterministically at order time. {routing}{starter_block}
+
+{review_prompt_evidence_section()}
 
 Set status=passed with a concise recheck_notes reason ONLY for a real signal
 failure: lineups genuinely unconfirmed at recheck time, a scratch/injury that

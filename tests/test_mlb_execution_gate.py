@@ -18,6 +18,22 @@ assert spec.loader is not None
 sys.modules["mlb_execution_gate"] = mlb_execution_gate
 spec.loader.exec_module(mlb_execution_gate)
 
+import mlb_baseball_evidence
+
+BASEBALL_EVIDENCE = mlb_baseball_evidence.valid_baseball_evidence()
+
+EXECUTION_CHECKS = {
+    "exact_event_slug_side_mapping": True,
+    "supported_price": 0.48,
+    "price_timestamp": "2026-07-19T17:00:00Z",
+    "current_ask_inside_ceiling": True,
+    "liquidity": {"book_state": "reliable", "fillable_notional_usd": 50},
+    "bankroll_and_daily_cap_ok": True,
+    "lineup_confirmation": True,
+    "injury_scratch_refresh": True,
+    "receipt_dedup_ready": True,
+}
+
 
 class MlbExecutionGateTests(unittest.TestCase):
     def setUp(self):
@@ -66,6 +82,8 @@ class MlbExecutionGateTests(unittest.TestCase):
             "current_ask": 0.48,
             "projected_edge_at_current_ask": 0.06,
             "model_version": "market-only-fallback-v1",
+            "baseball_evidence": BASEBALL_EVIDENCE,
+            "execution_checks": EXECUTION_CHECKS,
         }
         item.update(overrides)
         return item
@@ -86,6 +104,26 @@ class MlbExecutionGateTests(unittest.TestCase):
         self.assertIn("execution_guard.py", prompt)
         self.assertIn("proposal receipt", prompt)
         self.assertIn("daily cap", prompt)
+
+    def test_execution_prompt_requires_evidence_revalidation(self):
+        # Phase 2: the poller prompt must instruct a refreshed re-check of
+        # baseball_evidence and execution_checks from the schedule file.
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        prompt = mlb_execution_gate.build_execution_prompt(
+            Path("/runtime/.picks/execute/2026-07-19-schedule.json"),
+            {
+                "date": "2026-07-19",
+                "sport": "MLB",
+                "market_type": "moneyline",
+                "candidates": [self.candidate(now)],
+            },
+            now,
+            mlb_standing_authorized=True,
+        )
+
+        self.assertIn("BASEBALL EVIDENCE / EXECUTION CHECKS RE-VALIDATION", prompt)
+        self.assertIn("Either object missing or invalid is a TERMINAL failure", prompt)
+        self.assertIn("Execution checks may not increase\nprobability", prompt)
 
     def test_manual_only_candidate_is_never_eligible_for_auto_execution(self):
         now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
@@ -510,6 +548,64 @@ class MlbExecutionGateTests(unittest.TestCase):
             [c["polymarket_slug"] for c in eligible],
             [f"aec-mlb-ccc-ddd-{slug_date}", f"aec-mlb-eee-fff-{slug_date}"],
         )
+
+
+    def test_valid_baseball_evidence_and_execution_checks_are_eligible(self):
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        candidate = self.candidate(now)
+        self.assertTrue(mlb_execution_gate.candidate_is_eligible(candidate, now))
+
+    def test_missing_baseball_evidence_or_execution_checks_are_ineligible(self):
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        for field in ("baseball_evidence", "execution_checks"):
+            candidate = self.candidate(now)
+            candidate.pop(field)
+            self.assertFalse(
+                mlb_execution_gate.candidate_is_eligible(candidate, now),
+                msg=f"missing {field} must be ineligible",
+            )
+
+    def test_unknown_starter_role_is_ineligible(self):
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        candidate = self.candidate(
+            now,
+            baseball_evidence={
+                **BASEBALL_EVIDENCE,
+                "starter_role": "unknown",
+            },
+        )
+        self.assertFalse(mlb_execution_gate.candidate_is_eligible(candidate, now))
+
+    def test_unresolved_named_risk_is_ineligible(self):
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        evidence = dict(BASEBALL_EVIDENCE)
+        evidence["named_risks"] = [
+            {
+                "name": "Holmes contact/HR risk",
+                "status": "unresolved",
+                "evidence": "Fly-ball profile vs a power lineup; no quantified haircut",
+            }
+        ]
+        candidate = self.candidate(now, baseball_evidence=evidence)
+        self.assertFalse(mlb_execution_gate.candidate_is_eligible(candidate, now))
+
+    def test_opener_without_bulk_path_plan_is_ineligible(self):
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        evidence = dict(BASEBALL_EVIDENCE)
+        evidence["starter_role"] = "opener"
+        evidence["expected_ip"] = 2.0
+        candidate = self.candidate(now, baseball_evidence=evidence)
+        self.assertFalse(mlb_execution_gate.candidate_is_eligible(candidate, now))
+
+    def test_contact_risk_primary_pillar_without_large_support_is_ineligible(self):
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        evidence = dict(BASEBALL_EVIDENCE)
+        evidence["contact_hr_risk"] = {"magnitude": "large", "notes": "Fly-ball prone"}
+        evidence["support_layers"] = [
+            {"pillar": "offense", "magnitude": "moderate"},
+        ]
+        candidate = self.candidate(now, baseball_evidence=evidence)
+        self.assertFalse(mlb_execution_gate.candidate_is_eligible(candidate, now))
 
 
 if __name__ == "__main__":

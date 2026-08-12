@@ -26,6 +26,10 @@ from mlb_runtime_policy import (  # noqa: E402
     load_mlb_selection_policy,
     stale_probability_field_errors,
 )
+from mlb_baseball_evidence import (  # noqa: E402
+    baseball_evidence_errors,
+    execution_checks_errors,
+)
 
 
 LOCK_STALE_SECONDS = 15 * 60
@@ -223,6 +227,15 @@ def _risk_limit_violation(
         contract_errors = stale_probability_field_errors(candidate)
         if contract_errors:
             return "probability contract violation: " + "; ".join(contract_errors)
+        # Phase 2 hard validators: baseball evidence and execution checks must
+        # still hold at the final lock. The lock is the last deterministic line
+        # of defense before an order, so it re-checks every upstream gate.
+        baseball_errors = baseball_evidence_errors(candidate)
+        if baseball_errors:
+            return "baseball evidence violation: " + "; ".join(baseball_errors)
+        exec_errors = execution_checks_errors(candidate)
+        if exec_errors:
+            return "execution checks violation: " + "; ".join(exec_errors)
         live_edge = live_conservative_edge(candidate)
         if live_edge is None or live_edge + 1e-9 < policy.min_conservative_edge:
             return (
