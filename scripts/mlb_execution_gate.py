@@ -33,6 +33,7 @@ from mlb_baseball_evidence import (
     execution_checks_errors,
     execution_prompt_evidence_section,
 )
+from mlb_probability_model import probability_component_errors
 
 CENTRAL = ZoneInfo("America/Chicago")
 MAX_MINUTES_BEFORE_FIRST_PITCH = 120
@@ -159,6 +160,10 @@ def candidate_is_eligible(candidate: dict[str, Any], now: datetime) -> bool:
     # Baseball evidence hard validators (Phase 2): deterministic starter role,
     # resolved named risks, available leverage arms, etc. Fails closed at gate time.
     if baseball_evidence_errors(candidate):
+        return False
+    # Probability components (Phase 3): the structured component contract must
+    # still reconcile with the probability trail at gate time.
+    if probability_component_errors(candidate):
         return False
     # Execution checks (Phase 2): confirm tradeability (mapping, price, liquidity,
     # lineup, receipts) without touching probability.

@@ -19,8 +19,32 @@ sys.modules["mlb_execution_gate"] = mlb_execution_gate
 spec.loader.exec_module(mlb_execution_gate)
 
 import mlb_baseball_evidence
+import mlb_probability_model
 
 BASEBALL_EVIDENCE = mlb_baseball_evidence.valid_baseball_evidence()
+PROBABILITY_COMPONENTS = mlb_probability_model.valid_probability_components()
+
+
+def consistent_probability_overrides(conservative, ask):
+    """Trail overrides that keep raw - haircut == conservative (Phase 3
+    identity) with a matching probability_components block."""
+    raw = round(conservative + 0.03, 6)
+    return {
+        "raw_probability": raw,
+        "uncertainty_haircut": 0.03,
+        "conservative_probability": conservative,
+        "current_ask": ask,
+        "projected_edge_at_current_ask": round(conservative - ask, 6),
+        "probability_components": mlb_probability_model.valid_probability_components(
+            adjustments=[
+                {
+                    "component": "starter_run_prevention",
+                    "delta": round(raw - 0.55, 6),
+                    "evidence": "Starter FIP advantage over the season sample",
+                }
+            ]
+        ),
+    }
 
 EXECUTION_CHECKS = {
     "exact_event_slug_side_mapping": True,
@@ -84,6 +108,7 @@ class MlbExecutionGateTests(unittest.TestCase):
             "model_version": "market-only-fallback-v1",
             "baseball_evidence": BASEBALL_EVIDENCE,
             "execution_checks": EXECUTION_CHECKS,
+            "probability_components": PROBABILITY_COMPONENTS,
         }
         item.update(overrides)
         return item
@@ -448,12 +473,7 @@ class MlbExecutionGateTests(unittest.TestCase):
     def test_edge_exactly_at_floor_is_eligible(self):
         # A 5-point edge passes the floor (baseball gates are out of scope here).
         now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
-        candidate = self.candidate(
-            now,
-            conservative_probability=0.53,
-            current_ask=0.48,
-            projected_edge_at_current_ask=0.05,
-        )
+        candidate = self.candidate(now, **consistent_probability_overrides(0.53, 0.48))
         self.assertTrue(mlb_execution_gate.candidate_is_eligible(candidate, now))
 
     def test_price_deterioration_makes_candidate_ineligible(self):
@@ -533,14 +553,11 @@ class MlbExecutionGateTests(unittest.TestCase):
             "market_type": "moneyline",
             "candidates": [
                 self.candidate(now, polymarket_slug=f"aec-mlb-aaa-bbb-{slug_date}",
-                               conservative_probability=0.55, current_ask=0.48,
-                               projected_edge_at_current_ask=0.07),
+                               **consistent_probability_overrides(0.55, 0.48)),
                 self.candidate(now, polymarket_slug=f"aec-mlb-ccc-ddd-{slug_date}",
-                               conservative_probability=0.60, current_ask=0.48,
-                               projected_edge_at_current_ask=0.12),
+                               **consistent_probability_overrides(0.60, 0.48)),
                 self.candidate(now, polymarket_slug=f"aec-mlb-eee-fff-{slug_date}",
-                               conservative_probability=0.57, current_ask=0.48,
-                               projected_edge_at_current_ask=0.09),
+                               **consistent_probability_overrides(0.57, 0.48)),
             ],
         }
         eligible = mlb_execution_gate.eligible_candidates(schedule, now)

@@ -547,3 +547,52 @@ All fields required; booleans must be exactly `true`:
 Execution checks never increase probability; baseball evidence never loosens
 price discipline. Both are re-checked at routing, at the execution gate, and at
 the final lock before any order.
+
+---
+
+## Probability Components & Model Deployment (Phase 3 hardening)
+
+Every standing-authorized MLB approval/promotion must carry a structured
+`probability_components` object; the deterministic validator in
+`scripts/mlb_probability_model.py` fails closed when the numbers do not
+reconcile. De-vigged DraftKings fair probability is the market prior; prose can
+never substitute for component arithmetic.
+
+### `probability_components`
+
+- `adjustments`: list of `{component, delta, evidence}`. Deltas must sum to
+  `raw_probability - dk_fair_prob` (tolerance 0.001). Allowed components:
+  `starter_run_prevention`, `starter_expected_innings`, `k_bb_contact_profile`,
+  `opponent_starter_bulk_path`, `lineup_offense_quality`,
+  `bullpen_quality_availability`, `park_home_context`, `injury_lineup_deltas`,
+  `recent_form`. Single-component bound ±0.15. `recent_form` is a low-weight
+  supporting input (|delta| <= 0.02, never the largest component).
+- `haircuts`: list of `{component, amount, evidence}` with positive amounts
+  summing to `uncertainty_haircut`. Allowed components: `small_sample`,
+  `opener_bulk_uncertainty`, `contact_hr_risk`, `leverage_relievers_unavailable`,
+  `lineup_unconfirmed_or_weakened`, `conflicting_signals`.
+- `conservative_probability` must equal `raw_probability - uncertainty_haircut`
+  — the only probability used for edge and execution.
+- Every component requires written pre-pitch evidence; postgame fields inside a
+  component are a hard failure (no leakage).
+- Market-only fallback (`model_version` `vig-mlb-market-v1`): empty adjustments
+  and haircuts with `raw_probability == dk_fair_prob` and
+  `uncertainty_haircut == 0`.
+
+### Model evaluation and the deployment gate
+
+`scripts/mlb_probability_model.py` also owns the model lifecycle:
+
+- `dataset`: builds the historical evaluation dataset from settled ledger rows —
+  pre-pitch probabilities plus the official outcome only, skipped rows reported
+  loudly.
+- `evaluate`: time-ordered walk-forward evaluation (never a random split) —
+  Brier score, log loss, calibration slope/intercept, reliability buckets —
+  always against the DK-fair market baseline on the same rows.
+- `gate`: the versioned deployment gate, fail-closed. A model version may deploy
+  only when the predeclared margins in the `mlb_model_deployment_policy` block of
+  `risk_limits.json` (schema `vig-mlb-model-deployment-policy-v1`) are met:
+  minimum evaluation window, out-of-sample calibration no worse than the market
+  baseline, no predictive score regressing, and at least one predictive score
+  improving by its predeclared margin. Anything else exits non-zero and the
+  market-only fallback stays active.
