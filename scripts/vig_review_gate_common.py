@@ -34,6 +34,7 @@ from mlb_lineup_watchlist import (  # noqa: E402
     build_recheck_prompt,
     due_entries,
     fetch_lineup_snapshot,
+    stale_invalid_watchlist,
     validate_watchlist,
 )
 from mlb_runtime_policy import (  # noqa: E402
@@ -503,7 +504,35 @@ def validate_review_transition(
 ) -> list[str]:
     errors: list[str] = []
     watch_errors = validate_watchlist(after)
+    # A review may never INTRODUCE or EDIT an invalid watchlist entry, but a
+    # pre-existing invalid entry the review did not touch (byte-identical in
+    # before and after — e.g. historical garbage written outside this gate)
+    # must not wedge an unrelated review all day. due_entries already refuses
+    # to route such entries.
+    before_entries = {
+        json.dumps(item, sort_keys=True)
+        for item in before.get("lineup_watchlist", [])
+        if isinstance(item, dict)
+    }
+    def _entries_for_label(label: str) -> list[dict[str, Any]]:
+        raw = after.get("lineup_watchlist", [])
+        if not isinstance(raw, list):
+            return []
+        matches: list[dict[str, Any]] = []
+        for index, item in enumerate(raw):
+            if not isinstance(item, dict):
+                continue
+            item_id = item.get("id")
+            if item_id == label or (not item_id and str(index) == label):
+                matches.append(item)
+        return matches
     for entry_id, entry_errors in watch_errors.items():
+        matches = _entries_for_label(entry_id)
+        # Suppress only the unambiguous case: exactly one entry carries this
+        # label and it is byte-identical to a pre-review entry. Duplicated ids
+        # or anything the review touched still fail.
+        if len(matches) == 1 and json.dumps(matches[0], sort_keys=True) in before_entries:
+            continue
         errors.extend(f"watchlist {entry_id}: {message}" for message in entry_errors)
     try:
         before_candidates = parse_candidates(before)
@@ -992,6 +1021,16 @@ def run_gate(sport: str) -> int:
         return 1
     if not candidates and not watchlist:
         return 0
+    if sport == "MLB":
+        # Invalid entries whose first pitch already passed are dead as routing
+        # inputs (due_entries quarantines them); surface them alongside real
+        # review work instead of failing every remaining run of the day closed.
+        # Printed only when the gate has work, so quiet cycles stay silent.
+        for label, messages in sorted(stale_invalid_watchlist(schedule).items()):
+            print(
+                f"{sport} review gate NOTICE: quarantined invalid historical watchlist "
+                f"entry {label} (first pitch passed, never routable): {'; '.join(messages)}"
+            )
 
     candidate_ids = [candidate_identity(candidate) for candidate in candidates]
     watchlist_ids = [str(entry["id"]) for entry in watchlist]
