@@ -48,6 +48,10 @@ from mlb_baseball_evidence import (  # noqa: E402
     execution_checks_errors,
     review_prompt_evidence_section,
 )
+from mlb_probability_model import (  # noqa: E402
+    probability_component_errors,
+    probability_contract_prompt_section,
+)
 
 HERMES = os.environ.get("HERMES_BIN") or shutil.which("hermes") or "/home/clawdbot/.local/bin/hermes"
 
@@ -280,6 +284,15 @@ def normalize_review_routing(
                 f"candidate {identity} baseball evidence violation: "
                 + "; ".join(baseball_errors)
             )
+        # Probability components (Phase 3): every point of disagreement with
+        # the DK-fair market prior must be an explicit named component, and
+        # the components must reconcile with the stated probability trail.
+        component_errors = probability_component_errors(candidate)
+        if component_errors:
+            errors.append(
+                f"candidate {identity} probability component violation: "
+                + "; ".join(component_errors)
+            )
         # Execution checks (Phase 2): confirm tradeability without touching
         # probability. A candidate missing these fails closed at routing.
         exec_errors = execution_checks_errors(candidate)
@@ -438,6 +451,12 @@ def approved_candidate_errors(
     errors.extend(
         f"baseball evidence: {message}"
         for message in baseball_evidence_errors(candidate)
+    )
+    # Probability components (Phase 3): the structured component contract must
+    # reconcile with the stated probability trail before approval is valid.
+    errors.extend(
+        f"probability components: {message}"
+        for message in probability_component_errors(candidate)
     )
     # Execution checks hard validators (Phase 2): separate tradeability gates.
     errors.extend(
@@ -610,7 +629,11 @@ Jerry and must never place or schedule a bet.
     # be handed the schema in the same prompt. Soccer/manual reviews carry no
     # evidence contract and stay unchanged.
     evidence_section = (
-        "\n" + review_prompt_evidence_section() + "\n"
+        "\n"
+        + review_prompt_evidence_section()
+        + "\n\n"
+        + probability_contract_prompt_section()
+        + "\n"
         if sport.upper() == "MLB" and mlb_standing_authorized
         else ""
     )
@@ -734,6 +757,9 @@ def build_lineup_recheck_prompt(
             unavailable.append(entry_id)
     prompt = build_recheck_prompt(schedule_path, watchlist, snapshots)
     prompt += _price_context(watchlist)
+    # Phase 3: a promoted candidate must carry the structured probability
+    # component contract or the execution gate will reject it deterministically.
+    prompt += "\n" + probability_contract_prompt_section() + "\n"
     if unavailable:
         prompt += (
             "\nMLB lineup lookup was unavailable for: "

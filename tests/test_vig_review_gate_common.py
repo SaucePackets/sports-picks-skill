@@ -19,6 +19,7 @@ sys.modules["vig_review_gate_common"] = vig_review_gate_common
 spec.loader.exec_module(vig_review_gate_common)
 
 from mlb_baseball_evidence import valid_baseball_evidence, valid_execution_checks
+from mlb_probability_model import valid_probability_components
 
 EXECUTION_GATE_PATH = Path(__file__).resolve().parents[1] / "scripts" / "mlb_execution_gate.py"
 execution_gate_spec = importlib.util.spec_from_file_location(
@@ -40,6 +41,7 @@ PROBABILITY_TRAIL = {
     "model_version": "market-only-fallback-v1",
     "baseball_evidence": valid_baseball_evidence(),
     "execution_checks": valid_execution_checks(supported_price=0.48),
+    "probability_components": valid_probability_components(),
 }
 # The executable ceiling normalization stamps on each routed candidate:
 # conservative_probability - min_conservative_edge (0.54 - 0.05).
@@ -60,6 +62,28 @@ PROBABILITY_COMPONENTS = {
         "model_version",
     )
 }
+def consistent_probability_overrides(conservative, ask):
+    """Trail overrides that keep raw - haircut == conservative (Phase 3
+    identity) with a matching probability_components block."""
+    raw = round(conservative + 0.03, 6)
+    return {
+        "raw_probability": raw,
+        "uncertainty_haircut": 0.03,
+        "conservative_probability": conservative,
+        "current_ask": ask,
+        "projected_edge_at_current_ask": round(conservative - ask, 6),
+        "probability_components": valid_probability_components(
+            adjustments=[
+                {
+                    "component": "starter_run_prevention",
+                    "delta": round(raw - 0.55, 6),
+                    "evidence": "Starter FIP advantage over the season sample",
+                }
+            ]
+        ),
+    }
+
+
 REFRESHED_RECHECK = {
     "lineups_confirmed": True,
     "key_injuries_refreshed": True,
@@ -397,9 +421,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
             PROBABILITY_TRAIL,
             vig_approved=True,
             vig_notes="All gates hold.",
-            conservative_probability=0.58,
-            current_ask=0.50,
-            projected_edge_at_current_ask=0.08,
+            **consistent_probability_overrides(0.58, 0.50),
         )
         with patch.dict("os.environ", {"VIG_STATE_DIR": str(state)}):
             errors = vig_review_gate_common.normalize_review_routing(
@@ -421,14 +443,10 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 "polymarket_ask": 0.48,
                 "vig_approved": None,
                 "dk_fair_prob": 0.55,
-                "raw_probability": 0.57,
-                "uncertainty_haircut": 0.03,
-                "conservative_probability": 0.48 + edge,
-                "current_ask": 0.48,
-                "projected_edge_at_current_ask": edge,
                 "model_version": "market-only-fallback-v1",
                 "baseball_evidence": valid_baseball_evidence(),
                 "execution_checks": valid_execution_checks(supported_price=0.48),
+                **consistent_probability_overrides(round(0.48 + edge, 6), 0.48),
             }
 
         before = {
@@ -466,14 +484,10 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 "polymarket_ask": 0.48,
                 "vig_approved": None,
                 "dk_fair_prob": 0.55,
-                "raw_probability": 0.57,
-                "uncertainty_haircut": 0.03,
-                "conservative_probability": 0.48 + edge,
-                "current_ask": 0.48,
-                "projected_edge_at_current_ask": edge,
                 "model_version": "market-only-fallback-v1",
                 "baseball_evidence": valid_baseball_evidence(),
                 "execution_checks": valid_execution_checks(supported_price=0.48),
+                **consistent_probability_overrides(round(0.48 + edge, 6), 0.48),
             }
 
         before = {
@@ -516,14 +530,10 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 "polymarket_ask": 0.48,
                 "vig_approved": vig_approved,
                 "dk_fair_prob": 0.55,
-                "raw_probability": 0.57,
-                "uncertainty_haircut": 0.03,
-                "conservative_probability": 0.48 + edge,
-                "current_ask": 0.48,
-                "projected_edge_at_current_ask": edge,
                 "model_version": "market-only-fallback-v1",
                 "baseball_evidence": valid_baseball_evidence(),
                 "execution_checks": valid_execution_checks(supported_price=0.48),
+                **consistent_probability_overrides(round(0.48 + edge, 6), 0.48),
             }
 
         before = {
