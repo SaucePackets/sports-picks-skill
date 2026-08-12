@@ -1238,6 +1238,31 @@ class VigReviewGateCommonTests(unittest.TestCase):
             [],
         )
 
+    def test_valid_baseball_evidence_passes_review_routing(self):
+        # Positive-path fixture: a candidate with valid Phase-2 evidence and
+        # execution checks must route without errors. The regression fixtures
+        # prove the gate can say no; this proves it can say yes when it should.
+        before = {"candidates": [], "lineup_watchlist": []}
+        approved_candidate = {
+            "id": "pos-1",
+            "sport": "MLB",
+            "market_type": "moneyline",
+            "side": "NYY",
+            "price": -130,
+            "vig_approved": True,
+            "vig_notes": "All gates hold.",
+            "execution_mode": "manual",
+            "manual_bet_status": "awaiting_jerry",
+            "executed": False,
+            **PROBABILITY_TRAIL,
+        }
+        after = {"candidates": [approved_candidate], "lineup_watchlist": []}
+        identity = vig_review_gate_common.candidate_identity(approved_candidate)
+        self.assertEqual(
+            vig_review_gate_common.validate_review_transition(before, after, [identity], []),
+            [],
+        )
+
     @staticmethod
     def _watch_entry(**overrides):
         item = {
