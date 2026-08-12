@@ -733,9 +733,14 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 ).date().isoformat()
                 schedule = root / ".picks" / "execute" / f"{day}-schedule.json"
                 schedule.parent.mkdir(parents=True)
+                # Future first pitch: a live invalid entry must stay a hard
+                # gate error (only provably-dead past-pitch entries quarantine).
+                now = datetime.now(timezone.utc)
                 bad_entry = self._watch_entry(
                     original_price="MIN +119 at DraftKings",
                     bettable_to_price="+105",
+                    first_pitch_utc=(now + timedelta(hours=2)).isoformat().replace("+00:00", "Z"),
+                    recheck_due_utc=(now + timedelta(minutes=45)).isoformat().replace("+00:00", "Z"),
                 )
                 schedule.write_text(json.dumps({"candidates": [], "lineup_watchlist": [bad_entry]}))
                 output = StringIO()
