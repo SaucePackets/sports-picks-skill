@@ -46,6 +46,7 @@ from mlb_runtime_policy import (  # noqa: E402
 from mlb_baseball_evidence import (  # noqa: E402
     baseball_evidence_errors,
     execution_checks_errors,
+    review_prompt_evidence_section,
 )
 
 HERMES = os.environ.get("HERMES_BIN") or shutil.which("hermes") or "/home/clawdbot/.local/bin/hermes"
@@ -635,6 +636,8 @@ current_ask, projected_edge_at_current_ask, model_version. Set
 projected_edge_at_current_ask = conservative_probability - current_ask from the
 REFRESHED price; the morning net_edge is never carried forward as the executed
 edge. The edge must clear the shared {edge_floor:.2f} floor AFTER the haircut.
+
+{review_prompt_evidence_section()}
 
 {routing}
 

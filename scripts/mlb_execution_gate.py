@@ -31,6 +31,7 @@ from mlb_runtime_policy import (
 from mlb_baseball_evidence import (
     baseball_evidence_errors,
     execution_checks_errors,
+    execution_prompt_evidence_section,
 )
 
 CENTRAL = ZoneInfo("America/Chicago")
@@ -354,6 +355,8 @@ treat it as a TERMINAL price/edge failure and skip.
 The current price must not exceed max_polymarket_price; never chase. Recompute remaining daily cap using all
 canonical fills/receipts and refuse any amount above the smaller of unit_size and
 remaining cap. Do not expand sport, market type, size, cap, or authorize exits.
+
+{execution_prompt_evidence_section()}
 
 Before any order, resolve the canonical picks ledger path and fail closed if it
 cannot be read. Run `python3 {guard} check --schedule {schedule_path}

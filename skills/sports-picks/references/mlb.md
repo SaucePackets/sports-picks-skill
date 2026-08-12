@@ -427,3 +427,53 @@ Known recurring failure modes to watch for:
 - Reputation bias (career ERA, famous roster — discount for current form)
 - Career stats vs opponent overstated (good signal, not standalone edge)
 - Early season record noise (game-by-game form beats W-L through 10 games)
+
+---
+
+## Baseball Evidence & Execution Checks (Phase 2 hardening)
+
+Every standing-authorized MLB approval/promotion must carry two structured objects;
+the deterministic validators in `scripts/mlb_baseball_evidence.py` fail closed on
+missing or invalid content. The reviewer prompts, lineup recheck prompt, and
+execution poller prompt all carry this contract.
+
+### `baseball_evidence` (the thesis/edge inputs)
+
+- `starter_role`: `starter` | `opener` | `bulk` | `piggyback` | `unknown`. Unknown is a hard failure.
+- `expected_ip`: positive numeric innings projection. `expected_pitch_count` optional.
+- `starter_sample_ip`, `starter_games_started`: observed track record backing the projection.
+- `starter_floor_evidence`: quantified justification (recent starts, K-BB%, FIP).
+- `opponent_shutdown_path`: why the opponent is/is not likely to suppress the edge.
+- `candidate_failure_path`: the specific scenario that erases the edge.
+- `contact_hr_risk`, `bullpen_availability`, `offense_quality`, `lineup_quality`: objects
+  with `magnitude` in {none, small, moderate, large} plus short notes.
+  `bullpen_availability.leverage_arms_available` must be `true`.
+- `likely_leverage_arms`: which rested arms back the late-inning path.
+- `environment`: park factor, temperature, weather notes.
+- `named_risks`: list of `{name, status: resolved|unresolved, evidence}`. Any
+  unresolved named risk is a hard failure.
+- `primary_thesis_pillar`: `true` only when the starter path is the main edge.
+  If true: `expected_ip >= 5` and `starter_games_started >= 6`.
+- `support_layers`: list of `{pillar, magnitude}`. If `primary_thesis_pillar` is true
+  and `contact_hr_risk` is moderate or large, a separate `large` support layer is required.
+- `probability_delta_explanation`: required when `raw_probability` exceeds
+  `dk_fair_prob` by more than 0.04.
+
+Opener/bulk/piggyback roles also require a non-empty `bulk_path_plan`.
+
+### `execution_checks` (tradeability confirmation)
+
+All fields required; booleans must be exactly `true`:
+
+- `exact_event_slug_side_mapping`
+- `supported_price` (number 0–1), `price_timestamp` (ISO8601 UTC)
+- `current_ask_inside_ceiling`
+- `liquidity` (object, e.g. `book_state`, `fillable_notional_usd`)
+- `bankroll_and_daily_cap_ok`
+- `lineup_confirmation`
+- `injury_scratch_refresh`
+- `receipt_dedup_ready`
+
+Execution checks never increase probability; baseball evidence never loosens
+price discipline. Both are re-checked at routing, at the execution gate, and at
+the final lock before any order.
