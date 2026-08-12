@@ -16,6 +16,7 @@ from scripts.execution_guard import (
     mark_execution_from_receipts,
     main,
 )
+from scripts.mlb_baseball_evidence import valid_baseball_evidence, valid_execution_checks
 
 
 class ExecutionGuardTests(unittest.TestCase):
@@ -51,6 +52,8 @@ class ExecutionGuardTests(unittest.TestCase):
                 "current_ask": 0.59,
                 "projected_edge_at_current_ask": 0.06,
                 "model_version": "test-model-v1",
+                "baseball_evidence": valid_baseball_evidence(),
+                "execution_checks": valid_execution_checks(supported_price=0.59),
             }],
         }))
 
@@ -539,6 +542,8 @@ class FinalLockPolicyIntegrationTests(unittest.TestCase):
             "current_ask": 0.59,
             "projected_edge_at_current_ask": 0.06,
             "model_version": "test-model-v1",
+            "baseball_evidence": valid_baseball_evidence(),
+            "execution_checks": valid_execution_checks(supported_price=0.59),
         }
         base.update(kw)
         return base

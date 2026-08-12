@@ -18,6 +18,8 @@ assert spec.loader is not None
 sys.modules["vig_review_gate_common"] = vig_review_gate_common
 spec.loader.exec_module(vig_review_gate_common)
 
+from mlb_baseball_evidence import valid_baseball_evidence, valid_execution_checks
+
 EXECUTION_GATE_PATH = Path(__file__).resolve().parents[1] / "scripts" / "mlb_execution_gate.py"
 execution_gate_spec = importlib.util.spec_from_file_location(
     "mlb_execution_gate_for_review_test", EXECUTION_GATE_PATH
@@ -36,6 +38,8 @@ PROBABILITY_TRAIL = {
     "current_ask": 0.48,
     "projected_edge_at_current_ask": 0.06,
     "model_version": "market-only-fallback-v1",
+    "baseball_evidence": valid_baseball_evidence(),
+    "execution_checks": valid_execution_checks(supported_price=0.48),
 }
 # The executable ceiling normalization stamps on each routed candidate:
 # conservative_probability - min_conservative_edge (0.54 - 0.05).
@@ -399,6 +403,8 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 "current_ask": 0.48,
                 "projected_edge_at_current_ask": edge,
                 "model_version": "market-only-fallback-v1",
+                "baseball_evidence": valid_baseball_evidence(),
+                "execution_checks": valid_execution_checks(supported_price=0.48),
             }
 
         before = {
@@ -442,6 +448,8 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 "current_ask": 0.48,
                 "projected_edge_at_current_ask": edge,
                 "model_version": "market-only-fallback-v1",
+                "baseball_evidence": valid_baseball_evidence(),
+                "execution_checks": valid_execution_checks(supported_price=0.48),
             }
 
         before = {
@@ -490,6 +498,8 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 "current_ask": 0.48,
                 "projected_edge_at_current_ask": edge,
                 "model_version": "market-only-fallback-v1",
+                "baseball_evidence": valid_baseball_evidence(),
+                "execution_checks": valid_execution_checks(supported_price=0.48),
             }
 
         before = {

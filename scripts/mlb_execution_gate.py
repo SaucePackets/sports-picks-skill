@@ -28,6 +28,10 @@ from mlb_runtime_policy import (
     stale_probability_field_errors,
     standing_authorization_enabled,
 )
+from mlb_baseball_evidence import (
+    baseball_evidence_errors,
+    execution_checks_errors,
+)
 
 CENTRAL = ZoneInfo("America/Chicago")
 MAX_MINUTES_BEFORE_FIRST_PITCH = 120
@@ -150,6 +154,14 @@ def candidate_is_eligible(candidate: dict[str, Any], now: datetime) -> bool:
     # fields make the candidate ineligible — a stale stored edge never
     # overrides live arithmetic.
     if stale_probability_field_errors(candidate):
+        return False
+    # Baseball evidence hard validators (Phase 2): deterministic starter role,
+    # resolved named risks, available leverage arms, etc. Fails closed at gate time.
+    if baseball_evidence_errors(candidate):
+        return False
+    # Execution checks (Phase 2): confirm tradeability (mapping, price, liquidity,
+    # lineup, receipts) without touching probability.
+    if execution_checks_errors(candidate):
         return False
     # Edge floor: the live conservative edge must clear the shared policy
     # floor (default 5 points) at gate time, not just at slate/review time.

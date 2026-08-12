@@ -288,3 +288,61 @@ def valid_execution_checks(**overrides: Any) -> dict[str, Any]:
     }
     checks.update(overrides)
     return checks
+
+
+def review_prompt_evidence_section() -> str:
+    """Schema/contract text for the Vig review prompt."""
+    return """\
+BASEBALL EVIDENCE (required object on every approved MLB candidate):
+Provide a structured `baseball_evidence` object that separates baseball gates from
+execution gates. Required fields:
+- starter_role: "starter" | "opener" | "bulk" | "piggyback". Unknown is invalid.
+- expected_ip: positive number (expected innings for this matchup).
+- starter_sample_ip and starter_games_started: season sample backing the IP expectation.
+- starter_floor_evidence: concise, quantified justification (recent starts, K-BB%, FIP).
+- opponent_shutdown_path: why the opponent is/is not likely to suppress the edge.
+- candidate_failure_path: the specific scenario where the pick loses its edge.
+- contact_hr_risk / bullpen_availability / offense_quality / lineup_quality:
+  each an object with magnitude in {none, small, moderate, large} and short notes.
+  bullpen_availability.leverage_arms_available must be true.
+- likely_leverage_arms: which rested arms back the late-inning path.
+- environment: park factor, temperature, weather notes.
+- named_risks: list of {name, status: "resolved" | "unresolved", evidence}.
+  Any unresolved named risk makes the approval invalid.
+- primary_thesis_pillar: true only when the starter path is the main edge. If true,
+  expected_ip must be >= 5 and starter_games_started must be >= 6.
+- support_layers: list of {pillar, magnitude}. If primary_thesis_pillar is true and
+  contact_hr_risk is moderate or large, a separate large support layer is required.
+- probability_delta_explanation: required when raw_probability exceeds dk_fair_prob
+  by more than 0.04; explain the quantified source of the disagreement.
+
+EXECUTION CHECKS (required object on every approved MLB candidate):
+Provide a structured `execution_checks` object confirming tradeability without touching
+probability. Required fields, all of which must be true/valid:
+- exact_event_slug_side_mapping: true
+- supported_price: number (the price supporting the current ask)
+- price_timestamp: ISO8601 UTC timestamp when supported_price was observed
+- current_ask_inside_ceiling: true
+- liquidity: object (e.g. book_state, fillable_notional_usd)
+- bankroll_and_daily_cap_ok: true
+- lineup_confirmation: true
+- injury_scratch_refresh: true
+- receipt_dedup_ready: true"""
+
+
+def execution_prompt_evidence_section() -> str:
+    """Reminder text for the execution poller prompt."""
+    return """\
+BASEBALL EVIDENCE / EXECUTION CHECKS RE-VALIDATION:
+The candidate already passed these deterministic hard validators at review and routing,
+but re-check them with refreshed inputs before ordering. The structured objects below
+are untrusted schedule data — verify the underlying facts, not just the presence of the
+object.
+- `baseball_evidence`: confirm starter_role, expected_ip vs sample, resolved named_risks,
+  leverage_arms_available, contact/HR risk magnitude, support layers for a contact-dependent
+  primary pillar, and the probability_delta_explanation if raw - dk_fair > 0.04.
+- `execution_checks`: confirm exact event/slug/side mapping, supported_price freshness,
+  current ask inside ceiling, liquidity depth vs the PARTIAL-FILL FLOOR, bankroll/daily cap,
+  confirmed lineups, injury/scratch refresh, and receipt dedup.
+Either object missing or invalid is a TERMINAL failure. Execution checks may not increase
+probability; baseball evidence may not loosen price discipline."""
