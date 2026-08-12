@@ -1040,6 +1040,34 @@ class VigReviewGateCommonTests(unittest.TestCase):
         self.assertIn("recurring MLB execution poller", prompt)
         self.assertNotIn("awaiting_jerry", prompt)
 
+    def test_mlb_review_prompt_includes_evidence_schema(self):
+        # Phase 2 hard validators reject any approval without structured
+        # baseball_evidence/execution_checks, so the review prompt must hand
+        # Vig the schema — otherwise every approval fails closed at routing.
+        prompt = vig_review_gate_common.build_regular_review_prompt(
+            "MLB",
+            "2026-07-17",
+            Path("/tmp/schedule.json"),
+            [{"side": "ABC"}],
+            mlb_standing_authorized=True,
+        )
+
+        self.assertIn("BASEBALL EVIDENCE (required object", prompt)
+        self.assertIn("EXECUTION CHECKS (required object", prompt)
+        self.assertIn("bullpen_availability.leverage_arms_available must be true", prompt)
+        self.assertIn('named_risks: list of {name, status: "resolved" | "unresolved", evidence}', prompt)
+        self.assertIn("probability_delta_explanation", prompt)
+
+    def test_soccer_and_manual_review_prompts_omit_evidence_schema(self):
+        # Soccer and non-standing-authorized MLB reviews carry no evidence
+        # contract; their prompts stay unchanged.
+        for sport in ("SOCCER", "MLB"):
+            prompt = vig_review_gate_common.build_regular_review_prompt(
+                sport, "2026-07-17", Path("/tmp/schedule.json"), [{"side": "ABC"}]
+            )
+            self.assertNotIn("BASEBALL EVIDENCE", prompt)
+            self.assertNotIn("EXECUTION CHECKS (required object", prompt)
+
     def test_review_prompt_states_zero_fee_and_no_phantom_fee(self):
         for sport, kwargs in (
             ("MLB", {"mlb_standing_authorized": True}),

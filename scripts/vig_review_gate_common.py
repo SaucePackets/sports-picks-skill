@@ -605,6 +605,15 @@ Jerry and must never place or schedule a bet.
     else:
         edge_floor_text = f"{policy.min_conservative_edge}"
     edge_floor = policy.min_conservative_edge if policy is not None else 0.05
+    # Phase 2: the hard validators reject any standing-authorized approval that
+    # lacks structured baseball_evidence/execution_checks, so the reviewer must
+    # be handed the schema in the same prompt. Soccer/manual reviews carry no
+    # evidence contract and stay unchanged.
+    evidence_section = (
+        "\n" + review_prompt_evidence_section() + "\n"
+        if sport.upper() == "MLB" and mlb_standing_authorized
+        else ""
+    )
     return f"""You are Vig performing the independent {sport} card review for {day}.
 Read {schedule_path}. Review only pending candidates: {sides}. Refresh decisive
 inputs and current supported-market prices, then apply every original hard gate.
@@ -636,9 +645,7 @@ current_ask, projected_edge_at_current_ask, model_version. Set
 projected_edge_at_current_ask = conservative_probability - current_ask from the
 REFRESHED price; the morning net_edge is never carried forward as the executed
 edge. The edge must clear the shared {edge_floor:.2f} floor AFTER the haircut.
-
-{review_prompt_evidence_section()}
-
+{evidence_section}
 {routing}
 
 Return a concise card review with approved/rejected count, decisive reason per

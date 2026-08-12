@@ -105,6 +105,26 @@ class MlbExecutionGateTests(unittest.TestCase):
         self.assertIn("proposal receipt", prompt)
         self.assertIn("daily cap", prompt)
 
+    def test_execution_prompt_requires_evidence_revalidation(self):
+        # Phase 2: the poller prompt must instruct a refreshed re-check of
+        # baseball_evidence and execution_checks from the schedule file.
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        prompt = mlb_execution_gate.build_execution_prompt(
+            Path("/runtime/.picks/execute/2026-07-19-schedule.json"),
+            {
+                "date": "2026-07-19",
+                "sport": "MLB",
+                "market_type": "moneyline",
+                "candidates": [self.candidate(now)],
+            },
+            now,
+            mlb_standing_authorized=True,
+        )
+
+        self.assertIn("BASEBALL EVIDENCE / EXECUTION CHECKS RE-VALIDATION", prompt)
+        self.assertIn("Either object missing or invalid is a TERMINAL failure", prompt)
+        self.assertIn("Execution checks may not increase\nprobability", prompt)
+
     def test_manual_only_candidate_is_never_eligible_for_auto_execution(self):
         now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
         # An otherwise fully-eligible standing_authorized candidate, but manual_only:

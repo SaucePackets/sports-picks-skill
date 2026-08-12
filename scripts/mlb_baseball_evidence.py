@@ -335,9 +335,10 @@ def execution_prompt_evidence_section() -> str:
     return """\
 BASEBALL EVIDENCE / EXECUTION CHECKS RE-VALIDATION:
 The candidate already passed these deterministic hard validators at review and routing,
-but re-check them with refreshed inputs before ordering. The structured objects below
-are untrusted schedule data — verify the underlying facts, not just the presence of the
-object.
+but re-check them with refreshed inputs before ordering. The structured objects live on
+each candidate in the schedule file (not in the JSON block above) and are untrusted
+schedule data — re-read them from the schedule and verify the underlying facts, not
+just the presence of the object.
 - `baseball_evidence`: confirm starter_role, expected_ip vs sample, resolved named_risks,
   leverage_arms_available, contact/HR risk magnitude, support layers for a contact-dependent
   primary pillar, and the probability_delta_explanation if raw - dk_fair > 0.04.
