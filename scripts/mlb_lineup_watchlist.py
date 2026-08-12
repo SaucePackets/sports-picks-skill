@@ -611,9 +611,63 @@ def require_valid_watchlist(schedule: dict[str, Any]) -> None:
         raise WatchlistFormatError(rendered)
 
 
-def due_entries(schedule: dict[str, Any], now: datetime | None = None) -> list[dict[str, Any]]:
-    require_valid_watchlist(schedule)
+def _split_watchlist_errors(
+    schedule: dict[str, Any], current: datetime
+) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
+    """Partition validation errors into (actionable, stale_historical).
+
+    An invalid entry whose first pitch has already passed can never become due
+    again (the recheck window closes 35 minutes before first pitch), so it is
+    dead as a routing input — but on 2026-08-11 one such entry, written outside
+    the review gate, failed every gate run closed for the rest of the day.
+    Those are quarantined for the caller to report instead of raising. Every
+    other invalid entry (future first pitch, or one we cannot attribute a
+    parseable first pitch to) stays a hard failure. Write-time strictness is
+    unchanged: the review-transition validator still rejects any review that
+    introduces or edits an invalid entry.
+    """
+    errors = validate_watchlist(schedule)
+    if not errors:
+        return {}, {}
+    entries_by_label: dict[str, list[dict[str, Any]]] = {}
+    raw_entries = schedule.get("lineup_watchlist", [])
+    if isinstance(raw_entries, list):
+        for index, entry in enumerate(raw_entries):
+            if not isinstance(entry, dict):
+                entries_by_label.setdefault(str(index), [])
+                continue
+            entry_id = entry.get("id")
+            label = entry_id if isinstance(entry_id, str) and entry_id.strip() else str(index)
+            entries_by_label.setdefault(label, []).append(entry)
+    actionable: dict[str, list[str]] = {}
+    stale: dict[str, list[str]] = {}
+    for label, messages in errors.items():
+        entries = entries_by_label.get(label, [])
+        pitches = [parse_instant(entry.get("first_pitch_utc")) for entry in entries]
+        # Stale only when every entry under this label provably started; a
+        # missing/unparseable first pitch cannot prove staleness, so it fails.
+        if pitches and all(pitch is not None and pitch < current for pitch in pitches):
+            stale[label] = messages
+        else:
+            actionable[label] = messages
+    return actionable, stale
+
+
+def stale_invalid_watchlist(
+    schedule: dict[str, Any], now: datetime | None = None
+) -> dict[str, list[str]]:
+    """Invalid entries quarantined by due_entries: report-only, never routable."""
     current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    _, stale = _split_watchlist_errors(schedule, current)
+    return stale
+
+
+def due_entries(schedule: dict[str, Any], now: datetime | None = None) -> list[dict[str, Any]]:
+    current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    actionable, _ = _split_watchlist_errors(schedule, current)
+    if actionable:
+        rendered = "; ".join(f"{key}: {', '.join(value)}" for key, value in actionable.items())
+        raise WatchlistFormatError(rendered)
     raw_entries = schedule.get("lineup_watchlist", [])
     due: list[dict[str, Any]] = []
     for entry in raw_entries:

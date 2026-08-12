@@ -733,9 +733,14 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 ).date().isoformat()
                 schedule = root / ".picks" / "execute" / f"{day}-schedule.json"
                 schedule.parent.mkdir(parents=True)
+                # Future first pitch: a live invalid entry must stay a hard
+                # gate error (only provably-dead past-pitch entries quarantine).
+                now = datetime.now(timezone.utc)
                 bad_entry = self._watch_entry(
                     original_price="MIN +119 at DraftKings",
                     bettable_to_price="+105",
+                    first_pitch_utc=(now + timedelta(hours=2)).isoformat().replace("+00:00", "Z"),
+                    recheck_due_utc=(now + timedelta(minutes=45)).isoformat().replace("+00:00", "Z"),
                 )
                 schedule.write_text(json.dumps({"candidates": [], "lineup_watchlist": [bad_entry]}))
                 output = StringIO()
@@ -1192,6 +1197,48 @@ class VigReviewGateCommonTests(unittest.TestCase):
         self.assertTrue(any("execution_cron_id" in error for error in errors))
         self.assertTrue(any("execution_cron_fire_utc" in error for error in errors))
         self.assertTrue(any("approval_token" in error for error in errors))
+
+    def test_unchanged_preexisting_invalid_watch_entry_does_not_wedge_review(self):
+        # Historical garbage written outside this gate (2026-08-11 incident:
+        # invented status, emptied blockers) must not reject an unrelated
+        # review that left it byte-identical.
+        garbage = self._watch_entry(
+            id="LW-history-garbage",
+            first_pitch_utc="2026-07-16T01:40:00Z",
+            status="recheck_complete",
+            blocked_only_by=[],
+        )
+        target = self._watch_entry(
+            status="passed",
+            rechecked_at_utc="2026-07-17T21:45:00Z",
+            recheck_notes="ask over ceiling at recheck",
+        )
+        before = {"candidates": [], "lineup_watchlist": [garbage, self._watch_entry()]}
+        after = {"candidates": [], "lineup_watchlist": [garbage, target]}
+
+        errors = vig_review_gate_common.validate_review_transition(before, after, [], ["watch-1"])
+
+        self.assertFalse([e for e in errors if "LW-history-garbage" in e], errors)
+
+    def test_review_that_introduces_invalid_watch_entry_still_fails(self):
+        # The tolerance is strictly for unchanged pre-existing entries: a
+        # review that writes a new invalid entry (or edits one) is rejected.
+        injected = self._watch_entry(
+            id="LW-injected",
+            status="recheck_complete",
+            blocked_only_by=[],
+        )
+        target = self._watch_entry(
+            status="passed",
+            rechecked_at_utc="2026-07-17T21:45:00Z",
+            recheck_notes="ask over ceiling at recheck",
+        )
+        before = {"candidates": [], "lineup_watchlist": [self._watch_entry()]}
+        after = {"candidates": [], "lineup_watchlist": [injected, target]}
+
+        errors = vig_review_gate_common.validate_review_transition(before, after, [], ["watch-1"])
+
+        self.assertTrue([e for e in errors if "LW-injected" in e], errors)
 
     def test_post_review_requires_targeted_watch_entry_to_finish(self):
         before = {

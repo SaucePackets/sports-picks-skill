@@ -156,6 +156,47 @@ class MlbLineupWatchlistTests(unittest.TestCase):
                 datetime(2026, 7, 17, 21, 45, tzinfo=timezone.utc),
             )
 
+    def test_invalid_entry_past_first_pitch_is_quarantined_not_fatal(self):
+        # 2026-08-11 incident: an invalid entry written outside the review gate
+        # (invented status, emptied blockers) failed every gate run closed for
+        # the rest of the day. Once its game has started it can never become
+        # due again, so it is quarantined instead of fatal.
+        now = datetime(2026, 7, 17, 21, 45, tzinfo=timezone.utc)
+        garbage = self.entry(
+            id="LW-history-garbage",
+            first_pitch_utc="2026-07-17T01:40:00Z",
+            status="recheck_complete",
+            blocked_only_by=[],
+        )
+        schedule = {"lineup_watchlist": [garbage, self.entry()]}
+
+        due = mlb_lineup_watchlist.due_entries(schedule, now)
+
+        self.assertEqual([item["id"] for item in due], ["lineup-abc-def"])
+        stale = mlb_lineup_watchlist.stale_invalid_watchlist(schedule, now)
+        self.assertEqual(list(stale), ["LW-history-garbage"])
+        self.assertTrue(any("blocked_only_by" in message for message in stale["LW-history-garbage"]))
+
+    def test_invalid_entry_with_future_first_pitch_still_fails_closed(self):
+        now = datetime(2026, 7, 17, 21, 45, tzinfo=timezone.utc)
+        future_invalid = self.entry(blocked_only_by=[])
+
+        with self.assertRaises(mlb_lineup_watchlist.WatchlistFormatError):
+            mlb_lineup_watchlist.due_entries({"lineup_watchlist": [future_invalid]}, now)
+        self.assertEqual(
+            mlb_lineup_watchlist.stale_invalid_watchlist({"lineup_watchlist": [future_invalid]}, now),
+            {},
+        )
+
+    def test_invalid_entry_with_unprovable_first_pitch_still_fails_closed(self):
+        # Staleness must be PROVEN by a parseable, already-passed first pitch;
+        # a missing or garbled timestamp cannot earn the quarantine.
+        now = datetime(2026, 7, 17, 21, 45, tzinfo=timezone.utc)
+        unprovable = self.entry(blocked_only_by=[], first_pitch_utc="not-a-time")
+
+        with self.assertRaises(mlb_lineup_watchlist.WatchlistFormatError):
+            mlb_lineup_watchlist.due_entries({"lineup_watchlist": [unprovable]}, now)
+
     def test_passed_entry_requires_timestamp_and_exact_blocker(self):
         errors = mlb_lineup_watchlist.validate_entry(self.entry(status="passed"))
 
