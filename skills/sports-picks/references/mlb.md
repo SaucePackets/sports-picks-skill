@@ -246,7 +246,17 @@ batting lineups. Persist it to the schedule's `lineup_watchlist` with
 `blocked_only_by: ["lineups_unconfirmed"]`, all original gate results, first
 pitch, a target recheck at first pitch minus 75 minutes, the observed price,
 and the bettable-to threshold. Any second blocker means ordinary PASS, not a
-watchlist entry.
+watchlist entry. While `starter_pending_promotions_enabled` is false in the
+shared policy, the watchlist is restricted to `lineups_unconfirmed` only —
+a pending `starter_unannounced` entry fails validation outright.
+
+Record the morning probability components on every watchlist entry as a
+`slate_probability` object carrying `dk_fair_prob`, `raw_probability`,
+`uncertainty_haircut`, `conservative_probability`, `current_ask`,
+`projected_edge_at_current_ask`, and `model_version` (the same trail as a
+schedule candidate). The recheck validator compares these against the
+refreshed values; an entry without them cannot be promoted under standing
+authorization.
 
 Both watchlist price fields use signed American odds as JSON numbers:
 `"original_price": 119` and `"bettable_to_price": 105` (or negative numbers
@@ -257,15 +267,41 @@ numeric fields. Validate the finished schedule with
 slate success.
 
 The conditional review gate runs frequently enough to select the entry 60-90
-minutes before first pitch. Refresh both confirmed lineups, key injuries and
-late scratches, and the supported-market price. Rerun every original gate.
-Promote only if all gates still hold and the price remains acceptable;
-otherwise log `status: "passed"` plus the decisive reason. When local MLB
-standing authorization is enabled, promotions use `execution_mode:
-"standing_authorized"`, `execution_status: "pending"`, an explicit
-`max_polymarket_price`, and `executed: false`. Never create a one-shot execution
-cron, proposal token, or order in the reviewer; the recurring poller owns the
-guarded execution attempt.
+minutes before first pitch. At recheck, refresh ALL material baseball inputs —
+not only lineups, injuries, and price: starter role and expected innings,
+bullpen/leverage-arm availability, lineup quality from the confirmed orders,
+park/weather, and the live ask. Rerun every original gate. Promote only if all
+gates still hold and the price remains acceptable; otherwise log `status:
+"passed"` plus the decisive reason.
+
+A standing-authorized promotion must satisfy the refresh contract — a recheck
+that merely asserts "all original gates hold" is rejected by the validator:
+
+- `recheck.probability`: the full refreshed trail (`dk_fair_prob`,
+  `raw_probability`, `uncertainty_haircut`, `conservative_probability`,
+  `current_ask`, `projected_edge_at_current_ask`, `model_version`). The
+  promoted candidate's probability fields must equal it — never route the
+  morning numbers.
+- refreshed `baseball_evidence` and `execution_checks` on the promoted
+  candidate.
+- `recheck.material_changes`: a list of material input changes (empty list when
+  nothing material changed). If changes are recorded but
+  `conservative_probability` is unchanged, add
+  `recheck.probability_unchanged_justification`.
+- `recheck.probability_change_reasons`: a written reason keyed by field for
+  every probability component (`dk_fair_prob`, `raw_probability`,
+  `uncertainty_haircut`, `conservative_probability`) that changed from
+  `slate_probability`.
+- Lineup confirmation clears the lineup gate but adds ZERO win probability by
+  itself. Any `conservative_probability` increase over the morning slate
+  requires `recheck.quantified_upgrade` = `{component, delta, evidence}` with
+  `delta` equal to the increase.
+
+When local MLB standing authorization is enabled, promotions use
+`execution_mode: "standing_authorized"`, `execution_status: "pending"`, an
+explicit `max_polymarket_price`, and `executed: false`. Never create a one-shot
+execution cron, proposal token, or order in the reviewer; the recurring poller
+owns the guarded execution attempt.
 
 ### Park / Weather
 Treat weather as a real handicap input, not an afterthought.
@@ -299,7 +335,7 @@ De-vig before any edge claim:
 - Conservative edge = `conservative_probability - current_ask`. Polymarket US charges ZERO trading fees (confirmed 0 bps on every executed receipt) — do NOT subtract a phantom fee. Cardable requires conservative edge >= the shared policy floor `min_conservative_edge` (currently 0.05, from the `vig-mlb-selection-policy-v1` block in `~/.hermes/vig/state/risk_limits.json`).
 - Equivalently — and this is the guardrail the execution poller actually enforces — the real executable ask must be at or under your price ceiling `max_polymarket_price = conservative_probability - min_conservative_edge`. That ceiling (not any fee) is the single source of truth: judge price on the true cost to buy, and any real fee is fine as long as the all-in price stays at or under the ceiling. Execution is an IOC limit placed AT the ceiling, so the book can only ever fill at or under your number.
 - Record `dk_fair_prob`, `raw_probability`, `uncertainty_haircut`, `conservative_probability`, `current_ask`, `projected_edge_at_current_ask`, and `model_version` on every schedule candidate and ledger row — these feed the monthly calibration report (`scripts/vig_calibration_report.py`). Recompute `projected_edge_at_current_ask = conservative_probability - current_ask` at every recheck and at fill; the morning `net_edge` is never the executed edge, and a candidate with missing or stale probability fields is ineligible.
-- Volume rails: at most `max_mlb_official_bets_per_day` (currently 2) official MLB bets per day — when more candidates qualify, rank by live conservative edge and keep only the top two. During probation, at most `max_small_bets_per_day_probation` (currently 1) Small bet per day. Starter-pending (`starter_unannounced`) watchlist promotions are disabled while `starter_pending_promotions_enabled` is false.
+- Volume rails: at most `max_mlb_official_bets_per_day` (currently 2) official MLB bets per day — when more candidates qualify, rank by live conservative edge and keep only the top two. During probation, at most `max_small_bets_per_day_probation` (currently 1) Small bet per day. Starter-pending (`starter_unannounced`) watchlist entries AND promotions are disabled while `starter_pending_promotions_enabled` is false — the live watchlist is lineup-only.
 
 Every MLB pick must answer:
 - What is the current price?

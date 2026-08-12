@@ -45,6 +45,30 @@ PROBABILITY_TRAIL = {
 # conservative_probability - min_conservative_edge (0.54 - 0.05).
 POLICY_CEILING = round(0.54 - 0.05, 6)
 
+# Phase 4 refresh-contract blocks for a standing-authorized watchlist
+# promotion: the morning components on the entry, the refreshed components in
+# the recheck (unchanged here), and the material-change accounting.
+PROBABILITY_COMPONENTS = {
+    field: PROBABILITY_TRAIL[field]
+    for field in (
+        "dk_fair_prob",
+        "raw_probability",
+        "uncertainty_haircut",
+        "conservative_probability",
+        "current_ask",
+        "projected_edge_at_current_ask",
+        "model_version",
+    )
+}
+REFRESHED_RECHECK = {
+    "lineups_confirmed": True,
+    "key_injuries_refreshed": True,
+    "price_refreshed": True,
+    "all_original_gates_hold": True,
+    "probability": dict(PROBABILITY_COMPONENTS),
+    "material_changes": [],
+}
+
 _POLICY_STATE = None
 
 
@@ -831,12 +855,8 @@ class VigReviewGateCommonTests(unittest.TestCase):
                     status="promoted",
                     rechecked_at_utc="2026-07-19T17:00:00Z",
                     recheck_notes="Both lineups confirmed; matchup edge still holds.",
-                    recheck={
-                        "lineups_confirmed": True,
-                        "key_injuries_refreshed": True,
-                        "price_refreshed": True,
-                        "all_original_gates_hold": True,
-                    },
+                    slate_probability=dict(PROBABILITY_COMPONENTS),
+                    recheck=json.loads(json.dumps(REFRESHED_RECHECK)),
                     promoted_candidate=promoted_candidate,
                 )
 
@@ -1249,12 +1269,8 @@ class VigReviewGateCommonTests(unittest.TestCase):
         promoted = self._watch_entry(
             status="promoted",
             rechecked_at_utc="2026-07-17T21:45:00Z",
-            recheck={
-                "lineups_confirmed": True,
-                "key_injuries_refreshed": True,
-                "price_refreshed": True,
-                "all_original_gates_hold": True,
-            },
+            slate_probability=dict(PROBABILITY_COMPONENTS),
+            recheck=json.loads(json.dumps(REFRESHED_RECHECK)),
             promoted_candidate=promoted_candidate,
         )
         after = {"candidates": [promoted_candidate], "lineup_watchlist": [promoted]}

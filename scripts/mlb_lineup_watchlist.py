@@ -24,10 +24,15 @@ if str(SCRIPT_DIR) not in sys.path:
 from http_util import fetch_json as _retrying_fetch_json  # noqa: E402
 from mlb_runtime_policy import (  # noqa: E402
     MlbSelectionPolicy,
+    REQUIRED_EXECUTION_NUMERIC_FIELDS,
     load_mlb_selection_policy,
+    stale_probability_field_errors,
     standing_authorization_enabled,
 )
-from mlb_baseball_evidence import review_prompt_evidence_section  # noqa: E402
+from mlb_baseball_evidence import (  # noqa: E402
+    baseball_evidence_errors,
+    review_prompt_evidence_section,
+)
 
 MIN_MINUTES_BEFORE_FIRST_PITCH = 35
 MAX_MINUTES_BEFORE_FIRST_PITCH = 90
@@ -68,6 +73,18 @@ STARTER_DEFERRED_GATES = {
     "opposing_starter_shutdown_path",
     "real_winner_conviction",
 }
+
+# Probability COMPONENTS (as opposed to price) whose change between the morning
+# slate and the recheck requires an explicit written reason. current_ask and
+# projected_edge_at_current_ask move with the market and need no reason.
+PROBABILITY_COMPONENT_FIELDS = (
+    "dk_fair_prob",
+    "raw_probability",
+    "uncertainty_haircut",
+    "conservative_probability",
+)
+_FLOAT_TOLERANCE = 1e-9
+_UPGRADE_DELTA_TOLERANCE = 1e-6
 
 
 class WatchlistFormatError(ValueError):
@@ -283,6 +300,125 @@ def entry_is_manual_only(entry: dict[str, Any]) -> bool:
     return entry.get("manual_only") is True
 
 
+def _non_empty_string(value: Any) -> bool:
+    return isinstance(value, str) and bool(value.strip())
+
+
+def promotion_refresh_errors(
+    entry: dict[str, Any], recheck: dict[str, Any], candidate: dict[str, Any]
+) -> list[str]:
+    """Phase 4 refresh contract for a standing-authorized promotion.
+
+    A recheck that merely asserts the original gates hold is invalid: the
+    reviewer must write refreshed probability components, refreshed baseball
+    evidence, the list of material input changes, and a reason for every
+    changed probability component. Lineup confirmation clears a gate but adds
+    zero probability unless the upgrade is quantified.
+    """
+    errors: list[str] = []
+    morning = entry.get("slate_probability")
+    morning_ok = isinstance(morning, dict)
+    if not morning_ok:
+        errors.append(
+            "slate_probability must be an object recording the morning "
+            "probability components on the watchlist entry"
+        )
+    else:
+        block_errors = stale_probability_field_errors(morning)
+        errors.extend(f"slate_probability: {message}" for message in block_errors)
+        morning_ok = not block_errors
+
+    refreshed = recheck.get("probability")
+    refreshed_ok = isinstance(refreshed, dict)
+    if not refreshed_ok:
+        errors.append(
+            "recheck.probability must be an object with refreshed components; "
+            "a recheck that merely asserts all original gates hold is invalid"
+        )
+    else:
+        block_errors = stale_probability_field_errors(refreshed)
+        errors.extend(f"recheck.probability: {message}" for message in block_errors)
+        refreshed_ok = not block_errors
+
+    material = recheck.get("material_changes")
+    material_ok = isinstance(material, list) and all(
+        _non_empty_string(item) for item in material
+    )
+    if not material_ok:
+        errors.append(
+            "recheck.material_changes must be a list of non-empty strings "
+            "(an empty list means no material input changed)"
+        )
+
+    errors.extend(
+        f"promoted_candidate baseball evidence: {message}"
+        for message in baseball_evidence_errors(candidate)
+    )
+
+    if not (morning_ok and refreshed_ok):
+        return errors
+
+    reasons = recheck.get("probability_change_reasons")
+    if not isinstance(reasons, dict):
+        reasons = {}
+    for field in PROBABILITY_COMPONENT_FIELDS:
+        if abs(float(refreshed[field]) - float(morning[field])) <= _FLOAT_TOLERANCE:
+            continue
+        if not _non_empty_string(reasons.get(field)):
+            errors.append(
+                f"recheck.probability_change_reasons.{field} is required: "
+                f"{field} changed from the morning slate"
+            )
+
+    conservative_delta = float(refreshed["conservative_probability"]) - float(
+        morning["conservative_probability"]
+    )
+    if material_ok and material and abs(conservative_delta) <= _FLOAT_TOLERANCE:
+        if not _non_empty_string(recheck.get("probability_unchanged_justification")):
+            errors.append(
+                "material changes are recorded but conservative_probability is "
+                "unchanged from the morning slate: "
+                "recheck.probability_unchanged_justification is required"
+            )
+    if conservative_delta > _FLOAT_TOLERANCE:
+        upgrade = recheck.get("quantified_upgrade")
+        if not isinstance(upgrade, dict):
+            errors.append(
+                "conservative_probability increased at recheck: "
+                "recheck.quantified_upgrade {component, delta, evidence} is "
+                "required — lineup confirmation alone adds zero probability"
+            )
+        else:
+            if not _non_empty_string(upgrade.get("component")):
+                errors.append("quantified_upgrade.component must be a non-empty string")
+            if not _non_empty_string(upgrade.get("evidence")):
+                errors.append("quantified_upgrade.evidence must be a non-empty string")
+            delta = upgrade.get("delta")
+            if (
+                not _is_number(delta)
+                or abs(float(delta) - conservative_delta) > _UPGRADE_DELTA_TOLERANCE
+            ):
+                errors.append(
+                    "quantified_upgrade.delta must equal the conservative_probability "
+                    f"increase ({round(conservative_delta, 6)})"
+                )
+
+    # The routed candidate must carry the REFRESHED numbers — a reviewer cannot
+    # write new components in the recheck and still route the morning ones.
+    for field in REQUIRED_EXECUTION_NUMERIC_FIELDS:
+        value = candidate.get(field)
+        if not _is_number(value) or abs(float(value) - float(refreshed[field])) > _FLOAT_TOLERANCE:
+            errors.append(
+                f"promoted_candidate.{field} must equal recheck.probability.{field} "
+                "(the refreshed value)"
+            )
+    if candidate.get("model_version") != refreshed.get("model_version"):
+        errors.append(
+            "promoted_candidate.model_version must equal recheck.probability.model_version"
+        )
+    return errors
+
+
 def validate_entry(entry: dict[str, Any]) -> list[str]:
     errors: list[str] = []
     entry_id = entry.get("id")
@@ -304,6 +440,21 @@ def validate_entry(entry: dict[str, Any]) -> list[str]:
         blocker_set = set(blockers)
     starter_pending = STARTER_BLOCKER in blocker_set
     lineup_pending = LINEUP_BLOCKER in blocker_set
+    # Phase 4: while starter-role/bulk-path verification is not deterministic,
+    # the LIVE watchlist is restricted to lineups_unconfirmed only — a pending
+    # starter_unannounced entry is inadmissible unless the shared policy
+    # explicitly re-enables starter-pending work. Terminal entries are kept
+    # valid as historical record (transition rule). Fails closed on a missing
+    # or invalid policy.
+    if starter_pending and entry.get("status") == PENDING_STATUS:
+        policy = load_mlb_selection_policy()
+        if policy is None or not policy.starter_pending_promotions_enabled:
+            errors.append(
+                "starter_unannounced entries are not admissible: the watchlist "
+                "is restricted to lineups_unconfirmed while "
+                "starter_pending_promotions_enabled is false in the shared MLB "
+                "selection policy"
+            )
     if parse_instant(entry.get("first_pitch_utc")) is None:
         errors.append("first_pitch_utc must be a valid timestamp")
     if parse_instant(entry.get("recheck_due_utc")) is None:
@@ -391,6 +542,11 @@ def validate_entry(entry: dict[str, Any]) -> list[str]:
                     "manual-only entry's promoted_candidate must set manual_only=true"
                 )
             if authorized:
+                # Phase 4 refresh contract: refreshed probability components,
+                # refreshed baseball evidence, material-change accounting, and
+                # reasons for every changed probability component.
+                if isinstance(recheck, dict):
+                    errors.extend(promotion_refresh_errors(entry, recheck, candidate))
                 if candidate.get("sport") != "MLB":
                     errors.append("promoted_candidate.sport must be MLB")
                 if candidate.get("market_type") != "moneyline":
@@ -542,7 +698,33 @@ watchlist_id equal to the source watchlist entry id,
 execution_mode=standing_authorized, execution_status=pending, executed=false,
 sport=MLB, market_type=moneyline, an explicit max_polymarket_price between 0 and 1,
 vig_review_needed=false, vig_approved=true, and no execution cron fields.
-The recurring MLB execution poller will refresh all gates and handle execution."""
+The recurring MLB execution poller will refresh all gates and handle execution.
+
+RECHECK REFRESH CONTRACT — required for every promotion; the validator rejects
+a recheck that merely asserts the original gates hold:
+- Refresh ALL material baseball inputs, not only lineup, injury, and price:
+  starter role and expected innings, bullpen/leverage-arm availability, lineup
+  quality from the confirmed orders, park/weather, and the live ask.
+- Write refreshed baseball_evidence and execution_checks on the promoted
+  candidate (same schema as the slate).
+- Write recheck.probability with the full refreshed trail: dk_fair_prob,
+  raw_probability, uncertainty_haircut, conservative_probability, current_ask,
+  projected_edge_at_current_ask (= conservative_probability - current_ask), and
+  model_version. The promoted candidate's probability fields must equal
+  recheck.probability — never route the morning numbers.
+- Record recheck.material_changes (a list; empty when no material input
+  changed) and, for every probability component that changed from the morning
+  slate_probability (dk_fair_prob, raw_probability, uncertainty_haircut,
+  conservative_probability), a written reason in
+  recheck.probability_change_reasons keyed by field name.
+- If material changes are recorded but conservative_probability is unchanged,
+  write recheck.probability_unchanged_justification explaining why the number
+  survived the change.
+- Lineup confirmation clears the lineup gate but adds ZERO win probability by
+  itself. Any conservative_probability increase over the morning slate requires
+  recheck.quantified_upgrade = {component, delta, evidence} where delta equals
+  the increase — quantify why the actual order is stronger than the assumed
+  order, or do not raise the number."""
     else:
         routing = """A promotion must remain manual-only with execution_mode=manual,
 manual_bet_status=awaiting_jerry, executed=false, vig_review_needed=false, and
@@ -553,7 +735,6 @@ vig_approved=true. It must never place or schedule a bet."""
         if STARTER_BLOCKER in (e.get("blocked_only_by") or [])
     ]
     policy = load_mlb_selection_policy()
-    edge_floor = policy.min_conservative_edge if policy is not None else 0.05
     starter_block = ""
     if starter_ids and (policy is None or not policy.starter_pending_promotions_enabled):
         # Fail closed: a missing policy means promotions are disabled too — the
@@ -572,6 +753,10 @@ vig_approved=true. It must never place or schedule a bet."""
             "with the reason, regardless of the announced starter or recomputed edge."
         )
     elif starter_ids:
+        # This branch is only reachable with a loaded policy (a missing policy
+        # takes the fail-closed DISABLED branch above), so the edge floor always
+        # comes from the shared policy — never a hard-coded fallback.
+        edge_floor = policy.min_conservative_edge
         starter_block = (
             "\n\nSTARTER-PENDING RE-HANDICAP — entries " + ", ".join(starter_ids) + " were "
             "carded off a PROVISIONAL win_probability because the opposing starter had "
