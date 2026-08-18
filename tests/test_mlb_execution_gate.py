@@ -323,7 +323,7 @@ class MlbExecutionGateTests(unittest.TestCase):
         self.assertIn("LW-overdue", warnings[0])
         self.assertIn("pending_lineup_recheck", warnings[0])
 
-    def test_main_prints_stale_lock_and_overdue_recheck_warnings(self):
+    def test_main_prints_stale_lock_but_not_review_lane_warnings(self):
         now = datetime.now(timezone.utc)
         day = str(now.astimezone(mlb_execution_gate.CENTRAL).date())
         locked = self.candidate(
@@ -354,19 +354,15 @@ class MlbExecutionGateTests(unittest.TestCase):
                 status = mlb_execution_gate.main(["--root", str(root), "--now", now.isoformat()])
 
             self.assertEqual(status, 0)
-            printed = output.getvalue()
-            self.assertIn("WARNING: stale execution lock on", printed)
-            self.assertIn("WARNING: lineup recheck overdue on LW-overdue", printed)
-            # stale lock is reported, never auto-cleared
+            self.assertEqual(output.getvalue(), "")
+            # stale locks remain untouched when there is no executable work.
             persisted = json.loads(schedule.read_text())
             self.assertIsNotNone(persisted["candidates"][0]["execution_lock"])
 
-    def test_warnings_without_execution_work_are_wrapped_report_only(self):
-        # In agent mode this script's stdout becomes the agent's prompt. On
-        # 2026-08-11 a bare overdue-recheck warning read as a work order and
-        # the session performed the review gate's recheck itself, corrupting
-        # the schedule. Warnings with no execution work must arrive framed as
-        # relay-verbatim-only, with the watchlist lane boundary attached.
+    def test_overdue_review_lane_is_silent_when_no_execution_work_exists(self):
+        # Lineup rechecks belong to the review gate, not this execution poller.
+        # With no executable candidates, a pending/overdue watchlist must not
+        # produce a delivery or an agent prompt.
         now = datetime.now(timezone.utc)
         day = str(now.astimezone(mlb_execution_gate.CENTRAL).date())
         with tempfile.TemporaryDirectory() as tmp:
@@ -390,11 +386,27 @@ class MlbExecutionGateTests(unittest.TestCase):
                 status = mlb_execution_gate.main(["--root", str(root), "--now", now.isoformat()])
 
             self.assertEqual(status, 0)
-            printed = output.getvalue()
-            self.assertIn("WARNING: lineup recheck overdue on LW-overdue", printed)
-            self.assertIn("Your ONLY task is to relay the warnings above verbatim", printed)
-            self.assertIn("lineup_watchlist is READ-ONLY", printed)
-            self.assertIn("vig_mlb_review_gate.py", printed)
+            self.assertEqual(output.getvalue(), "")
+
+    def test_pending_candidate_is_silent_when_standing_authorization_is_disabled(self):
+        now = datetime.now(timezone.utc)
+        day = str(now.astimezone(mlb_execution_gate.CENTRAL).date())
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            schedule = root / ".picks" / "execute" / f"{day}-schedule.json"
+            schedule.parent.mkdir(parents=True)
+            schedule.write_text(json.dumps({
+                "date": day,
+                "sport": "MLB",
+                "market_type": "moneyline",
+                "candidates": [self.candidate(now)],
+            }))
+            output = StringIO()
+            with patch.object(mlb_execution_gate, "standing_authorization_enabled", lambda: False), \
+                    redirect_stdout(output):
+                status = mlb_execution_gate.main(["--root", str(root), "--now", now.isoformat()])
+            self.assertEqual(status, 0)
+            self.assertEqual(output.getvalue(), "")
 
     def test_execution_prompt_carries_watchlist_lane_boundary(self):
         now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
@@ -440,13 +452,8 @@ class MlbExecutionGateTests(unittest.TestCase):
             self.assertEqual(status, 0)
             printed = output.getvalue()
             self.assertIn("MLB standing-authorization execution gate found eligible candidates.", printed)
-            self.assertIn("OPERATOR WARNINGS (report-only)", printed)
-            self.assertIn("WARNING: lineup recheck overdue on LW-overdue", printed)
-            # the warnings come after the prompt body, never as a bare preamble
-            self.assertLess(
-                printed.index("found eligible candidates"),
-                printed.index("WARNING: lineup recheck overdue"),
-            )
+            self.assertNotIn("OPERATOR WARNINGS (report-only)", printed)
+            self.assertNotIn("WARNING: lineup recheck overdue on LW-overdue", printed)
 
     def test_main_is_silent_when_only_candidate_has_started(self):
         now = datetime.now(timezone.utc)
