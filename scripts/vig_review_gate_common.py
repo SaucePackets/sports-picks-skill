@@ -185,6 +185,12 @@ def _strict_polymarket_ask(
     return min(prices) if prices else None
 
 
+def _strict_approved_promotion_ask(candidate: dict[str, Any]) -> int | float | None:
+    """Return only the explicit approved ask required for lineup promotions."""
+    value = candidate.get("approved_polymarket_ask")
+    return value if _strict_price(value) else None
+
+
 def _watchlist_supported_price(
     candidate: dict[str, Any], entry: dict[str, Any]
 ) -> int | float | None:
@@ -256,11 +262,20 @@ def normalize_review_routing(
                 f"candidate {identity} was not a targeted candidate or watchlist promotion"
             )
             continue
-        ask = _strict_polymarket_ask(candidate, original)
+        is_lineup_promotion = candidate.get("watchlist_id") in promoted_watchlist_ids
+        ask = (
+            _strict_approved_promotion_ask(candidate)
+            if is_lineup_promotion
+            else _strict_polymarket_ask(candidate, original)
+        )
         if ask is None:
             errors.append(
                 f"candidate {candidate_identity(candidate)} has no strict numeric "
-                "approved Polymarket ask"
+                + (
+                    "approved_polymarket_ask"
+                    if is_lineup_promotion
+                    else "approved Polymarket ask"
+                )
             )
         else:
             prices.append((candidate, ask))
@@ -417,7 +432,10 @@ def manual_candidate_errors(candidate: dict[str, Any]) -> list[str]:
 
 
 def approved_candidate_errors(
-    candidate: dict[str, Any], sport: str, mlb_standing_authorized: bool = False
+    candidate: dict[str, Any],
+    sport: str,
+    mlb_standing_authorized: bool = False,
+    require_approved_ask: bool = False,
 ) -> list[str]:
     """Validate the post-review routing state for an approved candidate."""
     if sport.upper() != "MLB" or not mlb_standing_authorized:
@@ -443,6 +461,12 @@ def approved_candidate_errors(
         or not 0 < max_price < 1
     ):
         errors.append("max_polymarket_price must be between 0 and 1")
+    if require_approved_ask:
+        approved_ask = candidate.get("approved_polymarket_ask")
+        if not _strict_price(approved_ask):
+            errors.append(
+                "approved_polymarket_ask must be an unquoted numeric value strictly between 0 and 1"
+            )
     # Probability contract: a standing-authorized approval must carry the full
     # numeric probability trail and a stored edge that matches the live
     # recomputation. Missing or stale fields make the approval invalid.
@@ -596,6 +620,13 @@ def validate_review_transition(
                 report_candidate = matches[0]
                 if report_candidate.get("vig_approved") is not True:
                     errors.append(f"watchlist {entry_id} promoted candidate must be vig_approved")
+                errors.extend(
+                    f"watchlist {entry_id} promoted candidate: {message}"
+                    for message in approved_candidate_errors(
+                        report_candidate, sport, mlb_standing_authorized,
+                        require_approved_ask=True,
+                    )
+                )
                 reason = entry.get("recheck_notes") or report_candidate.get("vig_notes")
                 if not isinstance(reason, str) or not reason.strip():
                     errors.append(f"watchlist {entry_id} promoted candidate has no decisive reason")
@@ -697,6 +728,14 @@ current_ask, projected_edge_at_current_ask, model_version. Set
 projected_edge_at_current_ask = conservative_probability - current_ask from the
 REFRESHED price; the morning net_edge is never carried forward as the executed
 edge. The edge must clear the shared {edge_floor:.2f} floor AFTER the haircut.
+
+APPROVED PRICE FIELD (the routing gate reads this exact key and fails closed
+without it): on every approved candidate you MUST set approved_polymarket_ask
+to the executable Polymarket US ask you are approving. It must be an unquoted
+JSON number strictly between 0 and 1 — for example 0.47 — never a quoted string
+such as "0.47", and never American odds such as 110 or -120. A quoted value, a
+value at or outside 0 and 1, or a missing key is rejected deterministically and
+the entire review is rolled back.
 {evidence_section}
 {routing}
 

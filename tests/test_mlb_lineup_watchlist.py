@@ -284,6 +284,8 @@ class MlbLineupWatchlistTests(unittest.TestCase):
 
         self.assertIn("confirmed batting lineups", prompt)
         self.assertIn("late-scratch signal", prompt)
+        self.assertIn("approved_polymarket_ask", prompt)
+        self.assertIn("unquoted JSON number strictly between 0 and 1", prompt)
         self.assertIn("Polymarket ask", prompt)
         self.assertIn("every original gate", prompt)
         self.assertIn("execution_mode=standing_authorized", prompt)

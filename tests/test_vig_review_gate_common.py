@@ -340,11 +340,14 @@ class VigReviewGateCommonTests(unittest.TestCase):
             **PROBABILITY_TRAIL,
             "vig_approved": True,
             "vig_notes": "All gates hold.",
-            "polymarket_ask": 0.51,
+            "approved_polymarket_ask": 0.51,
         }
         promoted = self._watch_entry(
             status="promoted", promoted_candidate=dict(promoted_candidate)
         )
+        # Exact upstream promotion shape: the approved price is a JSON number,
+        # not American odds and not a quoted string.
+        self.assertIsInstance(promoted_candidate["approved_polymarket_ask"], float)
         after = {"candidates": [promoted_candidate], "lineup_watchlist": [promoted]}
 
         errors = vig_review_gate_common.normalize_review_routing(
@@ -354,6 +357,67 @@ class VigReviewGateCommonTests(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertEqual(promoted_candidate["max_polymarket_price"], POLICY_CEILING)
         self.assertEqual(promoted["promoted_candidate"], promoted_candidate)
+
+    def test_lineup_promotion_rejects_legacy_or_invalid_approved_ask(self):
+        for field, value in (
+            ("polymarket_ask", 0.51),
+            ("captured_polymarket_ask", 0.51),
+            ("approved_polymarket_ask", "0.51"),
+            ("approved_polymarket_ask", 110),
+            ("approved_polymarket_ask", 0),
+            ("approved_polymarket_ask", 1),
+        ):
+            with self.subTest(field=field, value=value):
+                before = {"candidates": [], "lineup_watchlist": [self._watch_entry()]}
+                candidate = {
+                    "watchlist_id": "watch-1",
+                    "side": "ABC",
+                    **PROBABILITY_TRAIL,
+                    "vig_approved": True,
+                    "vig_notes": "All gates hold.",
+                    field: value,
+                }
+                promoted = self._watch_entry(status="promoted", promoted_candidate=dict(candidate))
+                errors = vig_review_gate_common.normalize_review_routing(
+                    before,
+                    {"candidates": [candidate], "lineup_watchlist": [promoted]},
+                    "MLB",
+                    mlb_standing_authorized=True,
+                )
+                self.assertTrue(any("approved_polymarket_ask" in error for error in errors))
+
+    def test_promoted_candidate_transition_validates_full_approval_contract(self):
+        before_entry = self._watch_entry()
+        before_candidate = {
+            "watchlist_id": "watch-1",
+            "side": "ABC",
+            "vig_approved": True,
+            "vig_notes": "Morning approval persisted.",
+        }
+        promoted = self._watch_entry(
+            status="promoted", promoted_candidate=dict(before_candidate)
+        )
+        promoted["recheck_notes"] = "Lineups confirmed; price still holds."
+        after = {
+            "candidates": [before_candidate],
+            "lineup_watchlist": [promoted],
+        }
+        errors = vig_review_gate_common.validate_review_transition(
+            {"candidates": [before_candidate], "lineup_watchlist": [before_entry]},
+            after,
+            [],
+            ["watch-1"],
+            "MLB",
+            True,
+        )
+        self.assertTrue(
+            any("approved_polymarket_ask" in error for error in errors),
+            errors,
+        )
+        self.assertTrue(
+            any("probability" in error for error in errors),
+            errors,
+        )
 
     def test_routing_fails_closed_when_policy_missing(self):
         # With no shared policy block loadable, standing-authorized routing must
@@ -857,7 +921,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
                     **PROBABILITY_TRAIL,
                     "vig_approved": True,
                     "vig_notes": "All gates hold.",
-                    "captured_polymarket_ask": 0.51,
+                    "approved_polymarket_ask": 0.51,
                     "execution_mode": "manual",
                     "manual_bet_status": "awaiting_jerry",
                     "executed": False,
@@ -1321,6 +1385,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
             "execution_mode": "standing_authorized",
             "execution_status": "pending",
             "max_polymarket_price": 0.51,
+            "approved_polymarket_ask": 0.48,
             "executed": False,
         }
         promoted = self._watch_entry(
