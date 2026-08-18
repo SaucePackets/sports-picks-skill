@@ -62,6 +62,7 @@ sports-picks-skill/
 - `skills/sports-picks/references/runtime.md` — short working checklist.
 - `skills/sports-picks/references/process.md` — settlement, reflection, ledger maintenance.
 - `skills/sports-picks/references/mlb.md` — MLB-specific pick rules.
+- `skills/sports-picks/references/agent-collaboration.md` — bounded agent-to-agent request/response protocol (anti-loop safeguards), enforced by `skills/sports-picks/scripts/agent_peer_protocol.py`.
 - `.picks/PROCESS.md` — reusable lessons and process rules.
 - `.picks/REFLECTIONS.md` — fresh-start reflection ledger template.
 
