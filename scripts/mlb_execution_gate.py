@@ -507,10 +507,16 @@ def main(argv: list[str] | None = None) -> int:
 
     # Lineup rechecks are owned by vig_mlb_review_gate.py. The execution
     # poller wakes only for executable picks; an empty tick emits zero bytes.
-    # This intentionally makes stale-lock warnings silent when no executable
-    # candidate exists. Stale-lock diagnostics belong to the execution lane's
-    # active work/reporting path, while review/watchlist warnings must never
-    # wake this poller or be interpreted as execution instructions.
+    #
+    # Deliberate observability tradeoff: stale-lock warnings ride only inside
+    # an execution prompt, so a stale lock on a tick with no executable
+    # candidate — including a lock on the only candidate, which itself makes
+    # that candidate ineligible — is silent here. This cron runs in agent
+    # mode, so any bare stdout on a no-work tick would wake the agent and
+    # produce a delivery with no execution task attached. Locks are never
+    # auto-cleared, so the warning surfaces on the next tick that has
+    # executable work; a wedged day is diagnosed by inspecting the schedule
+    # or calling stale_lock_warnings() directly, not by this poller.
     candidates = eligible_candidates(schedule, now)
     if not candidates:
         return 0

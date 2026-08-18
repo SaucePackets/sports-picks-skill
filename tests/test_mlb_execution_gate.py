@@ -323,7 +323,13 @@ class MlbExecutionGateTests(unittest.TestCase):
         self.assertIn("LW-overdue", warnings[0])
         self.assertIn("pending_lineup_recheck", warnings[0])
 
-    def test_main_prints_stale_lock_but_not_review_lane_warnings(self):
+    def test_stale_lock_with_no_executable_work_is_silent_by_design(self):
+        # P2 tradeoff (PR #48 review): the lock itself makes its candidate
+        # ineligible, so a stale lock on the only candidate produces NO output
+        # — this cron runs in agent mode and a no-work tick must emit zero
+        # bytes. The warning surfaces on the next tick with executable work
+        # (see test_stale_lock_warning_rides_prompt_when_other_work_is_executable);
+        # a fully wedged day is diagnosed via stale_lock_warnings() directly.
         now = datetime.now(timezone.utc)
         day = str(now.astimezone(mlb_execution_gate.CENTRAL).date())
         locked = self.candidate(
@@ -358,6 +364,46 @@ class MlbExecutionGateTests(unittest.TestCase):
             # stale locks remain untouched when there is no executable work.
             persisted = json.loads(schedule.read_text())
             self.assertIsNotNone(persisted["candidates"][0]["execution_lock"])
+
+    def test_stale_lock_warning_rides_prompt_when_other_work_is_executable(self):
+        # Companion to the silent-by-design test above: as soon as ANY
+        # candidate is executable, stale locks anywhere in the schedule are
+        # reported inside the execution prompt as report-only operator lines.
+        now = datetime.now(timezone.utc)
+        day = str(now.astimezone(mlb_execution_gate.CENTRAL).date())
+        game_date = (now + timedelta(minutes=90)).astimezone(mlb_execution_gate.CENTRAL).date().isoformat()
+        eligible = self.candidate(now, polymarket_slug=f"aec-mlb-abc-def-{game_date}")
+        locked = self.candidate(
+            now,
+            polymarket_slug=f"aec-mlb-ghi-jkl-{game_date}",
+            execution_lock={
+                "attempt_id": "attempt-9",
+                "locked_at": (now - timedelta(minutes=45)).isoformat(),
+            },
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            schedule = root / ".picks" / "execute" / f"{day}-schedule.json"
+            schedule.parent.mkdir(parents=True)
+            schedule.write_text(json.dumps({
+                "date": day,
+                "sport": "MLB",
+                "market_type": "moneyline",
+                "candidates": [eligible, locked],
+            }))
+            output = StringIO()
+
+            with patch.object(mlb_execution_gate, "standing_authorization_enabled", lambda: True), \
+                    redirect_stdout(output):
+                status = mlb_execution_gate.main(["--root", str(root), "--now", now.isoformat()])
+
+            self.assertEqual(status, 0)
+            printed = output.getvalue()
+            self.assertIn("OPERATOR WARNINGS (report-only)", printed)
+            self.assertIn(f"stale execution lock on aec-mlb-ghi-jkl-{game_date}", printed)
+            # report-only: the lock itself is never cleared by the poller
+            persisted = json.loads(schedule.read_text())
+            self.assertIsNotNone(persisted["candidates"][1]["execution_lock"])
 
     def test_overdue_review_lane_is_silent_when_no_execution_work_exists(self):
         # Lineup rechecks belong to the review gate, not this execution poller.
