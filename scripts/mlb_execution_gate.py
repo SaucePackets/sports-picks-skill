@@ -510,6 +510,10 @@ def main(argv: list[str] | None = None) -> int:
 
     # Lineup rechecks are owned by vig_mlb_review_gate.py. The execution
     # poller wakes only for executable picks; an empty tick emits zero bytes.
+    # This intentionally makes stale-lock warnings silent when no executable
+    # candidate exists. Stale-lock diagnostics belong to the execution lane's
+    # active work/reporting path, while review/watchlist warnings must never
+    # wake this poller or be interpreted as execution instructions.
     candidates = eligible_candidates(schedule, now)
     if not candidates:
         return 0
