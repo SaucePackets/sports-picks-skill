@@ -167,26 +167,8 @@ def _strict_price(value: Any) -> bool:
     )
 
 
-def _strict_polymarket_ask(
-    candidate: dict[str, Any], original: dict[str, Any] | None
-) -> int | float | None:
-    prices = [
-        candidate[field]
-        for field in ("approved_polymarket_ask", "captured_polymarket_ask")
-        if _strict_price(candidate.get(field))
-    ]
-    if original is not None:
-        for field in ("approved_polymarket_ask", "captured_polymarket_ask", "polymarket_ask"):
-            value = original.get(field)
-            if _strict_price(value):
-                prices.append(value)
-    elif _strict_price(candidate.get("polymarket_ask")):
-        prices.append(candidate["polymarket_ask"])
-    return min(prices) if prices else None
-
-
-def _strict_approved_promotion_ask(candidate: dict[str, Any]) -> int | float | None:
-    """Return only the explicit approved ask required for lineup promotions."""
+def _strict_approved_ask(candidate: dict[str, Any]) -> int | float | None:
+    """Return only the explicit approved ask required for routing."""
     value = candidate.get("approved_polymarket_ask")
     return value if _strict_price(value) else None
 
@@ -256,26 +238,22 @@ def normalize_review_routing(
     errors: list[str] = []
     for candidate in newly_approved:
         identity = candidate_identity(candidate)
-        original = before_by_id.get(identity)
-        if original is None and candidate.get("watchlist_id") not in promoted_watchlist_ids:
+        if (
+            before_by_id.get(identity) is None
+            and candidate.get("watchlist_id") not in promoted_watchlist_ids
+        ):
             errors.append(
                 f"candidate {identity} was not a targeted candidate or watchlist promotion"
             )
             continue
-        is_lineup_promotion = candidate.get("watchlist_id") in promoted_watchlist_ids
-        ask = (
-            _strict_approved_promotion_ask(candidate)
-            if is_lineup_promotion
-            else _strict_polymarket_ask(candidate, original)
-        )
+        # Every standing-authorized MLB approval must carry the exact live ask
+        # approved by the reviewer. Legacy snapshot fields may inform a
+        # proposal, but they are never sufficient to route an approval.
+        ask = _strict_approved_ask(candidate)
         if ask is None:
             errors.append(
                 f"candidate {candidate_identity(candidate)} has no strict numeric "
-                + (
-                    "approved_polymarket_ask"
-                    if is_lineup_promotion
-                    else "approved Polymarket ask"
-                )
+                "approved_polymarket_ask"
             )
         else:
             prices.append((candidate, ask))
@@ -435,7 +413,6 @@ def approved_candidate_errors(
     candidate: dict[str, Any],
     sport: str,
     mlb_standing_authorized: bool = False,
-    require_approved_ask: bool = False,
 ) -> list[str]:
     """Validate the post-review routing state for an approved candidate."""
     if sport.upper() != "MLB" or not mlb_standing_authorized:
@@ -461,12 +438,11 @@ def approved_candidate_errors(
         or not 0 < max_price < 1
     ):
         errors.append("max_polymarket_price must be between 0 and 1")
-    if require_approved_ask:
-        approved_ask = candidate.get("approved_polymarket_ask")
-        if not _strict_price(approved_ask):
-            errors.append(
-                "approved_polymarket_ask must be an unquoted numeric value strictly between 0 and 1"
-            )
+    approved_ask = candidate.get("approved_polymarket_ask")
+    if not _strict_price(approved_ask):
+        errors.append(
+            "approved_polymarket_ask must be an unquoted numeric value strictly between 0 and 1"
+        )
     # Probability contract: a standing-authorized approval must carry the full
     # numeric probability trail and a stored edge that matches the live
     # recomputation. Missing or stale fields make the approval invalid.
@@ -624,7 +600,6 @@ def validate_review_transition(
                     f"watchlist {entry_id} promoted candidate: {message}"
                     for message in approved_candidate_errors(
                         report_candidate, sport, mlb_standing_authorized,
-                        require_approved_ask=True,
                     )
                 )
                 reason = entry.get("recheck_notes") or report_candidate.get("vig_notes")

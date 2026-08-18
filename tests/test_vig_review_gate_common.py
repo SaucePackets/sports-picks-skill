@@ -143,6 +143,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
         after = json.loads(json.dumps(before))
         after["candidates"][0].update(
             PROBABILITY_TRAIL,
+            approved_polymarket_ask=0.48,
             vig_approved=True,
             vig_notes="All gates hold.",
             execution_mode="manual",
@@ -192,7 +193,10 @@ class VigReviewGateCommonTests(unittest.TestCase):
 
         self.assertEqual(
             errors,
-            ["candidate event_id:1|side:CWS has no strict numeric approved Polymarket ask"],
+            [
+                "candidate event_id:1|side:CWS has no strict numeric "
+                "approved_polymarket_ask"
+            ],
         )
         self.assertNotEqual(after["candidates"][0].get("execution_mode"), "standing_authorized")
 
@@ -224,7 +228,10 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 contract = dict(PROBABILITY_TRAIL)
                 contract[field] = bad
                 after["candidates"][0].update(
-                    contract, vig_approved=True, vig_notes="All gates hold."
+                    contract,
+                    approved_polymarket_ask=0.48,
+                    vig_approved=True,
+                    vig_notes="All gates hold.",
                 )
 
                 errors = vig_review_gate_common.normalize_review_routing(
@@ -246,7 +253,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
                     msg=f"{field}={bad} must not route to standing_authorized",
                 )
 
-    def test_normalize_uses_original_captured_ask_when_child_mutates_generic_ask(self):
+    def test_normalize_requires_explicit_approved_ask_when_child_mutates_generic_ask(self):
         before = {
             "candidates": [
                 {
@@ -269,8 +276,14 @@ class VigReviewGateCommonTests(unittest.TestCase):
             before, after, "MLB", mlb_standing_authorized=True
         )
 
-        self.assertEqual(errors, [])
-        self.assertEqual(after["candidates"][0]["max_polymarket_price"], POLICY_CEILING)
+        self.assertEqual(
+            errors,
+            [
+                "candidate event_id:1|side:CWS has no strict numeric "
+                "approved_polymarket_ask"
+            ],
+        )
+        self.assertNotEqual(after["candidates"][0].get("execution_mode"), "standing_authorized")
 
     def test_normalize_rejects_injected_approved_candidate(self):
         before = {
@@ -293,6 +306,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
                     "vig_approved": True,
                     "vig_notes": "Approved.",
                     "polymarket_ask": 0.99,
+                    "approved_polymarket_ask": 0.99,
                 },
             ],
             "lineup_watchlist": [],
@@ -317,6 +331,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
         }
         before = {"candidates": [candidate], "lineup_watchlist": []}
         approved = dict(candidate, vig_approved=True, vig_notes="Approved.")
+        approved["approved_polymarket_ask"] = 0.48
         after = {"candidates": [dict(candidate), approved], "lineup_watchlist": []}
 
         errors = vig_review_gate_common.normalize_review_routing(
@@ -436,6 +451,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
                     "side": "CWS",
                     "vig_approved": None,
                     "polymarket_ask": 0.48,
+                    "approved_polymarket_ask": 0.48,
                 }
             ]
         }
@@ -477,6 +493,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
                     "side": "CWS",
                     "vig_approved": None,
                     "polymarket_ask": 0.50,
+                    "approved_polymarket_ask": 0.50,
                 }
             ]
         }
@@ -505,6 +522,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 "event_id": event_id,
                 "side": "CWS",
                 "polymarket_ask": 0.48,
+                "approved_polymarket_ask": 0.48,
                 "vig_approved": None,
                 "dk_fair_prob": 0.55,
                 "model_version": "market-only-fallback-v1",
@@ -546,6 +564,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 "event_id": event_id,
                 "side": "CWS",
                 "polymarket_ask": 0.48,
+                "approved_polymarket_ask": 0.48,
                 "vig_approved": None,
                 "dk_fair_prob": 0.55,
                 "model_version": "market-only-fallback-v1",
@@ -592,6 +611,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 "event_id": event_id,
                 "side": "CWS",
                 "polymarket_ask": 0.48,
+                "approved_polymarket_ask": 0.48,
                 "vig_approved": vig_approved,
                 "dk_fair_prob": 0.55,
                 "model_version": "market-only-fallback-v1",
@@ -630,6 +650,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
                     "event_id": "1",
                     "side": "CWS",
                     "polymarket_ask": 0.48,
+                    "approved_polymarket_ask": 0.48,
                     "vig_approved": None,
                 }
             ],
@@ -837,6 +858,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
                     "market_type": "moneyline",
                     "unit_size": 18,
                     "polymarket_ask": 0.51,
+                    "approved_polymarket_ask": 0.51,
                     "vig_approved": None,
                     "execution_mode": "manual",
                     "manual_bet_status": None,
@@ -1073,6 +1095,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
                     "side": "CWS",
                     "unit_size": 18,
                     "polymarket_ask": 0.51,
+                    "approved_polymarket_ask": 0.51,
                     "vig_approved": None,
                     "executed": False,
                 }
@@ -1403,6 +1426,33 @@ class VigReviewGateCommonTests(unittest.TestCase):
             ),
             [],
         )
+
+    def test_regular_standing_authorized_transition_requires_approved_ask(self):
+        before_candidate = {
+            "event_id": "regular-1",
+            "side": "ABC",
+            "vig_approved": None,
+            "polymarket_ask": 0.48,
+        }
+        after_candidate = {
+            **before_candidate,
+            **PROBABILITY_TRAIL,
+            "vig_approved": True,
+            "vig_notes": "All gates hold.",
+            "execution_mode": "standing_authorized",
+            "execution_status": "pending",
+            "max_polymarket_price": POLICY_CEILING,
+            "executed": False,
+        }
+        errors = vig_review_gate_common.validate_review_transition(
+            {"candidates": [before_candidate], "lineup_watchlist": []},
+            {"candidates": [after_candidate], "lineup_watchlist": []},
+            [vig_review_gate_common.candidate_identity(after_candidate)],
+            [],
+            "MLB",
+            True,
+        )
+        self.assertTrue(any("approved_polymarket_ask" in error for error in errors), errors)
 
     def test_valid_baseball_evidence_passes_review_routing(self):
         # Positive-path fixture: a candidate with valid Phase-2 evidence and
