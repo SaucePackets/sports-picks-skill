@@ -782,6 +782,34 @@ class MlbLineupWatchlistTests(unittest.TestCase):
         self.assertIn("recheck.material_changes", prompt)
         self.assertIn("merely asserts the original gates hold", prompt)
 
+    def test_recheck_prompt_never_instructs_promotion_without_a_live_price(self):
+        # P1 regression (PR #48 review, finding 1): the prompt used to require
+        # a strict numeric approved_polymarket_ask in the routing block while
+        # ALSO instructing "still promote" when the live price was unavailable
+        # — a contradiction that either rolls back or pressures the child to
+        # invent a price. An unavailable price now keeps the entry pending.
+        for standing in (True, False):
+            with self.subTest(standing_authorization=standing), mock.patch.object(
+                mlb_lineup_watchlist,
+                "standing_authorization_enabled",
+                return_value=standing,
+            ), mock.patch.object(
+                mlb_lineup_watchlist,
+                "load_mlb_selection_policy",
+                return_value=enabled_starter_policy(),
+            ):
+                prompt = mlb_lineup_watchlist.build_recheck_prompt(
+                    Path("/tmp/schedule.json"), [self.entry()]
+                )
+            self.assertNotIn("still promote", prompt)
+            self.assertIn(
+                "If the\nprovided price is unavailable this cycle", prompt
+            )
+            self.assertIn(
+                "keep status pending_lineup_recheck (do not pass, do not promote)",
+                prompt,
+            )
+
     def test_starter_rehandicap_prompt_floor_comes_from_policy_not_hardcode(self):
         entry = self.entry(blocked_only_by=["lineups_unconfirmed", "starter_unannounced"])
         entry["original_gate_results"]["opposing_starter_shutdown_path"] = None

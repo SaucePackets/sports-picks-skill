@@ -169,9 +169,47 @@ def _strict_price(value: Any) -> bool:
 
 
 def _strict_approved_ask(candidate: dict[str, Any]) -> int | float | None:
-    """Return only the explicit approved ask required for routing."""
+    """Return only the explicit approved ask required on every MLB approval.
+
+    Legacy captured_polymarket_ask / polymarket_ask fields are deliberately
+    NOT a fallback: routing on a slate-time price would bypass the price the
+    reviewer actually approved.
+    """
     value = candidate.get("approved_polymarket_ask")
     return value if _strict_price(value) else None
+
+
+_ASK_AGREEMENT_TOLERANCE = 1e-6
+
+
+def _approved_ask_agreement_errors(candidate: dict[str, Any]) -> list[str]:
+    """The stamped approved ask must BE the refreshed live price.
+
+    A strict-numeric approved_polymarket_ask alone proves only that the child
+    wrote a number; it is meaningful only when it equals the refreshed price
+    contract the same review recorded — the probability trail's current_ask
+    and execution_checks.supported_price. Disagreement means the approval was
+    priced off something other than the live book — fail closed. A missing or
+    non-strict approved ask is reported by the strict check, not here.
+    """
+    approved = candidate.get("approved_polymarket_ask")
+    if not _strict_price(approved):
+        return []
+    errors: list[str] = []
+    current = candidate.get("current_ask")
+    if _strict_price(current) and abs(approved - current) > _ASK_AGREEMENT_TOLERANCE:
+        errors.append(
+            f"approved_polymarket_ask {approved:.6f} does not match the "
+            f"refreshed current_ask {current:.6f}"
+        )
+    checks = candidate.get("execution_checks")
+    supported = checks.get("supported_price") if isinstance(checks, dict) else None
+    if _strict_price(supported) and abs(approved - supported) > _ASK_AGREEMENT_TOLERANCE:
+        errors.append(
+            f"approved_polymarket_ask {approved:.6f} does not match "
+            f"execution_checks.supported_price {supported:.6f}"
+        )
+    return errors
 
 
 def _watchlist_supported_price(
@@ -239,17 +277,14 @@ def normalize_review_routing(
     errors: list[str] = []
     for candidate in newly_approved:
         identity = candidate_identity(candidate)
-        if (
-            before_by_id.get(identity) is None
-            and candidate.get("watchlist_id") not in promoted_watchlist_ids
-        ):
+        original = before_by_id.get(identity)
+        if original is None and candidate.get("watchlist_id") not in promoted_watchlist_ids:
             errors.append(
                 f"candidate {identity} was not a targeted candidate or watchlist promotion"
             )
             continue
-        # Every standing-authorized MLB approval must carry the exact live ask
-        # approved by the reviewer. Legacy snapshot fields may inform a
-        # proposal, but they are never sufficient to route an approval.
+        # Regular card approvals and lineup promotions carry the SAME price
+        # contract: the reviewer must stamp the explicit approved ask.
         ask = _strict_approved_ask(candidate)
         if ask is None:
             errors.append(
@@ -257,7 +292,14 @@ def normalize_review_routing(
                 "approved_polymarket_ask"
             )
         else:
-            prices.append((candidate, ask))
+            agreement_errors = _approved_ask_agreement_errors(candidate)
+            if agreement_errors:
+                errors.append(
+                    f"candidate {identity} approved ask violation: "
+                    + "; ".join(agreement_errors)
+                )
+            else:
+                prices.append((candidate, ask))
         # Probability contract at ROUTING time: a standing-authorized candidate
         # must already carry the full numeric probability trail with a live
         # recomputed edge. NaN/Inf fields are rejected here (not just at the
@@ -439,11 +481,15 @@ def approved_candidate_errors(
         or not 0 < max_price < 1
     ):
         errors.append("max_polymarket_price must be between 0 and 1")
-    approved_ask = candidate.get("approved_polymarket_ask")
-    if not _strict_price(approved_ask):
+    # Every standing-authorized approval — regular card or lineup promotion —
+    # must carry the explicit approved price; legacy ask fields never satisfy it.
+    if not _strict_price(candidate.get("approved_polymarket_ask")):
         errors.append(
             "approved_polymarket_ask must be an unquoted numeric value strictly between 0 and 1"
         )
+    # The stamped ask must also agree with the refreshed price contract the
+    # same review wrote (current_ask, execution_checks.supported_price).
+    errors.extend(_approved_ask_agreement_errors(candidate))
     # Probability contract: a standing-authorized approval must carry the full
     # numeric probability trail and a stored edge that matches the live
     # recomputation. Missing or stale fields make the approval invalid.
@@ -621,7 +667,7 @@ def validate_review_transition(
                 errors.extend(
                     f"watchlist {entry_id} promoted candidate: {message}"
                     for message in approved_candidate_errors(
-                        report_candidate, sport, mlb_standing_authorized,
+                        report_candidate, sport, mlb_standing_authorized
                     )
                 )
                 reason = entry.get("recheck_notes") or report_candidate.get("vig_notes")
