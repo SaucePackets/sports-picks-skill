@@ -85,21 +85,37 @@ TS="$(date +%Y%m%d-%H%M%S)"
 
 [ "$RUNTIME_DIR" != "$PROFILE_SCRIPTS_DIR" ] || die "runtime dir and profile scripts dir must differ"
 
+# A symlinked profile scripts dir would put the staging swap (and every managed
+# write) outside the directory this script believes it owns.
+[ ! -L "$PROFILE_SCRIPTS_DIR" ] || die "profile scripts dir is a symlink: $PROFILE_SCRIPTS_DIR — refusing to manage it"
+
 # --- Phase 0: --expect-sha preflight (read-only, before any mutation) -------
-# Resolve the remote tip via ls-remote so a mismatch is rejected before the
-# clone, fetch, checkout, or reset ever runs — a refused deploy must leave the
-# runtime checkout exactly as it found it.
+# The pin is a full 40-hex commit id compared for exact equality: a prefix match
+# would let an abbreviation (in the limit, one hex character) pin nothing.
+# ls-remote only buys an early refusal — it cannot be trusted as the deployed
+# commit, because the remote can advance between resolving it and fetching. The
+# authoritative check is against the actually-fetched commit, below, before the
+# worktree is touched.
 
 if [ -n "$EXPECT_SHA" ]; then
+  case "$EXPECT_SHA" in
+    *[!0-9a-fA-F]*) die "--expect-sha must be a full 40-hex commit sha, got: $EXPECT_SHA" ;;
+  esac
+  [ "${#EXPECT_SHA}" -eq 40 ] || die "--expect-sha must be a full 40-hex commit sha (got ${#EXPECT_SHA} chars): $EXPECT_SHA"
+  EXPECT_SHA="$(printf '%s' "$EXPECT_SHA" | tr 'A-F' 'a-f')"
+
   REMOTE_SHA="$(git ls-remote "$REPO_URL" "refs/heads/$BRANCH" | cut -f1)"
   [ -n "$REMOTE_SHA" ] || die "cannot resolve refs/heads/$BRANCH on $REPO_URL"
-  case "$REMOTE_SHA" in
-    "$EXPECT_SHA"*) log "preflight: origin/$BRANCH is $REMOTE_SHA (matches --expect-sha)" ;;
-    *) die "origin/$BRANCH tip $REMOTE_SHA does not match --expect-sha $EXPECT_SHA — refusing before any runtime changes" ;;
-  esac
+  if [ "$REMOTE_SHA" = "$EXPECT_SHA" ]; then
+    log "preflight: origin/$BRANCH is $REMOTE_SHA (matches --expect-sha)"
+  else
+    die "origin/$BRANCH tip $REMOTE_SHA does not match --expect-sha $EXPECT_SHA — refusing before any runtime changes"
+  fi
 fi
 
 # --- Phase 1: runtime checkout at clean origin/main -------------------------
+
+DEPLOY_TARGET_SHA=""
 
 if [ ! -d "$RUNTIME_DIR/.git" ]; then
   if [ -e "$RUNTIME_DIR" ] && [ -n "$(ls -A "$RUNTIME_DIR" 2>/dev/null)" ]; then
@@ -109,7 +125,18 @@ if [ ! -d "$RUNTIME_DIR/.git" ]; then
     log "DRY-RUN: would clone $REPO_URL into $RUNTIME_DIR (branch $BRANCH)"
   else
     log "cloning $REPO_URL into $RUNTIME_DIR"
-    git clone --branch "$BRANCH" "$REPO_URL" "$RUNTIME_DIR"
+    runtime_preexisting=0
+    if [ -d "$RUNTIME_DIR" ]; then runtime_preexisting=1; fi
+    # --no-checkout: the pin is verified against the commit we actually got
+    # before a single file is written into the working tree.
+    git clone --no-checkout --branch "$BRANCH" "$REPO_URL" "$RUNTIME_DIR"
+    DEPLOY_TARGET_SHA="$(git -C "$RUNTIME_DIR" rev-parse HEAD)"
+    if [ -n "$EXPECT_SHA" ] && [ "$DEPLOY_TARGET_SHA" != "$EXPECT_SHA" ]; then
+      rm -rf "$RUNTIME_DIR"
+      if [ "$runtime_preexisting" = 1 ]; then mkdir -p "$RUNTIME_DIR"; fi
+      die "cloned $BRANCH tip $DEPLOY_TARGET_SHA does not match --expect-sha $EXPECT_SHA — clone discarded, nothing deployed"
+    fi
+    git -C "$RUNTIME_DIR" checkout -q "$BRANCH"
     mkdir -p "$(dirname "$MARKER")"
     echo "runtime checkout created by deploy-runtime.sh $TS" > "$MARKER"
   fi
@@ -128,9 +155,17 @@ $dirty"
   if [ "$DRY_RUN" = 1 ]; then
     log "DRY-RUN: would fetch origin and hard-reset $RUNTIME_DIR to origin/$BRANCH"
   else
-    git -C "$RUNTIME_DIR" fetch origin "$BRANCH"
+    # fetch updates refs only — HEAD, the index, and the working tree are
+    # untouched. The pin is checked against the commit this fetch actually
+    # brought down, so a remote that advanced after the ls-remote preflight is
+    # rejected here, with the runtime checkout still exactly as we found it.
+    git -C "$RUNTIME_DIR" fetch -q origin "$BRANCH"
+    DEPLOY_TARGET_SHA="$(git -C "$RUNTIME_DIR" rev-parse FETCH_HEAD)"
+    if [ -n "$EXPECT_SHA" ] && [ "$DEPLOY_TARGET_SHA" != "$EXPECT_SHA" ]; then
+      die "fetched $BRANCH tip $DEPLOY_TARGET_SHA does not match --expect-sha $EXPECT_SHA — refusing before any runtime changes"
+    fi
     git -C "$RUNTIME_DIR" checkout -q "$BRANCH"
-    git -C "$RUNTIME_DIR" reset --hard -q "origin/$BRANCH"
+    git -C "$RUNTIME_DIR" reset --hard -q "$DEPLOY_TARGET_SHA"
   fi
 fi
 
@@ -141,14 +176,10 @@ fi
 
 HEAD_SHA="$(git -C "$RUNTIME_DIR" rev-parse HEAD)"
 if [ "$DRY_RUN" != 1 ]; then
-  MAIN_SHA="$(git -C "$RUNTIME_DIR" rev-parse "origin/$BRANCH")"
-  [ "$HEAD_SHA" = "$MAIN_SHA" ] || die "HEAD $HEAD_SHA != origin/$BRANCH $MAIN_SHA after reset"
+  [ "$HEAD_SHA" = "$DEPLOY_TARGET_SHA" ] || die "HEAD $HEAD_SHA != verified target $DEPLOY_TARGET_SHA after checkout"
 fi
-if [ -n "$EXPECT_SHA" ]; then
-  case "$HEAD_SHA" in
-    "$EXPECT_SHA"*) ;;
-    *) die "deployed tip $HEAD_SHA does not match --expect-sha $EXPECT_SHA" ;;
-  esac
+if [ -n "$EXPECT_SHA" ] && [ "$HEAD_SHA" != "$EXPECT_SHA" ]; then
+  die "deployed tip $HEAD_SHA does not match --expect-sha $EXPECT_SHA"
 fi
 log "runtime checkout at $HEAD_SHA ($RUNTIME_DIR)"
 
@@ -233,6 +264,7 @@ fi
 
 for f in "${PROFILE_MANIFEST[@]}"; do
   [ -f "$RUNTIME_DIR/scripts/$f" ] || die "manifest file missing from deployed checkout: scripts/$f"
+  [ ! -L "$RUNTIME_DIR/scripts/$f" ] || die "manifest source is a symlink, not a regular file: scripts/$f"
 done
 
 CHECKSUM_LINES=""
@@ -251,7 +283,13 @@ else
   fi
   for f in "${PROFILE_MANIFEST[@]}"; do
     src="$RUNTIME_DIR/scripts/$f"
+    # cp -a above preserved the live set verbatim, symlinks included. Writing
+    # through a managed symlink would follow it out of the staging directory
+    # and clobber its target, so unlink the destination first: every managed
+    # path must be a regular file created here, never a link we inherited.
+    rm -f "$STAGE/$f"
     cp "$src" "$STAGE/$f"
+    { [ -f "$STAGE/$f" ] && [ ! -L "$STAGE/$f" ]; } || die "staged $f is not a regular file"
     src_sum="$(sha256sum "$src" | cut -d' ' -f1)"
     dst_sum="$(sha256sum "$STAGE/$f" | cut -d' ' -f1)"
     [ "$src_sum" = "$dst_sum" ] || die "checksum mismatch after copy: $f ($src_sum != $dst_sum)"
@@ -278,6 +316,13 @@ else
     [ -n "$backup" ] && mv "$backup" "$PROFILE_SCRIPTS_DIR"
     die "failed to activate staged profile scripts — previous set restored"
   fi
+  for f in "${PROFILE_MANIFEST[@]}"; do
+    dst="$PROFILE_SCRIPTS_DIR/$f"
+    { [ -f "$dst" ] && [ ! -L "$dst" ]; } || die "installed $f is not a regular file"
+    dst_sum="$(sha256sum "$dst" | cut -d' ' -f1)"
+    src_sum="$(sha256sum "$RUNTIME_DIR/scripts/$f" | cut -d' ' -f1)"
+    [ "$src_sum" = "$dst_sum" ] || die "checksum mismatch after install: $f ($src_sum != $dst_sum)"
+  done
   log "installed ${#PROFILE_MANIFEST[@]} checksum-verified profile script copies"
 fi
 

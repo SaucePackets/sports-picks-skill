@@ -45,10 +45,15 @@ scripts/deploy-runtime.sh --expect-sha <merged-main-tip>
 - **Clean-main guard** — local modifications *and untracked files* in the
   runtime checkout abort the deploy (gitignored `.picks/` and `.deploy/` state
   is excluded as usual); after reset, `HEAD` must equal `origin/main`.
-- **Exact-tip guard, preflighted** — `--expect-sha` is compared against the
-  remote tip resolved via `git ls-remote` *before* any clone, fetch, checkout,
-  or reset, so a mismatch leaves the runtime checkout exactly as it was. The
-  deployed `HEAD` is re-checked after the reset as well.
+- **Exact-tip guard, race-free** — `--expect-sha` must be a full 40-hex commit
+  id and is compared for exact equality (an abbreviation pins nothing). The
+  `git ls-remote` preflight buys an early refusal before any clone or fetch,
+  but it is not authoritative: the remote can advance in that window. The
+  binding check is against the commit the deploy actually obtained — the
+  `FETCH_HEAD` of a refs-only `git fetch` on a redeploy, or a `--no-checkout`
+  clone on first deploy — and only a match lets the checkout/reset run. A
+  mismatch leaves the runtime checkout exactly as it was (first deploy discards
+  its own clone). The deployed `HEAD` is re-checked after the reset as well.
 - **State preservation** — existing `.picks/` is never modified or deleted;
   seeding only fills an absent/empty `.picks/` and never overwrites.
 - **Fail-closed profile install** — the complete manifest set is staged in a
@@ -58,6 +63,11 @@ scripts/deploy-runtime.sh --expect-sha <merged-main-tip>
   set kept as a timestamped `.bak-<ts>` sibling; a failed swap restores it. No
   failure path leaves a partial live install. Unmanaged files are warned about,
   never deleted.
+- **No symlink escape** — a symlinked profile scripts dir is refused outright.
+  Managed staged destinations are unlinked before they are written, so a
+  symlink inherited from the live set can never be followed out of the staging
+  directory, and every staged *and* installed manifest path is asserted to be a
+  regular non-symlink file whose `sha256` matches the runtime checkout.
 - **Cron repoint is opt-in, paused-only, and preflighted** — the enabled-job
   refusal runs read-only *before* the profile install, so a refused deploy
   leaves both `jobs.json` and the live profile scripts untouched. The apply

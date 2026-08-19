@@ -47,7 +47,7 @@ def origin(tmp_path: Path) -> Path:
 
 
 def _run(origin: Path, tmp_path: Path, *extra: str, check: bool = True,
-         seed: bool = True) -> subprocess.CompletedProcess:
+         seed: bool = True, env: dict[str, str] | None = None) -> subprocess.CompletedProcess:
     args = [
         "bash", str(DEPLOY),
         "--repo-url", str(origin),
@@ -61,7 +61,7 @@ def _run(origin: Path, tmp_path: Path, *extra: str, check: bool = True,
         (seed_dir / ".picks" / "INDEX.md").write_text("seeded\n")
         args += ["--seed-picks-from", str(seed_dir)]
     args += list(extra)
-    proc = subprocess.run(args, capture_output=True, text=True)
+    proc = subprocess.run(args, capture_output=True, text=True, env=env)
     if check and proc.returncode != 0:
         raise AssertionError(f"deploy failed:\n{proc.stdout}\n{proc.stderr}")
     return proc
@@ -259,6 +259,109 @@ def test_untracked_file_fails_clean_tree_guard(origin, tmp_path):
     stray.unlink()
     # Ignored runtime state (.picks/, .deploy/) alone must still deploy cleanly.
     _run(origin, tmp_path)
+
+
+def _racing_git_shim(tmp_path: Path, work: Path) -> Path:
+    """A git wrapper that advances the fixture origin right after ls-remote.
+
+    Deterministically reproduces the check/use window: the deploy script sees
+    tip A from ls-remote, and by the time it fetches, the remote is at B.
+    """
+    real = shutil.which("git")
+    assert real
+    bindir = tmp_path / "shim-bin"
+    bindir.mkdir()
+    flag = tmp_path / "shim-fired"
+    shim = bindir / "git"
+    shim.write_text(
+        "#!/usr/bin/env bash\n"
+        f'REAL="{real}"\n'
+        f'if [ "$1" = "ls-remote" ] && [ ! -e "{flag}" ]; then\n'
+        f'  : > "{flag}"\n'
+        '  out="$("$REAL" "$@")"; rc=$?\n'
+        f'  "$REAL" -C "{work}" push -q origin main >/dev/null 2>&1\n'
+        "  printf '%s\\n' \"$out\"\n"
+        "  exit $rc\n"
+        "fi\n"
+        'exec "$REAL" "$@"\n'
+    )
+    shim.chmod(0o755)
+    return bindir
+
+
+def test_remote_advancing_after_preflight_preserves_runtime_head(origin, tmp_path):
+    """--expect-sha A must not deploy B when the remote moves after ls-remote."""
+    _run(origin, tmp_path)
+    runtime = tmp_path / "runtime"
+    head_a = _git(runtime, "rev-parse", "HEAD")
+    profile_before = _profile_snapshot(tmp_path)
+
+    work = tmp_path / "race-work"
+    subprocess.run(["git", "clone", "-q", str(origin), str(work)], check=True)
+    (work / "scripts" / "raced_module.py").write_text("VALUE = 2\n")
+    _git(work, "add", "-A")
+    _git(work, "commit", "-q", "-m", "race: advance origin after ls-remote")
+    head_b = _git(work, "rev-parse", "HEAD")
+    assert head_b != head_a
+
+    env = dict(os.environ)
+    env["PATH"] = f"{_racing_git_shim(tmp_path, work)}{os.pathsep}{env['PATH']}"
+    proc = _run(origin, tmp_path, "--expect-sha", head_a, check=False, env=env)
+
+    # The shim really did move the remote — otherwise this test proves nothing.
+    assert (tmp_path / "shim-fired").exists()
+    assert _git(work, "ls-remote", str(origin), "refs/heads/main").split()[0] == head_b
+
+    assert proc.returncode != 0
+    assert "does not match --expect-sha" in proc.stderr
+    assert _git(runtime, "rev-parse", "HEAD") == head_a
+    assert not (runtime / "scripts" / "raced_module.py").exists()
+    assert _profile_snapshot(tmp_path) == profile_before
+    assert _no_profile_siblings(tmp_path)
+
+
+def test_abbreviated_or_malformed_expect_sha_is_rejected(origin, tmp_path):
+    _run(origin, tmp_path)
+    runtime = tmp_path / "runtime"
+    head = _git(runtime, "rev-parse", "HEAD")
+    profile_before = _profile_snapshot(tmp_path)
+    for pin in (head[:1], head[:8], head[:39], head + "a", "z" * 40):
+        proc = _run(origin, tmp_path, "--expect-sha", pin, check=False)
+        assert proc.returncode != 0, pin
+        assert "full 40-hex" in proc.stderr, pin
+    assert _git(runtime, "rev-parse", "HEAD") == head
+    assert _profile_snapshot(tmp_path) == profile_before
+    assert _no_profile_siblings(tmp_path)
+    # The full sha still deploys, so the guard is not simply refusing everything.
+    _run(origin, tmp_path, "--expect-sha", head.upper())
+
+
+def test_refuses_symlinked_profile_scripts_dir(origin, tmp_path):
+    real_dir = tmp_path / "elsewhere-scripts"
+    real_dir.mkdir()
+    (tmp_path / "profile").mkdir()
+    (tmp_path / "profile" / "scripts").symlink_to(real_dir)
+    proc = _run(origin, tmp_path, check=False)
+    assert proc.returncode != 0
+    assert "symlink" in proc.stderr
+    assert not list(real_dir.iterdir())
+    assert not (tmp_path / "runtime").exists()
+
+
+def test_managed_symlink_cannot_escape_the_staging_dir(origin, tmp_path):
+    _run(origin, tmp_path)
+    profile = tmp_path / "profile" / "scripts"
+    external = tmp_path / "external-sentinel.py"
+    external.write_text("SENTINEL = 'untouched'\n")
+    managed = profile / "execution_guard.py"
+    managed.unlink()
+    managed.symlink_to(external)
+
+    _run(origin, tmp_path)
+
+    assert external.read_text() == "SENTINEL = 'untouched'\n"
+    assert not managed.is_symlink()
+    assert _sha256(managed) == _sha256(tmp_path / "runtime" / "scripts" / "execution_guard.py")
 
 
 def _manifest_names() -> list[str]:
