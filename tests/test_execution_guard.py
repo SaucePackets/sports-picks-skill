@@ -583,7 +583,7 @@ class FinalLockPolicyIntegrationTests(unittest.TestCase):
     official MLB bet — using the canonical DEPLOYED policy JSON shape."""
 
     DEPLOYED_POLICY_BLOCK = {
-        # Mirrors /home/clawdbot/.hermes/vig/state/risk_limits.json exactly:
+        # Mirrors the live ~/.hermes/vig/state/risk_limits.json exactly:
         # deployed key names, not the reviewed key names.
         "mlb_policy": {
             "schema": "vig-mlb-selection-policy-v1",

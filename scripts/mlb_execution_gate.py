@@ -54,7 +54,10 @@ LIQUIDITY_RETRY_MINUTES = 10
 # defers and retries instead. Both are overridable via risk_limits.json.
 PARTIAL_FILL_FLOOR_USD = 5.0
 PARTIAL_FILL_MIN_FRACTION = 0.5
-RISK_LIMITS_PATH = Path("/home/clawdbot/.hermes/vig/state/risk_limits.json")
+RISK_LIMITS_PATH = Path(
+    os.environ.get("VIG_RISK_LIMITS_PATH")
+    or Path.home() / ".hermes" / "vig" / "state" / "risk_limits.json"
+)
 
 
 def _load_risk_limits() -> dict[str, Any]:

@@ -85,6 +85,20 @@ TS="$(date +%Y%m%d-%H%M%S)"
 
 [ "$RUNTIME_DIR" != "$PROFILE_SCRIPTS_DIR" ] || die "runtime dir and profile scripts dir must differ"
 
+# --- Phase 0: --expect-sha preflight (read-only, before any mutation) -------
+# Resolve the remote tip via ls-remote so a mismatch is rejected before the
+# clone, fetch, checkout, or reset ever runs — a refused deploy must leave the
+# runtime checkout exactly as it found it.
+
+if [ -n "$EXPECT_SHA" ]; then
+  REMOTE_SHA="$(git ls-remote "$REPO_URL" "refs/heads/$BRANCH" | cut -f1)"
+  [ -n "$REMOTE_SHA" ] || die "cannot resolve refs/heads/$BRANCH on $REPO_URL"
+  case "$REMOTE_SHA" in
+    "$EXPECT_SHA"*) log "preflight: origin/$BRANCH is $REMOTE_SHA (matches --expect-sha)" ;;
+    *) die "origin/$BRANCH tip $REMOTE_SHA does not match --expect-sha $EXPECT_SHA — refusing before any runtime changes" ;;
+  esac
+fi
+
 # --- Phase 1: runtime checkout at clean origin/main -------------------------
 
 if [ ! -d "$RUNTIME_DIR/.git" ]; then
@@ -105,8 +119,11 @@ else
   [ -f "$MARKER" ] || die "$RUNTIME_DIR is a git checkout without $MARKER_REL — refusing to manage it"
   origin_url="$(git -C "$RUNTIME_DIR" remote get-url origin)"
   [ "$origin_url" = "$REPO_URL" ] || die "runtime origin is $origin_url, expected $REPO_URL"
-  dirty="$(git -C "$RUNTIME_DIR" status --porcelain --untracked-files=no)"
-  [ -z "$dirty" ] || die "runtime checkout has local modifications — investigate, do not deploy:
+  # Untracked files count as dirt too: anything unmanaged in a managed runtime
+  # is a hand edit that a redeploy must not silently bless. Ignored paths
+  # (.picks/, .deploy/) are excluded by gitignore as usual.
+  dirty="$(git -C "$RUNTIME_DIR" status --porcelain --untracked-files=all)"
+  [ -z "$dirty" ] || die "runtime checkout has local modifications or untracked files — investigate, do not deploy:
 $dirty"
   if [ "$DRY_RUN" = 1 ]; then
     log "DRY-RUN: would fetch origin and hard-reset $RUNTIME_DIR to origin/$BRANCH"
@@ -156,58 +173,13 @@ else
   die "runtime has no .picks state and no --seed-picks-from was given"
 fi
 
-# --- Phase 3: profile-local script copies with checksum verification --------
-
-for f in "${PROFILE_MANIFEST[@]}"; do
-  [ -f "$RUNTIME_DIR/scripts/$f" ] || die "manifest file missing from deployed checkout: scripts/$f"
-done
-
-CHECKSUM_LINES=""
-if [ "$DRY_RUN" = 1 ]; then
-  log "DRY-RUN: would back up $PROFILE_SCRIPTS_DIR and install ${#PROFILE_MANIFEST[@]} manifest files"
-else
-  mkdir -p "$PROFILE_SCRIPTS_DIR"
-  if [ -n "$(ls -A "$PROFILE_SCRIPTS_DIR" 2>/dev/null)" ]; then
-    backup="${PROFILE_SCRIPTS_DIR%/}.bak-$TS"
-    cp -a "$PROFILE_SCRIPTS_DIR" "$backup"
-    log "backed up existing profile scripts to $backup"
-  fi
-  for f in "${PROFILE_MANIFEST[@]}"; do
-    src="$RUNTIME_DIR/scripts/$f"
-    dst="$PROFILE_SCRIPTS_DIR/$f"
-    cp "$src" "$dst.tmp-$TS"
-    mv "$dst.tmp-$TS" "$dst"
-    src_sum="$(sha256sum "$src" | cut -d' ' -f1)"
-    dst_sum="$(sha256sum "$dst" | cut -d' ' -f1)"
-    [ "$src_sum" = "$dst_sum" ] || die "checksum mismatch after copy: $f ($src_sum != $dst_sum)"
-    CHECKSUM_LINES="$CHECKSUM_LINES$src_sum  $f"$'\n'
-  done
-  log "installed and checksum-verified ${#PROFILE_MANIFEST[@]} profile script copies"
-  for existing in "$PROFILE_SCRIPTS_DIR"/*.py; do
-    name="$(basename "$existing")"
-    managed=0
-    for f in "${PROFILE_MANIFEST[@]}"; do [ "$f" = "$name" ] && managed=1 && break; done
-    [ "$managed" = 1 ] || log "WARNING: unmanaged file in profile scripts dir: $name"
-  done
-  for f in "${PROFILE_MANIFEST[@]}"; do
-    python3 -m py_compile "$PROFILE_SCRIPTS_DIR/$f" || die "py_compile failed for $f"
-  done
-  log "py_compile smoke check passed for all manifest files"
-fi
-
-# --- Phase 4 (opt-in): repoint paused cron workdirs to the runtime dir ------
-
-CRON_SUMMARY="not requested"
-if [ -n "$REPOINT_CRON_FROM" ]; then
-  [ -f "$CRON_JOBS_FILE" ] || die "cron jobs file not found: $CRON_JOBS_FILE"
-  if [ "$DRY_RUN" = 1 ]; then
-    log "DRY-RUN: would repoint cron workdirs $REPOINT_CRON_FROM -> $RUNTIME_DIR in $CRON_JOBS_FILE"
-    CRON_SUMMARY="dry-run"
-  else
-    CRON_SUMMARY="$(python3 - "$CRON_JOBS_FILE" "$REPOINT_CRON_FROM" "$RUNTIME_DIR" "$TS" <<'PYEOF'
+# Shared cron repoint helper. mode=check is read-only: it fails on any matched
+# ENABLED job and writes nothing. mode=apply performs the backup + rewrite.
+cron_repoint() {
+  python3 - "$1" "$CRON_JOBS_FILE" "$REPOINT_CRON_FROM" "$RUNTIME_DIR" "$TS" <<'PYEOF'
 import json, os, sys
 
-jobs_file, old_workdir, new_workdir, ts = sys.argv[1:5]
+mode, jobs_file, old_workdir, new_workdir, ts = sys.argv[1:6]
 with open(jobs_file) as fh:
     data = json.load(fh)
 jobs = data["jobs"] if isinstance(data, dict) and "jobs" in data else data
@@ -220,6 +192,9 @@ enabled = [j for j in matched if j.get("enabled")]
 if enabled:
     names = ", ".join(str(j.get("name")) for j in enabled)
     sys.exit("refusing to repoint ENABLED jobs (pause them first): " + names)
+if mode == "check":
+    print(f"{len(matched)} paused job(s) eligible for repoint")
+    sys.exit(0)
 
 backup = jobs_file + ".bak-deploy-" + ts
 with open(backup, "w") as fh:
@@ -233,9 +208,84 @@ os.replace(tmp, jobs_file)
 ids = ", ".join(str(j.get("id")) for j in matched)
 print(f"repointed {len(matched)} paused job(s) [{ids}]; backup: {backup}")
 PYEOF
-)" || die "cron repoint failed: $CRON_SUMMARY"
-    log "cron: $CRON_SUMMARY"
+}
+
+# --- Phase 3a: cron repoint preflight (before any profile mutation) ---------
+# An ENABLED matched job must refuse the whole deploy while the live profile
+# directory is still untouched — not after new code is already installed.
+
+CRON_SUMMARY="not requested"
+if [ -n "$REPOINT_CRON_FROM" ]; then
+  [ -f "$CRON_JOBS_FILE" ] || die "cron jobs file not found: $CRON_JOBS_FILE"
+  if [ "$DRY_RUN" = 1 ]; then
+    log "DRY-RUN: would repoint cron workdirs $REPOINT_CRON_FROM -> $RUNTIME_DIR in $CRON_JOBS_FILE"
+    CRON_SUMMARY="dry-run"
+  else
+    precheck="$(cron_repoint check)" || die "cron repoint preflight failed: $precheck"
+    log "cron preflight: $precheck"
   fi
+fi
+
+# --- Phase 3b: profile-local script copies (staged, verified, atomic swap) --
+# The complete set is staged and validated next to the live directory first;
+# the live directory only changes in the final rename swap, and a failed swap
+# restores the previous set. No failure path leaves a partial live install.
+
+for f in "${PROFILE_MANIFEST[@]}"; do
+  [ -f "$RUNTIME_DIR/scripts/$f" ] || die "manifest file missing from deployed checkout: scripts/$f"
+done
+
+CHECKSUM_LINES=""
+if [ "$DRY_RUN" = 1 ]; then
+  log "DRY-RUN: would stage, verify, and atomically install ${#PROFILE_MANIFEST[@]} manifest files into $PROFILE_SCRIPTS_DIR"
+else
+  mkdir -p "$(dirname "$PROFILE_SCRIPTS_DIR")"
+  STAGE="${PROFILE_SCRIPTS_DIR%/}.stage-$TS"
+  rm -rf "$STAGE"
+  trap 'rm -rf "$STAGE"' EXIT
+  if [ -d "$PROFILE_SCRIPTS_DIR" ]; then
+    # Start the stage from the live set so unmanaged files survive the swap.
+    cp -a "$PROFILE_SCRIPTS_DIR" "$STAGE"
+  else
+    mkdir -p "$STAGE"
+  fi
+  for f in "${PROFILE_MANIFEST[@]}"; do
+    src="$RUNTIME_DIR/scripts/$f"
+    cp "$src" "$STAGE/$f"
+    src_sum="$(sha256sum "$src" | cut -d' ' -f1)"
+    dst_sum="$(sha256sum "$STAGE/$f" | cut -d' ' -f1)"
+    [ "$src_sum" = "$dst_sum" ] || die "checksum mismatch after copy: $f ($src_sum != $dst_sum)"
+    CHECKSUM_LINES="$CHECKSUM_LINES$src_sum  $f"$'\n'
+  done
+  for f in "${PROFILE_MANIFEST[@]}"; do
+    python3 -m py_compile "$STAGE/$f" || die "py_compile failed for $f — live profile scripts left untouched"
+  done
+  rm -rf "$STAGE/__pycache__"
+  log "staged and verified ${#PROFILE_MANIFEST[@]} manifest files (checksums + py_compile)"
+  for existing in "$STAGE"/*.py; do
+    name="$(basename "$existing")"
+    managed=0
+    for f in "${PROFILE_MANIFEST[@]}"; do [ "$f" = "$name" ] && managed=1 && break; done
+    [ "$managed" = 1 ] || log "WARNING: unmanaged file in profile scripts dir: $name"
+  done
+  backup=""
+  if [ -d "$PROFILE_SCRIPTS_DIR" ]; then
+    backup="${PROFILE_SCRIPTS_DIR%/}.bak-$TS"
+    mv "$PROFILE_SCRIPTS_DIR" "$backup"
+    log "moved previous profile scripts to $backup"
+  fi
+  if ! mv "$STAGE" "$PROFILE_SCRIPTS_DIR"; then
+    [ -n "$backup" ] && mv "$backup" "$PROFILE_SCRIPTS_DIR"
+    die "failed to activate staged profile scripts — previous set restored"
+  fi
+  log "installed ${#PROFILE_MANIFEST[@]} checksum-verified profile script copies"
+fi
+
+# --- Phase 4 (opt-in): repoint paused cron workdirs to the runtime dir ------
+
+if [ -n "$REPOINT_CRON_FROM" ] && [ "$DRY_RUN" != 1 ]; then
+  CRON_SUMMARY="$(cron_repoint apply)" || die "cron repoint failed: $CRON_SUMMARY"
+  log "cron: $CRON_SUMMARY"
 fi
 
 # --- Receipt ----------------------------------------------------------------
