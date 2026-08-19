@@ -30,6 +30,7 @@ for _guard_dir in (
         sys.path.insert(0, str(_guard_dir))
 
 from mlb_lineup_watchlist import (  # noqa: E402
+    PENDING_STATUS,
     WatchlistFormatError,
     build_recheck_prompt,
     due_entries,
@@ -582,6 +583,13 @@ def validate_review_transition(
             errors.append(f"watchlist {entry_id} missing after review")
             continue
         status = entry.get("status")
+        if status == PENDING_STATUS and entry == before_watch.get(entry_id):
+            # Deferred no-op: the recheck could not resolve this cycle (e.g. the
+            # live price was unavailable) and intentionally left the entry
+            # byte-identical at pending_lineup_recheck. It stays due and is
+            # routed again next cycle; a pending entry that was EDITED still
+            # fails below.
+            continue
         if status not in ("promoted", "passed"):
             errors.append(f"watchlist {entry_id} did not reach promoted or passed")
             continue
@@ -915,19 +923,21 @@ def build_lineup_recheck_report(
     for entry_id in watchlist_ids:
         entry = entries[entry_id]
         approved = entry.get("status") == "promoted"
+        deferred = entry.get("status") == PENDING_STATUS
         candidate = entry.get("promoted_candidate") if approved else {}
         if not isinstance(candidate, dict):
             candidate = {}
-        decision = "APPROVED" if approved else "PASSED"
+        decision = "APPROVED" if approved else ("DEFERRED" if deferred else "PASSED")
         side = _concise_text(candidate.get("side") or entry.get("side"), 80)
         supported_price = _watchlist_supported_price(candidate, entry)
         bettable_to = candidate.get("bettable_to_price", entry.get("bettable_to_price"))
         reason = entry.get("recheck_notes") or candidate.get("vig_notes") or "No reason recorded."
-        status = (
-            _approved_status(sport, candidate, mlb_standing_authorized)
-            if approved
-            else "passed; no bet"
-        )
+        if approved:
+            status = _approved_status(sport, candidate, mlb_standing_authorized)
+        elif deferred:
+            status = "still pending recheck; no bet"
+        else:
+            status = "passed; no bet"
         sections.append(
             "\n".join(
                 [

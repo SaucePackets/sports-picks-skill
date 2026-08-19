@@ -925,6 +925,75 @@ class VigReviewGateCommonTests(unittest.TestCase):
             finally:
                 setattr(vig_review_gate_common, "ROOT", original_root)
 
+    def test_no_price_deferred_recheck_is_accepted_without_rollback(self):
+        # Regression: the live price fetch fails, the recheck intentionally
+        # leaves the due entry byte-identical at pending_lineup_recheck, and the
+        # gate must accept the deferred no-op instead of failing the transition
+        # and restoring the pre-review schedule.
+        with tempfile.TemporaryDirectory() as tmp:
+            original_root = getattr(vig_review_gate_common, "ROOT")
+            try:
+                root = Path(tmp)
+                setattr(vig_review_gate_common, "ROOT", root)
+                day = vig_review_gate_common.datetime.now(
+                    vig_review_gate_common.ZoneInfo("America/Chicago")
+                ).date().isoformat()
+                schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
+                schedule_path.parent.mkdir(parents=True)
+                first_pitch = datetime.now(timezone.utc) + timedelta(minutes=75)
+                entry = self._watch_entry(
+                    side="MIN",
+                    game="Minnesota Twins at Chicago Cubs",
+                    first_pitch_utc=first_pitch.isoformat(),
+                    polymarket_slug="aec-mlb-min-chc-2026-07-17",
+                )
+                before_text = json.dumps(
+                    {"candidates": [], "lineup_watchlist": [entry]}
+                )
+                schedule_path.write_text(before_text)
+
+                def deferred_review(*args, **kwargs):
+                    # The child reviewer cannot resolve the recheck (no live
+                    # price) and leaves the schedule untouched on disk.
+                    return vig_review_gate_common.subprocess.CompletedProcess(
+                        args[0], 0, stdout="Recheck deferred: price unavailable", stderr=""
+                    )
+
+                output = StringIO()
+                with (
+                    patch.object(
+                        vig_review_gate_common.subprocess, "run", side_effect=deferred_review
+                    ),
+                    patch.object(
+                        vig_review_gate_common, "fetch_market_price", return_value=None
+                    ),
+                    patch.object(
+                        vig_review_gate_common,
+                        "fetch_lineup_snapshot",
+                        side_effect=Exception("lineup feed unavailable"),
+                    ),
+                    redirect_stdout(output),
+                ):
+                    status = vig_review_gate_common.run_gate("MLB")
+
+                self.assertEqual(status, 0)
+                self.assertNotIn("pre-review schedule restored", output.getvalue())
+                self.assertNotIn("invalid review transition", output.getvalue())
+                self.assertIn("MLB lineup recheck — DEFERRED", output.getvalue())
+                self.assertIn("Status: still pending recheck; no bet", output.getvalue())
+                # The candidate/watchlist state on disk is byte-identical: no
+                # fabricated approval, price, probability, or execution fields.
+                # (The routing normalizer's top-level sport/market_type/date
+                # stamp predates this fix and is not part of the entry state.)
+                persisted = json.loads(schedule_path.read_text())
+                self.assertEqual(persisted["lineup_watchlist"], [entry])
+                self.assertEqual(persisted["candidates"], [])
+                latest = (root / ".picks" / "latest-action.md").read_text()
+                self.assertIn("1 lineup watchlist recheck pending", latest)
+                self.assertIn("Review gate placed no bet", latest)
+            finally:
+                setattr(vig_review_gate_common, "ROOT", original_root)
+
     def test_child_failure_is_concise_and_does_not_echo_child_output(self):
         with tempfile.TemporaryDirectory() as tmp:
             original_root = getattr(vig_review_gate_common, "ROOT")
@@ -1240,7 +1309,11 @@ class VigReviewGateCommonTests(unittest.TestCase):
 
         self.assertTrue([e for e in errors if "LW-injected" in e], errors)
 
-    def test_post_review_requires_targeted_watch_entry_to_finish(self):
+    def test_unchanged_pending_targeted_watch_entry_is_a_deferred_noop(self):
+        # A recheck that cannot resolve this cycle (e.g. live price unavailable)
+        # intentionally leaves the entry byte-identical at
+        # pending_lineup_recheck; that is a valid deferred no-op, not a failed
+        # transition, so the cron must not roll the schedule back.
         before = {
             "candidates": [],
             "lineup_watchlist": [self._watch_entry()],
@@ -1248,6 +1321,25 @@ class VigReviewGateCommonTests(unittest.TestCase):
         after = {
             "candidates": [],
             "lineup_watchlist": [self._watch_entry()],
+        }
+
+        errors = vig_review_gate_common.validate_review_transition(before, after, [], ["watch-1"])
+
+        self.assertEqual(errors, [])
+
+    def test_edited_pending_targeted_watch_entry_still_fails(self):
+        # The deferred no-op tolerance is strictly for an UNCHANGED entry: a
+        # review that edits an entry while leaving it pending is still an
+        # unfinished transition.
+        before = {
+            "candidates": [],
+            "lineup_watchlist": [self._watch_entry()],
+        }
+        after = {
+            "candidates": [],
+            "lineup_watchlist": [
+                self._watch_entry(rechecked_at_utc="2026-07-17T21:50:00Z")
+            ],
         }
 
         errors = vig_review_gate_common.validate_review_transition(before, after, [], ["watch-1"])
