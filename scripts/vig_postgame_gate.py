@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import json, subprocess, sys
+import json, os, shutil, subprocess, sys
 from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 from mlb_postgame_evidence import postgame_prompt_section  # noqa: E402
-HERMES='/home/clawdbot/.local/bin/hermes'
-PICKS=Path('/home/clawdbot/notes/Sports/picks/picks.json')
-ROOT=Path('/home/clawdbot/projects/sports-picks-skill')
+from vig_review_gate_common import resolve_root  # noqa: E402
+HERMES=os.environ.get('HERMES_BIN') or shutil.which('hermes') or str(Path.home()/'.local/bin/hermes')
+PICKS=Path(os.environ.get('VIG_PICKS_FILE') or Path.home()/'notes/Sports/picks/picks.json')
+ROOT=resolve_root()
 
 def _num(x):
     try: return float(x)

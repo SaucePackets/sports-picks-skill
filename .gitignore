@@ -8,3 +8,6 @@ __pycache__/
 # Personal betting records must never be tracked in this public repo (2026-07-23)
 .venv/
 requirements-dev.txt
+
+# Runtime deploy receipts + marker (deploy-runtime.sh)
+.deploy/
