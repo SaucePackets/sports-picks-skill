@@ -145,6 +145,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
             PROBABILITY_TRAIL,
             vig_approved=True,
             vig_notes="All gates hold.",
+            approved_polymarket_ask=0.48,
             execution_mode="manual",
             manual_bet_status="awaiting_jerry",
             execution_status="pending_manual_fill",
@@ -192,7 +193,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
 
         self.assertEqual(
             errors,
-            ["candidate event_id:1|side:CWS has no strict numeric approved Polymarket ask"],
+            ["candidate event_id:1|side:CWS has no strict numeric approved_polymarket_ask"],
         )
         self.assertNotEqual(after["candidates"][0].get("execution_mode"), "standing_authorized")
 
@@ -224,7 +225,10 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 contract = dict(PROBABILITY_TRAIL)
                 contract[field] = bad
                 after["candidates"][0].update(
-                    contract, vig_approved=True, vig_notes="All gates hold."
+                    contract,
+                    vig_approved=True,
+                    vig_notes="All gates hold.",
+                    approved_polymarket_ask=0.48,
                 )
 
                 errors = vig_review_gate_common.normalize_review_routing(
@@ -246,7 +250,42 @@ class VigReviewGateCommonTests(unittest.TestCase):
                     msg=f"{field}={bad} must not route to standing_authorized",
                 )
 
-    def test_normalize_uses_original_captured_ask_when_child_mutates_generic_ask(self):
+    def test_normalize_rejects_regular_approval_with_only_legacy_ask_fields(self):
+        # P1 regression (PR #48 review): a regular card approval must carry the
+        # explicit approved_polymarket_ask exactly like a lineup promotion.
+        # Legacy captured/original ask fields — in before or after — are never
+        # a fallback.
+        for legacy in (
+            {"polymarket_ask": 0.525},
+            {"captured_polymarket_ask": 0.525},
+            {"polymarket_ask": 0.525, "captured_polymarket_ask": 0.51},
+        ):
+            with self.subTest(legacy=legacy):
+                before = {
+                    "candidates": [
+                        {"event_id": "1", "side": "CWS", "vig_approved": None, **legacy}
+                    ]
+                }
+                after = json.loads(json.dumps(before))
+                after["candidates"][0].update(
+                    PROBABILITY_TRAIL, vig_approved=True, vig_notes="Approved.", **legacy
+                )
+
+                errors = vig_review_gate_common.normalize_review_routing(
+                    before, after, "MLB", mlb_standing_authorized=True
+                )
+
+                self.assertEqual(
+                    errors,
+                    ["candidate event_id:1|side:CWS has no strict numeric approved_polymarket_ask"],
+                )
+                self.assertNotEqual(
+                    after["candidates"][0].get("execution_mode"), "standing_authorized"
+                )
+
+    def test_normalize_ignores_mutated_generic_ask_when_approved_ask_is_set(self):
+        # The child may rewrite polymarket_ask; only approved_polymarket_ask
+        # feeds routing, and the ceiling still comes from the shared policy.
         before = {
             "candidates": [
                 {
@@ -262,6 +301,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
             PROBABILITY_TRAIL,
             vig_approved=True,
             vig_notes="Approved.",
+            approved_polymarket_ask=0.48,
             polymarket_ask=0.99,
         )
 
@@ -332,7 +372,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
         )
         self.assertNotEqual(approved.get("execution_mode"), "standing_authorized")
 
-    def test_normalize_valid_watchlist_promotion_uses_captured_ask(self):
+    def test_normalize_valid_watchlist_promotion_routes_on_approved_ask(self):
         before = {"candidates": [], "lineup_watchlist": [self._watch_entry()]}
         promoted_candidate = {
             "watchlist_id": "watch-1",
@@ -340,11 +380,16 @@ class VigReviewGateCommonTests(unittest.TestCase):
             **PROBABILITY_TRAIL,
             "vig_approved": True,
             "vig_notes": "All gates hold.",
-            "polymarket_ask": 0.51,
+            # Must agree with the refreshed current_ask / supported_price the
+            # same recheck wrote (PR #48 review, finding 2).
+            "approved_polymarket_ask": 0.48,
         }
         promoted = self._watch_entry(
             status="promoted", promoted_candidate=dict(promoted_candidate)
         )
+        # Exact upstream promotion shape: the approved price is a JSON number,
+        # not American odds and not a quoted string.
+        self.assertIsInstance(promoted_candidate["approved_polymarket_ask"], float)
         after = {"candidates": [promoted_candidate], "lineup_watchlist": [promoted]}
 
         errors = vig_review_gate_common.normalize_review_routing(
@@ -354,6 +399,67 @@ class VigReviewGateCommonTests(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertEqual(promoted_candidate["max_polymarket_price"], POLICY_CEILING)
         self.assertEqual(promoted["promoted_candidate"], promoted_candidate)
+
+    def test_lineup_promotion_rejects_legacy_or_invalid_approved_ask(self):
+        for field, value in (
+            ("polymarket_ask", 0.51),
+            ("captured_polymarket_ask", 0.51),
+            ("approved_polymarket_ask", "0.51"),
+            ("approved_polymarket_ask", 110),
+            ("approved_polymarket_ask", 0),
+            ("approved_polymarket_ask", 1),
+        ):
+            with self.subTest(field=field, value=value):
+                before = {"candidates": [], "lineup_watchlist": [self._watch_entry()]}
+                candidate = {
+                    "watchlist_id": "watch-1",
+                    "side": "ABC",
+                    **PROBABILITY_TRAIL,
+                    "vig_approved": True,
+                    "vig_notes": "All gates hold.",
+                    field: value,
+                }
+                promoted = self._watch_entry(status="promoted", promoted_candidate=dict(candidate))
+                errors = vig_review_gate_common.normalize_review_routing(
+                    before,
+                    {"candidates": [candidate], "lineup_watchlist": [promoted]},
+                    "MLB",
+                    mlb_standing_authorized=True,
+                )
+                self.assertTrue(any("approved_polymarket_ask" in error for error in errors))
+
+    def test_promoted_candidate_transition_validates_full_approval_contract(self):
+        before_entry = self._watch_entry()
+        before_candidate = {
+            "watchlist_id": "watch-1",
+            "side": "ABC",
+            "vig_approved": True,
+            "vig_notes": "Morning approval persisted.",
+        }
+        promoted = self._watch_entry(
+            status="promoted", promoted_candidate=dict(before_candidate)
+        )
+        promoted["recheck_notes"] = "Lineups confirmed; price still holds."
+        after = {
+            "candidates": [before_candidate],
+            "lineup_watchlist": [promoted],
+        }
+        errors = vig_review_gate_common.validate_review_transition(
+            {"candidates": [before_candidate], "lineup_watchlist": [before_entry]},
+            after,
+            [],
+            ["watch-1"],
+            "MLB",
+            True,
+        )
+        self.assertTrue(
+            any("approved_polymarket_ask" in error for error in errors),
+            errors,
+        )
+        self.assertTrue(
+            any("probability" in error for error in errors),
+            errors,
+        )
 
     def test_routing_fails_closed_when_policy_missing(self):
         # With no shared policy block loadable, standing-authorized routing must
@@ -377,7 +483,10 @@ class VigReviewGateCommonTests(unittest.TestCase):
         }
         after = json.loads(json.dumps(before))
         after["candidates"][0].update(
-            PROBABILITY_TRAIL, vig_approved=True, vig_notes="All gates hold."
+            PROBABILITY_TRAIL,
+            vig_approved=True,
+            vig_notes="All gates hold.",
+            approved_polymarket_ask=0.48,
         )
         with patch.dict("os.environ", {"VIG_STATE_DIR": str(state)}):
             errors = vig_review_gate_common.normalize_review_routing(
@@ -421,6 +530,8 @@ class VigReviewGateCommonTests(unittest.TestCase):
             PROBABILITY_TRAIL,
             vig_approved=True,
             vig_notes="All gates hold.",
+            approved_polymarket_ask=0.50,
+            execution_checks=valid_execution_checks(supported_price=0.50),
             **consistent_probability_overrides(0.58, 0.50),
         )
         with patch.dict("os.environ", {"VIG_STATE_DIR": str(state)}):
@@ -441,6 +552,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 "event_id": event_id,
                 "side": "CWS",
                 "polymarket_ask": 0.48,
+                "approved_polymarket_ask": 0.48,
                 "vig_approved": None,
                 "dk_fair_prob": 0.55,
                 "model_version": "market-only-fallback-v1",
@@ -482,6 +594,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 "event_id": event_id,
                 "side": "CWS",
                 "polymarket_ask": 0.48,
+                "approved_polymarket_ask": 0.48,
                 "vig_approved": None,
                 "dk_fair_prob": 0.55,
                 "model_version": "market-only-fallback-v1",
@@ -528,6 +641,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 "event_id": event_id,
                 "side": "CWS",
                 "polymarket_ask": 0.48,
+                "approved_polymarket_ask": 0.48,
                 "vig_approved": vig_approved,
                 "dk_fair_prob": 0.55,
                 "model_version": "market-only-fallback-v1",
@@ -802,6 +916,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
                         PROBABILITY_TRAIL,
                         vig_approved=True,
                         vig_notes="All gates hold.",
+                        approved_polymarket_ask=0.48,
                         execution_mode="manual",
                         execution_status="pending_manual_fill",
                         manual_bet_status="awaiting_jerry",
@@ -873,7 +988,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
                     **PROBABILITY_TRAIL,
                     "vig_approved": True,
                     "vig_notes": "All gates hold.",
-                    "captured_polymarket_ask": 0.51,
+                    "approved_polymarket_ask": 0.48,
                     "execution_mode": "manual",
                     "manual_bet_status": "awaiting_jerry",
                     "executed": False,
@@ -1192,6 +1307,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
                         PROBABILITY_TRAIL,
                         vig_approved=True,
                         vig_notes="All gates hold.",
+                        approved_polymarket_ask=0.48,
                         execution_mode="manual",
                         execution_status="pending_manual_fill",
                         manual_bet_status="awaiting_jerry",
@@ -1545,6 +1661,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
             "execution_mode": "standing_authorized",
             "execution_status": "pending",
             "max_polymarket_price": 0.51,
+            "approved_polymarket_ask": 0.48,
             "executed": False,
         }
         promoted = self._watch_entry(
@@ -1562,6 +1679,138 @@ class VigReviewGateCommonTests(unittest.TestCase):
             ),
             [],
         )
+
+    def test_regular_approval_transition_requires_approved_polymarket_ask(self):
+        # P1 regression (PR #48 review): the transition validator holds a
+        # regular standing-authorized approval to the same explicit
+        # approved_polymarket_ask contract as a lineup promotion.
+        def routed_candidate(**overrides):
+            candidate = {
+                "event_id": "9",
+                "side": "NYY",
+                "sport": "MLB",
+                "market_type": "moneyline",
+                **PROBABILITY_TRAIL,
+                "vig_approved": True,
+                "vig_notes": "All gates hold.",
+                "execution_mode": "standing_authorized",
+                "execution_status": "pending",
+                "max_polymarket_price": 0.51,
+                "executed": False,
+            }
+            candidate.update(overrides)
+            return candidate
+
+        before = {
+            "candidates": [{"event_id": "9", "side": "NYY", "vig_approved": None}],
+            "lineup_watchlist": [],
+        }
+        identity = vig_review_gate_common.candidate_identity(before["candidates"][0])
+
+        missing_ask = {
+            "candidates": [routed_candidate()],
+            "lineup_watchlist": [],
+        }
+        errors = vig_review_gate_common.validate_review_transition(
+            before, missing_ask, [identity], [], "MLB", mlb_standing_authorized=True
+        )
+        self.assertTrue(
+            any("approved_polymarket_ask" in error for error in errors), errors
+        )
+
+        with_ask = {
+            "candidates": [routed_candidate(approved_polymarket_ask=0.48)],
+            "lineup_watchlist": [],
+        }
+        self.assertEqual(
+            vig_review_gate_common.validate_review_transition(
+                before, with_ask, [identity], [], "MLB", mlb_standing_authorized=True
+            ),
+            [],
+        )
+
+    def test_normalize_rejects_approved_ask_disagreeing_with_refreshed_contract(self):
+        # P1 regression (PR #48 review, finding 2): a strict-numeric
+        # approved_polymarket_ask that disagrees with the refreshed price
+        # contract (current_ask=0.48, supported_price=0.48) previously routed
+        # with empty error lists. It must fail closed at normalization.
+        before = {
+            "candidates": [
+                {"event_id": "1", "side": "CWS", "vig_approved": None, "polymarket_ask": 0.48}
+            ]
+        }
+        after = json.loads(json.dumps(before))
+        after["candidates"][0].update(
+            PROBABILITY_TRAIL,
+            vig_approved=True,
+            vig_notes="All gates hold.",
+            approved_polymarket_ask=0.01,
+        )
+
+        errors = vig_review_gate_common.normalize_review_routing(
+            before, after, "MLB", mlb_standing_authorized=True
+        )
+
+        self.assertEqual(len(errors), 1, errors)
+        self.assertIn("approved ask violation", errors[0])
+        self.assertIn("does not match the refreshed current_ask", errors[0])
+        self.assertIn("does not match execution_checks.supported_price", errors[0])
+        self.assertNotEqual(
+            after["candidates"][0].get("execution_mode"), "standing_authorized"
+        )
+
+    def test_transition_rejects_approved_ask_disagreeing_with_refreshed_contract(self):
+        # Same P1 at the transition layer, including the case where only
+        # execution_checks.supported_price disagrees while current_ask agrees.
+        def routed_candidate(**overrides):
+            candidate = {
+                "event_id": "9",
+                "side": "NYY",
+                "sport": "MLB",
+                "market_type": "moneyline",
+                **PROBABILITY_TRAIL,
+                "vig_approved": True,
+                "vig_notes": "All gates hold.",
+                "execution_mode": "standing_authorized",
+                "execution_status": "pending",
+                "max_polymarket_price": 0.51,
+                "executed": False,
+            }
+            candidate.update(overrides)
+            return candidate
+
+        before = {
+            "candidates": [{"event_id": "9", "side": "NYY", "vig_approved": None}],
+            "lineup_watchlist": [],
+        }
+        identity = vig_review_gate_common.candidate_identity(before["candidates"][0])
+
+        for label, overrides, expected in (
+            (
+                "ask far below refreshed contract",
+                {"approved_polymarket_ask": 0.01},
+                "does not match the refreshed current_ask",
+            ),
+            (
+                "supported_price disagrees while current_ask agrees",
+                {
+                    "approved_polymarket_ask": 0.48,
+                    "execution_checks": valid_execution_checks(supported_price=0.52),
+                },
+                "does not match execution_checks.supported_price",
+            ),
+        ):
+            with self.subTest(label):
+                after = {
+                    "candidates": [routed_candidate(**overrides)],
+                    "lineup_watchlist": [],
+                }
+                errors = vig_review_gate_common.validate_review_transition(
+                    before, after, [identity], [], "MLB", mlb_standing_authorized=True
+                )
+                self.assertTrue(
+                    any(expected in error for error in errors), errors
+                )
 
     def test_valid_baseball_evidence_passes_review_routing(self):
         # Positive-path fixture: a candidate with valid Phase-2 evidence and

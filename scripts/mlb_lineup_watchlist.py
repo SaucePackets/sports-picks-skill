@@ -751,6 +751,8 @@ def build_recheck_prompt(
 watchlist_id equal to the source watchlist entry id,
 execution_mode=standing_authorized, execution_status=pending, executed=false,
 sport=MLB, market_type=moneyline, an explicit max_polymarket_price between 0 and 1,
+approved_polymarket_ask as an unquoted JSON number strictly between 0 and 1
+(the live executable ask; never American odds and never a quoted string),
 vig_review_needed=false, vig_approved=true, and no execution cron fields.
 The recurring MLB execution poller will refresh all gates and handle execution.
 
@@ -866,10 +868,11 @@ validate:
 
 Re-run every original gate against these facts. Promote when both lineups are
 confirmed, no starting pitcher changed, the provided current ask is within the
-ceiling, and every original gate still holds. If the provided price is
-unavailable but lineups are confirmed and gates hold, still promote and carry
-the stored ceiling as max_polymarket_price — the recurring execution poller
-enforces the live price deterministically at order time. {routing}{starter_block}
+ceiling, and every original gate still holds. A promotion is priced off the
+provided live ask — never a remembered, invented, or slate-time number. If the
+provided price is unavailable this cycle, the entry is simply not resolvable
+yet: keep status pending_lineup_recheck (do not pass, do not promote) and let a
+later recheck see a live price. {routing}{starter_block}
 
 {review_prompt_evidence_section()}
 
