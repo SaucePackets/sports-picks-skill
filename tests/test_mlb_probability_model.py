@@ -481,7 +481,7 @@ class PromptWiringTests(unittest.TestCase):
             "fetch_lineup_snapshot",
             side_effect=Exception("offline"),
         ):
-            prompt = vig_review_gate_common.build_lineup_recheck_prompt(
+            prompt, _ = vig_review_gate_common.build_lineup_recheck_prompt(
                 Path("/tmp/schedule.json"), [{"id": "lineup-abc"}]
             )
         self.assertIn("PROBABILITY COMPONENTS", prompt)
