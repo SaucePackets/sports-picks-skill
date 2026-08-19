@@ -69,6 +69,8 @@ sports-picks-skill/
 
 This repo includes only templates and reusable process files. Live pick history, receipts, watchlists, and execution schedules are runtime state and should stay out of public commits.
 
+Cron executes from a dedicated runtime checkout that always tracks clean `origin/main`, never from a developer checkout — see [docs/deploy-runtime.md](docs/deploy-runtime.md) and `scripts/deploy-runtime.sh`.
+
 ### Verify an MLB Vig review handoff
 
 `scripts/vig-review-verify.py` performs a read-only check of a dated MLB review before approved rows reach the recurring execution poller. It verifies:

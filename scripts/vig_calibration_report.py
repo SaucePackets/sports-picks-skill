@@ -9,10 +9,11 @@ from __future__ import annotations
 
 import json
 import math
+import os
 from collections import defaultdict
 from pathlib import Path
 
-PICKS = Path("/home/clawdbot/notes/Sports/picks/picks.json")
+PICKS = Path(os.environ.get("VIG_PICKS_FILE") or Path.home() / "notes/Sports/picks/picks.json")
 
 
 def wilson_ci(wins: int, n: int, z: float = 1.96) -> tuple[float, float]:

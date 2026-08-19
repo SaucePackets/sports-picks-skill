@@ -55,7 +55,7 @@ from mlb_probability_model import (  # noqa: E402
     probability_contract_prompt_section,
 )
 
-HERMES = os.environ.get("HERMES_BIN") or shutil.which("hermes") or "/home/clawdbot/.local/bin/hermes"
+HERMES = os.environ.get("HERMES_BIN") or shutil.which("hermes") or str(Path.home() / ".local/bin/hermes")
 
 
 def resolve_root(cwd: Path | None = None, home: Path | None = None) -> Path:

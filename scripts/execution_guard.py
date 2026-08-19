@@ -219,8 +219,13 @@ def _standing_authorized_candidate(
     )
 
 
-RISK_LIMITS_PATH = Path("/home/clawdbot/.hermes/vig/state/risk_limits.json")
-CANONICAL_PICKS_PATH = Path("/home/clawdbot/notes/Sports/picks/picks.json")
+RISK_LIMITS_PATH = Path(
+    os.environ.get("VIG_RISK_LIMITS_PATH")
+    or Path.home() / ".hermes" / "vig" / "state" / "risk_limits.json"
+)
+CANONICAL_PICKS_PATH = Path(
+    os.environ.get("VIG_PICKS_FILE") or Path.home() / "notes" / "Sports" / "picks" / "picks.json"
+)
 
 
 def _risk_limit_violation(

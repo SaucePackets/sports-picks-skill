@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -18,9 +19,10 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from execution_guard import _extract_fills, _load_json  # noqa: E402
+from vig_review_gate_common import resolve_root  # noqa: E402
 
-DEFAULT_RECEIPTS = Path("/home/clawdbot/projects/sports-picks-skill/.picks/receipts/polymarket")
-DEFAULT_PICKS = Path("/home/clawdbot/notes/Sports/picks/picks.json")
+DEFAULT_RECEIPTS = resolve_root() / ".picks" / "receipts" / "polymarket"
+DEFAULT_PICKS = Path(os.environ.get("VIG_PICKS_FILE") or Path.home() / "notes/Sports/picks/picks.json")
 # picks.json era began 2026-06-23; earlier receipts belong to the retired
 # "vault" record and are intentionally out of scope.
 DEFAULT_EPOCH = "2026-06-23T00:00:00Z"
