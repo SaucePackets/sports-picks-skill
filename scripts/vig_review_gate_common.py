@@ -30,6 +30,7 @@ for _guard_dir in (
         sys.path.insert(0, str(_guard_dir))
 
 from mlb_lineup_watchlist import (  # noqa: E402
+    PENDING_STATUS,
     WatchlistFormatError,
     build_recheck_prompt,
     due_entries,
@@ -501,7 +502,13 @@ def validate_review_transition(
     watchlist_ids: list[str],
     sport: str = "MLB",
     mlb_standing_authorized: bool = False,
+    deferral_eligible_ids: set[str] | None = None,
 ) -> list[str]:
+    # deferral_eligible_ids: entry ids whose live inputs (price or lineup
+    # feed) were machine-verified unavailable while building the recheck
+    # prompt. Only these may remain an unchanged pending no-op; the default
+    # None means no entry is eligible, so callers that do not supply the
+    # evidence fail closed.
     errors: list[str] = []
     watch_errors = validate_watchlist(after)
     # A review may never INTRODUCE or EDIT an invalid watchlist entry, but a
@@ -582,6 +589,21 @@ def validate_review_transition(
             errors.append(f"watchlist {entry_id} missing after review")
             continue
         status = entry.get("status")
+        if status == PENDING_STATUS and entry == before_watch.get(entry_id):
+            # Deferred no-op: acceptable ONLY when this cycle machine-verified
+            # an unavailable input (live price fetch or lineup snapshot failed)
+            # for this exact entry. The entry stays due and is routed again
+            # next cycle. An unchanged pending entry whose inputs WERE
+            # available is an unreviewed entry, not a defer, and fails closed;
+            # a pending entry that was EDITED still fails below.
+            if entry_id in (deferral_eligible_ids or ()):
+                continue
+            errors.append(
+                f"watchlist {entry_id} was left pending without a machine-verified "
+                "unavailable input (price and lineup feeds resolved); the recheck "
+                "must reach promoted or passed"
+            )
+            continue
         if status not in ("promoted", "passed"):
             errors.append(f"watchlist {entry_id} did not reach promoted or passed")
             continue
@@ -747,8 +769,12 @@ def fetch_market_price(slug: str) -> dict[str, Any] | None:
         return None
 
 
-def _price_context(watchlist: list[dict[str, Any]]) -> str:
+def _price_context(watchlist: list[dict[str, Any]]) -> tuple[str, set[str]]:
+    """Return the price prompt section plus the ids whose live price was
+    machine-verified unavailable (slug resolved, fetch failed). A missing slug
+    is a data defect, not a transient outage, so it earns no deferral."""
     lines: list[str] = []
+    no_price_ids: set[str] = set()
     for entry in watchlist:
         slug = _entry_slug(entry)
         if not slug:
@@ -756,6 +782,7 @@ def _price_context(watchlist: list[dict[str, Any]]) -> str:
             continue
         price = fetch_market_price(slug)
         if not price:
+            no_price_ids.add(str(entry.get("id")))
             lines.append(f"{entry.get('id')}: current price unavailable ({slug})")
             continue
         lines.append(
@@ -764,18 +791,25 @@ def _price_context(watchlist: list[dict[str, Any]]) -> str:
             f"NO-side ask={price['no_ask']}"
         )
     if not lines:
-        return ""
+        return "", no_price_ids
     return (
         "\n\nDeterministic Polymarket US prices (fetched in-process — DO NOT web-search "
         "or curl for price; match your side to the slate-captured ask in the thesis):\n"
         + "\n".join(lines)
-    )
+    ), no_price_ids
 
 
 def build_lineup_recheck_prompt(
     schedule_path: Path, watchlist: list[dict[str, Any]]
-) -> str:
-    """Fetch schedule-mapped MLB feeds + deterministic prices for the review."""
+) -> tuple[str, set[str]]:
+    """Fetch schedule-mapped MLB feeds + deterministic prices for the review.
+
+    Returns the prompt and the machine-verified deferral-eligible entry ids:
+    entries whose live price fetch or lineup snapshot fetch failed this cycle.
+    Only these ids may legitimately remain an unchanged pending no-op at the
+    review transition; validate_review_transition fails every other unchanged
+    pending entry closed.
+    """
     snapshots: dict[str, dict[str, Any]] = {}
     unavailable: list[str] = []
     for entry in watchlist:
@@ -785,7 +819,8 @@ def build_lineup_recheck_prompt(
         except Exception:
             unavailable.append(entry_id)
     prompt = build_recheck_prompt(schedule_path, watchlist, snapshots)
-    prompt += _price_context(watchlist)
+    price_context, no_price_ids = _price_context(watchlist)
+    prompt += price_context
     # Phase 3: a promoted candidate must carry the structured probability
     # component contract or the execution gate will reject it deterministically.
     prompt += "\n" + probability_contract_prompt_section() + "\n"
@@ -795,7 +830,7 @@ def build_lineup_recheck_prompt(
             + ", ".join(unavailable)
             + ". Fail the lineup-confirmation gate unless another live source verifies it.\n"
         )
-    return prompt
+    return prompt, no_price_ids | set(unavailable)
 
 
 def _schedule_path(sport: str, day: str) -> Path:
@@ -915,19 +950,21 @@ def build_lineup_recheck_report(
     for entry_id in watchlist_ids:
         entry = entries[entry_id]
         approved = entry.get("status") == "promoted"
+        deferred = entry.get("status") == PENDING_STATUS
         candidate = entry.get("promoted_candidate") if approved else {}
         if not isinstance(candidate, dict):
             candidate = {}
-        decision = "APPROVED" if approved else "PASSED"
+        decision = "APPROVED" if approved else ("DEFERRED" if deferred else "PASSED")
         side = _concise_text(candidate.get("side") or entry.get("side"), 80)
         supported_price = _watchlist_supported_price(candidate, entry)
         bettable_to = candidate.get("bettable_to_price", entry.get("bettable_to_price"))
         reason = entry.get("recheck_notes") or candidate.get("vig_notes") or "No reason recorded."
-        status = (
-            _approved_status(sport, candidate, mlb_standing_authorized)
-            if approved
-            else "passed; no bet"
-        )
+        if approved:
+            status = _approved_status(sport, candidate, mlb_standing_authorized)
+        elif deferred:
+            status = "still pending recheck; no bet"
+        else:
+            status = "passed; no bet"
         sections.append(
             "\n".join(
                 [
@@ -1043,8 +1080,12 @@ def run_gate(sport: str) -> int:
                 sport, day, schedule_path, candidates, mlb_standing_authorized
             )
         )
+    deferral_eligible_ids: set[str] = set()
     if watchlist:
-        prompts.append(build_lineup_recheck_prompt(schedule_path, watchlist))
+        recheck_prompt, deferral_eligible_ids = build_lineup_recheck_prompt(
+            schedule_path, watchlist
+        )
+        prompts.append(recheck_prompt)
     prompt = "\n\n".join(prompts)
     cmd = [
         HERMES,
@@ -1116,6 +1157,7 @@ def run_gate(sport: str) -> int:
         watchlist_ids,
         sport,
         mlb_standing_authorized,
+        deferral_eligible_ids,
     )
     if transition_errors:
         print(f"{sport} review gate ERROR: invalid review transition: {'; '.join(transition_errors)}")
