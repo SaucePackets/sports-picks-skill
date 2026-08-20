@@ -84,3 +84,9 @@ deployed SHA and per-file checksums.
 
 Tested end-to-end in `tests/test_deploy_runtime.py` against a local fixture
 origin built from this repo's own `scripts/` tree.
+
+To verify after a deploy that the runtime checkout and the profile copies still
+match canonical `origin/main`, run the read-only
+`scripts/check_script_provenance.py`. See
+[script-provenance.md](script-provenance.md) for the canonical-source decision
+and the full inventory of derived copies.
