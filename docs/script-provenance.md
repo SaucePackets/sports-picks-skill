@@ -80,11 +80,17 @@ python3 scripts/check_script_provenance.py --ref origin/main \
   --copy 'vps-developer:full=~/projects/sports-picks-skill/scripts'
 ```
 
-- `full` — the copy must reproduce every canonical `scripts/` file. Use for
-  whole-checkout copies (1, 4, 6).
+- `full` — the copy must be the canonical `scripts/` tree and nothing else.
+  Use for whole-checkout copies (1, 4, 6). An extra file is `unexpected` and
+  counts as drift: the runtime checkout is derived by `git reset --hard` with
+  no `git clean`, so a script deleted from `main` lingers on disk and stays
+  importable by the cron entrypoints. "Byte-identical, no exceptions" has to
+  mean the file inventory too, or the rule above is unenforced for exactly the
+  tree cron executes.
 - `manifest` — only the `PROFILE_MANIFEST` subset must match. Use for copy 5.
-- Extra files are reported as `unmanaged` and are informational; `--strict`
-  promotes them to drift.
+  An extra file there is `unmanaged` and informational, because
+  `deploy-runtime.sh` deliberately preserves files outside the manifest;
+  `--strict` promotes those to drift.
 - `--json` emits the same report for scripting. Exit codes: `0` clean, `1`
   drift, `2` usage or I/O error.
 

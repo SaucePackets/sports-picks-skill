@@ -21,8 +21,9 @@ Two families of checks run:
   - ``manifest``  only the ``PROFILE_MANIFEST`` subset must match; used for
                   the Hermes profile-local script directory.
 
-Extra files that the canonical tree does not define are reported as
-``unmanaged`` — informational by default, drift under ``--strict``.
+Extra files that the canonical tree does not define are drift in ``full`` mode
+(``unexpected``) and informational in ``manifest`` mode (``unmanaged``, drift
+only under ``--strict``) — see ``compare()`` for why the modes differ.
 
 By default the canonical tree is the working tree of ``--repo-root``. Pass
 ``--ref origin/main`` to compare against a committed tree instead, which is
@@ -85,6 +86,7 @@ class Canonical:
         proc = subprocess.run(
             ["git", "-C", str(self.repo_root), *args],
             capture_output=True,
+            check=False,
         )
         if proc.returncode != 0:
             raise ProvenanceError(
@@ -157,8 +159,21 @@ def parse_profile_manifest(deploy_text: str) -> list[str]:
     return names
 
 
-def compare(expected: dict[str, str], target_dir: Path) -> list[dict]:
-    """Compare a derived copy against the canonical digests it must reproduce."""
+def compare(expected: dict[str, str], target_dir: Path, mode: str) -> list[dict]:
+    """Compare a derived copy against the canonical digests it must reproduce.
+
+    Extra files are classified by mode, because the two modes make different
+    promises about them:
+
+    ``full``      the copy must be the canonical tree and nothing else, so an
+                  extra file is ``unexpected`` — drift. This is not theoretical:
+                  the runtime checkout is derived by ``git reset --hard`` with
+                  no ``git clean``, so a script deleted from ``main`` lingers on
+                  disk and stays importable by the cron entrypoints.
+    ``manifest``  ``deploy-runtime.sh`` deliberately preserves files outside the
+                  manifest, so an extra file is ``unmanaged`` — informational
+                  unless ``--strict``.
+    """
     findings: list[dict] = []
     for name, want in sorted(expected.items()):
         dst = target_dir / name
@@ -168,9 +183,10 @@ def compare(expected: dict[str, str], target_dir: Path) -> list[dict]:
             findings.append({"file": name, "status": "not-a-regular-file"})
         elif sha256_file(dst) != want:
             findings.append({"file": name, "status": "differs"})
+    extra_status = "unexpected" if mode == "full" else "unmanaged"
     for p in sorted(target_dir.iterdir()):
         if p.is_file() and p.name not in expected and p.name not in IGNORED_NAMES:
-            findings.append({"file": p.name, "status": "unmanaged"})
+            findings.append({"file": p.name, "status": extra_status})
     return findings
 
 
@@ -234,7 +250,9 @@ def build_report(repo_root: Path, ref: str | None, copies: list[tuple[str, str, 
             })
             continue
         expected = scripts if mode == "full" else {n: scripts[n] for n in manifest if n in scripts}
-        findings = compare(expected, path)
+        findings = compare(expected, path, mode)
+        # Only 'unmanaged' (manifest mode) is informational; everything else,
+        # 'unexpected' included, is drift.
         drift = [f for f in findings if f["status"] != "unmanaged" or strict]
         checks.append({
             "check": f"copy:{label}",

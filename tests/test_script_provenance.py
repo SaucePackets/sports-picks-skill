@@ -156,6 +156,29 @@ def test_manifest_copy_reports_drift_in_a_manifest_file(repo: Path, tmp_path: Pa
     assert not check["ok"] and _statuses(check)["http_util.py"] == "differs"
 
 
+def test_full_copy_treats_an_extra_file_as_drift(repo: Path, tmp_path: Path):
+    # A whole-checkout copy is derived by `git reset --hard` with no
+    # `git clean`, so a file deleted from canonical lingers on disk and stays
+    # importable. It must not read as clean.
+    target = _copy_tree(repo, tmp_path / "runtime",
+                        ["deploy-runtime.sh", "http_util.py", "gate.py", "devtool.py"])
+    (target / "deleted_from_main.py").write_text("STALE = 1\n")
+    report = _report(repo, [("runtime", "full", target)])
+    check = _check(report, "copy:runtime")
+    assert not check["ok"]
+    assert _statuses(check) == {"deleted_from_main.py": "unexpected"}
+    assert not report["ok"]
+
+
+def test_full_copy_extra_file_is_drift_without_strict_in_the_cli(repo: Path, tmp_path: Path):
+    target = _copy_tree(repo, tmp_path / "runtime",
+                        ["deploy-runtime.sh", "http_util.py", "gate.py", "devtool.py"])
+    (target / "deleted_from_main.py").write_text("STALE = 1\n")
+    proc = _cli("--repo-root", str(repo), "--copy", f"runtime:full={target}")
+    assert proc.returncode == 1, proc.stdout
+    assert "unexpected" in proc.stdout and "provenance: DRIFT" in proc.stdout
+
+
 def test_unmanaged_extra_file_is_reported_but_not_drift(repo: Path, tmp_path: Path):
     target = _copy_tree(repo, tmp_path / "profile", ["http_util.py", "gate.py"])
     (target / "test_orphan.py").write_text("ORPHAN = 1\n")
@@ -235,7 +258,8 @@ def test_unknown_ref_is_an_error(committed_repo: Path):
 # --- CLI --------------------------------------------------------------------
 
 def _cli(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run([sys.executable, str(CHECKER), *args], capture_output=True, text=True)
+    return subprocess.run([sys.executable, str(CHECKER), *args],
+                          capture_output=True, text=True, check=False)
 
 
 def test_cli_exits_zero_and_prints_clean(repo: Path):
