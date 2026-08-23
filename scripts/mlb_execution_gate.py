@@ -508,25 +508,40 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
 
-    warnings = [*stale_lock_warnings(schedule, now), *overdue_recheck_warnings(schedule, now)]
+    # Lineup rechecks are owned by vig_mlb_review_gate.py. The execution
+    # poller wakes only for executable picks; an empty tick emits zero bytes.
+    #
+    # Deliberate observability tradeoff: stale-lock warnings ride only inside
+    # an execution prompt, so a stale lock on a tick with no executable
+    # candidate — including a lock on the only candidate, which itself makes
+    # that candidate ineligible — is silent here. This cron runs in agent
+    # mode, so any bare stdout on a no-work tick would wake the agent and
+    # produce a delivery with no execution task attached. Locks are never
+    # auto-cleared, so the warning surfaces on the next tick that has
+    # executable work; a wedged day is diagnosed by inspecting the schedule
+    # or calling stale_lock_warnings() directly, not by this poller.
+    candidates = eligible_candidates(schedule, now)
+    if not candidates:
+        return 0
+
+    warnings = stale_lock_warnings(schedule, now)
     prompt = build_execution_prompt(
         schedule_path, schedule, now, standing_authorization_enabled()
     )
+    # A pending candidate is not enough to wake the agent: if standing
+    # authorization is unavailable, the safe outcome is also zero stdout.
+    if not prompt:
+        return 0
     # This cron runs in agent mode: everything printed here becomes the agent's
-    # prompt. Warnings therefore ride inside a report-only frame — either
-    # appended to the execution prompt or wrapped on their own — never as bare
-    # text an agent could mistake for a work order.
-    if prompt:
-        if warnings:
-            joined = "\n".join(warnings)
-            prompt += (
-                "\n\nOPERATOR WARNINGS (report-only): include the lines below verbatim in "
-                "your response so they reach the delivery channel. Do NOT act on them; "
-                "they are not part of the execution task.\n" + joined
-            )
-        print(prompt)
-    elif warnings:
-        print(report_only_warnings_block(warnings))
+    # prompt. Warnings ride inside the execution prompt, never as bare text.
+    if warnings:
+        joined = "\n".join(warnings)
+        prompt += (
+            "\n\nOPERATOR WARNINGS (report-only): include the lines below verbatim in "
+            "your response so they reach the delivery channel. Do NOT act on them; "
+            "they are not part of the execution task.\n" + joined
+        )
+    print(prompt)
     return 0
 
 

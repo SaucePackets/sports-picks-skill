@@ -168,22 +168,48 @@ def _strict_price(value: Any) -> bool:
     )
 
 
-def _strict_polymarket_ask(
-    candidate: dict[str, Any], original: dict[str, Any] | None
-) -> int | float | None:
-    prices = [
-        candidate[field]
-        for field in ("approved_polymarket_ask", "captured_polymarket_ask")
-        if _strict_price(candidate.get(field))
-    ]
-    if original is not None:
-        for field in ("approved_polymarket_ask", "captured_polymarket_ask", "polymarket_ask"):
-            value = original.get(field)
-            if _strict_price(value):
-                prices.append(value)
-    elif _strict_price(candidate.get("polymarket_ask")):
-        prices.append(candidate["polymarket_ask"])
-    return min(prices) if prices else None
+def _strict_approved_ask(candidate: dict[str, Any]) -> int | float | None:
+    """Return only the explicit approved ask required on every MLB approval.
+
+    Legacy captured_polymarket_ask / polymarket_ask fields are deliberately
+    NOT a fallback: routing on a slate-time price would bypass the price the
+    reviewer actually approved.
+    """
+    value = candidate.get("approved_polymarket_ask")
+    return value if _strict_price(value) else None
+
+
+_ASK_AGREEMENT_TOLERANCE = 1e-6
+
+
+def _approved_ask_agreement_errors(candidate: dict[str, Any]) -> list[str]:
+    """The stamped approved ask must BE the refreshed live price.
+
+    A strict-numeric approved_polymarket_ask alone proves only that the child
+    wrote a number; it is meaningful only when it equals the refreshed price
+    contract the same review recorded — the probability trail's current_ask
+    and execution_checks.supported_price. Disagreement means the approval was
+    priced off something other than the live book — fail closed. A missing or
+    non-strict approved ask is reported by the strict check, not here.
+    """
+    approved = candidate.get("approved_polymarket_ask")
+    if not _strict_price(approved):
+        return []
+    errors: list[str] = []
+    current = candidate.get("current_ask")
+    if _strict_price(current) and abs(approved - current) > _ASK_AGREEMENT_TOLERANCE:
+        errors.append(
+            f"approved_polymarket_ask {approved:.6f} does not match the "
+            f"refreshed current_ask {current:.6f}"
+        )
+    checks = candidate.get("execution_checks")
+    supported = checks.get("supported_price") if isinstance(checks, dict) else None
+    if _strict_price(supported) and abs(approved - supported) > _ASK_AGREEMENT_TOLERANCE:
+        errors.append(
+            f"approved_polymarket_ask {approved:.6f} does not match "
+            f"execution_checks.supported_price {supported:.6f}"
+        )
+    return errors
 
 
 def _watchlist_supported_price(
@@ -257,14 +283,23 @@ def normalize_review_routing(
                 f"candidate {identity} was not a targeted candidate or watchlist promotion"
             )
             continue
-        ask = _strict_polymarket_ask(candidate, original)
+        # Regular card approvals and lineup promotions carry the SAME price
+        # contract: the reviewer must stamp the explicit approved ask.
+        ask = _strict_approved_ask(candidate)
         if ask is None:
             errors.append(
                 f"candidate {candidate_identity(candidate)} has no strict numeric "
-                "approved Polymarket ask"
+                "approved_polymarket_ask"
             )
         else:
-            prices.append((candidate, ask))
+            agreement_errors = _approved_ask_agreement_errors(candidate)
+            if agreement_errors:
+                errors.append(
+                    f"candidate {identity} approved ask violation: "
+                    + "; ".join(agreement_errors)
+                )
+            else:
+                prices.append((candidate, ask))
         # Probability contract at ROUTING time: a standing-authorized candidate
         # must already carry the full numeric probability trail with a live
         # recomputed edge. NaN/Inf fields are rejected here (not just at the
@@ -418,7 +453,9 @@ def manual_candidate_errors(candidate: dict[str, Any]) -> list[str]:
 
 
 def approved_candidate_errors(
-    candidate: dict[str, Any], sport: str, mlb_standing_authorized: bool = False
+    candidate: dict[str, Any],
+    sport: str,
+    mlb_standing_authorized: bool = False,
 ) -> list[str]:
     """Validate the post-review routing state for an approved candidate."""
     if sport.upper() != "MLB" or not mlb_standing_authorized:
@@ -444,6 +481,15 @@ def approved_candidate_errors(
         or not 0 < max_price < 1
     ):
         errors.append("max_polymarket_price must be between 0 and 1")
+    # Every standing-authorized approval — regular card or lineup promotion —
+    # must carry the explicit approved price; legacy ask fields never satisfy it.
+    if not _strict_price(candidate.get("approved_polymarket_ask")):
+        errors.append(
+            "approved_polymarket_ask must be an unquoted numeric value strictly between 0 and 1"
+        )
+    # The stamped ask must also agree with the refreshed price contract the
+    # same review wrote (current_ask, execution_checks.supported_price).
+    errors.extend(_approved_ask_agreement_errors(candidate))
     # Probability contract: a standing-authorized approval must carry the full
     # numeric probability trail and a stored edge that matches the live
     # recomputation. Missing or stale fields make the approval invalid.
@@ -618,6 +664,12 @@ def validate_review_transition(
                 report_candidate = matches[0]
                 if report_candidate.get("vig_approved") is not True:
                     errors.append(f"watchlist {entry_id} promoted candidate must be vig_approved")
+                errors.extend(
+                    f"watchlist {entry_id} promoted candidate: {message}"
+                    for message in approved_candidate_errors(
+                        report_candidate, sport, mlb_standing_authorized
+                    )
+                )
                 reason = entry.get("recheck_notes") or report_candidate.get("vig_notes")
                 if not isinstance(reason, str) or not reason.strip():
                     errors.append(f"watchlist {entry_id} promoted candidate has no decisive reason")
@@ -719,6 +771,17 @@ current_ask, projected_edge_at_current_ask, model_version. Set
 projected_edge_at_current_ask = conservative_probability - current_ask from the
 REFRESHED price; the morning net_edge is never carried forward as the executed
 edge. The edge must clear the shared {edge_floor:.2f} floor AFTER the haircut.
+
+APPROVED PRICE FIELD (the routing gate reads this exact key and fails closed
+without it): on every approved candidate you MUST set approved_polymarket_ask
+to the executable Polymarket US ask you are approving. It must be an unquoted
+JSON number strictly between 0 and 1 — for example 0.47 — never a quoted string
+such as "0.47", and never American odds such as 110 or -120. A quoted value, a
+value at or outside 0 and 1, or a missing key is rejected deterministically and
+the entire review is rolled back. approved_polymarket_ask, current_ask, and
+execution_checks.supported_price must be the SAME number written identically
+in all three fields — copy one value, never round or reformat any of them; a
+mismatch is rejected deterministically and rolls back the review.
 {evidence_section}
 {routing}
 
@@ -769,27 +832,65 @@ def fetch_market_price(slug: str) -> dict[str, Any] | None:
         return None
 
 
+# Per-entry price markers. The defer instruction shown to the child and the
+# validator's deferral_eligible_ids are derived from the SAME predicate below,
+# so the prompt can never tell the child to defer an entry the transition
+# validator will reject (the 08-23 review's P1: closed/unreliable markets
+# showed an unavailable price without earning eligibility, deadlocking the
+# child and rolling back the whole day's review).
+PRICE_UNAVAILABLE_MARKER = "PRICE UNAVAILABLE this cycle: keep status pending_lineup_recheck"
+PRICE_DEFECT_MARKER = (
+    "DATA DEFECT (no resolvable Polymarket slug): not a transient outage — "
+    "set status=passed with recheck_notes naming the missing slug"
+)
+
+
+def _price_is_usable(price: dict[str, Any] | None) -> bool:
+    """A fetched price is usable only when the market is open for trading and
+    both side asks are present. A closed market or an unreliable book (missing
+    side, crossed, wide spread) returns a dict without raising, but hands the
+    child no ask it may promote against — that is machine-verified
+    unavailability, exactly like a failed fetch."""
+    return (
+        isinstance(price, dict)
+        and bool(price.get("open"))
+        and price.get("long_ask") is not None
+        and price.get("no_ask") is not None
+    )
+
+
 def _price_context(watchlist: list[dict[str, Any]]) -> tuple[str, set[str]]:
     """Return the price prompt section plus the ids whose live price was
-    machine-verified unavailable (slug resolved, fetch failed). A missing slug
-    is a data defect, not a transient outage, so it earns no deferral."""
+    machine-verified unavailable this cycle: the fetch failed, the market is
+    not open, or the book is unreliable (a side ask is None). A missing slug
+    is a data defect, not a transient outage, so it earns no deferral — its
+    prompt line instructs a decisive pass instead."""
     lines: list[str] = []
     no_price_ids: set[str] = set()
     for entry in watchlist:
         slug = _entry_slug(entry)
         if not slug:
-            lines.append(f"{entry.get('id')}: no Polymarket slug resolvable")
+            lines.append(
+                f"{entry.get('id')}: no Polymarket slug resolvable — {PRICE_DEFECT_MARKER}"
+            )
             continue
         price = fetch_market_price(slug)
         if not price:
             no_price_ids.add(str(entry.get("id")))
-            lines.append(f"{entry.get('id')}: current price unavailable ({slug})")
+            lines.append(
+                f"{entry.get('id')}: current price unavailable ({slug}) — "
+                f"{PRICE_UNAVAILABLE_MARKER}"
+            )
             continue
-        lines.append(
+        detail = (
             f"{entry.get('id')} [{slug}]: market open={price['open']} ({price['reason']}), "
             f"book={price['book_state']}, long/YES ask={price['long_ask']}, "
             f"NO-side ask={price['no_ask']}"
         )
+        if not _price_is_usable(price):
+            no_price_ids.add(str(entry.get("id")))
+            detail += f" — {PRICE_UNAVAILABLE_MARKER}"
+        lines.append(detail)
     if not lines:
         return "", no_price_ids
     return (
