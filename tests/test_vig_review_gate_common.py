@@ -1137,6 +1137,82 @@ class VigReviewGateCommonTests(unittest.TestCase):
             finally:
                 setattr(vig_review_gate_common, "ROOT", original_root)
 
+    def test_zombie_alone_on_the_schedule_is_still_reported(self):
+        # PR #53 review, non-blocking: the notice sat below the no-work early
+        # return, so it reported a zombie only on cycles that happened to have
+        # OTHER review work — the opposite of when it is needed. The case it
+        # exists for is an abandoned entry with nothing else on the schedule:
+        # the last stuck entry of the day, or a one-game slate. No reviewer
+        # child is spawned, so this stdout is the job's own delivery.
+        with tempfile.TemporaryDirectory() as tmp:
+            original_root = getattr(vig_review_gate_common, "ROOT")
+            try:
+                root = Path(tmp)
+                setattr(vig_review_gate_common, "ROOT", root)
+                day = vig_review_gate_common.datetime.now(
+                    vig_review_gate_common.ZoneInfo("America/Chicago")
+                ).date().isoformat()
+                schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
+                schedule_path.parent.mkdir(parents=True)
+                now = datetime.now(timezone.utc)
+                zombie = self._watch_entry(
+                    id="watch-zombie",
+                    side="SEA",
+                    game="Seattle Mariners at Texas Rangers",
+                    bettable_to_price=105,
+                    first_pitch_utc=(now - timedelta(hours=6)).isoformat(),
+                    recheck_due_utc=(now - timedelta(hours=7)).isoformat(),
+                )
+                schedule_path.write_text(
+                    json.dumps({"candidates": [], "lineup_watchlist": [zombie]})
+                )
+
+                output = StringIO()
+                with (
+                    patch.object(
+                        vig_review_gate_common.subprocess,
+                        "run",
+                        side_effect=AssertionError("no reviewer child on a no-work cycle"),
+                    ),
+                    patch.object(
+                        vig_review_gate_common,
+                        "standing_authorization_enabled",
+                        return_value=True,
+                    ),
+                    redirect_stdout(output),
+                ):
+                    status = vig_review_gate_common.run_gate("MLB")
+
+                self.assertEqual(status, 0)
+                self.assertIn("lineup recheck overdue on watch-zombie", output.getvalue())
+            finally:
+                setattr(vig_review_gate_common, "ROOT", original_root)
+
+    def test_empty_schedule_still_emits_nothing(self):
+        # Hoisting the notice must not make quiet cycles chatty.
+        with tempfile.TemporaryDirectory() as tmp:
+            original_root = getattr(vig_review_gate_common, "ROOT")
+            try:
+                root = Path(tmp)
+                setattr(vig_review_gate_common, "ROOT", root)
+                day = vig_review_gate_common.datetime.now(
+                    vig_review_gate_common.ZoneInfo("America/Chicago")
+                ).date().isoformat()
+                schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
+                schedule_path.parent.mkdir(parents=True)
+                schedule_path.write_text(
+                    json.dumps({"candidates": [], "lineup_watchlist": []})
+                )
+
+                output = StringIO()
+                with redirect_stdout(output):
+                    status = vig_review_gate_common.run_gate("MLB")
+
+                self.assertEqual(status, 0)
+                self.assertEqual(output.getvalue(), "")
+            finally:
+                setattr(vig_review_gate_common, "ROOT", original_root)
+
     _RESOLVED_LINEUP_SNAPSHOT = {
         "game_pk": 823110,
         "away_team": "Minnesota Twins",
