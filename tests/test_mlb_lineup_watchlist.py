@@ -4,6 +4,7 @@ import unittest
 from unittest import mock
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 
 SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "mlb_lineup_watchlist.py"
@@ -1349,6 +1350,92 @@ class UnreachableFirstPitchWarningsTest(unittest.TestCase):
         schedule = {"candidates": [], "lineup_watchlist": [entry]}
         return mlb_lineup_watchlist.unreachable_first_pitch_warnings(
             schedule, self.DAY, **kwargs
+        )
+
+    def chicago_entry(self, month, day, hour, minute, **overrides):
+        """An entry whose first pitch is stated as a Chicago wall-clock time."""
+        local = datetime(
+            2026, month, day, hour, minute, tzinfo=ZoneInfo("America/Chicago")
+        )
+        return self.entry(
+            local.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+            **overrides,
+        )
+
+    def test_next_morning_typo_is_no_longer_inside_the_band(self):
+        # PR #56 review, and the reason the tolerances are gone. A +1 day typo
+        # onto a MORNING game sat inside the old 36h lead and was silent to this
+        # detector AND to overdue_recheck_warnings — the invisible entry this
+        # function exists to end, surviving the function written to end it. That
+        # window was never empty: a 12:05pm ET getaway-day start is 11:05 CT.
+        self.assertEqual(len(self.warnings(self.chicago_entry(7, 20, 11, 5))), 1)
+
+    def test_previous_evening_typo_is_flagged(self):
+        # The old 6h lag accepted this. Nothing was lost by removing it — the
+        # overdue detector also reports a past-dated entry — but it is a wrong
+        # date on this schedule and this is the detector that says so.
+        self.assertEqual(len(self.warnings(self.chicago_entry(7, 18, 19, 5))), 1)
+
+    def test_every_legitimate_start_time_checked_is_inside_the_day(self):
+        # The noise attack, on the record rather than in a review comment. If any
+        # of these fired the detector would be crying wolf on ordinary slates and
+        # would be learned-ignored within a week.
+        for label, (hour, minute) in {
+            "Tokyo Series 6:10pm JST": (4, 10),
+            "London Series 6:10pm BST": (12, 10),
+            "getaway day 12:05pm ET": (11, 5),
+            "standard 7:05pm CT": (19, 5),
+            "6:40pm PT (01:40Z the NEXT UTC day)": (20, 40),
+            "10:10pm ET night game": (21, 10),
+            "doubleheader nightcap": (21, 35),
+        }.items():
+            with self.subTest(start=label):
+                self.assertEqual(self.warnings(self.chicago_entry(7, 19, hour, minute)), [])
+
+    def test_the_day_boundaries_themselves_are_pinned(self):
+        # Both edges, so neither can drift without a test noticing.
+        self.assertEqual(self.warnings(self.chicago_entry(7, 19, 0, 0)), [])
+        self.assertEqual(self.warnings(self.chicago_entry(7, 19, 23, 59)), [])
+        self.assertEqual(len(self.warnings(self.chicago_entry(7, 20, 0, 0))), 1)
+        self.assertEqual(len(self.warnings(self.chicago_entry(7, 18, 23, 59))), 1)
+
+    def test_the_chicago_anchor_is_load_bearing(self):
+        # SCHEDULE_DAY_ZONE was asserted by nothing: switching it to UTC left the
+        # whole suite green. A 6:40pm PT game is 01:40Z the NEXT UTC day while
+        # staying a same-Chicago-day game, and MLB keys it under its
+        # ballpark-local officialDate, so a UTC anchor flags a legitimate entry.
+        entry = self.chicago_entry(7, 19, 20, 40)
+        self.assertEqual(self.warnings(entry), [])
+
+        original = mlb_lineup_watchlist.SCHEDULE_DAY_ZONE
+        try:
+            mlb_lineup_watchlist.SCHEDULE_DAY_ZONE = "UTC"
+            self.assertEqual(len(self.warnings(entry)), 1)
+        finally:
+            mlb_lineup_watchlist.SCHEDULE_DAY_ZONE = original
+
+    def test_day_length_follows_the_dst_transition(self):
+        # The boundary is the next CHICAGO midnight, on a day that is only 23
+        # hours long. Being exact about what this pins: it does NOT distinguish
+        # timedelta(days=1) from timedelta(hours=24) — both are wall-clock
+        # arithmetic on an aware datetime and land on the same instant. What it
+        # catches is a UTC-anchored day, which on a transition date is an hour
+        # off the local calendar. MLB plays on both transition dates.
+        spring = {"candidates": [], "lineup_watchlist": [self.entry(
+            datetime(2026, 3, 8, 23, 30, tzinfo=ZoneInfo("America/Chicago"))
+            .astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+        )]}
+        self.assertEqual(
+            mlb_lineup_watchlist.unreachable_first_pitch_warnings(spring, "2026-03-08"),
+            [],
+        )
+        rolled = {"candidates": [], "lineup_watchlist": [self.entry(
+            datetime(2026, 3, 9, 0, 30, tzinfo=ZoneInfo("America/Chicago"))
+            .astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+        )]}
+        self.assertEqual(
+            len(mlb_lineup_watchlist.unreachable_first_pitch_warnings(rolled, "2026-03-08")),
+            1,
         )
 
     def test_transcription_error_no_longer_leaves_an_invisible_entry(self):

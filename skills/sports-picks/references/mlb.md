@@ -256,9 +256,12 @@ either is wrong — they are only checked for being parseable timestamps. Becaus
 the recheck window is computed from first pitch, a single mistyped date produces
 an entry that is valid, never selected for recheck, never quarantined, and
 silent to the overdue-recheck warning: invisible to every running job. The
-review gate now prints a notice when an entry's first pitch cannot fall on the
-schedule day it was written onto, which is the one cross-check available — the
-day comes from the gate's clock, not from you. Treat that notice as a
+review gate now prints a notice when an entry's first pitch does not fall on the
+schedule day it was written onto — first pitch must land inside that Chicago
+calendar day, with no tolerance either side. That is the one cross-check
+available, because the day comes from the gate's clock, not from you. It catches
+a one-day slip onto a morning game, which is the likeliest date error there is
+and the one that would otherwise disappear. Treat that notice as a
 transcription error to fix, not as noise.
 
 Record the morning probability components on every watchlist entry as a

@@ -4,7 +4,7 @@ import sys
 import tempfile
 import unittest
 from contextlib import redirect_stdout
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, time, timedelta, timezone
 from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
@@ -1241,6 +1241,65 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 printed = output.getvalue()
                 self.assertIn("first pitch on watch-mistyped cannot belong", printed)
                 # The overdue notice cannot see it — that is the whole point.
+                self.assertNotIn("lineup recheck overdue", printed)
+            finally:
+                setattr(vig_review_gate_common, "ROOT", original_root)
+
+    def test_next_morning_typo_is_reported_by_run_gate(self):
+        # PR #56 review. The +3-day case above was already caught; this is the
+        # one that was not. A +1 day typo onto a morning game sat inside the old
+        # 36h lead and was silent to BOTH detectors — empty stdout, exit 0 — so
+        # the invisible entry survived the function written to end it. One day is
+        # the likeliest date typo, and 11:05 CT is an ordinary start (12:05pm ET
+        # getaway day), so this window was never empty.
+        with tempfile.TemporaryDirectory() as tmp:
+            original_root = getattr(vig_review_gate_common, "ROOT")
+            try:
+                root = Path(tmp)
+                setattr(vig_review_gate_common, "ROOT", root)
+                chicago = vig_review_gate_common.ZoneInfo("America/Chicago")
+                today = vig_review_gate_common.datetime.now(chicago).date()
+                day = today.isoformat()
+                schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
+                schedule_path.parent.mkdir(parents=True)
+                first_pitch = vig_review_gate_common.datetime.combine(
+                    today + timedelta(days=1),
+                    time(11, 5),
+                    tzinfo=chicago,
+                ).astimezone(timezone.utc)
+                mistyped = self._watch_entry(
+                    id="watch-next-morning",
+                    side="SEA",
+                    game="Seattle Mariners at Texas Rangers",
+                    bettable_to_price=105,
+                    first_pitch_utc=first_pitch.isoformat(),
+                    recheck_due_utc=(first_pitch - timedelta(minutes=75)).isoformat(),
+                )
+                schedule_path.write_text(
+                    json.dumps({"candidates": [], "lineup_watchlist": [mistyped]})
+                )
+
+                output = StringIO()
+                with (
+                    patch.object(
+                        vig_review_gate_common.subprocess,
+                        "run",
+                        side_effect=AssertionError("no reviewer child on a no-work cycle"),
+                    ),
+                    patch.object(
+                        vig_review_gate_common,
+                        "standing_authorization_enabled",
+                        return_value=True,
+                    ),
+                    redirect_stdout(output),
+                ):
+                    status = vig_review_gate_common.run_gate("MLB")
+
+                self.assertEqual(status, 0)
+                printed = output.getvalue()
+                self.assertIn("first pitch on watch-next-morning cannot belong", printed)
+                # Still invisible to the overdue sibling — this notice is the
+                # only thing between the entry and nobody ever seeing it.
                 self.assertNotIn("lineup recheck overdue", printed)
             finally:
                 setattr(vig_review_gate_common, "ROOT", original_root)
