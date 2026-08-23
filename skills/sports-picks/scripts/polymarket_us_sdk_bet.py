@@ -16,8 +16,16 @@ from __future__ import annotations
 # Self-heal: the Polymarket US SDK (polymarket-us) lives in the repo .venv,
 # immune to hermes runtime rebuilds that rotate the shared venv. Re-exec there
 # if the current interpreter lacks it. Idempotent (env sentinel stops loops).
+#
+# The path must follow the invoking user's home. A baked-in /home/<user> literal
+# does not merely point somewhere else — it points somewhere that does not
+# exist, so os.path.exists is False, the re-exec never fires, and this executor
+# runs on an interpreter without polymarket_us. That fails at order time, not at
+# import time, which is the worst place to discover it.
 import os as _os, sys as _sys
-_SP_VENV = "/home/clawdbot/projects/sports-picks-skill/.venv/bin/python"
+_SP_VENV = _os.environ.get("SPORTS_PICKS_VENV_PYTHON") or _os.path.expanduser(
+    "~/projects/sports-picks-runtime/.venv/bin/python"
+)
 if not _os.environ.get("_SP_VENV_REEXEC") and _os.path.exists(_SP_VENV):
     try:
         import polymarket_us as _sp_probe  # noqa: F401
@@ -40,14 +48,10 @@ from typing import Any
 
 RECEIPT_ROOT = Path(".picks/receipts/polymarket")
 WATCH_ROOT = Path(".picks/watchlist/polymarket")
-_HOME_CANDIDATES = [
-    Path.home(),
-    Path("/home/clawdbot"),
-]
-HERMES_ENV = next(
-    (p / ".hermes/.env" for p in _HOME_CANDIDATES if (p / ".hermes/.env").exists()),
-    Path.home() / ".hermes/.env",
-)
+# Follows the invoking user's home. The previous candidate list ended in a
+# baked-in /home/<other-account> literal, which on this production box is simply
+# a directory that does not exist, so that fallback could only ever miss.
+HERMES_ENV = Path.home() / ".hermes/.env"
 
 INTENTS = {
     "ORDER_INTENT_BUY_LONG",

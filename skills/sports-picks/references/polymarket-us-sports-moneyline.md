@@ -164,7 +164,7 @@ the fallback path was used.
 If you need to discover a slug when search is broken, the direct CLI still works:
 
 ```bash
-cd /home/clawdbot/projects/sports-picks-skill
+cd ~/projects/sports-picks-runtime
 python skills/sports-picks/scripts/polymarket_us_sdk_bet.py \
   search-moneyline --query "Miami Marlins Arizona Diamondbacks" --limit 5
 ```
