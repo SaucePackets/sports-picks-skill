@@ -14,6 +14,32 @@ class Stage2ScanTests(unittest.TestCase):
         self.assertAlmostEqual(away + home, 1.0)
         self.assertLess(away, home)
 
+    def test_known_park_reports_its_factor_as_available(self):
+        park = mlb_stage2_scan.park_context("Coors Field")
+        self.assertEqual(park["run_factor"], 112)
+        self.assertEqual(park["data_status"], "available")
+        self.assertIn("extreme hitter park", park["flag"])
+
+    def test_unknown_venue_is_reported_as_an_outage_not_a_silent_null(self):
+        # Journey Bank Ballpark (the neutral-site game that blocked MIL on
+        # 2026-08-23) is off the fixed table. A bare null run_factor reads as
+        # "no park effect" to one handicapper and as a missing required input to
+        # another; naming the outage makes it route like the price and lineup
+        # outages instead of terminating the game.
+        park = mlb_stage2_scan.park_context("Journey Bank Ballpark")
+        self.assertIsNone(park["run_factor"])
+        self.assertEqual(park["data_status"], "unavailable")
+        self.assertIn("unknown_park_environment", park["flag"])
+        self.assertIn("Journey Bank Ballpark", park["flag"])
+
+    def test_unknown_venue_never_gets_a_fabricated_neutral_factor(self):
+        # A substituted 100 would let a park read be claimed on no data at all,
+        # which is worse than the discard this change removes.
+        for venue in (None, "", "   ", "Some New Ballpark"):
+            park = mlb_stage2_scan.park_context(venue)
+            self.assertIsNone(park["run_factor"], venue)
+            self.assertEqual(park["data_status"], "unavailable", venue)
+
     def test_outs_from_ip_handles_partial_innings(self):
         self.assertEqual(mlb_stage2_scan.outs_from_ip("5.2"), 17)
         self.assertEqual(mlb_stage2_scan.outs_from_ip(None), 0)

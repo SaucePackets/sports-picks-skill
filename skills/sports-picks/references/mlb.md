@@ -306,7 +306,9 @@ owns the guarded execution attempt.
 ### Park / Weather
 Treat weather as a real handicap input, not an afterthought.
 
-The scanner provides `park.run_factor` (100 = neutral) per game. Cite it on every card candidate. A flagged extreme hitter park (>=105, e.g. Coors) caps confidence at Medium per the park rule; <=96 strengthens pitcher-side reads. Team `away_offense`/`home_offense` carry season wOBA and xwOBA: wOBA trailing xwOBA by >=0.010 means the offense is UNDERperforming its contact quality (fade cold-offense narratives); the reverse means it is running hot (discount recent scoring).
+The scanner provides `park.run_factor` (100 = neutral) per game. Cite it on every card candidate. A flagged extreme hitter park (>=105, e.g. Coors) caps confidence at Medium per the park rule; <=96 strengthens pitcher-side reads.
+
+**An unavailable park factor is not a stop.** `park.run_factor` is null and `park.data_status` is `unavailable` whenever the venue is off the scanner's fixed table — a neutral-site game, a new or renamed ballpark. That is a data outage, and it routes the same way the price and lineup outages do: price the game with the uncertainty priced in, do not discard it. Concretely, take **no** `park_home_context` adjustment (there is no data to support one) and charge the `unknown_park_environment` haircut with the outage as its written evidence. Both together are a hard validator failure. Never substitute a neutral 100 for a missing factor — that is a park read claimed on no data. Team `away_offense`/`home_offense` carry season wOBA and xwOBA: wOBA trailing xwOBA by >=0.010 means the offense is UNDERperforming its contact quality (fade cold-offense narratives); the reverse means it is running hot (discount recent scoring).
 
 Always check it for MLB.
 Use the dedicated `weather` skill path first when weather is needed for analysis. If `wttr.in` hangs or gets blocked, do not retry the same curl command; use Open-Meteo JSON directly with venue/city coordinates for temperature, wind speed/direction, and precipitation.
@@ -331,7 +333,7 @@ De-vig before any edge claim:
 - DK single-side implied probability includes roughly 2 points of vig. Never compare it directly to a Polymarket ask and call the difference an edge.
 - Compute both sides' implied probabilities from the two DK moneylines, then `fair = imp_side / (imp_side + imp_opp)`.
 - State your own `raw_probability` (decimal) from the full handicap, with every adjustment recorded as an explicit component against the de-vigged DK fair prior. If it differs from the de-vigged fair by more than 0.04, the component adjustments must explain the delta.
-- Apply the documented `uncertainty_haircut` (small samples, opener/bulk uncertainty, contact/HR dependence, unavailable leverage relievers, unconfirmed lineups, conflicting signals) to get `conservative_probability` — the ONLY probability used for edge and execution. The haircut is a model-uncertainty buffer, NEVER a venue fee.
+- Apply the documented `uncertainty_haircut` (small samples, opener/bulk uncertainty, contact/HR dependence, unavailable leverage relievers, unconfirmed lineups, conflicting signals, unknown park run environment) to get `conservative_probability` — the ONLY probability used for edge and execution. The haircut is a model-uncertainty buffer, NEVER a venue fee.
 - Conservative edge = `conservative_probability - current_ask`. Polymarket US charges ZERO trading fees (confirmed 0 bps on every executed receipt) — do NOT subtract a phantom fee. Cardable requires conservative edge >= the shared policy floor `min_conservative_edge` (currently 0.05, from the `vig-mlb-selection-policy-v1` block in `~/.hermes/vig/state/risk_limits.json`).
 - Equivalently — and this is the guardrail the execution poller actually enforces — the real executable ask must be at or under your price ceiling `max_polymarket_price = conservative_probability - min_conservative_edge`. That ceiling (not any fee) is the single source of truth: judge price on the true cost to buy, and any real fee is fine as long as the all-in price stays at or under the ceiling. Execution is an IOC limit placed AT the ceiling, so the book can only ever fill at or under your number.
 - Record `dk_fair_prob`, `raw_probability`, `uncertainty_haircut`, `conservative_probability`, `current_ask`, `projected_edge_at_current_ask`, and `model_version` on every schedule candidate and ledger row — these feed the monthly calibration report (`scripts/vig_calibration_report.py`). Recompute `projected_edge_at_current_ask = conservative_probability - current_ask` at every recheck and at fill; the morning `net_edge` is never the executed edge, and a candidate with missing or stale probability fields is ineligible.
@@ -570,7 +572,10 @@ never substitute for component arithmetic.
 - `haircuts`: list of `{component, amount, evidence}` with positive amounts
   summing to `uncertainty_haircut`. Allowed components: `small_sample`,
   `opener_bulk_uncertainty`, `contact_hr_risk`, `leverage_relievers_unavailable`,
-  `lineup_unconfirmed_or_weakened`, `conflicting_signals`.
+  `lineup_unconfirmed_or_weakened`, `conflicting_signals`,
+  `unknown_park_environment`. The last one may not accompany a
+  `park_home_context` adjustment — the park run environment is either known or
+  it is not, and claiming both is a buffer that nets to nothing.
 - `conservative_probability` must equal `raw_probability - uncertainty_haircut`
   — the only probability used for edge and execution.
 - Every component requires written pre-pitch evidence; postgame fields inside a
