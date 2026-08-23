@@ -1056,6 +1056,87 @@ class VigReviewGateCommonTests(unittest.TestCase):
             finally:
                 setattr(vig_review_gate_common, "ROOT", original_root)
 
+    def test_abandoned_pending_entry_is_warned_but_live_recheck_is_not(self):
+        # 08-23 approval follow-up (Reviewer non-blocking #2): the overdue
+        # warning had no production caller. It now runs in the lane that owns
+        # rechecks — but scoped: due_entries selects on the first-pitch window
+        # and never on recheck_due_utc, so the entry being rechecked right now
+        # carries a long-past due stamp and must NOT be warned. Only the entry
+        # the gate will never pick up again is a zombie.
+        with tempfile.TemporaryDirectory() as tmp:
+            original_root = getattr(vig_review_gate_common, "ROOT")
+            try:
+                root = Path(tmp)
+                setattr(vig_review_gate_common, "ROOT", root)
+                day = vig_review_gate_common.datetime.now(
+                    vig_review_gate_common.ZoneInfo("America/Chicago")
+                ).date().isoformat()
+                schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
+                schedule_path.parent.mkdir(parents=True)
+                now = datetime.now(timezone.utc)
+                first_pitch = now + timedelta(minutes=75)
+                due_entry = self._watch_entry(
+                    side="MIN",
+                    game="Minnesota Twins at Chicago Cubs",
+                    bettable_to_price=105,
+                    first_pitch_utc=first_pitch.isoformat(),
+                )
+                # Valid, still pending, first pitch long past: due_entries can
+                # never return it again and stale_invalid_watchlist only covers
+                # INVALID entries, so nothing else surfaces it.
+                zombie = self._watch_entry(
+                    id="watch-zombie",
+                    side="SEA",
+                    game="Seattle Mariners at Texas Rangers",
+                    bettable_to_price=105,
+                    first_pitch_utc=(now - timedelta(hours=6)).isoformat(),
+                    recheck_due_utc=(now - timedelta(hours=7)).isoformat(),
+                )
+                schedule_path.write_text(
+                    json.dumps({"candidates": [], "lineup_watchlist": [due_entry, zombie]})
+                )
+                passed_entry = dict(due_entry)
+                passed_entry.update(
+                    status="passed",
+                    rechecked_at_utc="2026-07-19T17:00:00Z",
+                    recheck_notes="Lineups posted without the bat the edge rested on.",
+                )
+
+                def complete_review(*args, **kwargs):
+                    schedule_path.write_text(
+                        json.dumps(
+                            {
+                                "candidates": [],
+                                "lineup_watchlist": [passed_entry, zombie],
+                            }
+                        )
+                    )
+                    return vig_review_gate_common.subprocess.CompletedProcess(
+                        args[0], 0, stdout="", stderr=""
+                    )
+
+                output = StringIO()
+                with (
+                    patch.object(
+                        vig_review_gate_common.subprocess, "run", side_effect=complete_review
+                    ),
+                    patch.object(
+                        vig_review_gate_common,
+                        "standing_authorization_enabled",
+                        return_value=True,
+                    ),
+                    redirect_stdout(output),
+                ):
+                    status = vig_review_gate_common.run_gate("MLB")
+
+                self.assertEqual(status, 0)
+                printed = output.getvalue()
+                self.assertIn("lineup recheck overdue on watch-zombie", printed)
+                self.assertIn("MLB review gate NOTICE:", printed)
+                self.assertNotIn("watch-1", printed)
+            finally:
+                setattr(vig_review_gate_common, "ROOT", original_root)
+
     _RESOLVED_LINEUP_SNAPSHOT = {
         "game_pk": 823110,
         "away_team": "Minnesota Twins",
