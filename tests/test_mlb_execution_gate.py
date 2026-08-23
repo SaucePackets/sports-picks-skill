@@ -294,35 +294,6 @@ class MlbExecutionGateTests(unittest.TestCase):
         self.assertEqual(len(warnings), 1)
         self.assertIn("unparseable", warnings[0])
 
-    def test_overdue_pending_lineup_recheck_is_warned(self):
-        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
-        schedule = {
-            "candidates": [],
-            "lineup_watchlist": [
-                {
-                    "id": "LW-overdue",
-                    "status": "pending_lineup_recheck",
-                    "recheck_due_utc": (now - timedelta(minutes=31)).isoformat().replace("+00:00", "Z"),
-                },
-                {
-                    "id": "LW-barely-late",
-                    "status": "pending_lineup_recheck",
-                    "recheck_due_utc": (now - timedelta(minutes=20)).isoformat().replace("+00:00", "Z"),
-                },
-                {
-                    "id": "LW-done",
-                    "status": "promoted",
-                    "recheck_due_utc": (now - timedelta(minutes=90)).isoformat().replace("+00:00", "Z"),
-                },
-            ],
-        }
-
-        warnings = mlb_execution_gate.overdue_recheck_warnings(schedule, now)
-
-        self.assertEqual(len(warnings), 1)
-        self.assertIn("LW-overdue", warnings[0])
-        self.assertIn("pending_lineup_recheck", warnings[0])
-
     def test_stale_lock_with_no_executable_work_is_silent_by_design(self):
         # P2 tradeoff (PR #48 review): the lock itself makes its candidate
         # ineligible, so a stale lock on the only candidate produces NO output

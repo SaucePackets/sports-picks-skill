@@ -1056,6 +1056,87 @@ class VigReviewGateCommonTests(unittest.TestCase):
             finally:
                 setattr(vig_review_gate_common, "ROOT", original_root)
 
+    def test_abandoned_pending_entry_is_warned_but_live_recheck_is_not(self):
+        # 08-23 approval follow-up (Reviewer non-blocking #2): the overdue
+        # warning had no production caller. It now runs in the lane that owns
+        # rechecks — but scoped: due_entries selects on the first-pitch window
+        # and never on recheck_due_utc, so the entry being rechecked right now
+        # carries a long-past due stamp and must NOT be warned. Only the entry
+        # the gate will never pick up again is a zombie.
+        with tempfile.TemporaryDirectory() as tmp:
+            original_root = getattr(vig_review_gate_common, "ROOT")
+            try:
+                root = Path(tmp)
+                setattr(vig_review_gate_common, "ROOT", root)
+                day = vig_review_gate_common.datetime.now(
+                    vig_review_gate_common.ZoneInfo("America/Chicago")
+                ).date().isoformat()
+                schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
+                schedule_path.parent.mkdir(parents=True)
+                now = datetime.now(timezone.utc)
+                first_pitch = now + timedelta(minutes=75)
+                due_entry = self._watch_entry(
+                    side="MIN",
+                    game="Minnesota Twins at Chicago Cubs",
+                    bettable_to_price=105,
+                    first_pitch_utc=first_pitch.isoformat(),
+                )
+                # Valid, still pending, first pitch long past: due_entries can
+                # never return it again and stale_invalid_watchlist only covers
+                # INVALID entries, so nothing else surfaces it.
+                zombie = self._watch_entry(
+                    id="watch-zombie",
+                    side="SEA",
+                    game="Seattle Mariners at Texas Rangers",
+                    bettable_to_price=105,
+                    first_pitch_utc=(now - timedelta(hours=6)).isoformat(),
+                    recheck_due_utc=(now - timedelta(hours=7)).isoformat(),
+                )
+                schedule_path.write_text(
+                    json.dumps({"candidates": [], "lineup_watchlist": [due_entry, zombie]})
+                )
+                passed_entry = dict(due_entry)
+                passed_entry.update(
+                    status="passed",
+                    rechecked_at_utc="2026-07-19T17:00:00Z",
+                    recheck_notes="Lineups posted without the bat the edge rested on.",
+                )
+
+                def complete_review(*args, **kwargs):
+                    schedule_path.write_text(
+                        json.dumps(
+                            {
+                                "candidates": [],
+                                "lineup_watchlist": [passed_entry, zombie],
+                            }
+                        )
+                    )
+                    return vig_review_gate_common.subprocess.CompletedProcess(
+                        args[0], 0, stdout="", stderr=""
+                    )
+
+                output = StringIO()
+                with (
+                    patch.object(
+                        vig_review_gate_common.subprocess, "run", side_effect=complete_review
+                    ),
+                    patch.object(
+                        vig_review_gate_common,
+                        "standing_authorization_enabled",
+                        return_value=True,
+                    ),
+                    redirect_stdout(output),
+                ):
+                    status = vig_review_gate_common.run_gate("MLB")
+
+                self.assertEqual(status, 0)
+                printed = output.getvalue()
+                self.assertIn("lineup recheck overdue on watch-zombie", printed)
+                self.assertIn("MLB review gate NOTICE:", printed)
+                self.assertNotIn("watch-1", printed)
+            finally:
+                setattr(vig_review_gate_common, "ROOT", original_root)
+
     _RESOLVED_LINEUP_SNAPSHOT = {
         "game_pk": 823110,
         "away_team": "Minnesota Twins",
@@ -2002,8 +2083,44 @@ def test_price_context_defer_markers_correspond_to_eligibility(monkeypatch):
     noslug_line = next(l for l in ctx.splitlines() if l.startswith("watch-noslug"))
     assert g.PRICE_DEFECT_MARKER in noslug_line
     assert g.PRICE_UNAVAILABLE_MARKER not in noslug_line
+    # An unusable quote must never print tradable-looking asks next to the
+    # defer marker (08-23 approval note 3): a closed market can still carry
+    # numbers in the book, and showing them invites pricing off an untradable
+    # market.
+    for entry_id in ("watch-closed", "watch-unreliable"):
+        line = next(l for l in ctx.splitlines() if l.startswith(entry_id))
+        assert "no executable ask" in line, line
+        assert "long/YES ask=" not in line and "NO-side ask=" not in line, line
+    good_line = next(l for l in ctx.splitlines() if l.startswith("watch-good"))
+    assert "long/YES ask=0.5750" in good_line and "NO-side ask=0.4300" in good_line
     # The recheck prompt teaches both markers, so the child sees the contract.
     import mlb_lineup_watchlist as mlw
     prompt = mlw.build_recheck_prompt(Path("/tmp/x.json"), entries, {})
     assert "PRICE UNAVAILABLE this cycle" in prompt
     assert "DATA DEFECT" in prompt
+
+
+def test_lineup_outage_prompt_defers_instead_of_failing_gate(monkeypatch):
+    # 08-23 approval note 2: after PR #48 the price side deferred on an outage
+    # while the lineup side still said "Fail the lineup-confirmation gate" —
+    # a terminal passed, the discard shape that swallowed the 08-16/08-18
+    # winners. A feed outage is machine-verified unavailability on both sides:
+    # the ids are deferral-eligible and the instruction must be defer.
+    import vig_review_gate_common as g
+
+    monkeypatch.setattr(g, "fetch_market_price", lambda slug: {
+        "slug": slug, "open": True, "reason": "open",
+        "long_ask": "0.5750", "no_ask": "0.4300", "book_state": "reliable",
+    })
+    monkeypatch.setattr(
+        g,
+        "fetch_lineup_snapshot",
+        lambda entry: (_ for _ in ()).throw(RuntimeError("lineup feed down")),
+    )
+    entries = [{"id": "watch-a", "polymarket_slug": "aec-mlb-good-2026-08-23", "thesis": ""}]
+    prompt, eligible = g.build_lineup_recheck_prompt(Path("/tmp/x.json"), entries)
+
+    assert g.LINEUP_UNAVAILABLE_MARKER in prompt
+    assert "keep status pending_lineup_recheck" in g.LINEUP_UNAVAILABLE_MARKER
+    assert "Fail the lineup-confirmation gate" not in prompt
+    assert eligible == {"watch-a"}

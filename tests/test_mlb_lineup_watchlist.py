@@ -2,7 +2,7 @@ import importlib.util
 import sys
 import unittest
 from unittest import mock
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 
@@ -1123,6 +1123,84 @@ class MlbLineupWatchlistTests(unittest.TestCase):
             )
         self.assertIn("STARTER-PENDING PROMOTIONS DISABLED", prompt)
         self.assertNotIn("STARTER-PENDING RE-HANDICAP", prompt)
+
+
+class RecheckPromptAgreementContractTest(unittest.TestCase):
+    def test_standing_authorized_routing_block_states_agreement_contract(self):
+        # 08-23 approval note 1: _approved_ask_agreement_errors fires on
+        # promoted watchlist candidates too, and a mismatch there rolls back
+        # the ENTIRE review — so the recheck lane's routing block must state
+        # the copy-never-round contract, not just the regular review prompt.
+        with mock.patch.object(
+            mlb_lineup_watchlist, "standing_authorization_enabled", return_value=True
+        ):
+            prompt = mlb_lineup_watchlist.build_recheck_prompt(
+                Path("/tmp/schedule.json"), [{"id": "2026-07-22-SEA-ML"}], {}
+            )
+        self.assertIn("approved_polymarket_ask", prompt)
+        self.assertIn("SAME number written identically", prompt)
+        self.assertIn("never round or reformat", prompt)
+
+
+class OverdueRecheckWarningsTest(unittest.TestCase):
+    def test_overdue_pending_lineup_recheck_is_warned(self):
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        schedule = {
+            "candidates": [],
+            "lineup_watchlist": [
+                {
+                    "id": "LW-overdue",
+                    "status": "pending_lineup_recheck",
+                    "recheck_due_utc": (now - timedelta(minutes=31)).isoformat().replace("+00:00", "Z"),
+                },
+                {
+                    "id": "LW-barely-late",
+                    "status": "pending_lineup_recheck",
+                    "recheck_due_utc": (now - timedelta(minutes=20)).isoformat().replace("+00:00", "Z"),
+                },
+                {
+                    "id": "LW-done",
+                    "status": "promoted",
+                    "recheck_due_utc": (now - timedelta(minutes=90)).isoformat().replace("+00:00", "Z"),
+                },
+            ],
+        }
+
+        warnings = mlb_lineup_watchlist.overdue_recheck_warnings(schedule, now)
+
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("LW-overdue", warnings[0])
+        self.assertIn("pending_lineup_recheck", warnings[0])
+
+    def test_entry_being_rechecked_this_run_is_not_warned(self):
+        # due_entries selects on the first-pitch window, never on
+        # recheck_due_utc, so an entry under active recheck routinely carries a
+        # long-past due stamp. Warning on it would fire on healthy work every
+        # cycle; only the abandoned entries are zombies.
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        overdue = (now - timedelta(minutes=31)).isoformat().replace("+00:00", "Z")
+        schedule = {
+            "candidates": [],
+            "lineup_watchlist": [
+                {
+                    "id": "LW-in-flight",
+                    "status": "pending_lineup_recheck",
+                    "recheck_due_utc": overdue,
+                },
+                {
+                    "id": "LW-abandoned",
+                    "status": "pending_lineup_recheck",
+                    "recheck_due_utc": overdue,
+                },
+            ],
+        }
+
+        warnings = mlb_lineup_watchlist.overdue_recheck_warnings(
+            schedule, now, exclude_ids={"LW-in-flight"}
+        )
+
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("LW-abandoned", warnings[0])
 
 
 if __name__ == "__main__":

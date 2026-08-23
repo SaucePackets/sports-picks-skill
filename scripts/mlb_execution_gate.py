@@ -38,7 +38,6 @@ from mlb_probability_model import probability_component_errors
 CENTRAL = ZoneInfo("America/Chicago")
 MAX_MINUTES_BEFORE_FIRST_PITCH = 120
 STALE_LOCK_MINUTES = 15
-OVERDUE_RECHECK_MINUTES = 30
 # A thin order book is TRANSIENT: an approved pick that could not fill without
 # chasing should be retried as the book deepens, not killed for the day like a
 # terminal gate failure (starter change, price over ceiling). The poller records
@@ -269,31 +268,6 @@ def stale_lock_warnings(schedule: dict[str, Any], now: datetime) -> list[str]:
     return warnings
 
 
-def overdue_recheck_warnings(schedule: dict[str, Any], now: datetime) -> list[str]:
-    """Flag pending_lineup_recheck entries more than 30 minutes past due."""
-    warnings: list[str] = []
-    entries = schedule.get("lineup_watchlist")
-    if not isinstance(entries, list):
-        return warnings
-    current = now.astimezone(timezone.utc)
-    for entry in entries:
-        if not isinstance(entry, dict):
-            continue
-        if entry.get("status") != "pending_lineup_recheck":
-            continue
-        due = parse_instant(entry.get("recheck_due_utc"))
-        if due is None:
-            continue
-        overdue_minutes = (current - due).total_seconds() / 60
-        if overdue_minutes > OVERDUE_RECHECK_MINUTES:
-            warnings.append(
-                f"WARNING: lineup recheck overdue on {entry.get('id') or '<missing-id>'}, "
-                f"recheck_due_utc={entry.get('recheck_due_utc')} "
-                f"({overdue_minutes:.0f} min past due) and still pending_lineup_recheck"
-            )
-    return warnings
-
-
 # The poller's agent session may only write execution progress on the
 # candidates it processes. Lineup rechecks belong EXCLUSIVELY to the review
 # gate, whose validators check and restore every watchlist write; a watchlist
@@ -307,30 +281,6 @@ only schedule fields this session may write are the execution progress fields
 of the candidates it processes (execution_status, executed, fill_* fields,
 commission, polymarket order/trade ids, liquidity_defer, skipped, skip_reason,
 and the execution lock via the guard)."""
-
-
-def report_only_warnings_block(warnings: list[str]) -> str:
-    """Wrap deterministic gate warnings so an agent-mode cron cannot read them
-    as a work order.
-
-    In agent mode this script's stdout becomes the agent's prompt. Bare
-    warnings with no other output invite the agent to "fix" what they describe
-    — on 2026-08-11 an overdue-recheck warning led the session to perform the
-    review gate's recheck itself and corrupt the schedule. Warnings must reach
-    the delivery channel verbatim, and nothing else may happen.
-    """
-    joined = "\n".join(warnings)
-    return f"""MLB execution gate: no eligible candidates this cycle — there is NO execution
-work. The deterministic gate emitted the operator warnings below.
-
-{joined}
-
-Your ONLY task is to relay the warnings above verbatim as your response so they
-reach the delivery channel. Do NOT act on them, do NOT investigate them, do NOT
-run tools, and do NOT read or modify any file — especially the execution
-schedule and its lineup_watchlist.
-
-{WATCHLIST_LANE_BOUNDARY}"""
 
 
 def build_execution_prompt(
@@ -520,6 +470,10 @@ def main(argv: list[str] | None = None) -> int:
     # auto-cleared, so the warning surfaces on the next tick that has
     # executable work; a wedged day is diagnosed by inspecting the schedule
     # or calling stale_lock_warnings() directly, not by this poller.
+    # This guard and the `if not prompt` one below are individually redundant
+    # (build_execution_prompt returns "" for both no-candidates and
+    # no-authorization); together they pin the invariant that a no-work tick
+    # emits zero bytes. Tests cover the net behaviour, not each guard alone.
     candidates = eligible_candidates(schedule, now)
     if not candidates:
         return 0
