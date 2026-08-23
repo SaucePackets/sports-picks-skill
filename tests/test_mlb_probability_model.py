@@ -87,8 +87,15 @@ class ProbabilityComponentContractTests(unittest.TestCase):
         # conservative_probability is unchanged — it clears on exactly the same
         # terms a known-park game would. Making the haircut mandatory needs the
         # park status plumbed onto the candidate; it is a policy call, open with
-        # Jerry as of 2026-08-23. If that lands, this test should flip, not be
-        # deleted.
+        # Jerry as of 2026-08-23.
+        #
+        # An earlier version of this comment said the test would FLIP if that
+        # lands. It would not: candidate_trail() carries no park status at all,
+        # so it would keep validating no matter what the rule says about an
+        # unavailable park. The test that flips has to CONSTRUCT a candidate
+        # carrying park.data_status == "unavailable", which cannot be written
+        # until the field is plumbed. This one asserts the same expression as
+        # test_valid_components_pass and is documentary only.
         self.assertEqual(probability_component_errors(candidate_trail()), [])
 
     def test_unknown_park_haircut_cannot_accompany_a_park_adjustment(self):

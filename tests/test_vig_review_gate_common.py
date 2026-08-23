@@ -1188,6 +1188,63 @@ class VigReviewGateCommonTests(unittest.TestCase):
             finally:
                 setattr(vig_review_gate_common, "ROOT", original_root)
 
+    def test_unreachable_first_pitch_is_reported_by_run_gate(self):
+        # PR #55 review. Preferring first pitch over the derived stamp moved the
+        # one-wrong-number hole instead of closing it. This entry is valid,
+        # never selected by due_entries (its recheck window opens three days
+        # from now and the day's gate will never see that window), never
+        # quarantined, and silent to the overdue notice — whose deadline comes
+        # from the same wrong number. Without this notice nothing surfaces it.
+        with tempfile.TemporaryDirectory() as tmp:
+            original_root = getattr(vig_review_gate_common, "ROOT")
+            try:
+                root = Path(tmp)
+                setattr(vig_review_gate_common, "ROOT", root)
+                day = vig_review_gate_common.datetime.now(
+                    vig_review_gate_common.ZoneInfo("America/Chicago")
+                ).date().isoformat()
+                schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
+                schedule_path.parent.mkdir(parents=True)
+                now = datetime.now(timezone.utc)
+                first_pitch = now + timedelta(days=3)
+                mistyped = self._watch_entry(
+                    id="watch-mistyped",
+                    side="SEA",
+                    game="Seattle Mariners at Texas Rangers",
+                    bettable_to_price=105,
+                    first_pitch_utc=first_pitch.isoformat(),
+                    # derived from first pitch exactly as references/mlb.md
+                    # instructs the slate agent, so both fields carry the error
+                    recheck_due_utc=(first_pitch - timedelta(minutes=75)).isoformat(),
+                )
+                schedule_path.write_text(
+                    json.dumps({"candidates": [], "lineup_watchlist": [mistyped]})
+                )
+
+                output = StringIO()
+                with (
+                    patch.object(
+                        vig_review_gate_common.subprocess,
+                        "run",
+                        side_effect=AssertionError("no reviewer child on a no-work cycle"),
+                    ),
+                    patch.object(
+                        vig_review_gate_common,
+                        "standing_authorization_enabled",
+                        return_value=True,
+                    ),
+                    redirect_stdout(output),
+                ):
+                    status = vig_review_gate_common.run_gate("MLB")
+
+                self.assertEqual(status, 0)
+                printed = output.getvalue()
+                self.assertIn("first pitch on watch-mistyped cannot belong", printed)
+                # The overdue notice cannot see it — that is the whole point.
+                self.assertNotIn("lineup recheck overdue", printed)
+            finally:
+                setattr(vig_review_gate_common, "ROOT", original_root)
+
     def test_empty_schedule_still_emits_nothing(self):
         # Hoisting the notice must not make quiet cycles chatty.
         with tempfile.TemporaryDirectory() as tmp:
