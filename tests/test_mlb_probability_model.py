@@ -56,9 +56,12 @@ class ProbabilityComponentContractTests(unittest.TestCase):
     def test_unknown_park_environment_is_a_priceable_haircut(self):
         # The park-factor loosening (Jerry, 2026-08-23). A venue off the
         # scanner's table used to have no writable form: the haircut allowed-list
-        # is fail-closed, so pricing the unknown run environment was REJECTED and
-        # discarding the game was the only route that validated. That made a data
-        # outage terminal, the same shape as the price and lineup outages.
+        # is fail-closed, so pricing the unknown run environment was REJECTED
+        # while staying silent about the park validated cleanly. The honest
+        # answer was the only rejected one, and on 2026-08-23 the agent chose
+        # discard — the same data-outage-becomes-terminal shape as the price and
+        # lineup outages. See test_silence_about_an_unavailable_park_still_
+        # validates for the other half of that, which is still true.
         candidate = candidate_trail(
             probability_components=valid_probability_components(
                 haircuts=[
@@ -74,6 +77,19 @@ class ProbabilityComponentContractTests(unittest.TestCase):
             )
         )
         self.assertEqual(probability_component_errors(candidate), [])
+
+    def test_silence_about_an_unavailable_park_still_validates(self):
+        # Pins the gap rather than claiming it is closed. Charging the
+        # unknown_park_environment haircut when the scanner reports
+        # park.data_status == "unavailable" is PROMPT-SIDE ONLY: this validator
+        # never receives the scanner payload, so a candidate that simply never
+        # mentions the park validates with zero errors and its
+        # conservative_probability is unchanged — it clears on exactly the same
+        # terms a known-park game would. Making the haircut mandatory needs the
+        # park status plumbed onto the candidate; it is a policy call, open with
+        # Jerry as of 2026-08-23. If that lands, this test should flip, not be
+        # deleted.
+        self.assertEqual(probability_component_errors(candidate_trail()), [])
 
     def test_unknown_park_haircut_cannot_accompany_a_park_adjustment(self):
         # The loosening's own guardrail: taking a park_home_context edge while

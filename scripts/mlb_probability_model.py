@@ -79,12 +79,18 @@ HAIRCUT_COMPONENTS = (
     "lineup_unconfirmed_or_weakened",
     "conflicting_signals",
     # A park off PARK_RUN_FACTORS (neutral site, new or renamed ballpark) leaves
-    # the run environment genuinely unknown. Before this component existed there
-    # was no way to WRITE that down: the allowed-list is fail-closed, so an
-    # approval that priced the unknown park was rejected outright and discarding
-    # the game was the only route that validated. That made a data outage
-    # terminal — the same shape as the price and lineup outages fixed in #48 and
-    # #53. The buffer is the answer, not the discard.
+    # the run environment genuinely unknown. Before this component existed the
+    # HONEST write-up was the one thing that did not validate: the allowed-list
+    # is fail-closed, so naming the outage and charging for it was rejected
+    # outright, leaving discard or staying silent about the park. Silence
+    # validates cleanly — nothing here requires the park be mentioned — so this
+    # was never "discard or nothing"; it was an honest answer being the only
+    # rejected one, and on 2026-08-23 the agent chose discard. Same
+    # data-outage-becomes-terminal shape as the price and lineup outages fixed
+    # in #48 and #53. NOT ENFORCED HERE: charging this haircut when the scanner
+    # reports park.data_status == "unavailable" is prompt-side only. This
+    # validator never sees the scanner payload, so it cannot tell an unavailable
+    # park that was priced from one that was passed over in silence.
     "unknown_park_environment",
 )
 

@@ -1208,8 +1208,9 @@ class OverdueRecheckWarningsTest(unittest.TestCase):
         # -> quarantined or hard gate failure), but a merely WRONG one parses
         # fine. Before this, a far-future stamp on an entry the recheck window
         # had already left behind suppressed the warning forever. The deadline
-        # is now the earlier of the stamp and the window close, which is
-        # derived from machine state.
+        # is now the window close whenever first pitch is known — machine state,
+        # not a model-written number. See the far-PAST sibling below: taking the
+        # earlier of the two closed only this direction.
         now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
         schedule = {
             "candidates": [],
@@ -1230,6 +1231,52 @@ class OverdueRecheckWarningsTest(unittest.TestCase):
         # It must name the deadline that actually fired, not the innocent stamp.
         self.assertIn("recheck window close", warnings[0])
         self.assertNotIn("2026-07-22", warnings[0])
+
+    def test_far_past_stamp_cannot_warn_on_a_live_entry(self):
+        # PR #54 review. min(stamped, window_close) closed the far-FUTURE
+        # mis-stamp and left the far-PAST one, where the untrusted number still
+        # beat the trusted one: first pitch 8 hours out, stamp 2 hours past, and
+        # a fully live entry is called a zombie. exclude_ids cannot save it —
+        # the entry has not entered the recheck window, so it is not in this
+        # run's due set at all. And since the notice was hoisted above the
+        # no-work early return this fires on EVERY cycle, which is the alarm
+        # fatigue the scoping exists to prevent.
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        schedule = {
+            "candidates": [],
+            "lineup_watchlist": [
+                {
+                    "id": "LW-live-but-mis-stamped",
+                    "status": "pending_lineup_recheck",
+                    "first_pitch_utc": (now + timedelta(hours=8)).isoformat().replace("+00:00", "Z"),
+                    "recheck_due_utc": (now - timedelta(hours=2)).isoformat().replace("+00:00", "Z"),
+                },
+            ],
+        }
+
+        self.assertEqual(mlb_lineup_watchlist.overdue_recheck_warnings(schedule, now), [])
+
+    def test_stamp_is_the_fallback_when_first_pitch_is_absent(self):
+        # The stamp is untrusted, not useless: with no first_pitch_utc there is
+        # no machine deadline to prefer, and an overdue entry with no known
+        # first pitch is still worth naming.
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        schedule = {
+            "candidates": [],
+            "lineup_watchlist": [
+                {
+                    "id": "LW-no-first-pitch",
+                    "status": "pending_lineup_recheck",
+                    "recheck_due_utc": (now - timedelta(hours=2)).isoformat().replace("+00:00", "Z"),
+                },
+            ],
+        }
+
+        warnings = mlb_lineup_watchlist.overdue_recheck_warnings(schedule, now)
+
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("LW-no-first-pitch", warnings[0])
+        self.assertIn("recheck_due_utc", warnings[0])
 
     def test_window_close_deadline_does_not_warn_before_the_window_shuts(self):
         # The machine-derived deadline must not make the detector trigger-happy:

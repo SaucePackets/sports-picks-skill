@@ -684,15 +684,28 @@ def overdue_recheck_warnings(
     every cycle. The real zombie is a valid pending entry the gate is NOT
     working — nothing else will ever surface it.
 
-    The deadline is the EARLIER of the stamped due time and the close of the
-    recheck window (first pitch minus MIN_MINUTES_BEFORE_FIRST_PITCH), because
-    `recheck_due_utc` has no writer in this repo — the slate agent authors it
-    per skills/sports-picks/SKILL.md. A missing or unparseable stamp is loud
-    already (it is a validation error, so the entry is quarantined or fails the
-    gate), but a stamp that is merely WRONG parses fine, and a far-future one
-    would suppress this warning forever on an entry the window has already left
-    behind. `first_pitch_utc` is machine state, so keying on it too means a
-    mis-stamped entry can no longer hide.
+    The deadline is the close of the recheck window (first pitch minus
+    MIN_MINUTES_BEFORE_FIRST_PITCH) whenever `first_pitch_utc` is present, and
+    the stamped `recheck_due_utc` only as a fallback when it is not.
+    `recheck_due_utc` has NO writer in this repo — the slate agent authors it
+    per skills/sports-picks/SKILL.md — so it is untrusted input, while first
+    pitch is machine state. A missing or unparseable stamp is loud already (a
+    validation error quarantines the entry or fails the gate), but a merely
+    WRONG one parses fine, and it can be wrong in both directions:
+
+    - far FUTURE would suppress the warning forever on an entry the window has
+      already left behind;
+    - far PAST would warn on an entry that is entirely live. `exclude_ids`
+      cannot cover that one, because an entry whose first pitch is still ahead
+      has not entered the recheck window yet and so is not in this run's due
+      set at all.
+
+    Taking min(stamped, window_close) closed only the first and left the
+    second — which since the notice was hoisted above run_gate's no-work early
+    return would fire on EVERY cycle rather than occasionally, the alarm-fatigue
+    outcome this detector's scoping exists to avoid. Preferring the machine
+    number closes both: the window close is the moment the entry stops being
+    recheckable, which is exactly when a still-pending entry becomes a zombie.
     """
     warnings: list[str] = []
     entries = schedule.get("lineup_watchlist")
@@ -714,15 +727,16 @@ def overdue_recheck_warnings(
             if first_pitch is not None
             else None
         )
-        deadlines = [value for value in (stamped, window_close) if value is not None]
-        if not deadlines:
+        due = window_close if window_close is not None else stamped
+        if due is None:
             continue
-        due = min(deadlines)
         overdue_minutes = (current - due).total_seconds() / 60
         if overdue_minutes > OVERDUE_RECHECK_MINUTES:
             # Report the deadline actually used, so a mis-stamped entry names
             # the number that fired rather than the one that looks fine.
-            source = "recheck_due_utc" if due == stamped else "recheck window close"
+            source = (
+                "recheck window close" if window_close is not None else "recheck_due_utc"
+            )
             warnings.append(
                 f"WARNING: lineup recheck overdue on {entry.get('id') or '<missing-id>'}, "
                 f"{source}={due.isoformat().replace('+00:00', 'Z')} "
