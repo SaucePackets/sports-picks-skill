@@ -1181,6 +1181,53 @@ class VigReviewGateCommonTests(unittest.TestCase):
             finally:
                 setattr(vig_review_gate_common, "ROOT", original_root)
 
+    def test_closed_market_deferred_recheck_is_accepted_without_rollback(self):
+        # 08-23 review P1: a closed/inactive market returns a full dict (no
+        # raise), so the child is shown "market open=False" with no usable ask
+        # — the prompt tells it to defer, and the validator must accept that
+        # defer instead of rolling back the whole day's review.
+        with tempfile.TemporaryDirectory() as tmp:
+            original_root = getattr(vig_review_gate_common, "ROOT")
+            try:
+                root = Path(tmp)
+                setattr(vig_review_gate_common, "ROOT", root)
+                closed = dict(self._LIVE_QUOTE)
+                closed["open"] = False
+                closed["reason"] = "market not open for trading"
+                status, output, entry, schedule_path = self._run_deferred_noop_gate(
+                    root,
+                    price=closed,
+                    lineup_snapshot=dict(self._RESOLVED_LINEUP_SNAPSHOT),
+                )
+                self._assert_deferred_noop_accepted(
+                    status, output, entry, schedule_path, root
+                )
+            finally:
+                setattr(vig_review_gate_common, "ROOT", original_root)
+
+    def test_unreliable_book_deferred_recheck_is_accepted_without_rollback(self):
+        # The other non-raising unavailable state: an unreliable book (missing
+        # side / crossed / wide spread) hands the child ask=None on its side.
+        with tempfile.TemporaryDirectory() as tmp:
+            original_root = getattr(vig_review_gate_common, "ROOT")
+            try:
+                root = Path(tmp)
+                setattr(vig_review_gate_common, "ROOT", root)
+                unreliable = dict(self._LIVE_QUOTE)
+                unreliable["long_ask"] = None
+                unreliable["no_ask"] = None
+                unreliable["book_state"] = "unreliable"
+                status, output, entry, schedule_path = self._run_deferred_noop_gate(
+                    root,
+                    price=unreliable,
+                    lineup_snapshot=dict(self._RESOLVED_LINEUP_SNAPSHOT),
+                )
+                self._assert_deferred_noop_accepted(
+                    status, output, entry, schedule_path, root
+                )
+            finally:
+                setattr(vig_review_gate_common, "ROOT", original_root)
+
     def test_unchanged_pending_with_available_inputs_fails_and_restores(self):
         # Real-boundary negative: a valid live quote AND both confirmed
         # lineups were supplied to the child, so an unchanged pending entry is
@@ -1905,3 +1952,58 @@ def test_price_context_missing_slug_is_not_deferral_eligible(monkeypatch):
     ctx, no_price_ids = g._price_context([{"id": "e3", "thesis": "no slug here"}])
     assert "no Polymarket slug resolvable" in ctx
     assert no_price_ids == set()
+
+
+def test_price_context_defer_markers_correspond_to_eligibility(monkeypatch):
+    # The correspondence contract itself (08-23 review): every entry whose
+    # price line tells the child to defer is deferral-eligible, and every
+    # eligible entry's line carries the defer marker — across fetch-failure,
+    # closed-market, unreliable-book, usable-quote, and no-slug states. The
+    # markers and the eligible set are derived from the same predicate, and
+    # this test pins that they can never diverge again.
+    import vig_review_gate_common as g
+
+    snapshots = {
+        "aec-mlb-outage-2026-08-23": None,
+        "aec-mlb-closed-2026-08-23": {
+            "slug": "aec-mlb-closed-2026-08-23", "open": False,
+            "reason": "market not open for trading", "long_ask": "0.5750",
+            "no_ask": "0.4300", "book_state": "reliable",
+        },
+        "aec-mlb-unreliable-2026-08-23": {
+            "slug": "aec-mlb-unreliable-2026-08-23", "open": True,
+            "reason": "open", "long_ask": None, "no_ask": None,
+            "book_state": "unreliable",
+        },
+        "aec-mlb-good-2026-08-23": {
+            "slug": "aec-mlb-good-2026-08-23", "open": True, "reason": "open",
+            "long_ask": "0.5750", "no_ask": "0.4300", "book_state": "reliable",
+        },
+    }
+    monkeypatch.setattr(g, "fetch_market_price", lambda slug: snapshots[slug])
+    entries = [
+        {"id": "watch-outage", "polymarket_slug": "aec-mlb-outage-2026-08-23", "thesis": ""},
+        {"id": "watch-closed", "polymarket_slug": "aec-mlb-closed-2026-08-23", "thesis": ""},
+        {"id": "watch-unreliable", "polymarket_slug": "aec-mlb-unreliable-2026-08-23", "thesis": ""},
+        {"id": "watch-good", "polymarket_slug": "aec-mlb-good-2026-08-23", "thesis": ""},
+        {"id": "watch-noslug", "thesis": "no slug here"},
+    ]
+    ctx, eligible = g._price_context(entries)
+
+    assert eligible == {"watch-outage", "watch-closed", "watch-unreliable"}
+    for line in ctx.splitlines():
+        entry_ids = [e["id"] for e in entries if line.startswith(e["id"])]
+        if not entry_ids:
+            continue
+        (entry_id,) = entry_ids
+        # Defer marker on a line <=> that id is deferral-eligible.
+        assert (g.PRICE_UNAVAILABLE_MARKER in line) == (entry_id in eligible), line
+    # The data-defect line instructs a decisive pass, never a defer.
+    noslug_line = next(l for l in ctx.splitlines() if l.startswith("watch-noslug"))
+    assert g.PRICE_DEFECT_MARKER in noslug_line
+    assert g.PRICE_UNAVAILABLE_MARKER not in noslug_line
+    # The recheck prompt teaches both markers, so the child sees the contract.
+    import mlb_lineup_watchlist as mlw
+    prompt = mlw.build_recheck_prompt(Path("/tmp/x.json"), entries, {})
+    assert "PRICE UNAVAILABLE this cycle" in prompt
+    assert "DATA DEFECT" in prompt

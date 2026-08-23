@@ -802,13 +802,16 @@ class MlbLineupWatchlistTests(unittest.TestCase):
                     Path("/tmp/schedule.json"), [self.entry()]
                 )
             self.assertNotIn("still promote", prompt)
+            # The defer instruction is keyed to the per-entry price-context
+            # marker, so the child defers exactly the deferral-eligible set
+            # (fetch failure, closed market, unreliable book) and decisively
+            # passes the no-slug data defect.
+            self.assertIn('an entry marked "PRICE UNAVAILABLE this cycle"', prompt)
             self.assertIn(
-                "If the\nprovided price is unavailable this cycle", prompt
-            )
-            self.assertIn(
-                "keep status pending_lineup_recheck (do not pass, do not promote)",
+                "keep status\npending_lineup_recheck (do not pass, do not promote)",
                 prompt,
             )
+            self.assertIn('an entry marked "DATA DEFECT"', prompt)
 
     def test_starter_rehandicap_prompt_floor_comes_from_policy_not_hardcode(self):
         entry = self.entry(blocked_only_by=["lineups_unconfirmed", "starter_unannounced"])

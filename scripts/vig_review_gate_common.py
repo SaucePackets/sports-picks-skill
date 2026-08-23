@@ -778,7 +778,10 @@ to the executable Polymarket US ask you are approving. It must be an unquoted
 JSON number strictly between 0 and 1 — for example 0.47 — never a quoted string
 such as "0.47", and never American odds such as 110 or -120. A quoted value, a
 value at or outside 0 and 1, or a missing key is rejected deterministically and
-the entire review is rolled back.
+the entire review is rolled back. approved_polymarket_ask, current_ask, and
+execution_checks.supported_price must be the SAME number written identically
+in all three fields — copy one value, never round or reformat any of them; a
+mismatch is rejected deterministically and rolls back the review.
 {evidence_section}
 {routing}
 
@@ -829,27 +832,65 @@ def fetch_market_price(slug: str) -> dict[str, Any] | None:
         return None
 
 
+# Per-entry price markers. The defer instruction shown to the child and the
+# validator's deferral_eligible_ids are derived from the SAME predicate below,
+# so the prompt can never tell the child to defer an entry the transition
+# validator will reject (the 08-23 review's P1: closed/unreliable markets
+# showed an unavailable price without earning eligibility, deadlocking the
+# child and rolling back the whole day's review).
+PRICE_UNAVAILABLE_MARKER = "PRICE UNAVAILABLE this cycle: keep status pending_lineup_recheck"
+PRICE_DEFECT_MARKER = (
+    "DATA DEFECT (no resolvable Polymarket slug): not a transient outage — "
+    "set status=passed with recheck_notes naming the missing slug"
+)
+
+
+def _price_is_usable(price: dict[str, Any] | None) -> bool:
+    """A fetched price is usable only when the market is open for trading and
+    both side asks are present. A closed market or an unreliable book (missing
+    side, crossed, wide spread) returns a dict without raising, but hands the
+    child no ask it may promote against — that is machine-verified
+    unavailability, exactly like a failed fetch."""
+    return (
+        isinstance(price, dict)
+        and bool(price.get("open"))
+        and price.get("long_ask") is not None
+        and price.get("no_ask") is not None
+    )
+
+
 def _price_context(watchlist: list[dict[str, Any]]) -> tuple[str, set[str]]:
     """Return the price prompt section plus the ids whose live price was
-    machine-verified unavailable (slug resolved, fetch failed). A missing slug
-    is a data defect, not a transient outage, so it earns no deferral."""
+    machine-verified unavailable this cycle: the fetch failed, the market is
+    not open, or the book is unreliable (a side ask is None). A missing slug
+    is a data defect, not a transient outage, so it earns no deferral — its
+    prompt line instructs a decisive pass instead."""
     lines: list[str] = []
     no_price_ids: set[str] = set()
     for entry in watchlist:
         slug = _entry_slug(entry)
         if not slug:
-            lines.append(f"{entry.get('id')}: no Polymarket slug resolvable")
+            lines.append(
+                f"{entry.get('id')}: no Polymarket slug resolvable — {PRICE_DEFECT_MARKER}"
+            )
             continue
         price = fetch_market_price(slug)
         if not price:
             no_price_ids.add(str(entry.get("id")))
-            lines.append(f"{entry.get('id')}: current price unavailable ({slug})")
+            lines.append(
+                f"{entry.get('id')}: current price unavailable ({slug}) — "
+                f"{PRICE_UNAVAILABLE_MARKER}"
+            )
             continue
-        lines.append(
+        detail = (
             f"{entry.get('id')} [{slug}]: market open={price['open']} ({price['reason']}), "
             f"book={price['book_state']}, long/YES ask={price['long_ask']}, "
             f"NO-side ask={price['no_ask']}"
         )
+        if not _price_is_usable(price):
+            no_price_ids.add(str(entry.get("id")))
+            detail += f" — {PRICE_UNAVAILABLE_MARKER}"
+        lines.append(detail)
     if not lines:
         return "", no_price_ids
     return (
