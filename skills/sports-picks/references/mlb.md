@@ -250,6 +250,17 @@ watchlist entry. While `starter_pending_promotions_enabled` is false in the
 shared policy, the watchlist is restricted to `lineups_unconfirmed` only —
 a pending `starter_unannounced` entry fails validation outright.
 
+Get `first_pitch_utc` right, and check it before you move on. You write both it
+and the recheck target derived from it, and nothing in the repo can tell that
+either is wrong — they are only checked for being parseable timestamps. Because
+the recheck window is computed from first pitch, a single mistyped date produces
+an entry that is valid, never selected for recheck, never quarantined, and
+silent to the overdue-recheck warning: invisible to every running job. The
+review gate now prints a notice when an entry's first pitch cannot fall on the
+schedule day it was written onto, which is the one cross-check available — the
+day comes from the gate's clock, not from you. Treat that notice as a
+transcription error to fix, not as noise.
+
 Record the morning probability components on every watchlist entry as a
 `slate_probability` object carrying `dk_fair_prob`, `raw_probability`,
 `uncertainty_haircut`, `conservative_probability`, `current_ask`,

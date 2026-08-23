@@ -16,6 +16,7 @@ import urllib.parse
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable
+from zoneinfo import ZoneInfo
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
@@ -664,6 +665,99 @@ def stale_invalid_watchlist(
 
 OVERDUE_RECHECK_MINUTES = 30
 
+# How far a pending entry's first pitch may sit from the start of the schedule
+# day it was written onto before the entry cannot plausibly belong to that day.
+# The lead covers a late West-coast game whose UTC instant rolls past midnight
+# and MLB's ballpark-local officialDate keying (see
+# test_lineup_snapshot_resolves_west_coast_game_despite_utc_date_rollover); the
+# lag covers the same rollover in the other direction. These are plausibility
+# bounds on a calendar day, not a tuning knob: a same-day slate cannot reach
+# either edge, and the failure they exist to catch — a transcription error that
+# moves first pitch by days — clears them by a wide margin.
+FIRST_PITCH_MAX_LEAD_HOURS = 36
+FIRST_PITCH_MAX_LAG_HOURS = 6
+SCHEDULE_DAY_ZONE = "America/Chicago"
+
+
+def unreachable_first_pitch_warnings(
+    schedule: dict[str, Any],
+    schedule_day: str,
+    exclude_ids: set[str] | None = None,
+) -> list[str]:
+    """Flag pending entries whose first pitch cannot belong to this schedule day.
+
+    The companion to ``overdue_recheck_warnings``, and it exists because that
+    function does not close the class it looks like it closes.
+
+    Neither ``first_pitch_utc`` nor ``recheck_due_utc`` is machine state. No
+    script in this repo writes ``lineup_watchlist``; the morning slate AGENT
+    does, and skills/sports-picks/references/mlb.md instructs it to persist
+    first pitch AND a recheck target derived from it. Same author, same write,
+    and ``validate_entry`` checks only that both parse. Preferring first pitch
+    over the derived stamp (PR #55) makes the detector harder to fool, because
+    it keys on the transcribed number rather than one computed from it — but it
+    MOVES the one-wrong-number hole rather than closing it.
+
+    The surviving hole is total invisibility. A single transcription error that
+    pushes first pitch days out leaves an entry that validates clean, that
+    ``due_entries`` never selects (it selects on the first-pitch window, so a
+    wrong window is simply never open), that ``stale_invalid_watchlist`` skips
+    (the entry is valid), and that ``overdue_recheck_warnings`` stays silent on
+    (its deadline is derived from the same wrong number). Nothing surfaces it —
+    the exact report-or-never shape the zombie detector exists for.
+
+    A schedule day is the one piece of state the agent did not write: the gate
+    derives it from the clock and reads ``{day}-schedule.json``. An entry whose
+    first pitch cannot fall on that day therefore disagrees with something the
+    agent did not author, which is what makes this checkable at all.
+
+    This warns rather than invalidating. The entry is unreachable, not
+    dangerous, and failing the gate closed over it would discard a day's review
+    for a typo — the data-outage-becomes-terminal shape this lane has spent
+    three PRs removing.
+
+    Reconciling against the live feed's ``gameDate`` instead cannot work for
+    this class: ``fetch_lineup_snapshot`` runs only for entries under recheck,
+    and an entry with a wrong first pitch is never selected for recheck.
+    """
+    warnings: list[str] = []
+    entries = schedule.get("lineup_watchlist")
+    if not isinstance(entries, list):
+        return warnings
+    try:
+        # The schedule day is a Chicago-local calendar date (run_gate derives it
+        # from ZoneInfo("America/Chicago")), so anchor the band there explicitly
+        # rather than in UTC or in whatever zone the process happens to run in.
+        # A gate keyed on local time reads as passing on a UTC machine while
+        # meaning something different in New York.
+        day = datetime.strptime(schedule_day, "%Y-%m-%d").replace(
+            tzinfo=ZoneInfo(SCHEDULE_DAY_ZONE)
+        )
+    except (TypeError, ValueError):
+        return warnings
+    earliest = day - timedelta(hours=FIRST_PITCH_MAX_LAG_HOURS)
+    latest = day + timedelta(hours=FIRST_PITCH_MAX_LEAD_HOURS)
+    skip = exclude_ids or set()
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("status") != PENDING_STATUS:
+            continue
+        if str(entry.get("id")) in skip:
+            continue
+        first_pitch = parse_instant(entry.get("first_pitch_utc"))
+        if first_pitch is None:
+            continue
+        if earliest <= first_pitch <= latest:
+            continue
+        warnings.append(
+            f"WARNING: first pitch on {entry.get('id') or '<missing-id>'} cannot "
+            f"belong to the {schedule_day} schedule "
+            f"(first_pitch_utc={first_pitch.isoformat().replace('+00:00', 'Z')}) — "
+            "the recheck window will never open and nothing else will surface it"
+        )
+    return warnings
+
 
 def overdue_recheck_warnings(
     schedule: dict[str, Any],
@@ -687,11 +781,19 @@ def overdue_recheck_warnings(
     The deadline is the close of the recheck window (first pitch minus
     MIN_MINUTES_BEFORE_FIRST_PITCH) whenever `first_pitch_utc` is present, and
     the stamped `recheck_due_utc` only as a fallback when it is not.
-    `recheck_due_utc` has NO writer in this repo — the slate agent authors it
-    per skills/sports-picks/SKILL.md — so it is untrusted input, while first
-    pitch is machine state. A missing or unparseable stamp is loud already (a
-    validation error quarantines the entry or fails the gate), but a merely
-    WRONG one parses fine, and it can be wrong in both directions:
+    NEITHER FIELD IS MACHINE STATE — an earlier version of this docstring said
+    first pitch was, and that was wrong. No script in this repo writes
+    `lineup_watchlist`; the slate agent does, and references/mlb.md tells it to
+    persist first pitch AND a recheck target derived from it. Same author, same
+    write, and `validate_entry` checks only that both parse. What first pitch
+    has over the stamp is narrower: it is transcribed from a feed rather than
+    computed from a transcription, so it is one fewer step from the source and
+    it is the field several other consumers already key on. That is a reason to
+    prefer it, not a guarantee.
+
+    A missing or unparseable stamp is loud already (a validation error
+    quarantines the entry or fails the gate), but a merely WRONG one parses
+    fine, and it can be wrong in both directions:
 
     - far FUTURE would suppress the warning forever on an entry the window has
       already left behind;
@@ -703,9 +805,15 @@ def overdue_recheck_warnings(
     Taking min(stamped, window_close) closed only the first and left the
     second — which since the notice was hoisted above run_gate's no-work early
     return would fire on EVERY cycle rather than occasionally, the alarm-fatigue
-    outcome this detector's scoping exists to avoid. Preferring the machine
-    number closes both: the window close is the moment the entry stops being
-    recheckable, which is exactly when a still-pending entry becomes a zombie.
+    outcome this detector's scoping exists to avoid. Preferring the window close
+    closes both: it is the moment the entry stops being recheckable, which is
+    exactly when a still-pending entry becomes a zombie.
+
+    It does NOT close the "one wrong number hides an entry forever" class; it
+    moves that hole from the stamp to first pitch, where a transcription error
+    yields an entry nothing surfaces at all. `unreachable_first_pitch_warnings`
+    is what covers that, and it has to key on something the slate agent did not
+    write — the schedule day.
     """
     warnings: list[str] = []
     entries = schedule.get("lineup_watchlist")

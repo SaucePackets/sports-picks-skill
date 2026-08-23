@@ -1208,9 +1208,13 @@ class OverdueRecheckWarningsTest(unittest.TestCase):
         # -> quarantined or hard gate failure), but a merely WRONG one parses
         # fine. Before this, a far-future stamp on an entry the recheck window
         # had already left behind suppressed the warning forever. The deadline
-        # is now the window close whenever first pitch is known — machine state,
-        # not a model-written number. See the far-PAST sibling below: taking the
-        # earlier of the two closed only this direction.
+        # is now the window close whenever first pitch is known. First pitch is
+        # NOT machine state either (the slate agent writes both fields) — it is
+        # transcribed rather than derived, which is one fewer step from the
+        # source, not a guarantee. See the far-PAST sibling below: taking the
+        # earlier of the two closed only this direction. And see
+        # UnreachableFirstPitchWarningsTest for what preferring first pitch
+        # does NOT close.
         now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
         schedule = {
             "candidates": [],
@@ -1297,6 +1301,112 @@ class OverdueRecheckWarningsTest(unittest.TestCase):
         }
 
         self.assertEqual(mlb_lineup_watchlist.overdue_recheck_warnings(schedule, now), [])
+
+    def test_normally_stamped_entry_is_warned_from_the_window_close(self):
+        # Pins the timing shift PR #55 introduced without a test. The old
+        # deadline was the stamp (mlb.md tells the slate to write first pitch
+        # minus 75); the new one is the window close (first pitch minus 35), so
+        # the notice arrives ~40 min later on a normally-stamped entry. Nothing
+        # actionable is lost — both land well after the recheck window closes,
+        # which is when exclude_ids stops covering the entry — but the shift
+        # should be a decision on the record, not a side effect nobody measured.
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        first_pitch = now + timedelta(minutes=20)
+        entry = {
+            "id": "LW-normally-stamped",
+            "status": "pending_lineup_recheck",
+            "first_pitch_utc": first_pitch.isoformat().replace("+00:00", "Z"),
+            "recheck_due_utc": (first_pitch - timedelta(minutes=75))
+            .isoformat()
+            .replace("+00:00", "Z"),
+        }
+        schedule = {"candidates": [], "lineup_watchlist": [entry]}
+
+        # The window closed 15 min ago — under the 30-minute grace, so the new
+        # deadline has not tripped. The old stamp-based deadline (first pitch
+        # minus 75) was already 55 min past and would have fired here.
+        self.assertEqual(mlb_lineup_watchlist.overdue_recheck_warnings(schedule, now), [])
+
+        later = now + timedelta(minutes=30)
+        warnings = mlb_lineup_watchlist.overdue_recheck_warnings(schedule, later)
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("recheck window close", warnings[0])
+
+
+class UnreachableFirstPitchWarningsTest(unittest.TestCase):
+    DAY = "2026-07-19"
+
+    def entry(self, first_pitch_utc, **overrides):
+        entry = {
+            "id": "LW-probe",
+            "status": "pending_lineup_recheck",
+            "first_pitch_utc": first_pitch_utc,
+        }
+        entry.update(overrides)
+        return entry
+
+    def warnings(self, entry, **kwargs):
+        schedule = {"candidates": [], "lineup_watchlist": [entry]}
+        return mlb_lineup_watchlist.unreachable_first_pitch_warnings(
+            schedule, self.DAY, **kwargs
+        )
+
+    def test_transcription_error_no_longer_leaves_an_invisible_entry(self):
+        # PR #55 review. Preferring first pitch over the derived stamp moved the
+        # one-wrong-number hole rather than closing it: a single transcription
+        # error putting first pitch days out yields an entry that validates
+        # clean, that due_entries never selects (it selects on the first-pitch
+        # window, so a wrong window is simply never open), that
+        # stale_invalid_watchlist skips because the entry is valid, and that
+        # overdue_recheck_warnings stays silent on because its deadline is
+        # derived from the same wrong number. Nothing surfaced it at all.
+        warnings = self.warnings(self.entry("2026-07-22T23:05:00Z"))
+
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("LW-probe", warnings[0])
+        self.assertIn("cannot belong to the 2026-07-19 schedule", warnings[0])
+
+    def test_a_far_past_first_pitch_is_also_unreachable(self):
+        # The wrong number can land on either side of the day.
+        warnings = self.warnings(self.entry("2026-07-11T23:05:00Z"))
+
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("LW-probe", warnings[0])
+
+    def test_ordinary_same_day_first_pitch_is_silent(self):
+        # 7:05pm Chicago on the schedule day.
+        self.assertEqual(self.warnings(self.entry("2026-07-20T00:05:00Z")), [])
+
+    def test_west_coast_utc_rollover_is_not_flagged(self):
+        # The false positive that would make this detector worthless. A 6:40pm
+        # PT first pitch is 01:40Z the NEXT UTC day and MLB keys the game under
+        # its ballpark-local officialDate, so a legitimate entry on the
+        # 2026-07-19 schedule carries a 2026-07-20 UTC instant. Same case as
+        # test_lineup_snapshot_resolves_west_coast_game_despite_utc_date_rollover.
+        self.assertEqual(self.warnings(self.entry("2026-07-20T01:40:00Z")), [])
+
+    def test_terminal_and_excluded_entries_are_left_alone(self):
+        self.assertEqual(
+            self.warnings(self.entry("2026-07-22T23:05:00Z", status="passed")), []
+        )
+        self.assertEqual(
+            self.warnings(self.entry("2026-07-22T23:05:00Z"), exclude_ids={"LW-probe"}),
+            [],
+        )
+
+    def test_unparseable_day_or_first_pitch_is_silent_not_noisy(self):
+        # An unparseable first pitch is already a validation error, and a
+        # malformed day is not the entry's fault. Neither should produce a
+        # zombie notice on top of the failure that already fires.
+        self.assertEqual(self.warnings(self.entry("not-a-timestamp")), [])
+        schedule = {
+            "candidates": [],
+            "lineup_watchlist": [self.entry("2026-07-22T23:05:00Z")],
+        }
+        self.assertEqual(
+            mlb_lineup_watchlist.unreachable_first_pitch_warnings(schedule, "nonsense"),
+            [],
+        )
 
 
 if __name__ == "__main__":

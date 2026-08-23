@@ -37,6 +37,7 @@ from mlb_lineup_watchlist import (  # noqa: E402
     fetch_lineup_snapshot,
     overdue_recheck_warnings,
     stale_invalid_watchlist,
+    unreachable_first_pitch_warnings,
     validate_watchlist,
 )
 from mlb_runtime_policy import (  # noqa: E402
@@ -1199,6 +1200,15 @@ def run_gate(sport: str) -> int:
         # delivery, never a prompt handed to an agent.
         in_flight = {str(entry.get("id")) for entry in watchlist}
         for warning in overdue_recheck_warnings(schedule, exclude_ids=in_flight):
+            print(f"{sport} review gate NOTICE: {warning}")
+        # Same lane, same reason, different way of going invisible: an entry
+        # whose first pitch cannot fall on this schedule day has a recheck
+        # window that never opens, so overdue_recheck_warnings — whose deadline
+        # is derived from that same wrong number — stays silent on it too.
+        # `day` is the one field the slate agent did not write.
+        for warning in unreachable_first_pitch_warnings(
+            schedule, day, exclude_ids=in_flight
+        ):
             print(f"{sport} review gate NOTICE: {warning}")
     if not candidates and not watchlist:
         return 0
