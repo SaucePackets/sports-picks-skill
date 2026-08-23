@@ -662,6 +662,54 @@ def stale_invalid_watchlist(
     return stale
 
 
+OVERDUE_RECHECK_MINUTES = 30
+
+
+def overdue_recheck_warnings(
+    schedule: dict[str, Any],
+    now: datetime | None = None,
+    exclude_ids: set[str] | None = None,
+) -> list[str]:
+    """Flag abandoned pending_lineup_recheck entries more than 30 minutes past due.
+
+    Lives here (not the execution gate) because lineup rechecks belong to the
+    review-gate lane; run_gate prints these alongside its other notices, so an
+    entry that slid past the due window without a terminal status is surfaced
+    by the job that owns it instead of by nobody.
+
+    `exclude_ids` is the set this run is about to review. Overdue-ness is NOT a
+    liveness signal on its own: due_entries selects on the first-pitch window,
+    never on recheck_due_utc, so an entry being rechecked right now routinely
+    carries a long-past due stamp. Warning on those would fire on healthy work
+    every cycle. The real zombie is a valid pending entry the gate is NOT
+    working — nothing else will ever surface it.
+    """
+    warnings: list[str] = []
+    entries = schedule.get("lineup_watchlist")
+    if not isinstance(entries, list):
+        return warnings
+    current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    skip = exclude_ids or set()
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("status") != PENDING_STATUS:
+            continue
+        if str(entry.get("id")) in skip:
+            continue
+        due = parse_instant(entry.get("recheck_due_utc"))
+        if due is None:
+            continue
+        overdue_minutes = (current - due).total_seconds() / 60
+        if overdue_minutes > OVERDUE_RECHECK_MINUTES:
+            warnings.append(
+                f"WARNING: lineup recheck overdue on {entry.get('id') or '<missing-id>'}, "
+                f"recheck_due_utc={entry.get('recheck_due_utc')} "
+                f"({overdue_minutes:.0f} min past due) and still pending_lineup_recheck"
+            )
+    return warnings
+
+
 def due_entries(schedule: dict[str, Any], now: datetime | None = None) -> list[dict[str, Any]]:
     current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     actionable, _ = _split_watchlist_errors(schedule, current)
@@ -754,6 +802,10 @@ sport=MLB, market_type=moneyline, an explicit max_polymarket_price between 0 and
 approved_polymarket_ask as an unquoted JSON number strictly between 0 and 1
 (the live executable ask; never American odds and never a quoted string),
 vig_review_needed=false, vig_approved=true, and no execution cron fields.
+approved_polymarket_ask, the probability trail's current_ask, and
+execution_checks.supported_price must be the SAME number written identically
+in all three fields — copy one value, never round or reformat any of them; a
+mismatch is rejected deterministically and rolls back the entire review.
 The recurring MLB execution poller will refresh all gates and handle execution.
 
 RECHECK REFRESH CONTRACT — required for every promotion; the validator rejects

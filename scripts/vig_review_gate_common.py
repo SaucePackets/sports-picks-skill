@@ -35,6 +35,7 @@ from mlb_lineup_watchlist import (  # noqa: E402
     build_recheck_prompt,
     due_entries,
     fetch_lineup_snapshot,
+    overdue_recheck_warnings,
     stale_invalid_watchlist,
     validate_watchlist,
 )
@@ -273,7 +274,11 @@ def normalize_review_routing(
         if candidate.get("vig_approved") is True
         and before_by_id.get(candidate_identity(candidate), {}).get("vig_approved") is not True
     ]
-    prices: list[tuple[dict[str, Any], int | float]] = []
+    # Candidates whose approved ask passed the strict + agreement checks.
+    # (Formerly (candidate, ask) pairs; the ask itself is fully consumed by
+    # the agreement check above — the executable ceiling below is policy-
+    # derived, never the ask.)
+    routable: list[dict[str, Any]] = []
     errors: list[str] = []
     for candidate in newly_approved:
         identity = candidate_identity(candidate)
@@ -299,7 +304,7 @@ def normalize_review_routing(
                     + "; ".join(agreement_errors)
                 )
             else:
-                prices.append((candidate, ask))
+                routable.append(candidate)
         # Probability contract at ROUTING time: a standing-authorized candidate
         # must already carry the full numeric probability trail with a live
         # recomputed edge. NaN/Inf fields are rejected here (not just at the
@@ -387,7 +392,7 @@ def normalize_review_routing(
         # The execution gate fails closed on a wrong "date" header; stamp the
         # schedule's own day so approved candidates are actually executable.
         after["date"] = day
-    for candidate, ask in prices:
+    for candidate in routable:
         # The executable ceiling is the shared-policy ceiling
         # (conservative_probability - min_conservative_edge), never the current
         # ask: a valid later fill between the original ask and the true ceiling
@@ -422,7 +427,7 @@ def normalize_review_routing(
 
     normalized_by_watchlist_id = {
         candidate.get("watchlist_id"): candidate
-        for candidate, _ in prices
+        for candidate in routable
         if candidate.get("watchlist_id")
     }
     for entry in after.get("lineup_watchlist", []):
@@ -843,6 +848,9 @@ PRICE_DEFECT_MARKER = (
     "DATA DEFECT (no resolvable Polymarket slug): not a transient outage — "
     "set status=passed with recheck_notes naming the missing slug"
 )
+LINEUP_UNAVAILABLE_MARKER = (
+    "LINEUP FEED UNAVAILABLE this cycle: keep status pending_lineup_recheck"
+)
 
 
 def _price_is_usable(price: dict[str, Any] | None) -> bool:
@@ -882,15 +890,23 @@ def _price_context(watchlist: list[dict[str, Any]]) -> tuple[str, set[str]]:
                 f"{PRICE_UNAVAILABLE_MARKER}"
             )
             continue
-        detail = (
-            f"{entry.get('id')} [{slug}]: market open={price['open']} ({price['reason']}), "
-            f"book={price['book_state']}, long/YES ask={price['long_ask']}, "
-            f"NO-side ask={price['no_ask']}"
-        )
-        if not _price_is_usable(price):
+        if _price_is_usable(price):
+            lines.append(
+                f"{entry.get('id')} [{slug}]: market open={price['open']} ({price['reason']}), "
+                f"book={price['book_state']}, long/YES ask={price['long_ask']}, "
+                f"NO-side ask={price['no_ask']}"
+            )
+        else:
+            # Never print tradable-looking asks on an unusable quote — a
+            # closed market can still carry numbers in the book, and showing
+            # them next to the defer marker invites pricing off a market that
+            # cannot be traded.
             no_price_ids.add(str(entry.get("id")))
-            detail += f" — {PRICE_UNAVAILABLE_MARKER}"
-        lines.append(detail)
+            lines.append(
+                f"{entry.get('id')} [{slug}]: market open={price['open']} ({price['reason']}), "
+                f"book={price['book_state']}, no executable ask — "
+                f"{PRICE_UNAVAILABLE_MARKER}"
+            )
     if not lines:
         return "", no_price_ids
     return (
@@ -926,10 +942,17 @@ def build_lineup_recheck_prompt(
     # component contract or the execution gate will reject it deterministically.
     prompt += "\n" + probability_contract_prompt_section() + "\n"
     if unavailable:
+        # A feed outage is machine-verified unavailability, symmetric with the
+        # price side: these ids are deferral-eligible, so the instruction must
+        # be defer — not "fail the gate", which routes a live candidate to a
+        # terminal passed (the discard shape that swallowed the 08-16/08-18
+        # winners when the lane was down).
         prompt += (
             "\nMLB lineup lookup was unavailable for: "
             + ", ".join(unavailable)
-            + ". Fail the lineup-confirmation gate unless another live source verifies it.\n"
+            + f" — {LINEUP_UNAVAILABLE_MARKER} (do not pass, do not"
+            " promote) and let a later recheck see the posted lineups. Do NOT"
+            " treat a feed outage as unconfirmed lineups.\n"
         )
     return prompt, no_price_ids | set(unavailable)
 
@@ -1169,6 +1192,16 @@ def run_gate(sport: str) -> int:
                 f"{sport} review gate NOTICE: quarantined invalid historical watchlist "
                 f"entry {label} (first pitch passed, never routable): {'; '.join(messages)}"
             )
+        # Rechecks belong to this lane, so this lane surfaces the zombies: a
+        # valid pending entry that slid past its due window is otherwise
+        # visible to no running job. Same convention as the quarantine notice
+        # above — printed only when the gate has work. `watchlist` is exactly
+        # this run's due set, and those entries are being rechecked right now,
+        # so they are excluded: overdue_recheck_warnings explains why an old
+        # due stamp on live work is normal rather than a warning.
+        in_flight = {str(entry.get("id")) for entry in watchlist}
+        for warning in overdue_recheck_warnings(schedule, exclude_ids=in_flight):
+            print(f"{sport} review gate NOTICE: {warning}")
 
     candidate_ids = [candidate_identity(candidate) for candidate in candidates]
     watchlist_ids = [str(entry["id"]) for entry in watchlist]
