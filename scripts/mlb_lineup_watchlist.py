@@ -665,17 +665,32 @@ def stale_invalid_watchlist(
 
 OVERDUE_RECHECK_MINUTES = 30
 
-# How far a pending entry's first pitch may sit from the start of the schedule
-# day it was written onto before the entry cannot plausibly belong to that day.
-# The lead covers a late West-coast game whose UTC instant rolls past midnight
-# and MLB's ballpark-local officialDate keying (see
-# test_lineup_snapshot_resolves_west_coast_game_despite_utc_date_rollover); the
-# lag covers the same rollover in the other direction. These are plausibility
-# bounds on a calendar day, not a tuning knob: a same-day slate cannot reach
-# either edge, and the failure they exist to catch — a transcription error that
-# moves first pitch by days — clears them by a wide margin.
-FIRST_PITCH_MAX_LEAD_HOURS = 36
-FIRST_PITCH_MAX_LAG_HOURS = 6
+# The schedule day is a Chicago calendar date, and a pending entry belongs to it
+# when first pitch falls inside that same Chicago day. There is no tolerance
+# either side, and the absence is the point: an earlier version allowed 36h lead
+# and 6h lag, and BOTH allowances were wrong in the way an unexamined constant is
+# usually wrong.
+#
+# The lead let the likeliest date typo of all — one day — hide whenever it landed
+# on a MORNING game: D+1 11:05 CT sat inside a 36h window and was silent to this
+# detector AND to overdue_recheck_warnings, which is the whole invisible-entry
+# shape this function exists to end. 12:05pm ET getaway-day starts land exactly
+# there, so that window was never empty.
+#
+# The lag named a shape nobody could construct: with a Chicago anchor there is no
+# legitimate game whose officialDate is D and whose first pitch precedes Chicago
+# midnight. Its only measured effect was accepting the previous evening, which
+# overdue_recheck_warnings already reports. Both allowances were also invisible
+# to the suite — zeroing the lag changed no test — so they were knobs nothing
+# defended.
+#
+# Anchoring in Chicago rather than UTC is load-bearing, not cosmetic: a 6:40pm PT
+# game is 01:40Z the NEXT UTC day while remaining a same-Chicago-day game, and
+# MLB keys it under its ballpark-local officialDate (see
+# test_lineup_snapshot_resolves_west_coast_game_despite_utc_date_rollover). A UTC
+# anchor would flag it. Every legitimate shape checked — 12:05pm ET getaway days,
+# 10:10pm ET and 6:40pm PT night games, doubleheader nightcaps, the Tokyo Series
+# at 04:10 CT and the London Series at 12:10 CT — falls inside the Chicago day.
 SCHEDULE_DAY_ZONE = "America/Chicago"
 
 
@@ -726,17 +741,22 @@ def unreachable_first_pitch_warnings(
         return warnings
     try:
         # The schedule day is a Chicago-local calendar date (run_gate derives it
-        # from ZoneInfo("America/Chicago")), so anchor the band there explicitly
-        # rather than in UTC or in whatever zone the process happens to run in.
-        # A gate keyed on local time reads as passing on a UTC machine while
-        # meaning something different in New York.
+        # from ZoneInfo("America/Chicago")), so anchor there explicitly rather
+        # than in UTC or in whatever zone the process happens to run in. A gate
+        # keyed on local time reads as passing on a UTC machine while meaning
+        # something different in New York.
         day = datetime.strptime(schedule_day, "%Y-%m-%d").replace(
             tzinfo=ZoneInfo(SCHEDULE_DAY_ZONE)
         )
     except (TypeError, ValueError):
         return warnings
-    earliest = day - timedelta(hours=FIRST_PITCH_MAX_LAG_HOURS)
-    latest = day + timedelta(hours=FIRST_PITCH_MAX_LEAD_HOURS)
+    # timedelta on an aware datetime is WALL-CLOCK arithmetic, so this lands on
+    # the next Chicago midnight and the window spans a real local day — 23h on
+    # spring-forward, 25h in autumn. (`timedelta(hours=24)` would do the same
+    # thing here for the same reason; the unit is not what makes this correct.
+    # What would break it is anchoring the day in UTC, which
+    # test_the_chicago_anchor_is_load_bearing pins.)
+    next_day = day + timedelta(days=1)
     skip = exclude_ids or set()
     for entry in entries:
         if not isinstance(entry, dict):
@@ -748,7 +768,7 @@ def unreachable_first_pitch_warnings(
         first_pitch = parse_instant(entry.get("first_pitch_utc"))
         if first_pitch is None:
             continue
-        if earliest <= first_pitch <= latest:
+        if day <= first_pitch < next_day:
             continue
         warnings.append(
             f"WARNING: first pitch on {entry.get('id') or '<missing-id>'} cannot "
