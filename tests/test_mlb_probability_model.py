@@ -53,6 +53,56 @@ class ProbabilityComponentContractTests(unittest.TestCase):
         )
         self.assertEqual(probability_component_errors(candidate), [])
 
+    def test_unknown_park_environment_is_a_priceable_haircut(self):
+        # The park-factor loosening (Jerry, 2026-08-23). A venue off the
+        # scanner's table used to have no writable form: the haircut allowed-list
+        # is fail-closed, so pricing the unknown run environment was REJECTED and
+        # discarding the game was the only route that validated. That made a data
+        # outage terminal, the same shape as the price and lineup outages.
+        candidate = candidate_trail(
+            probability_components=valid_probability_components(
+                haircuts=[
+                    {
+                        "component": "unknown_park_environment",
+                        "amount": 0.03,
+                        "evidence": (
+                            "park.data_status=unavailable for Journey Bank Ballpark; "
+                            "run environment unknown"
+                        ),
+                    }
+                ]
+            )
+        )
+        self.assertEqual(probability_component_errors(candidate), [])
+
+    def test_unknown_park_haircut_cannot_accompany_a_park_adjustment(self):
+        # The loosening's own guardrail: taking a park_home_context edge while
+        # charging for not knowing the park nets to nothing and turns the buffer
+        # into a free pass.
+        candidate = candidate_trail(
+            probability_components=valid_probability_components(
+                adjustments=[
+                    {
+                        "component": "park_home_context",
+                        "delta": 0.02,
+                        "evidence": "claims a park read",
+                    }
+                ],
+                haircuts=[
+                    {
+                        "component": "unknown_park_environment",
+                        "amount": 0.03,
+                        "evidence": "claims the park is unknown",
+                    }
+                ],
+            )
+        )
+        errors = probability_component_errors(candidate)
+        self.assertTrue(
+            any("unknown_park_environment haircut cannot accompany" in e for e in errors),
+            errors,
+        )
+
     def test_unknown_component_rejected(self):
         components = valid_probability_components(
             adjustments=[{"component": "vibes", "delta": 0.02, "evidence": "x"}]
@@ -459,6 +509,12 @@ class PromptWiringTests(unittest.TestCase):
         self.assertIn("recent_form", section)
         self.assertIn("vig-mlb-market-v1", section)
         self.assertIn("mlb_probability_model.py gate", section)
+        # The unknown-park route has to reach the handicapper, not just the
+        # validator: the child only knows an unavailable park factor is priceable
+        # if the prompt says so. Without this the allowed-list widens and the
+        # behaviour that discarded the game stays exactly as it was.
+        self.assertIn("unknown_park_environment", section)
+        self.assertIn("Discarding a game over an unavailable input", section)
 
     def test_review_prompt_scoping(self):
         import vig_review_gate_common

@@ -9,7 +9,8 @@ Phase 3 of the 2026-08-11 MLB pick-process hardening plan. Three jobs:
    assigns 64%" — and the components must sum to
    ``raw_probability - dk_fair_prob``. Uncertainty haircuts (small samples,
    opener/bulk uncertainty, contact/HR risk, unavailable leverage relievers,
-   lineup doubt, conflicting signals) are their own named components summing
+   lineup doubt, conflicting signals, unknown park run environment) are their
+   own named components summing
    to ``uncertainty_haircut``, and
    ``conservative_probability = raw_probability - uncertainty_haircut`` is the
    only probability used for edge and execution. The market-only fallback is
@@ -77,6 +78,14 @@ HAIRCUT_COMPONENTS = (
     "leverage_relievers_unavailable",
     "lineup_unconfirmed_or_weakened",
     "conflicting_signals",
+    # A park off PARK_RUN_FACTORS (neutral site, new or renamed ballpark) leaves
+    # the run environment genuinely unknown. Before this component existed there
+    # was no way to WRITE that down: the allowed-list is fail-closed, so an
+    # approval that priced the unknown park was rejected outright and discarding
+    # the game was the only route that validated. That made a data outage
+    # terminal — the same shape as the price and lineup outages fixed in #48 and
+    # #53. The buffer is the answer, not the discard.
+    "unknown_park_environment",
 )
 
 COMPONENT_SUM_TOLERANCE = 1e-3
@@ -218,6 +227,19 @@ def validate_probability_components(components: Any, candidate: dict[str, Any]) 
     for component, amount in haircuts.items():
         if amount <= 0:
             errors.append(f"haircut {component} amount must be positive")
+
+    # The unknown-park haircut is a loosening — it lets a game with no run
+    # factor be priced instead of discarded — so it carries its own contradiction
+    # check. Claiming a park_home_context edge while charging for not knowing the
+    # park is having it both ways, and it is exactly how a buffer degenerates
+    # into a free pass: take the adjustment, take the haircut, net nothing.
+    park_adjustment = adjustments.get("park_home_context")
+    if haircuts.get("unknown_park_environment") is not None and park_adjustment:
+        errors.append(
+            "unknown_park_environment haircut cannot accompany a "
+            f"park_home_context adjustment ({park_adjustment:+.3f}) — the park "
+            "run environment is either known or it is not"
+        )
 
     dk_fair = candidate.get("dk_fair_prob")
     raw = candidate.get("raw_probability")
@@ -655,7 +677,12 @@ the component values must sum to the stated deltas.
 - haircuts: list of {component, amount, evidence}. Positive amounts summing to
   uncertainty_haircut (tolerance 0.001). Allowed components: small_sample,
   opener_bulk_uncertainty, contact_hr_risk, leverage_relievers_unavailable,
-  lineup_unconfirmed_or_weakened, conflicting_signals.
+  lineup_unconfirmed_or_weakened, conflicting_signals, unknown_park_environment.
+- A missing park run factor (scanner park.data_status == "unavailable") is NOT a
+  stop. Charge unknown_park_environment and take no park_home_context adjustment;
+  the two together are a hard failure, because the park is either known or it is
+  not. Discarding a game over an unavailable input is the failure mode this
+  component exists to remove.
 - conservative_probability must equal raw_probability - uncertainty_haircut; it is
   the ONLY probability used for edge and execution.
 - Every component needs written evidence citing pre-pitch data. Postgame fields

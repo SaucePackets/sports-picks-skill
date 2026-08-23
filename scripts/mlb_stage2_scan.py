@@ -147,14 +147,37 @@ def team_offense_quality(season: int) -> dict[str, dict[str, float]]:
 
 
 def park_context(venue_name: str | None) -> dict[str, Any]:
-    factor = PARK_RUN_FACTORS.get(str(venue_name or "").strip())
+    """Park run environment for a game, with the data outage named explicitly.
+
+    ``PARK_RUN_FACTORS`` is a fixed table, so any venue off it — a neutral-site
+    game, a new ballpark, a renamed one — yields ``run_factor: None``. That is a
+    DATA OUTAGE, and it is reported as one (``data_status: "unavailable"``)
+    rather than as a silent null the handicapper has to interpret, because a
+    silent null reads as "no park effect" and a missing input reads as a stop.
+    It is neither: the run environment is unknown, which is a reason to charge
+    the ``unknown_park_environment`` uncertainty haircut and take no
+    ``park_home_context`` adjustment. Never substitute a neutral 100 here — a
+    fabricated factor would let a park read be claimed on no data at all.
+    """
+    key = str(venue_name or "").strip()
+    factor = PARK_RUN_FACTORS.get(key)
     flag = None
-    if factor is not None:
-        if factor >= 105:
-            flag = "extreme hitter park — cap confidence per park rule"
-        elif factor <= 96:
-            flag = "strong pitcher park"
-    return {"venue": venue_name, "run_factor": factor, "flag": flag}
+    if factor is None:
+        flag = (
+            f"park run factor unavailable for {key or '<unknown venue>'} — "
+            "no park_home_context adjustment; charge the unknown_park_environment "
+            "haircut instead of discarding the game"
+        )
+    elif factor >= 105:
+        flag = "extreme hitter park — cap confidence per park rule"
+    elif factor <= 96:
+        flag = "strong pitcher park"
+    return {
+        "venue": venue_name,
+        "run_factor": factor,
+        "data_status": "unavailable" if factor is None else "available",
+        "flag": flag,
+    }
 
 
 def american_prob(odds: str | int | None) -> float | None:

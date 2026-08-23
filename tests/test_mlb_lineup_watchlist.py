@@ -1202,6 +1202,55 @@ class OverdueRecheckWarningsTest(unittest.TestCase):
         self.assertEqual(len(warnings), 1)
         self.assertIn("LW-abandoned", warnings[0])
 
+    def test_far_future_stamp_cannot_suppress_the_warning(self):
+        # recheck_due_utc has no writer in this repo — the slate agent authors
+        # it. A missing or unparseable stamp is loud already (validation error
+        # -> quarantined or hard gate failure), but a merely WRONG one parses
+        # fine. Before this, a far-future stamp on an entry the recheck window
+        # had already left behind suppressed the warning forever. The deadline
+        # is now the earlier of the stamp and the window close, which is
+        # derived from machine state.
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        schedule = {
+            "candidates": [],
+            "lineup_watchlist": [
+                {
+                    "id": "LW-mis-stamped",
+                    "status": "pending_lineup_recheck",
+                    "first_pitch_utc": (now - timedelta(hours=6)).isoformat().replace("+00:00", "Z"),
+                    "recheck_due_utc": (now + timedelta(days=3)).isoformat().replace("+00:00", "Z"),
+                },
+            ],
+        }
+
+        warnings = mlb_lineup_watchlist.overdue_recheck_warnings(schedule, now)
+
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("LW-mis-stamped", warnings[0])
+        # It must name the deadline that actually fired, not the innocent stamp.
+        self.assertIn("recheck window close", warnings[0])
+        self.assertNotIn("2026-07-22", warnings[0])
+
+    def test_window_close_deadline_does_not_warn_before_the_window_shuts(self):
+        # The machine-derived deadline must not make the detector trigger-happy:
+        # an entry whose first pitch is still ahead is live, not a zombie.
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        schedule = {
+            "candidates": [],
+            "lineup_watchlist": [
+                {
+                    "id": "LW-live",
+                    "status": "pending_lineup_recheck",
+                    "first_pitch_utc": (now + timedelta(hours=3)).isoformat().replace("+00:00", "Z"),
+                    "recheck_due_utc": (now + timedelta(hours=1, minutes=45))
+                    .isoformat()
+                    .replace("+00:00", "Z"),
+                },
+            ],
+        }
+
+        self.assertEqual(mlb_lineup_watchlist.overdue_recheck_warnings(schedule, now), [])
+
 
 if __name__ == "__main__":
     unittest.main()

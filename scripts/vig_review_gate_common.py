@@ -1180,28 +1180,41 @@ def run_gate(sport: str) -> int:
     except (ScheduleFormatError, WatchlistFormatError) as exc:
         print(f"{sport} review gate ERROR: {exc}")
         return 1
+    if sport == "MLB":
+        # Rechecks belong to this lane, so this lane surfaces the zombies: a
+        # valid pending entry that slid past its due window is otherwise
+        # visible to no running job. `watchlist` is exactly this run's due set,
+        # and those entries are being rechecked right now, so they are
+        # excluded: overdue_recheck_warnings explains why an old due stamp on
+        # live work is normal rather than a warning.
+        #
+        # This sits ABOVE the no-work early return, unlike the quarantine
+        # notice below. The zombie the detector exists for is precisely an
+        # abandoned entry with nothing else on the schedule — the last stuck
+        # entry of the day, or a one-game slate — and below the return it is
+        # reported only on cycles that happen to have other work, which is the
+        # opposite of when it is needed. The cost is a delivery on otherwise
+        # silent cycles. That is not the 08-11 agent-prompt hazard: run_gate
+        # spawns the reviewer child itself, so this stdout is the job's
+        # delivery, never a prompt handed to an agent.
+        in_flight = {str(entry.get("id")) for entry in watchlist}
+        for warning in overdue_recheck_warnings(schedule, exclude_ids=in_flight):
+            print(f"{sport} review gate NOTICE: {warning}")
     if not candidates and not watchlist:
         return 0
     if sport == "MLB":
         # Invalid entries whose first pitch already passed are dead as routing
         # inputs (due_entries quarantines them); surface them alongside real
         # review work instead of failing every remaining run of the day closed.
-        # Printed only when the gate has work, so quiet cycles stay silent.
+        # Printed only when the gate has work, so quiet cycles stay silent —
+        # deliberately kept below the return: an invalid entry still fails the
+        # gate loudly on any cycle with a routable sibling, so it does not have
+        # the zombie's report-or-never property.
         for label, messages in sorted(stale_invalid_watchlist(schedule).items()):
             print(
                 f"{sport} review gate NOTICE: quarantined invalid historical watchlist "
                 f"entry {label} (first pitch passed, never routable): {'; '.join(messages)}"
             )
-        # Rechecks belong to this lane, so this lane surfaces the zombies: a
-        # valid pending entry that slid past its due window is otherwise
-        # visible to no running job. Same convention as the quarantine notice
-        # above — printed only when the gate has work. `watchlist` is exactly
-        # this run's due set, and those entries are being rechecked right now,
-        # so they are excluded: overdue_recheck_warnings explains why an old
-        # due stamp on live work is normal rather than a warning.
-        in_flight = {str(entry.get("id")) for entry in watchlist}
-        for warning in overdue_recheck_warnings(schedule, exclude_ids=in_flight):
-            print(f"{sport} review gate NOTICE: {warning}")
 
     candidate_ids = [candidate_identity(candidate) for candidate in candidates]
     watchlist_ids = [str(entry["id"]) for entry in watchlist]

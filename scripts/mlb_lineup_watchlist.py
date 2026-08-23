@@ -683,6 +683,16 @@ def overdue_recheck_warnings(
     carries a long-past due stamp. Warning on those would fire on healthy work
     every cycle. The real zombie is a valid pending entry the gate is NOT
     working — nothing else will ever surface it.
+
+    The deadline is the EARLIER of the stamped due time and the close of the
+    recheck window (first pitch minus MIN_MINUTES_BEFORE_FIRST_PITCH), because
+    `recheck_due_utc` has no writer in this repo — the slate agent authors it
+    per skills/sports-picks/SKILL.md. A missing or unparseable stamp is loud
+    already (it is a validation error, so the entry is quarantined or fails the
+    gate), but a stamp that is merely WRONG parses fine, and a far-future one
+    would suppress this warning forever on an entry the window has already left
+    behind. `first_pitch_utc` is machine state, so keying on it too means a
+    mis-stamped entry can no longer hide.
     """
     warnings: list[str] = []
     entries = schedule.get("lineup_watchlist")
@@ -697,14 +707,25 @@ def overdue_recheck_warnings(
             continue
         if str(entry.get("id")) in skip:
             continue
-        due = parse_instant(entry.get("recheck_due_utc"))
-        if due is None:
+        stamped = parse_instant(entry.get("recheck_due_utc"))
+        first_pitch = parse_instant(entry.get("first_pitch_utc"))
+        window_close = (
+            first_pitch - timedelta(minutes=MIN_MINUTES_BEFORE_FIRST_PITCH)
+            if first_pitch is not None
+            else None
+        )
+        deadlines = [value for value in (stamped, window_close) if value is not None]
+        if not deadlines:
             continue
+        due = min(deadlines)
         overdue_minutes = (current - due).total_seconds() / 60
         if overdue_minutes > OVERDUE_RECHECK_MINUTES:
+            # Report the deadline actually used, so a mis-stamped entry names
+            # the number that fired rather than the one that looks fine.
+            source = "recheck_due_utc" if due == stamped else "recheck window close"
             warnings.append(
                 f"WARNING: lineup recheck overdue on {entry.get('id') or '<missing-id>'}, "
-                f"recheck_due_utc={entry.get('recheck_due_utc')} "
+                f"{source}={due.isoformat().replace('+00:00', 'Z')} "
                 f"({overdue_minutes:.0f} min past due) and still pending_lineup_recheck"
             )
     return warnings
