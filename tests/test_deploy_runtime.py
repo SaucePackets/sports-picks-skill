@@ -377,6 +377,92 @@ def test_manifest_scripts_have_no_clawdbot_assumptions():
         assert "/home/clawdbot" not in src, f"hardcoded /home/clawdbot path in scripts/{name}"
 
 
+def _skill_sources() -> list[Path]:
+    """Executable skill sources and the reference docs that hand the agent
+    commands to run. Both are reachable at runtime and neither is covered by
+    _manifest_names(), which only knows about the deploy manifest."""
+    roots = [
+        *(REPO_ROOT / "skills").rglob("scripts/*.py"),
+        *(REPO_ROOT / "skills").rglob("references/*.md"),
+    ]
+    paths = sorted(p for p in roots if p.is_file())
+    # A silently-empty glob would make this guard vacuous.
+    assert any(p.name == "polymarket_us_sdk_bet.py" for p in paths), paths
+    assert sum(p.suffix == ".md" for p in paths) >= 5, paths
+    return paths
+
+
+def test_skill_scripts_and_references_have_no_baked_in_home():
+    """The manifest guard above stops at scripts/. The Polymarket executor and
+    the docs that tell the agent how to invoke it live under skills/ and were
+    outside every guard until 2026-08-23, when a /home/clawdbot interpreter path
+    in polymarket_us_sdk_bet.py had to be hand-patched on the production box.
+
+    A baked-in home is worse here than a wrong path usually is: the self-heal
+    re-exec is guarded by os.path.exists, so a home that does not exist makes
+    the guard silently False and the executor runs without polymarket_us."""
+    offenders = []
+    for path in _skill_sources():
+        for lineno, line in enumerate(path.read_text().splitlines(), 1):
+            if "/home/clawdbot" in line:
+                offenders.append(f"{path.relative_to(REPO_ROOT)}:{lineno}: {line.strip()}")
+    assert not offenders, "baked-in home path in runtime-reachable skill files:\n" + "\n".join(offenders)
+
+
+def test_executor_venv_path_follows_invoking_home(tmp_path):
+    """The re-exec target must move with HOME and be overridable, so the same
+    checkout works for whichever account the runtime happens to run as."""
+    executor = REPO_ROOT / "skills" / "sports-picks" / "scripts" / "polymarket_us_sdk_bet.py"
+    prologue = executor.read_text().split("import argparse", 1)[0]
+    assert "_SP_VENV" in prologue
+
+    def resolve(env: dict[str, str]) -> str:
+        proc = subprocess.run(
+            [sys.executable, "-c", prologue + "\nprint(_SP_VENV)\n"],
+            env=env, capture_output=True, text=True,
+        )
+        assert proc.returncode == 0, proc.stderr
+        return proc.stdout.strip()
+
+    # The sentinel short-circuits the re-exec block so this measures the
+    # resolved path only, on any host, whether or not that path happens to
+    # exist here.
+    base = {"PATH": "/usr/bin:/bin", "_SP_VENV_REEXEC": "1"}
+    assert resolve({**base, "HOME": "/home/sauce_packets"}) == (
+        "/home/sauce_packets/projects/sports-picks-runtime/.venv/bin/python"
+    )
+    # Moves with HOME rather than naming any one account.
+    assert resolve({**base, "HOME": "/home/someone-else"}).startswith("/home/someone-else/")
+    # Explicit override wins outright.
+    override = str(tmp_path / "custom" / "python")
+    assert resolve({**base, "HOME": "/home/sauce_packets",
+                    "SPORTS_PICKS_VENV_PYTHON": override}) == override
+
+
+def test_executor_hermes_env_follows_invoking_home(tmp_path):
+    """Credentials are read from ~/.hermes/.env. That path must follow HOME:
+    the old candidate list fell back to a literal /home/clawdbot, which does not
+    exist on the production box, so the fallback could only ever miss."""
+    executor = REPO_ROOT / "skills" / "sports-picks" / "scripts" / "polymarket_us_sdk_bet.py"
+    code = (
+        # Stubbed because this asserts a path constant, not any HTTP behaviour,
+        # and httpx is not a test-environment dependency.
+        "import sys, types; sys.modules.setdefault('httpx', types.ModuleType('httpx'))\n"
+        "import importlib.util as u\n"
+        f"s = u.spec_from_file_location('sp_exec', {str(executor)!r})\n"
+        "m = u.module_from_spec(s); s.loader.exec_module(m)\n"
+        "print(m.HERMES_ENV)\n"
+    )
+    home = tmp_path / "somebody"
+    proc = subprocess.run(
+        [sys.executable, "-c", code],
+        env={"PATH": "/usr/bin:/bin", "HOME": str(home), "_SP_VENV_REEXEC": "1"},
+        capture_output=True, text=True,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.strip() == str(home / ".hermes" / ".env")
+
+
 def test_production_identity_paths_resolve_from_home():
     """Every state path must follow the invoking user's home (production user is
     sauce_packets, where /home/clawdbot does not exist)."""
