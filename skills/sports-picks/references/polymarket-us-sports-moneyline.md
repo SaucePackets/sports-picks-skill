@@ -163,8 +163,14 @@ the fallback path was used.
 
 If you need to discover a slug when search is broken, the direct CLI still works:
 
+Run it **from your cron job's working directory**, which is the deployed runtime
+checkout. Do not `cd` to a fixed path: the executor resolves its own interpreter
+partly from the working directory, so pinning a literal here would send it to a
+different checkout than the one the job runs in whenever the runtime was deployed
+somewhere other than the default.
+
 ```bash
-cd ~/projects/sports-picks-runtime
+# already in the job's workdir (the runtime checkout)
 python skills/sports-picks/scripts/polymarket_us_sdk_bet.py \
   search-moneyline --query "Miami Marlins Arizona Diamondbacks" --limit 5
 ```

@@ -4,7 +4,7 @@ import sys
 import tempfile
 import unittest
 from contextlib import redirect_stdout
-from datetime import datetime, time, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
@@ -758,9 +758,10 @@ class VigReviewGateCommonTests(unittest.TestCase):
             original_root = getattr(vig_review_gate_common, "ROOT")
             try:
                 setattr(vig_review_gate_common, "ROOT", Path(tmp))
-                day = vig_review_gate_common.datetime.now(
-                    vig_review_gate_common.ZoneInfo("America/Chicago")
-                ).date().isoformat()
+                # Derived from the gate's OWN function, not a second clock
+                # call: two independent now() calls straddling Chicago midnight
+                # write one day's schedule file and read another.
+                day = vig_review_gate_common.schedule_day_now()
                 schedule = Path(tmp) / ".picks" / "execute" / f"{day}-schedule.json"
                 schedule.parent.mkdir(parents=True)
                 schedule.write_text(json.dumps([{"side": "ABC", "vig_approved": None}]))
@@ -858,9 +859,10 @@ class VigReviewGateCommonTests(unittest.TestCase):
             try:
                 root = Path(tmp)
                 setattr(vig_review_gate_common, "ROOT", root)
-                day = vig_review_gate_common.datetime.now(
-                    vig_review_gate_common.ZoneInfo("America/Chicago")
-                ).date().isoformat()
+                # Derived from the gate's OWN function, not a second clock
+                # call: two independent now() calls straddling Chicago midnight
+                # write one day's schedule file and read another.
+                day = vig_review_gate_common.schedule_day_now()
                 schedule = root / ".picks" / "execute" / f"{day}-schedule.json"
                 schedule.parent.mkdir(parents=True)
                 # Future first pitch: a live invalid entry must stay a hard
@@ -890,9 +892,10 @@ class VigReviewGateCommonTests(unittest.TestCase):
             try:
                 root = Path(tmp)
                 setattr(vig_review_gate_common, "ROOT", root)
-                day = vig_review_gate_common.datetime.now(
-                    vig_review_gate_common.ZoneInfo("America/Chicago")
-                ).date().isoformat()
+                # Derived from the gate's OWN function, not a second clock
+                # call: two independent now() calls straddling Chicago midnight
+                # write one day's schedule file and read another.
+                day = vig_review_gate_common.schedule_day_now()
                 schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
                 schedule_path.parent.mkdir(parents=True)
                 candidate = {
@@ -964,9 +967,10 @@ class VigReviewGateCommonTests(unittest.TestCase):
             try:
                 root = Path(tmp)
                 setattr(vig_review_gate_common, "ROOT", root)
-                day = vig_review_gate_common.datetime.now(
-                    vig_review_gate_common.ZoneInfo("America/Chicago")
-                ).date().isoformat()
+                # Derived from the gate's OWN function, not a second clock
+                # call: two independent now() calls straddling Chicago midnight
+                # write one day's schedule file and read another.
+                day = vig_review_gate_common.schedule_day_now()
                 schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
                 schedule_path.parent.mkdir(parents=True)
                 first_pitch = datetime.now(timezone.utc) + timedelta(minutes=75)
@@ -1068,9 +1072,10 @@ class VigReviewGateCommonTests(unittest.TestCase):
             try:
                 root = Path(tmp)
                 setattr(vig_review_gate_common, "ROOT", root)
-                day = vig_review_gate_common.datetime.now(
-                    vig_review_gate_common.ZoneInfo("America/Chicago")
-                ).date().isoformat()
+                # Derived from the gate's OWN function, not a second clock
+                # call: two independent now() calls straddling Chicago midnight
+                # write one day's schedule file and read another.
+                day = vig_review_gate_common.schedule_day_now()
                 schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
                 schedule_path.parent.mkdir(parents=True)
                 now = datetime.now(timezone.utc)
@@ -1149,9 +1154,10 @@ class VigReviewGateCommonTests(unittest.TestCase):
             try:
                 root = Path(tmp)
                 setattr(vig_review_gate_common, "ROOT", root)
-                day = vig_review_gate_common.datetime.now(
-                    vig_review_gate_common.ZoneInfo("America/Chicago")
-                ).date().isoformat()
+                # Derived from the gate's OWN function, not a second clock
+                # call: two independent now() calls straddling Chicago midnight
+                # write one day's schedule file and read another.
+                day = vig_review_gate_common.schedule_day_now()
                 schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
                 schedule_path.parent.mkdir(parents=True)
                 now = datetime.now(timezone.utc)
@@ -1200,9 +1206,10 @@ class VigReviewGateCommonTests(unittest.TestCase):
             try:
                 root = Path(tmp)
                 setattr(vig_review_gate_common, "ROOT", root)
-                day = vig_review_gate_common.datetime.now(
-                    vig_review_gate_common.ZoneInfo("America/Chicago")
-                ).date().isoformat()
+                # Derived from the gate's OWN function, not a second clock
+                # call: two independent now() calls straddling Chicago midnight
+                # write one day's schedule file and read another.
+                day = vig_review_gate_common.schedule_day_now()
                 schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
                 schedule_path.parent.mkdir(parents=True)
                 now = datetime.now(timezone.utc)
@@ -1258,8 +1265,10 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 root = Path(tmp)
                 setattr(vig_review_gate_common, "ROOT", root)
                 chicago = vig_review_gate_common.ZoneInfo("America/Chicago")
-                today = vig_review_gate_common.datetime.now(chicago).date()
-                day = today.isoformat()
+                # The gate's own function, so the day this test writes and the
+                # day the gate reads cannot straddle Chicago midnight.
+                day = vig_review_gate_common.schedule_day_now()
+                today = date.fromisoformat(day)
                 schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
                 schedule_path.parent.mkdir(parents=True)
                 first_pitch = vig_review_gate_common.datetime.combine(
@@ -1304,6 +1313,150 @@ class VigReviewGateCommonTests(unittest.TestCase):
             finally:
                 setattr(vig_review_gate_common, "ROOT", original_root)
 
+    def test_previous_evening_typo_yields_exactly_one_notice(self):
+        # PR #57 review. Removing the 6h lag was right, but it was not free: a
+        # D-1 entry satisfies BOTH detectors, so the gate printed the overdue
+        # warning AND the unreachable notice for the same entry — and the
+        # notice's tail then claimed nothing else would surface it, one line
+        # under the thing that just had. Duplication is the alarm-fatigue axis
+        # the #53 hoist scoping exists to protect, arriving as repetition
+        # instead of volume.
+        #
+        # The unreachable notice is the survivor because it is strictly more
+        # informative: overdue says a deadline passed, unreachable says the
+        # window can never open and names the day the entry disagrees with.
+        with tempfile.TemporaryDirectory() as tmp:
+            original_root = getattr(vig_review_gate_common, "ROOT")
+            try:
+                root = Path(tmp)
+                setattr(vig_review_gate_common, "ROOT", root)
+                chicago = vig_review_gate_common.ZoneInfo("America/Chicago")
+                day = vig_review_gate_common.schedule_day_now()
+                today = date.fromisoformat(day)
+                schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
+                schedule_path.parent.mkdir(parents=True)
+                # Yesterday 19:05 CT — long past, so the overdue detector fires
+                # too. Both are true; only one should print.
+                first_pitch = vig_review_gate_common.datetime.combine(
+                    today - timedelta(days=1), time(19, 5), tzinfo=chicago
+                ).astimezone(timezone.utc)
+                mistyped = self._watch_entry(
+                    id="watch-yesterday",
+                    side="SEA",
+                    game="Seattle Mariners at Texas Rangers",
+                    bettable_to_price=105,
+                    first_pitch_utc=first_pitch.isoformat().replace("+00:00", "Z"),
+                    recheck_due_utc=(first_pitch - timedelta(minutes=75))
+                    .isoformat()
+                    .replace("+00:00", "Z"),
+                )
+                schedule_path.write_text(
+                    json.dumps({"candidates": [], "lineup_watchlist": [mistyped]})
+                )
+
+                output = StringIO()
+                with (
+                    patch.object(
+                        vig_review_gate_common.subprocess,
+                        "run",
+                        side_effect=AssertionError("no reviewer child on a no-work cycle"),
+                    ),
+                    patch.object(
+                        vig_review_gate_common,
+                        "standing_authorization_enabled",
+                        return_value=True,
+                    ),
+                    redirect_stdout(output),
+                ):
+                    status = vig_review_gate_common.run_gate("MLB")
+
+                self.assertEqual(status, 0)
+                printed = output.getvalue()
+                notices = [
+                    line for line in printed.splitlines()
+                    if "watch-yesterday" in line
+                ]
+                self.assertEqual(len(notices), 1, printed)
+                self.assertIn("cannot belong", notices[0])
+                # The overdue warning is suppressed for this entry specifically,
+                # not disabled: the unreachable notice already covers it.
+                self.assertNotIn("lineup recheck overdue", printed)
+                # The retired claim must not come back with it.
+                self.assertNotIn("nothing else will surface it", printed)
+
+                # And the instant is rendered in the zone the verdict is about.
+                # UTC alone printed the SAME DATE on both sides of the sentence
+                # for every entry within ~5-6h of a boundary, which reads as a
+                # broken detector.
+                local = first_pitch.astimezone(chicago)
+                self.assertIn(local.isoformat(), notices[0])
+                self.assertIn(local.date().isoformat(), notices[0])
+                self.assertNotEqual(local.date().isoformat(), day)
+            finally:
+                setattr(vig_review_gate_common, "ROOT", original_root)
+
+    def test_an_id_less_entry_still_yields_exactly_one_notice(self):
+        # PR #59 review. The de-dup was defeated by a MISSING id, in exactly the
+        # case the de-dup is about. The unreachable detector keyed on
+        # "<missing-id>" while the overdue detector skipped on str(None) ==
+        # "None", so the exclusion set could not intersect and both notices
+        # printed. Reachable because a previous-day first pitch is already past:
+        # _split_watchlist_errors quarantines rather than fails, and run_gate
+        # proceeds to the notices. Reviewer's repro was this test with
+        # `del entry["id"]`; that is what this is.
+        with tempfile.TemporaryDirectory() as tmp:
+            original_root = getattr(vig_review_gate_common, "ROOT")
+            try:
+                root = Path(tmp)
+                setattr(vig_review_gate_common, "ROOT", root)
+                chicago = vig_review_gate_common.ZoneInfo("America/Chicago")
+                day = vig_review_gate_common.schedule_day_now()
+                today = date.fromisoformat(day)
+                schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
+                schedule_path.parent.mkdir(parents=True)
+                first_pitch = vig_review_gate_common.datetime.combine(
+                    today - timedelta(days=1), time(19, 5), tzinfo=chicago
+                ).astimezone(timezone.utc)
+                mistyped = self._watch_entry(
+                    id="watch-nameless",
+                    side="SEA",
+                    game="Seattle Mariners at Texas Rangers",
+                    bettable_to_price=105,
+                    first_pitch_utc=first_pitch.isoformat().replace("+00:00", "Z"),
+                    recheck_due_utc=(first_pitch - timedelta(minutes=75))
+                    .isoformat()
+                    .replace("+00:00", "Z"),
+                )
+                del mistyped["id"]
+                schedule_path.write_text(
+                    json.dumps({"candidates": [], "lineup_watchlist": [mistyped]})
+                )
+
+                output = StringIO()
+                with (
+                    patch.object(
+                        vig_review_gate_common,
+                        "standing_authorization_enabled",
+                        return_value=True,
+                    ),
+                    redirect_stdout(output),
+                ):
+                    status = vig_review_gate_common.run_gate("MLB")
+
+                self.assertEqual(status, 0)
+                printed = output.getvalue()
+                notices = [
+                    line for line in printed.splitlines()
+                    if "<missing-id>" in line and "review gate NOTICE" in line
+                ]
+                self.assertEqual(len(notices), 1, printed)
+                self.assertIn("cannot belong", notices[0])
+                self.assertNotIn("lineup recheck overdue", printed)
+                # And no entry is ever reported under the string "None".
+                self.assertNotIn("on None,", printed)
+            finally:
+                setattr(vig_review_gate_common, "ROOT", original_root)
+
     def test_empty_schedule_still_emits_nothing(self):
         # Hoisting the notice must not make quiet cycles chatty.
         with tempfile.TemporaryDirectory() as tmp:
@@ -1311,9 +1464,10 @@ class VigReviewGateCommonTests(unittest.TestCase):
             try:
                 root = Path(tmp)
                 setattr(vig_review_gate_common, "ROOT", root)
-                day = vig_review_gate_common.datetime.now(
-                    vig_review_gate_common.ZoneInfo("America/Chicago")
-                ).date().isoformat()
+                # Derived from the gate's OWN function, not a second clock
+                # call: two independent now() calls straddling Chicago midnight
+                # write one day's schedule file and read another.
+                day = vig_review_gate_common.schedule_day_now()
                 schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
                 schedule_path.parent.mkdir(parents=True)
                 schedule_path.write_text(
@@ -1355,9 +1509,8 @@ class VigReviewGateCommonTests(unittest.TestCase):
         lineup_snapshot means the feed fetch raised. Returns (status, output,
         entry, schedule_path).
         """
-        day = vig_review_gate_common.datetime.now(
-            vig_review_gate_common.ZoneInfo("America/Chicago")
-        ).date().isoformat()
+        # The gate's own function — see schedule_day_now.
+        day = vig_review_gate_common.schedule_day_now()
         schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
         schedule_path.parent.mkdir(parents=True)
         first_pitch = datetime.now(timezone.utc) + timedelta(minutes=75)
@@ -1536,9 +1689,10 @@ class VigReviewGateCommonTests(unittest.TestCase):
             try:
                 root = Path(tmp)
                 setattr(vig_review_gate_common, "ROOT", root)
-                day = vig_review_gate_common.datetime.now(
-                    vig_review_gate_common.ZoneInfo("America/Chicago")
-                ).date().isoformat()
+                # Derived from the gate's OWN function, not a second clock
+                # call: two independent now() calls straddling Chicago midnight
+                # write one day's schedule file and read another.
+                day = vig_review_gate_common.schedule_day_now()
                 schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
                 schedule_path.parent.mkdir(parents=True)
                 schedule_path.write_text(
@@ -1604,9 +1758,10 @@ class VigReviewGateCommonTests(unittest.TestCase):
             try:
                 root = Path(tmp)
                 setattr(vig_review_gate_common, "ROOT", root)
-                day = vig_review_gate_common.datetime.now(
-                    vig_review_gate_common.ZoneInfo("America/Chicago")
-                ).date().isoformat()
+                # Derived from the gate's OWN function, not a second clock
+                # call: two independent now() calls straddling Chicago midnight
+                # write one day's schedule file and read another.
+                day = vig_review_gate_common.schedule_day_now()
                 schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
                 schedule_path.parent.mkdir(parents=True)
                 candidate = {

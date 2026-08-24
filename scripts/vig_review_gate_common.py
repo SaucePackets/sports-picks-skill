@@ -34,9 +34,11 @@ from mlb_lineup_watchlist import (  # noqa: E402
     WatchlistFormatError,
     build_recheck_prompt,
     due_entries,
+    entry_id as watchlist_entry_id,
     fetch_lineup_snapshot,
     overdue_recheck_warnings,
     stale_invalid_watchlist,
+    unreachable_first_pitch_ids,
     unreachable_first_pitch_warnings,
     validate_watchlist,
 )
@@ -1156,8 +1158,20 @@ def build_validated_review_report(
     return "\n\n".join(sections)
 
 
+def schedule_day_now() -> str:
+    """The Chicago calendar day whose schedule file this run reads.
+
+    Extracted so a caller — in practice a test — can derive the day from the
+    SAME function the gate uses instead of making its own clock call. Two
+    independent now() calls straddling Chicago midnight write one day's schedule
+    file and read another, which is a rare flake that looks like a gate bug
+    (Reviewer, PR #57; pre-existing from #56).
+    """
+    return datetime.now(ZoneInfo("America/Chicago")).date().isoformat()
+
+
 def run_gate(sport: str) -> int:
-    day = datetime.now(ZoneInfo("America/Chicago")).date().isoformat()
+    day = schedule_day_now()
     schedule_path = _schedule_path(sport, day)
     if not schedule_path.exists():
         return 0
@@ -1198,8 +1212,21 @@ def run_gate(sport: str) -> int:
         # silent cycles. That is not the 08-11 agent-prompt hazard: run_gate
         # spawns the reviewer child itself, so this stdout is the job's
         # delivery, never a prompt handed to an agent.
-        in_flight = {str(entry.get("id")) for entry in watchlist}
-        for warning in overdue_recheck_warnings(schedule, exclude_ids=in_flight):
+        # entry_id, not a third normalisation: the exclusion set has to use the
+        # same key both detectors skip on.
+        in_flight = {watchlist_entry_id(entry) for entry in watchlist}
+        # A previous-day typo satisfies BOTH detectors, and printing both put
+        # the unreachable notice one line under the overdue warning for the same
+        # entry — duplication, which is the alarm-fatigue axis this notice's
+        # scoping exists to protect (Reviewer, PR #57). The unreachable notice
+        # wins because it is strictly more informative: overdue says a deadline
+        # passed, unreachable says the window can never open and names the day
+        # the entry disagrees with. Nothing is lost, and the pair is now one
+        # line per entry.
+        unreachable = unreachable_first_pitch_ids(schedule, day, exclude_ids=in_flight)
+        for warning in overdue_recheck_warnings(
+            schedule, exclude_ids=in_flight | unreachable
+        ):
             print(f"{sport} review gate NOTICE: {warning}")
         # Same lane, same reason, different way of going invisible: an entry
         # whose first pitch cannot fall on this schedule day has a recheck

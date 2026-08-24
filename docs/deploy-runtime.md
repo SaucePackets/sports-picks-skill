@@ -77,7 +77,75 @@ scripts/deploy-runtime.sh --expect-sha <merged-main-tip>
 - **No baked-in home** — the manifest scripts resolve Hermes, risk limits, the
   canonical ledger, and settlement paths from the invoking user's home (or env
   overrides `HERMES_BIN`, `VIG_RISK_LIMITS_PATH`, `VIG_PICKS_FILE`,
-  `SPORTS_PICKS_ROOT`); no `/home/<user>` literal is hardcoded.
+  `SPORTS_PICKS_ROOT`); no `/home/<user>` literal is hardcoded. Enforced over
+  the manifest scripts *and* every text file under `skills/`, against any
+  account name rather than one known-bad literal.
+- **`--dry-run` previews a behind runtime** — a dry run skips the reset, so the
+  post-reset `--expect-sha` comparison is skipped with it and the preview
+  reports which commit a real deploy would move to. The pin itself is still
+  enforced read-only against the remote in Phase 0, so a wrong `--expect-sha`
+  is still refused in a dry run.
+
+## The order-executor venv is NOT deployed
+
+`skills/sports-picks/scripts/polymarket_us_sdk_bet.py` re-execs into
+`<runtime>/.venv/bin/python`, where the Polymarket SDK lives. The deploy neither
+creates that venv nor installs into it: it needs no network at deploy time, and
+`.venv/` is gitignored so an existing one is never touched or reset.
+
+That re-exec is guarded by a path-exists test, so a runtime dir **without** a
+venv takes the silent path — no error at deploy, no error at import, and a
+failure at order time. A fresh runtime dir is exactly that case. The deploy
+therefore ends with a read-only check that warns (never fails — the review and
+settlement lanes do not need this venv) and prints the command:
+
+```bash
+python3 -m venv <runtime>/.venv
+<runtime>/.venv/bin/python -m pip install -r \
+  <runtime>/skills/sports-picks/scripts/requirements-exec.txt
+```
+
+### How the executor finds that interpreter
+
+`--runtime-dir` sets a **shell variable inside this script**. Nothing exports it
+and the cron repoint writes workdirs, not environment — so it does not become
+`SPORTS_PICKS_RUNTIME_DIR` in the executor's environment. The claim that it did
+was wrong, and it hid a real gap: with a non-default `--runtime-dir` the deploy
+and the executor disagreed about which interpreter was in play.
+
+The executor resolves in this order, mirroring `resolve_root()` in the gate
+scripts:
+
+| # | source | notes |
+|---|---|---|
+| 1 | `SPORTS_PICKS_VENV_PYTHON` | the interpreter directly; wins outright |
+| 2 | `SPORTS_PICKS_RUNTIME_DIR`, then `SPORTS_PICKS_ROOT` | explicit, `~` expanded |
+| 3 | the current directory, when it contains `.deploy/runtime.marker` | **this is what carries `--runtime-dir`**, because the cron repoint sets `workdir` to the runtime checkout |
+| 4 | `~/projects/sports-picks-runtime` | default |
+
+Rung 3 keys on the **marker**, not on `.picks/`. "Has pick state" is not "is the
+deploy-managed runtime": the first-deploy instructions above seed from
+`~/projects/sports-picks-skill`, a developer checkout that has `.picks/` and no
+`.venv`, and keying on `.picks/` let that directory capture the resolution with
+no flag and no environment variable involved. The marker is the file this script
+writes into a checkout it created, and the only checkout it will hard-reset — the
+same predicate the carrier argument rests on.
+
+The deploy's venv check does **not** rebuild that path. It runs
+`scripts/resolve_exec_venv.py`, which executes the executor's own prologue — with
+the runtime checkout as the working directory and **every** `SPORTS_PICKS_*`
+variable cleared, exactly as a cron invocation resolves it — and reports what that
+prologue resolved. Rebuilding the path independently is how the deploy came to
+print `order-executor venv ok` for a venv the executor never consulted.
+
+All three variables are cleared, not two. Honouring `SPORTS_PICKS_VENV_PYTHON`
+while clearing the directory knobs produced the same false green from an exported
+variable instead of a flag. Either cron inherits the deploy shell — in which case
+clearing the directory knobs is wrong — or it does not, in which case honouring
+the interpreter knob is. **Consequence, stated rather than hidden:** a
+`SPORTS_PICKS_VENV_PYTHON` set in the cron job's own environment is invisible to
+this check, so it can warn about a venv that job would never use. Warning too
+loudly is the safe direction.
 
 Every real deploy writes a receipt to `.deploy/receipt-<ts>.txt` with the
 deployed SHA and per-file checksums.

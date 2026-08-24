@@ -22,11 +22,66 @@ from __future__ import annotations
 # exist, so os.path.exists is False, the re-exec never fires, and this executor
 # runs on an interpreter without polymarket_us. That fails at order time, not at
 # import time, which is the worst place to discover it.
+#
+# The venv lives inside the runtime checkout, so the resolution has to find that
+# checkout the same way the rest of this repo does. SPORTS_PICKS_RUNTIME_DIR
+# alone was NOT enough: --runtime-dir sets a shell local in deploy-runtime.sh,
+# the script exports nothing, and the cron repoint writes workdirs and no
+# environment — so the flag never reaches this process and only the env-var path
+# worked (Reviewer, PR #59).
+#
+# What the flag DOES reach is cron's workdir, which the repoint sets to the
+# runtime checkout. So the ladder mirrors resolve_root() in the gate scripts —
+# explicit env, then the current directory when it looks like a state root, then
+# the default — and the flag arrives through the carrier the deploy already
+# writes instead of an environment nobody propagates.
+#
+# Why the skip is recorded rather than just avoided: when the re-exec does not
+# happen there is no output at all, and the failure surfaces much later as
+# "missing dependency: pip install polymarket-us" — the wrong remedy, because
+# the package IS installed, in a venv this process never entered. sdk_client
+# reports _SP_VENV_SKIP_REASON so the message names the real cause.
 import os as _os, sys as _sys
-_SP_VENV = _os.environ.get("SPORTS_PICKS_VENV_PYTHON") or _os.path.expanduser(
-    "~/projects/sports-picks-runtime/.venv/bin/python"
+
+
+def _sp_resolve_runtime_dir() -> str:
+    """Same ladder as resolve_root() in the gate scripts, for the same reason."""
+    for _var in ("SPORTS_PICKS_RUNTIME_DIR", "SPORTS_PICKS_ROOT"):
+        _value = _os.environ.get(_var)
+        if _value:
+            return _os.path.expanduser(_value)
+    # Cron sets workdir to the runtime checkout, so cwd is what carries
+    # --runtime-dir into this process. The discriminator is .deploy/runtime.marker
+    # — the file deploy-runtime.sh writes into a checkout IT created and is the
+    # only thing it will hard-reset. ".picks/ exists" was the wrong test: it means
+    # "has pick state", not "is the deploy-managed runtime", and this repo's own
+    # instructions name a second such directory (--seed-picks-from
+    # ~/projects/sports-picks-skill). A dev checkout has .picks/ and no .venv, so
+    # that rung captured the resolution and reopened the silent skip with no flag
+    # and no env var needed (Reviewer, PR #59).
+    _cwd = _os.getcwd()
+    if _os.path.isfile(_os.path.join(_cwd, ".deploy", "runtime.marker")):
+        return _cwd
+    return _os.path.expanduser("~/projects/sports-picks-runtime")
+
+
+_SP_RUNTIME_DIR = _sp_resolve_runtime_dir()
+_SP_VENV = _os.environ.get("SPORTS_PICKS_VENV_PYTHON") or _os.path.join(
+    _SP_RUNTIME_DIR, ".venv", "bin", "python"
 )
-if not _os.environ.get("_SP_VENV_REEXEC") and _os.path.exists(_SP_VENV):
+_SP_VENV_SKIP_REASON = ""
+if _os.environ.get("_SP_VENV_REEXEC"):
+    _SP_VENV_SKIP_REASON = (
+        f"already re-execed into {_sys.executable} and polymarket_us is still missing "
+        f"— the interpreter at {_SP_VENV} does not have it installed"
+    )
+elif not _os.path.exists(_SP_VENV):
+    _SP_VENV_SKIP_REASON = (
+        f"the self-heal re-exec was skipped because {_SP_VENV} does not exist "
+        "— point SPORTS_PICKS_RUNTIME_DIR at the runtime checkout, or "
+        "SPORTS_PICKS_VENV_PYTHON straight at the interpreter"
+    )
+else:
     try:
         import polymarket_us as _sp_probe  # noqa: F401
     except ModuleNotFoundError:
@@ -166,6 +221,11 @@ def sdk_client(require_auth: bool):
     try:
         from polymarket_us import PolymarketUS
     except Exception:
+        # Name the real cause. On the production box the package IS installed —
+        # in the runtime venv — so "pip install polymarket-us" sends whoever
+        # reads this to install it a second time in the wrong interpreter.
+        if _SP_VENV_SKIP_REASON:
+            die(f"polymarket_us is not importable from {sys.executable}: {_SP_VENV_SKIP_REASON}")
         die("missing dependency: python -m pip install polymarket-us")
     load_env_file()
     key_id = os.environ.get("POLYMARKET_KEY_ID")
