@@ -34,6 +34,7 @@ from mlb_lineup_watchlist import (  # noqa: E402
     WatchlistFormatError,
     build_recheck_prompt,
     due_entries,
+    entry_id as watchlist_entry_id,
     fetch_lineup_snapshot,
     overdue_recheck_warnings,
     stale_invalid_watchlist,
@@ -1211,7 +1212,9 @@ def run_gate(sport: str) -> int:
         # silent cycles. That is not the 08-11 agent-prompt hazard: run_gate
         # spawns the reviewer child itself, so this stdout is the job's
         # delivery, never a prompt handed to an agent.
-        in_flight = {str(entry.get("id")) for entry in watchlist}
+        # entry_id, not a third normalisation: the exclusion set has to use the
+        # same key both detectors skip on.
+        in_flight = {watchlist_entry_id(entry) for entry in watchlist}
         # A previous-day typo satisfies BOTH detectors, and printing both put
         # the unreachable notice one line under the overdue warning for the same
         # entry — duplication, which is the alarm-fatigue axis this notice's

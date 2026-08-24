@@ -105,8 +105,30 @@ python3 -m venv <runtime>/.venv
   <runtime>/skills/sports-picks/scripts/requirements-exec.txt
 ```
 
-The interpreter is resolved from `SPORTS_PICKS_RUNTIME_DIR` (what `--runtime-dir`
-sets), or overridden outright with `SPORTS_PICKS_VENV_PYTHON`.
+### How the executor finds that interpreter
+
+`--runtime-dir` sets a **shell variable inside this script**. Nothing exports it
+and the cron repoint writes workdirs, not environment — so it does not become
+`SPORTS_PICKS_RUNTIME_DIR` in the executor's environment. The claim that it did
+was wrong, and it hid a real gap: with a non-default `--runtime-dir` the deploy
+and the executor disagreed about which interpreter was in play.
+
+The executor resolves in this order, mirroring `resolve_root()` in the gate
+scripts:
+
+| # | source | notes |
+|---|---|---|
+| 1 | `SPORTS_PICKS_VENV_PYTHON` | the interpreter directly; wins outright |
+| 2 | `SPORTS_PICKS_RUNTIME_DIR`, then `SPORTS_PICKS_ROOT` | explicit, `~` expanded |
+| 3 | the current directory, when it contains `.picks/` | **this is what carries `--runtime-dir`**, because the cron repoint sets `workdir` to the runtime checkout |
+| 4 | `~/projects/sports-picks-runtime` | default |
+
+The deploy's venv check does **not** rebuild that path. It runs the executor's
+own prologue — with the runtime checkout as the working directory, and the two
+directory knobs cleared, exactly as a cron invocation resolves it — and asks it
+which interpreter it will re-exec into. Rebuilding the path independently is how
+the deploy came to print `order-executor venv ok` for a venv the executor never
+consulted.
 
 Every real deploy writes a receipt to `.deploy/receipt-<ts>.txt` with the
 deployed SHA and per-file checksums.

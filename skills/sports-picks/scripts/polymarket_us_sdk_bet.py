@@ -23,12 +23,18 @@ from __future__ import annotations
 # runs on an interpreter without polymarket_us. That fails at order time, not at
 # import time, which is the worst place to discover it.
 #
-# The venv lives inside the runtime checkout, so the default must follow
-# SPORTS_PICKS_RUNTIME_DIR — the knob deploy-runtime.sh already reads for that
-# same directory (and exposes as --runtime-dir). Hardcoding that setting's
-# DEFAULT VALUE reproduced the same silent skip one supported flag away: deploy
-# with --runtime-dir /srv/vig/runtime and the venv is there while this looked
-# under ~/projects.
+# The venv lives inside the runtime checkout, so the resolution has to find that
+# checkout the same way the rest of this repo does. SPORTS_PICKS_RUNTIME_DIR
+# alone was NOT enough: --runtime-dir sets a shell local in deploy-runtime.sh,
+# the script exports nothing, and the cron repoint writes workdirs and no
+# environment — so the flag never reaches this process and only the env-var path
+# worked (Reviewer, PR #59).
+#
+# What the flag DOES reach is cron's workdir, which the repoint sets to the
+# runtime checkout. So the ladder mirrors resolve_root() in the gate scripts —
+# explicit env, then the current directory when it looks like a state root, then
+# the default — and the flag arrives through the carrier the deploy already
+# writes instead of an environment nobody propagates.
 #
 # Why the skip is recorded rather than just avoided: when the re-exec does not
 # happen there is no output at all, and the failure surfaces much later as
@@ -36,11 +42,26 @@ from __future__ import annotations
 # the package IS installed, in a venv this process never entered. sdk_client
 # reports _SP_VENV_SKIP_REASON so the message names the real cause.
 import os as _os, sys as _sys
-_SP_RUNTIME_DIR = _os.environ.get("SPORTS_PICKS_RUNTIME_DIR") or _os.path.expanduser(
-    "~/projects/sports-picks-runtime"
-)
+
+
+def _sp_resolve_runtime_dir() -> str:
+    """Same ladder as resolve_root() in the gate scripts, for the same reason."""
+    for _var in ("SPORTS_PICKS_RUNTIME_DIR", "SPORTS_PICKS_ROOT"):
+        _value = _os.environ.get(_var)
+        if _value:
+            return _os.path.expanduser(_value)
+    # Cron sets workdir to the runtime checkout, and a checkout the deploy
+    # manages always has .picks/ (the deploy refuses to finish without it). This
+    # rung is what makes --runtime-dir actually reach this process.
+    _cwd = _os.getcwd()
+    if _os.path.isdir(_os.path.join(_cwd, ".picks")):
+        return _cwd
+    return _os.path.expanduser("~/projects/sports-picks-runtime")
+
+
+_SP_RUNTIME_DIR = _sp_resolve_runtime_dir()
 _SP_VENV = _os.environ.get("SPORTS_PICKS_VENV_PYTHON") or _os.path.join(
-    _os.path.expanduser(_SP_RUNTIME_DIR), ".venv", "bin", "python"
+    _SP_RUNTIME_DIR, ".venv", "bin", "python"
 )
 _SP_VENV_SKIP_REASON = ""
 if _os.environ.get("_SP_VENV_REEXEC"):

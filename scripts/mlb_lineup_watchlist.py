@@ -702,6 +702,21 @@ OVERDUE_RECHECK_MINUTES = 30
 SCHEDULE_DAY_ZONE = "America/Chicago"
 
 
+def entry_id(entry: dict[str, Any]) -> str:
+    """One normalisation of a watchlist entry's id, for skipping AND for display.
+
+    There were two. The unreachable detector keyed on
+    ``str(entry.get("id") or "<missing-id>")`` while the overdue detector skipped
+    on ``str(entry.get("id"))`` — ``"None"`` for an id-less entry — so the
+    exclusion set built by one could never intersect the other and an id-less
+    entry printed BOTH notices, which is exactly the duplication that exclusion
+    exists to remove (Reviewer, PR #59). ``validate_entry`` requiring a non-empty
+    id is what keeps this rare; it is not what keeps it out of this path, because
+    a past-dated entry is quarantined rather than fatal and the gate proceeds.
+    """
+    return str(entry.get("id") or "<missing-id>")
+
+
 def unreachable_first_pitch_ids(
     schedule: dict[str, Any],
     schedule_day: str,
@@ -823,14 +838,14 @@ def _unreachable_first_pitch_entries(
             continue
         if entry.get("status") != PENDING_STATUS:
             continue
-        if str(entry.get("id")) in skip:
+        if entry_id(entry) in skip:
             continue
         first_pitch = parse_instant(entry.get("first_pitch_utc"))
         if first_pitch is None:
             continue
         if day <= first_pitch < next_day:
             continue
-        found.append((str(entry.get("id") or "<missing-id>"), first_pitch))
+        found.append((entry_id(entry), first_pitch))
     return found
 
 
@@ -901,7 +916,7 @@ def overdue_recheck_warnings(
             continue
         if entry.get("status") != PENDING_STATUS:
             continue
-        if str(entry.get("id")) in skip:
+        if entry_id(entry) in skip:
             continue
         stamped = parse_instant(entry.get("recheck_due_utc"))
         first_pitch = parse_instant(entry.get("first_pitch_utc"))
@@ -921,7 +936,7 @@ def overdue_recheck_warnings(
                 "recheck window close" if window_close is not None else "recheck_due_utc"
             )
             warnings.append(
-                f"WARNING: lineup recheck overdue on {entry.get('id') or '<missing-id>'}, "
+                f"WARNING: lineup recheck overdue on {entry_id(entry)}, "
                 f"{source}={due.isoformat().replace('+00:00', 'Z')} "
                 f"({overdue_minutes:.0f} min past due) and still pending_lineup_recheck"
             )

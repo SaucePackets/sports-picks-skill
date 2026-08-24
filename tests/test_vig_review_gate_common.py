@@ -1395,6 +1395,68 @@ class VigReviewGateCommonTests(unittest.TestCase):
             finally:
                 setattr(vig_review_gate_common, "ROOT", original_root)
 
+    def test_an_id_less_entry_still_yields_exactly_one_notice(self):
+        # PR #59 review. The de-dup was defeated by a MISSING id, in exactly the
+        # case the de-dup is about. The unreachable detector keyed on
+        # "<missing-id>" while the overdue detector skipped on str(None) ==
+        # "None", so the exclusion set could not intersect and both notices
+        # printed. Reachable because a previous-day first pitch is already past:
+        # _split_watchlist_errors quarantines rather than fails, and run_gate
+        # proceeds to the notices. Reviewer's repro was this test with
+        # `del entry["id"]`; that is what this is.
+        with tempfile.TemporaryDirectory() as tmp:
+            original_root = getattr(vig_review_gate_common, "ROOT")
+            try:
+                root = Path(tmp)
+                setattr(vig_review_gate_common, "ROOT", root)
+                chicago = vig_review_gate_common.ZoneInfo("America/Chicago")
+                day = vig_review_gate_common.schedule_day_now()
+                today = date.fromisoformat(day)
+                schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
+                schedule_path.parent.mkdir(parents=True)
+                first_pitch = vig_review_gate_common.datetime.combine(
+                    today - timedelta(days=1), time(19, 5), tzinfo=chicago
+                ).astimezone(timezone.utc)
+                mistyped = self._watch_entry(
+                    id="watch-nameless",
+                    side="SEA",
+                    game="Seattle Mariners at Texas Rangers",
+                    bettable_to_price=105,
+                    first_pitch_utc=first_pitch.isoformat().replace("+00:00", "Z"),
+                    recheck_due_utc=(first_pitch - timedelta(minutes=75))
+                    .isoformat()
+                    .replace("+00:00", "Z"),
+                )
+                del mistyped["id"]
+                schedule_path.write_text(
+                    json.dumps({"candidates": [], "lineup_watchlist": [mistyped]})
+                )
+
+                output = StringIO()
+                with (
+                    patch.object(
+                        vig_review_gate_common,
+                        "standing_authorization_enabled",
+                        return_value=True,
+                    ),
+                    redirect_stdout(output),
+                ):
+                    status = vig_review_gate_common.run_gate("MLB")
+
+                self.assertEqual(status, 0)
+                printed = output.getvalue()
+                notices = [
+                    line for line in printed.splitlines()
+                    if "<missing-id>" in line and "review gate NOTICE" in line
+                ]
+                self.assertEqual(len(notices), 1, printed)
+                self.assertIn("cannot belong", notices[0])
+                self.assertNotIn("lineup recheck overdue", printed)
+                # And no entry is ever reported under the string "None".
+                self.assertNotIn("on None,", printed)
+            finally:
+                setattr(vig_review_gate_common, "ROOT", original_root)
+
     def test_empty_schedule_still_emits_nothing(self):
         # Hoisting the notice must not make quiet cycles chatty.
         with tempfile.TemporaryDirectory() as tmp:

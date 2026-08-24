@@ -13,6 +13,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -36,6 +37,13 @@ def origin(tmp_path: Path) -> Path:
     for f in (REPO_ROOT / "scripts").iterdir():
         if f.is_file():
             shutil.copy(f, src / "scripts" / f.name)
+    # The order executor and its requirements ship in the runtime checkout too,
+    # and the deploy's venv check asks that file which interpreter it resolves —
+    # so a fixture origin without it cannot exercise the check at all.
+    exec_rel = Path("skills") / "sports-picks" / "scripts"
+    (src / exec_rel).mkdir(parents=True)
+    for name in ("polymarket_us_sdk_bet.py", "requirements-exec.txt"):
+        shutil.copy(REPO_ROOT / exec_rel / name, src / exec_rel / name)
     # The real .gitignore matters: the clean-tree guard counts untracked files
     # as dirt, and only gitignore keeps runtime .picks/.deploy state excluded.
     shutil.copy(REPO_ROOT / ".gitignore", src / ".gitignore")
@@ -175,21 +183,45 @@ def test_deploy_warns_when_the_order_executor_venv_is_absent(origin, tmp_path):
     assert (tmp_path / "profile" / "scripts" / "vig_review_gate_common.py").is_file()
 
 
+def _install_stub_venv(runtime: Path, importable: str) -> None:
+    """A stub interpreter that succeeds ONLY for `import <importable>`.
+
+    The first version was `#!/bin/sh\\nexit 0`, which exits 0 for any argument:
+    it proved the healthy branch was reachable and would have passed identically
+    if the deploy probed for a package that does not exist, so it could not tell
+    WHICH import the check performs (Reviewer, PR #59).
+    """
+    venv_bin = runtime / ".venv" / "bin"
+    venv_bin.mkdir(parents=True, exist_ok=True)
+    stub = venv_bin / "python"
+    stub.write_text(
+        "#!/bin/sh\n"
+        f'case "$*" in *"import {importable}"*) exit 0 ;; *) exit 1 ;; esac\n'
+    )
+    stub.chmod(0o755)
+
+
 def test_deploy_reports_a_working_order_executor_venv(origin, tmp_path):
     """The healthy branch has to be reachable too, or the warning above is the
     only outcome the test suite has ever seen."""
     _run(origin, tmp_path)
-    runtime = tmp_path / "runtime"
-    # A stub venv whose python imports polymarket_us — enough to exercise the
-    # check without installing the real SDK in a test.
-    venv_bin = runtime / ".venv" / "bin"
-    venv_bin.mkdir(parents=True)
-    stub = venv_bin / "python"
-    stub.write_text("#!/bin/sh\nexit 0\n")
-    stub.chmod(0o755)
+    _install_stub_venv(tmp_path / "runtime", "polymarket_us")
     proc = _run(origin, tmp_path)
     assert "order-executor venv ok" in proc.stdout
     assert "no order-executor venv" not in proc.stdout
+
+
+def test_the_venv_check_probes_for_polymarket_us_specifically(origin, tmp_path):
+    """Paired with the test above: an interpreter that imports something else
+    must NOT read as healthy. Without this, an `exit 0` stub makes the healthy
+    branch pass no matter which module the deploy asks for."""
+    _run(origin, tmp_path)
+    _install_stub_venv(tmp_path / "runtime", "some_other_package")
+    proc = _run(origin, tmp_path)
+    assert "cannot import polymarket_us" in proc.stdout
+    assert "order-executor venv ok" not in proc.stdout
+    # Still a warning, not a failure.
+    assert proc.returncode == 0
 
 
 def test_dry_run_still_refuses_a_wrong_expect_sha(origin, tmp_path):
@@ -464,11 +496,38 @@ def _baked_in_home_offenders(paths) -> list[str]:
     return offenders
 
 
-def test_manifest_scripts_have_no_clawdbot_assumptions():
+def _deployed_text_sources() -> list[Path]:
+    """Every text file the deploy puts on the box outside skills/.
+
+    Walking only _manifest_names() left ten files in scripts/ unwalked — among
+    them deploy-runtime.sh, check_script_provenance.py, install-hermes.sh and
+    the NFL/soccer scanners — plus docs/ and templates/ entirely, all of which
+    ship in the runtime checkout. The manifest guard got the widened REGEX in
+    the first commit of this PR and not the widened WALK, and the walk was the
+    weakness (Reviewer, PR #59).
+    """
+    paths = sorted(
+        p
+        for root in ("scripts", "docs", "templates")
+        for p in (REPO_ROOT / root).rglob("*")
+        if p.is_file()
+        and p.suffix in SKILL_TEXT_SUFFIXES
+        and "__pycache__" not in p.parts
+    )
+    manifest = set(_manifest_names())
+    found = {p.name for p in paths}
+    # Vacuity guards, each a distinct class: the whole manifest, the deploy
+    # script that walks it, and the docs tree.
+    assert manifest <= found, sorted(manifest - found)
+    assert "deploy-runtime.sh" in found and "install-hermes.sh" in found, sorted(found)
+    assert any(p.parent.name == "docs" for p in paths), paths
+    return paths
+
+
+def test_deployed_scripts_and_docs_have_no_baked_in_home():
     """Production runs as sauce_packets, where /home/clawdbot does not exist."""
-    paths = [REPO_ROOT / "scripts" / name for name in _manifest_names()]
-    offenders = _baked_in_home_offenders(paths)
-    assert not offenders, "baked-in home path in manifest scripts:\n" + "\n".join(offenders)
+    offenders = _baked_in_home_offenders(_deployed_text_sources())
+    assert not offenders, "baked-in home path in deployed files:\n" + "\n".join(offenders)
 
 
 def _skill_sources() -> list[Path]:
@@ -514,10 +573,14 @@ def _executor_prologue() -> str:
     return prologue
 
 
-def _run_prologue(env: dict[str, str], expr: str) -> str:
+def _run_prologue(env: dict[str, str], expr: str, cwd: Path | None = None) -> str:
+    # cwd matters: the prologue's ladder consults the current directory when it
+    # looks like a state root, so a test that does not pin cwd is measuring
+    # whatever directory pytest happened to start in.
     proc = subprocess.run(
         [sys.executable, "-c", _executor_prologue() + f"\nprint({expr})\n"],
-        env=env, capture_output=True, text=True,
+        env=env, cwd=str(cwd) if cwd else tempfile.gettempdir(),
+        capture_output=True, text=True,
     )
     assert proc.returncode == 0, proc.stderr
     return proc.stdout.strip()
@@ -554,11 +617,14 @@ def test_executor_venv_path_follows_the_runtime_dir_knob(tmp_path):
     Hardcoding that setting's default value is the same silent-skip defect one
     supported flag away: deploy with --runtime-dir and the venv is over there
     while the executor looks under ~/projects, os.path.exists is False, and the
-    re-exec never fires."""
-    # The knob deploy-runtime.sh reads and the flag that sets it both exist.
-    deploy_src = DEPLOY.read_text()
-    assert "SPORTS_PICKS_RUNTIME_DIR" in deploy_src and "--runtime-dir" in deploy_src
+    re-exec never fires.
 
+    This covers the ENV VAR only. The --runtime-dir FLAG is a separate carrier
+    and is covered end-to-end by
+    test_runtime_dir_flag_reaches_the_executor_through_the_workdir — the
+    previous version of this test asserted only that both strings appeared in
+    deploy-runtime.sh, which was true at 3f186b6 where the flag path was
+    entirely broken (Reviewer, PR #59)."""
     env = {**_NO_REEXEC, "HOME": "/home/sauce_packets",
            "SPORTS_PICKS_RUNTIME_DIR": "/srv/vig/runtime"}
     assert _run_prologue(env, "_SP_VENV") == "/srv/vig/runtime/.venv/bin/python"
@@ -575,6 +641,102 @@ def test_executor_venv_path_follows_the_runtime_dir_knob(tmp_path):
     assert _run_prologue(
         {**env, "SPORTS_PICKS_VENV_PYTHON": override}, "_SP_VENV"
     ) == override
+
+
+def test_runtime_dir_flag_reaches_the_executor_through_the_workdir(tmp_path):
+    """--runtime-dir must actually change which interpreter the executor uses.
+
+    It did not. The flag sets a SHELL LOCAL; deploy-runtime.sh exports nothing
+    and the cron repoint writes workdirs and no environment, so
+    SPORTS_PICKS_RUNTIME_DIR was never in the executor's environment and only
+    the env-var path worked (Reviewer, PR #59).
+
+    What the flag DOES reach is cron's workdir, which the repoint sets to the
+    runtime checkout. So the prologue consults the current directory when it
+    looks like a state root — the same ladder resolve_root() uses — and the flag
+    arrives through a carrier that exists.
+
+    Deliberately does NOT set SPORTS_PICKS_RUNTIME_DIR: that is the path that
+    already worked, and setting it here would let this pass while the flag
+    stayed broken."""
+    elsewhere = tmp_path / "elsewhere" / "runtime"
+    elsewhere.mkdir(parents=True)
+    (elsewhere / ".picks").mkdir()
+
+    cron_like = {"PATH": "/usr/bin:/bin", "HOME": "/home/sauce_packets",
+                 "_SP_VENV_REEXEC": "1"}
+    # Resolved exactly as a cron-invoked executor would: workdir is the runtime
+    # checkout, and neither directory knob is in the environment.
+    assert _run_prologue(cron_like, "_SP_VENV", cwd=elsewhere) == str(
+        elsewhere / ".venv" / "bin" / "python"
+    )
+
+    # A cwd that is NOT a state root must not be mistaken for one — otherwise
+    # any directory would silently become the runtime checkout.
+    plain = tmp_path / "not-a-checkout"
+    plain.mkdir()
+    assert _run_prologue(cron_like, "_SP_VENV", cwd=plain) == (
+        "/home/sauce_packets/projects/sports-picks-runtime/.venv/bin/python"
+    )
+
+
+def test_deploy_asks_the_executor_which_interpreter_it_will_use(origin, tmp_path):
+    """The deploy's venv check must not rebuild the path the executor resolves.
+
+    Rebuilding it made the check and the prologue two independent computations
+    of one path, so a deploy with a non-default --runtime-dir printed
+    "order-executor venv ok" for a venv the executor never consults. Before the
+    check existed that divergence was silent; reporting it affirmatively healthy
+    is worse (Reviewer, PR #59, probe 2).
+
+    This is the paired assertion: the deploy's verdict and the executor's own
+    resolution must name the SAME interpreter, for a runtime dir that is not the
+    default."""
+    runtime = tmp_path / "elsewhere" / "runtime"
+    (tmp_path / "seed" / ".picks").mkdir(parents=True)
+    (tmp_path / "seed" / ".picks" / "INDEX.md").write_text("seeded\n")
+    args = [
+        "bash", str(DEPLOY),
+        "--repo-url", str(origin),
+        "--runtime-dir", str(runtime),
+        "--profile-scripts", str(tmp_path / "profile" / "scripts"),
+        "--cron-jobs", str(tmp_path / "cron" / "jobs.json"),
+        "--seed-picks-from", str(tmp_path / "seed"),
+    ]
+    env = {**os.environ, "HOME": str(tmp_path / "home")}
+    env.pop("SPORTS_PICKS_RUNTIME_DIR", None)
+    env.pop("SPORTS_PICKS_ROOT", None)
+    proc = subprocess.run(args, capture_output=True, text=True, env=env)
+    assert proc.returncode == 0, f"{proc.stdout}\n{proc.stderr}"
+
+    # What the executor will actually re-exec into, resolved as cron does.
+    resolved = _run_prologue(
+        {"PATH": "/usr/bin:/bin", "HOME": str(tmp_path / "home"),
+         "_SP_VENV_REEXEC": "1"},
+        "_SP_VENV",
+        cwd=runtime,
+    )
+    assert resolved == str(runtime / ".venv" / "bin" / "python")
+    # The deploy names that same interpreter, and not the default one.
+    assert resolved in proc.stdout
+    assert str(tmp_path / "home" / "projects" / "sports-picks-runtime") not in proc.stdout
+
+    # The assertion above cannot tell "asked the prologue" from "rebuilt the
+    # path", because for a runtime dir both now produce the same answer — which
+    # is the point of the fix, and also a hole in the test. This case separates
+    # them: SPORTS_PICKS_VENV_PYTHON is honoured by the prologue and invisible
+    # to any reconstruction of $RUNTIME_DIR/.venv/bin/python.
+    override = tmp_path / "override" / "bin" / "python"
+    override.parent.mkdir(parents=True)
+    override.write_text("#!/bin/sh\nexit 1\n")
+    override.chmod(0o755)
+    proc = subprocess.run(
+        args, capture_output=True, text=True,
+        env={**env, "SPORTS_PICKS_VENV_PYTHON": str(override)},
+    )
+    assert proc.returncode == 0, f"{proc.stdout}\n{proc.stderr}"
+    assert f"order-executor venv {override} cannot import polymarket_us" in proc.stdout
+    assert str(runtime / ".venv" / "bin" / "python") not in proc.stdout
 
 
 def test_executor_records_why_the_reexec_was_skipped(tmp_path):

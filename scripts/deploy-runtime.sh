@@ -357,12 +357,42 @@ fi
 # Warn rather than fail: the review and settlement lanes do not need this venv,
 # and refusing the whole deploy over the order lane would be the
 # outage-becomes-terminal shape this repo keeps removing.
-EXEC_VENV_PY="$RUNTIME_DIR/.venv/bin/python"
+# The path is ASKED OF THE EXECUTOR'S OWN PROLOGUE, never rebuilt here. Rebuilding
+# it made the check and the executor two independent computations of one path, so
+# they could disagree and only the check got to speak: a deploy with a non-default
+# --runtime-dir printed "order-executor venv ok" for a venv the executor never
+# consults. Before that check existed the divergence was silent; reporting it
+# affirmatively healthy is worse (Reviewer, PR #59).
+#
+# Resolved the way CRON will resolve it: cwd is the runtime checkout, because
+# that is what the repoint writes as workdir, and the two directory knobs are
+# cleared because they are the deploy shell's, not the cron job's. A direct
+# SPORTS_PICKS_VENV_PYTHON is left alone — it is the documented job-env override,
+# and honouring it here can only make this check stricter, never falsely green.
 EXEC_REQS="skills/sports-picks/scripts/requirements-exec.txt"
-if [ ! -x "$EXEC_VENV_PY" ]; then
+EXEC_SRC="$RUNTIME_DIR/skills/sports-picks/scripts/polymarket_us_sdk_bet.py"
+EXEC_VENV_PY=""
+if [ -f "$EXEC_SRC" ]; then
+  EXEC_VENV_PY="$(cd "$RUNTIME_DIR" && \
+    env -u SPORTS_PICKS_RUNTIME_DIR -u SPORTS_PICKS_ROOT _SP_VENV_REEXEC=1 \
+    python3 -c '
+import sys
+src = open(sys.argv[1]).read().split("import argparse", 1)[0]
+ns = {}
+exec(compile(src, sys.argv[1], "exec"), ns)
+print(ns["_SP_VENV"])
+' "$EXEC_SRC" 2>/dev/null)" || EXEC_VENV_PY=""
+fi
+if [ -z "$EXEC_VENV_PY" ]; then
+  log "WARNING: could not ask $EXEC_SRC which interpreter it will re-exec into —"
+  log "WARNING:   skipping the order-executor venv check rather than guessing the path."
+elif [ ! -x "$EXEC_VENV_PY" ]; then
+  # The venv dir comes from the resolved interpreter, so the remedy names the
+  # place the executor will actually look rather than a second guess at it.
+  EXEC_VENV_DIR="$(dirname "$(dirname "$EXEC_VENV_PY")")"
   log "WARNING: no order-executor venv at $EXEC_VENV_PY — polymarket_us_sdk_bet.py"
   log "WARNING:   will skip its self-heal re-exec and fail at order time. Create it:"
-  log "WARNING:   python3 -m venv $RUNTIME_DIR/.venv && $EXEC_VENV_PY -m pip install -r $RUNTIME_DIR/$EXEC_REQS"
+  log "WARNING:   python3 -m venv $EXEC_VENV_DIR && $EXEC_VENV_PY -m pip install -r $RUNTIME_DIR/$EXEC_REQS"
 elif ! "$EXEC_VENV_PY" -c "import polymarket_us" >/dev/null 2>&1; then
   log "WARNING: order-executor venv $EXEC_VENV_PY cannot import polymarket_us. Install it:"
   log "WARNING:   $EXEC_VENV_PY -m pip install -r $RUNTIME_DIR/$EXEC_REQS"
