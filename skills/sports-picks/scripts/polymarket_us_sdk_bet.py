@@ -22,11 +22,39 @@ from __future__ import annotations
 # exist, so os.path.exists is False, the re-exec never fires, and this executor
 # runs on an interpreter without polymarket_us. That fails at order time, not at
 # import time, which is the worst place to discover it.
+#
+# The venv lives inside the runtime checkout, so the default must follow
+# SPORTS_PICKS_RUNTIME_DIR — the knob deploy-runtime.sh already reads for that
+# same directory (and exposes as --runtime-dir). Hardcoding that setting's
+# DEFAULT VALUE reproduced the same silent skip one supported flag away: deploy
+# with --runtime-dir /srv/vig/runtime and the venv is there while this looked
+# under ~/projects.
+#
+# Why the skip is recorded rather than just avoided: when the re-exec does not
+# happen there is no output at all, and the failure surfaces much later as
+# "missing dependency: pip install polymarket-us" — the wrong remedy, because
+# the package IS installed, in a venv this process never entered. sdk_client
+# reports _SP_VENV_SKIP_REASON so the message names the real cause.
 import os as _os, sys as _sys
-_SP_VENV = _os.environ.get("SPORTS_PICKS_VENV_PYTHON") or _os.path.expanduser(
-    "~/projects/sports-picks-runtime/.venv/bin/python"
+_SP_RUNTIME_DIR = _os.environ.get("SPORTS_PICKS_RUNTIME_DIR") or _os.path.expanduser(
+    "~/projects/sports-picks-runtime"
 )
-if not _os.environ.get("_SP_VENV_REEXEC") and _os.path.exists(_SP_VENV):
+_SP_VENV = _os.environ.get("SPORTS_PICKS_VENV_PYTHON") or _os.path.join(
+    _os.path.expanduser(_SP_RUNTIME_DIR), ".venv", "bin", "python"
+)
+_SP_VENV_SKIP_REASON = ""
+if _os.environ.get("_SP_VENV_REEXEC"):
+    _SP_VENV_SKIP_REASON = (
+        f"already re-execed into {_sys.executable} and polymarket_us is still missing "
+        f"— the interpreter at {_SP_VENV} does not have it installed"
+    )
+elif not _os.path.exists(_SP_VENV):
+    _SP_VENV_SKIP_REASON = (
+        f"the self-heal re-exec was skipped because {_SP_VENV} does not exist "
+        "— point SPORTS_PICKS_RUNTIME_DIR at the runtime checkout, or "
+        "SPORTS_PICKS_VENV_PYTHON straight at the interpreter"
+    )
+else:
     try:
         import polymarket_us as _sp_probe  # noqa: F401
     except ModuleNotFoundError:
@@ -166,6 +194,11 @@ def sdk_client(require_auth: bool):
     try:
         from polymarket_us import PolymarketUS
     except Exception:
+        # Name the real cause. On the production box the package IS installed —
+        # in the runtime venv — so "pip install polymarket-us" sends whoever
+        # reads this to install it a second time in the wrong interpreter.
+        if _SP_VENV_SKIP_REASON:
+            die(f"polymarket_us is not importable from {sys.executable}: {_SP_VENV_SKIP_REASON}")
         die("missing dependency: python -m pip install polymarket-us")
     load_env_file()
     key_id = os.environ.get("POLYMARKET_KEY_ID")

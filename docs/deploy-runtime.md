@@ -77,7 +77,36 @@ scripts/deploy-runtime.sh --expect-sha <merged-main-tip>
 - **No baked-in home** — the manifest scripts resolve Hermes, risk limits, the
   canonical ledger, and settlement paths from the invoking user's home (or env
   overrides `HERMES_BIN`, `VIG_RISK_LIMITS_PATH`, `VIG_PICKS_FILE`,
-  `SPORTS_PICKS_ROOT`); no `/home/<user>` literal is hardcoded.
+  `SPORTS_PICKS_ROOT`); no `/home/<user>` literal is hardcoded. Enforced over
+  the manifest scripts *and* every text file under `skills/`, against any
+  account name rather than one known-bad literal.
+- **`--dry-run` previews a behind runtime** — a dry run skips the reset, so the
+  post-reset `--expect-sha` comparison is skipped with it and the preview
+  reports which commit a real deploy would move to. The pin itself is still
+  enforced read-only against the remote in Phase 0, so a wrong `--expect-sha`
+  is still refused in a dry run.
+
+## The order-executor venv is NOT deployed
+
+`skills/sports-picks/scripts/polymarket_us_sdk_bet.py` re-execs into
+`<runtime>/.venv/bin/python`, where the Polymarket SDK lives. The deploy neither
+creates that venv nor installs into it: it needs no network at deploy time, and
+`.venv/` is gitignored so an existing one is never touched or reset.
+
+That re-exec is guarded by a path-exists test, so a runtime dir **without** a
+venv takes the silent path — no error at deploy, no error at import, and a
+failure at order time. A fresh runtime dir is exactly that case. The deploy
+therefore ends with a read-only check that warns (never fails — the review and
+settlement lanes do not need this venv) and prints the command:
+
+```bash
+python3 -m venv <runtime>/.venv
+<runtime>/.venv/bin/python -m pip install -r \
+  <runtime>/skills/sports-picks/scripts/requirements-exec.txt
+```
+
+The interpreter is resolved from `SPORTS_PICKS_RUNTIME_DIR` (what `--runtime-dir`
+sets), or overridden outright with `SPORTS_PICKS_VENV_PYTHON`.
 
 Every real deploy writes a receipt to `.deploy/receipt-<ts>.txt` with the
 deployed SHA and per-file checksums.

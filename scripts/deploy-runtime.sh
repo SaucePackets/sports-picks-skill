@@ -154,6 +154,10 @@ else
 $dirty"
   if [ "$DRY_RUN" = 1 ]; then
     log "DRY-RUN: would fetch origin and hard-reset $RUNTIME_DIR to origin/$BRANCH"
+    # Read-only, so the preview can name the commit it would move to. This is
+    # not a pin — the real deploy re-resolves it from the fetch (Phase 0's
+    # comment on why ls-remote is not authoritative applies here too).
+    DRY_RUN_TARGET_SHA="$(git ls-remote "$REPO_URL" "refs/heads/$BRANCH" | cut -f1)"
   else
     # fetch updates refs only — HEAD, the index, and the working tree are
     # untouched. The pin is checked against the commit this fetch actually
@@ -178,8 +182,16 @@ HEAD_SHA="$(git -C "$RUNTIME_DIR" rev-parse HEAD)"
 if [ "$DRY_RUN" != 1 ]; then
   [ "$HEAD_SHA" = "$DEPLOY_TARGET_SHA" ] || die "HEAD $HEAD_SHA != verified target $DEPLOY_TARGET_SHA after checkout"
 fi
-if [ -n "$EXPECT_SHA" ] && [ "$HEAD_SHA" != "$EXPECT_SHA" ]; then
+# A dry run deliberately skipped the reset, so HEAD is still the OLD tip and
+# comparing it to --expect-sha always fails whenever the runtime is behind —
+# which is every routine redeploy, the one case a preview exists for. The pin
+# was already checked for real against the remote in Phase 0, and the
+# authoritative post-reset check is the one guarded above.
+if [ "$DRY_RUN" != 1 ] && [ -n "$EXPECT_SHA" ] && [ "$HEAD_SHA" != "$EXPECT_SHA" ]; then
   die "deployed tip $HEAD_SHA does not match --expect-sha $EXPECT_SHA"
+fi
+if [ "$DRY_RUN" = 1 ] && [ -n "${DRY_RUN_TARGET_SHA:-}" ] && [ "$HEAD_SHA" != "$DRY_RUN_TARGET_SHA" ]; then
+  log "DRY-RUN: runtime is at $HEAD_SHA; a real deploy would move it to $DRY_RUN_TARGET_SHA"
 fi
 log "runtime checkout at $HEAD_SHA ($RUNTIME_DIR)"
 
@@ -331,6 +343,31 @@ fi
 if [ -n "$REPOINT_CRON_FROM" ] && [ "$DRY_RUN" != 1 ]; then
   CRON_SUMMARY="$(cron_repoint apply)" || die "cron repoint failed: $CRON_SUMMARY"
   log "cron: $CRON_SUMMARY"
+fi
+
+# --- Order-executor venv check (read-only, warns, never fails) ---------------
+#
+# The deploy installs no venv and no packages by design — it should not need
+# network at deploy time, and .venv/ is gitignored so an existing one is never
+# touched. But polymarket_us_sdk_bet.py re-execs into $RUNTIME_DIR/.venv, and
+# that re-exec is guarded by a path-exists test, so a runtime dir without a venv
+# takes the SILENT path: no output here, and the failure surfaces much later at
+# order time. A fresh runtime dir is exactly that case.
+#
+# Warn rather than fail: the review and settlement lanes do not need this venv,
+# and refusing the whole deploy over the order lane would be the
+# outage-becomes-terminal shape this repo keeps removing.
+EXEC_VENV_PY="$RUNTIME_DIR/.venv/bin/python"
+EXEC_REQS="skills/sports-picks/scripts/requirements-exec.txt"
+if [ ! -x "$EXEC_VENV_PY" ]; then
+  log "WARNING: no order-executor venv at $EXEC_VENV_PY — polymarket_us_sdk_bet.py"
+  log "WARNING:   will skip its self-heal re-exec and fail at order time. Create it:"
+  log "WARNING:   python3 -m venv $RUNTIME_DIR/.venv && $EXEC_VENV_PY -m pip install -r $RUNTIME_DIR/$EXEC_REQS"
+elif ! "$EXEC_VENV_PY" -c "import polymarket_us" >/dev/null 2>&1; then
+  log "WARNING: order-executor venv $EXEC_VENV_PY cannot import polymarket_us. Install it:"
+  log "WARNING:   $EXEC_VENV_PY -m pip install -r $RUNTIME_DIR/$EXEC_REQS"
+else
+  log "order-executor venv ok: $EXEC_VENV_PY imports polymarket_us"
 fi
 
 # --- Receipt ----------------------------------------------------------------

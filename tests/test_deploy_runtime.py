@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -132,6 +133,72 @@ def test_dry_run_makes_no_changes(origin, tmp_path):
     assert "DRY-RUN" in proc.stdout
     assert not (tmp_path / "runtime").exists()
     assert not (tmp_path / "profile").exists()
+
+
+def test_dry_run_previews_a_behind_runtime_instead_of_dying(origin, tmp_path):
+    """The preview must survive the case it exists for.
+
+    A dry run deliberately skips the reset, so HEAD is still the OLD tip. The
+    --expect-sha check ran against it unguarded, so a preview died with
+    "deployed tip <old> does not match --expect-sha <new>" whenever the runtime
+    was behind — which is every routine redeploy. Found by using it, 2026-08-24.
+    """
+    _run(origin, tmp_path)
+    before = _git(tmp_path / "runtime", "rev-parse", "HEAD")
+    profile = tmp_path / "profile" / "scripts"
+    before_profile = _sha256(profile / "http_util.py")
+
+    new_tip = _advance_origin(origin, tmp_path, "http_util.py", "# advanced\n")
+    assert new_tip != before
+
+    proc = _run(origin, tmp_path, "--dry-run", "--expect-sha", new_tip)
+    assert proc.returncode == 0, proc.stderr
+    # It names both ends, so the preview is actually informative.
+    assert before in proc.stdout and new_tip in proc.stdout
+    # And it changed nothing: not the checkout, not the installed profile copy.
+    assert _git(tmp_path / "runtime", "rev-parse", "HEAD") == before
+    assert _sha256(profile / "http_util.py") == before_profile
+
+
+def test_deploy_warns_when_the_order_executor_venv_is_absent(origin, tmp_path):
+    """A fresh runtime dir has no venv, so the executor's re-exec takes the
+    silent path and the failure only surfaces at order time. The deploy does not
+    create the venv (no network at deploy time, and .venv/ is gitignored), so
+    the least it can do is say so — with the command that fixes it."""
+    proc = _run(origin, tmp_path)
+    runtime = tmp_path / "runtime"
+    assert not (runtime / ".venv").exists()
+    assert "no order-executor venv" in proc.stdout
+    assert "requirements-exec.txt" in proc.stdout
+    # Warned, not failed: review and settlement do not need this venv.
+    assert proc.returncode == 0
+    assert (tmp_path / "profile" / "scripts" / "vig_review_gate_common.py").is_file()
+
+
+def test_deploy_reports_a_working_order_executor_venv(origin, tmp_path):
+    """The healthy branch has to be reachable too, or the warning above is the
+    only outcome the test suite has ever seen."""
+    _run(origin, tmp_path)
+    runtime = tmp_path / "runtime"
+    # A stub venv whose python imports polymarket_us — enough to exercise the
+    # check without installing the real SDK in a test.
+    venv_bin = runtime / ".venv" / "bin"
+    venv_bin.mkdir(parents=True)
+    stub = venv_bin / "python"
+    stub.write_text("#!/bin/sh\nexit 0\n")
+    stub.chmod(0o755)
+    proc = _run(origin, tmp_path)
+    assert "order-executor venv ok" in proc.stdout
+    assert "no order-executor venv" not in proc.stdout
+
+
+def test_dry_run_still_refuses_a_wrong_expect_sha(origin, tmp_path):
+    """Relaxing the post-reset check must not relax the pin itself: Phase 0
+    still compares --expect-sha against the real remote, read-only."""
+    _run(origin, tmp_path)
+    proc = _run(origin, tmp_path, "--dry-run", "--expect-sha", "0" * 40, check=False)
+    assert proc.returncode != 0
+    assert "does not match --expect-sha" in proc.stderr
 
 
 def _write_jobs(tmp_path: Path, jobs: list[dict]) -> Path:
@@ -371,72 +438,170 @@ def _manifest_names() -> list[str]:
     return names
 
 
+# Any absolute home directory, not one account name. Matching the literal
+# /home/clawdbot only ever caught the one account that had already burned us:
+# rename the account in an offending line and the guard went quiet while the
+# defect was identical. /Users/ is included because a developer's macOS home
+# bakes in exactly as well as a Linux one.
+BAKED_IN_HOME = re.compile(r"/(?:home|Users)/[A-Za-z0-9._][A-Za-z0-9._-]*")
+
+# Anything a deploy puts on the box or an agent is told to read. Restricting
+# this to scripts/ and references/ left 23 files under skills/ unwalked,
+# including every SKILL.md — the primary file each skill's agent reads — and
+# every validate_params.sh.
+SKILL_TEXT_SUFFIXES = {".py", ".sh", ".md", ".json", ".txt", ".yaml", ".yml"}
+
+
+def _baked_in_home_offenders(paths) -> list[str]:
+    offenders = []
+    for path in paths:
+        for lineno, line in enumerate(path.read_text(errors="ignore").splitlines(), 1):
+            match = BAKED_IN_HOME.search(line)
+            if match:
+                offenders.append(
+                    f"{path.relative_to(REPO_ROOT)}:{lineno}: {match.group(0)} in {line.strip()}"
+                )
+    return offenders
+
+
 def test_manifest_scripts_have_no_clawdbot_assumptions():
-    for name in _manifest_names():
-        src = (REPO_ROOT / "scripts" / name).read_text()
-        assert "/home/clawdbot" not in src, f"hardcoded /home/clawdbot path in scripts/{name}"
+    """Production runs as sauce_packets, where /home/clawdbot does not exist."""
+    paths = [REPO_ROOT / "scripts" / name for name in _manifest_names()]
+    offenders = _baked_in_home_offenders(paths)
+    assert not offenders, "baked-in home path in manifest scripts:\n" + "\n".join(offenders)
 
 
 def _skill_sources() -> list[Path]:
-    """Executable skill sources and the reference docs that hand the agent
-    commands to run. Both are reachable at runtime and neither is covered by
-    _manifest_names(), which only knows about the deploy manifest."""
-    roots = [
-        *(REPO_ROOT / "skills").rglob("scripts/*.py"),
-        *(REPO_ROOT / "skills").rglob("references/*.md"),
-    ]
-    paths = sorted(p for p in roots if p.is_file())
-    # A silently-empty glob would make this guard vacuous.
+    """Every runtime-reachable text file under skills/.
+
+    Deliberately not a curated glob list. The previous version walked only
+    scripts/*.py and references/*.md, which is how the Polymarket executor got
+    outside every guard in the first place — a narrower glob fails exactly the
+    way a missing guard does, and the non-empty assertions below defend against
+    an EMPTY glob, not a NARROW one."""
+    paths = sorted(
+        p
+        for p in (REPO_ROOT / "skills").rglob("*")
+        if p.is_file()
+        and p.suffix in SKILL_TEXT_SUFFIXES
+        and "__pycache__" not in p.parts
+    )
+    # Vacuity guards: each names a distinct file class that has to be present.
     assert any(p.name == "polymarket_us_sdk_bet.py" for p in paths), paths
-    assert sum(p.suffix == ".md" for p in paths) >= 5, paths
+    assert sum(p.name == "SKILL.md" for p in paths) >= 5, paths
+    assert any(p.name == "validate_params.sh" for p in paths), paths
+    assert any(p.parent.name == "references" for p in paths), paths
     return paths
 
 
-def test_skill_scripts_and_references_have_no_baked_in_home():
-    """The manifest guard above stops at scripts/. The Polymarket executor and
-    the docs that tell the agent how to invoke it live under skills/ and were
-    outside every guard until 2026-08-23, when a /home/clawdbot interpreter path
-    in polymarket_us_sdk_bet.py had to be hand-patched on the production box.
+def test_skill_files_have_no_baked_in_home():
+    """The manifest guard above stops at scripts/. Everything under skills/ is
+    reachable at runtime and was outside every guard until 2026-08-23, when a
+    baked-in interpreter path in polymarket_us_sdk_bet.py had to be hand-patched
+    on the production box.
 
     A baked-in home is worse here than a wrong path usually is: the self-heal
     re-exec is guarded by os.path.exists, so a home that does not exist makes
     the guard silently False and the executor runs without polymarket_us."""
-    offenders = []
-    for path in _skill_sources():
-        for lineno, line in enumerate(path.read_text().splitlines(), 1):
-            if "/home/clawdbot" in line:
-                offenders.append(f"{path.relative_to(REPO_ROOT)}:{lineno}: {line.strip()}")
+    offenders = _baked_in_home_offenders(_skill_sources())
     assert not offenders, "baked-in home path in runtime-reachable skill files:\n" + "\n".join(offenders)
+
+
+def _executor_prologue() -> str:
+    executor = REPO_ROOT / "skills" / "sports-picks" / "scripts" / "polymarket_us_sdk_bet.py"
+    prologue = executor.read_text().split("import argparse", 1)[0]
+    assert "_SP_VENV" in prologue
+    return prologue
+
+
+def _run_prologue(env: dict[str, str], expr: str) -> str:
+    proc = subprocess.run(
+        [sys.executable, "-c", _executor_prologue() + f"\nprint({expr})\n"],
+        env=env, capture_output=True, text=True,
+    )
+    assert proc.returncode == 0, proc.stderr
+    return proc.stdout.strip()
+
+
+# The sentinel short-circuits the re-exec itself, so path resolution can be
+# measured on any host whether or not the resolved path exists here.
+_NO_REEXEC = {"PATH": "/usr/bin:/bin", "_SP_VENV_REEXEC": "1"}
 
 
 def test_executor_venv_path_follows_invoking_home(tmp_path):
     """The re-exec target must move with HOME and be overridable, so the same
     checkout works for whichever account the runtime happens to run as."""
-    executor = REPO_ROOT / "skills" / "sports-picks" / "scripts" / "polymarket_us_sdk_bet.py"
-    prologue = executor.read_text().split("import argparse", 1)[0]
-    assert "_SP_VENV" in prologue
-
-    def resolve(env: dict[str, str]) -> str:
-        proc = subprocess.run(
-            [sys.executable, "-c", prologue + "\nprint(_SP_VENV)\n"],
-            env=env, capture_output=True, text=True,
-        )
-        assert proc.returncode == 0, proc.stderr
-        return proc.stdout.strip()
-
-    # The sentinel short-circuits the re-exec block so this measures the
-    # resolved path only, on any host, whether or not that path happens to
-    # exist here.
-    base = {"PATH": "/usr/bin:/bin", "_SP_VENV_REEXEC": "1"}
-    assert resolve({**base, "HOME": "/home/sauce_packets"}) == (
+    assert _run_prologue({**_NO_REEXEC, "HOME": "/home/sauce_packets"}, "_SP_VENV") == (
         "/home/sauce_packets/projects/sports-picks-runtime/.venv/bin/python"
     )
     # Moves with HOME rather than naming any one account.
-    assert resolve({**base, "HOME": "/home/someone-else"}).startswith("/home/someone-else/")
+    assert _run_prologue(
+        {**_NO_REEXEC, "HOME": "/home/someone-else"}, "_SP_VENV"
+    ).startswith("/home/someone-else/")
     # Explicit override wins outright.
     override = str(tmp_path / "custom" / "python")
-    assert resolve({**base, "HOME": "/home/sauce_packets",
-                    "SPORTS_PICKS_VENV_PYTHON": override}) == override
+    assert _run_prologue(
+        {**_NO_REEXEC, "HOME": "/home/sauce_packets", "SPORTS_PICKS_VENV_PYTHON": override},
+        "_SP_VENV",
+    ) == override
+
+
+def test_executor_venv_path_follows_the_runtime_dir_knob(tmp_path):
+    """The venv lives inside the runtime checkout, so the default must track
+    SPORTS_PICKS_RUNTIME_DIR — the variable deploy-runtime.sh itself reads for
+    that directory, and what --runtime-dir sets.
+
+    Hardcoding that setting's default value is the same silent-skip defect one
+    supported flag away: deploy with --runtime-dir and the venv is over there
+    while the executor looks under ~/projects, os.path.exists is False, and the
+    re-exec never fires."""
+    # The knob deploy-runtime.sh reads and the flag that sets it both exist.
+    deploy_src = DEPLOY.read_text()
+    assert "SPORTS_PICKS_RUNTIME_DIR" in deploy_src and "--runtime-dir" in deploy_src
+
+    env = {**_NO_REEXEC, "HOME": "/home/sauce_packets",
+           "SPORTS_PICKS_RUNTIME_DIR": "/srv/vig/runtime"}
+    assert _run_prologue(env, "_SP_VENV") == "/srv/vig/runtime/.venv/bin/python"
+
+    # A ~ in the deploy flag is expanded rather than taken literally.
+    assert _run_prologue(
+        {**_NO_REEXEC, "HOME": "/home/sauce_packets",
+         "SPORTS_PICKS_RUNTIME_DIR": "~/alt-runtime"},
+        "_SP_VENV",
+    ) == "/home/sauce_packets/alt-runtime/.venv/bin/python"
+
+    # The direct interpreter override still wins over the directory knob.
+    override = str(tmp_path / "custom" / "python")
+    assert _run_prologue(
+        {**env, "SPORTS_PICKS_VENV_PYTHON": override}, "_SP_VENV"
+    ) == override
+
+
+def test_executor_records_why_the_reexec_was_skipped(tmp_path):
+    """A skipped re-exec is silent, and the failure surfaces much later as
+    'missing dependency: pip install polymarket-us' — the wrong remedy, since
+    on the production box the package IS installed, in a venv this process
+    never entered. sdk_client reports this reason instead."""
+    missing = tmp_path / "nowhere" / "python"
+    reason = _run_prologue(
+        {"PATH": "/usr/bin:/bin", "HOME": str(tmp_path),
+         "SPORTS_PICKS_VENV_PYTHON": str(missing)},
+        "_SP_VENV_SKIP_REASON",
+    )
+    assert str(missing) in reason and "does not exist" in reason
+    # It names the knobs that fix it, not a pip install.
+    assert "SPORTS_PICKS_RUNTIME_DIR" in reason and "pip install" not in reason
+
+    # Already re-execed and still missing is a different failure and says so.
+    reason = _run_prologue(
+        {**_NO_REEXEC, "HOME": str(tmp_path)}, "_SP_VENV_SKIP_REASON"
+    )
+    assert "already re-execed" in reason
+
+    # And sdk_client actually reports it rather than the pip remedy.
+    src = (REPO_ROOT / "skills" / "sports-picks" / "scripts" / "polymarket_us_sdk_bet.py").read_text()
+    body = src.split("def sdk_client(", 1)[1].split("\ndef ", 1)[0]
+    assert "_SP_VENV_SKIP_REASON" in body
 
 
 def test_executor_hermes_env_follows_invoking_home(tmp_path):
