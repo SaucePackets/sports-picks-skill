@@ -691,7 +691,41 @@ OVERDUE_RECHECK_MINUTES = 30
 # anchor would flag it. Every legitimate shape checked — 12:05pm ET getaway days,
 # 10:10pm ET and 6:40pm PT night games, doubleheader nightcaps, the Tokyo Series
 # at 04:10 CT and the London Series at 12:10 CT — falls inside the Chicago day.
+# How much room is actually left, MEASURED rather than asserted (PR #57 review).
+# "Nothing legitimate falls outside the Chicago day" is true and says nothing
+# about the margin, so: the UPPER edge is about 2h20m — the latest plausible
+# start is a 7:40pm PT nightcap, 21:40 CT — and the LOWER cliff is 14:00 JST,
+# because an Asia-local start earlier than that lands on the PREVIOUS Chicago
+# day and would be flagged. Every MLB regular-season game played in Asia has
+# been an evening local start, so nothing real crosses it, and this only warns.
+# Both numbers are pinned in test_the_noise_margin_is_measured_not_asserted.
 SCHEDULE_DAY_ZONE = "America/Chicago"
+
+
+def unreachable_first_pitch_ids(
+    schedule: dict[str, Any],
+    schedule_day: str,
+    exclude_ids: set[str] | None = None,
+) -> set[str]:
+    """The ids ``unreachable_first_pitch_warnings`` would report.
+
+    Exists so the caller can suppress the OVERDUE warning for the same entry.
+    A previous-day typo satisfies both detectors, and printing both put the
+    unreachable notice's tail — which used to claim nothing else would surface
+    the entry — one line under the thing that had just surfaced it. Duplication
+    is the alarm-fatigue axis the notice scoping exists to protect, arriving as
+    repetition instead of volume (Reviewer, PR #57).
+
+    The unreachable notice wins because it is strictly more informative: overdue
+    says the deadline passed, unreachable says the window can never open at all
+    and names the day it disagrees with.
+    """
+    return {
+        entry_id
+        for entry_id, _ in _unreachable_first_pitch_entries(
+            schedule, schedule_day, exclude_ids
+        )
+    }
 
 
 def unreachable_first_pitch_warnings(
@@ -735,10 +769,36 @@ def unreachable_first_pitch_warnings(
     this class: ``fetch_lineup_snapshot`` runs only for entries under recheck,
     and an entry with a wrong first pitch is never selected for recheck.
     """
-    warnings: list[str] = []
+    return [
+        (
+            f"WARNING: first pitch on {entry_id} cannot belong to the "
+            f"{schedule_day} schedule (first pitch "
+            f"{first_pitch.astimezone(ZoneInfo(SCHEDULE_DAY_ZONE)).isoformat()}, "
+            f"{first_pitch.isoformat().replace('+00:00', 'Z')}) — its recheck "
+            "window can never open, so it stays pending until the entry is "
+            "corrected"
+        )
+        for entry_id, first_pitch in _unreachable_first_pitch_entries(
+            schedule, schedule_day, exclude_ids
+        )
+    ]
+
+
+def _unreachable_first_pitch_entries(
+    schedule: dict[str, Any],
+    schedule_day: str,
+    exclude_ids: set[str] | None = None,
+) -> list[tuple[str, datetime]]:
+    # The instant is rendered in America/Chicago FIRST and UTC second. Rendering
+    # only UTC printed the same date on both sides of the sentence for every
+    # entry within ~5-6h of a boundary — "first pitch on LW-x cannot belong to
+    # the 2026-08-23 schedule (first_pitch_utc=2026-08-23T00:05:00Z)" reads as a
+    # broken detector at 3am. The verdict is about a Chicago day, so the number
+    # backing it has to be shown in that day's own zone (Reviewer, PR #57).
+    found: list[tuple[str, datetime]] = []
     entries = schedule.get("lineup_watchlist")
     if not isinstance(entries, list):
-        return warnings
+        return found
     try:
         # The schedule day is a Chicago-local calendar date (run_gate derives it
         # from ZoneInfo("America/Chicago")), so anchor there explicitly rather
@@ -749,7 +809,7 @@ def unreachable_first_pitch_warnings(
             tzinfo=ZoneInfo(SCHEDULE_DAY_ZONE)
         )
     except (TypeError, ValueError):
-        return warnings
+        return found
     # timedelta on an aware datetime is WALL-CLOCK arithmetic, so this lands on
     # the next Chicago midnight and the window spans a real local day — 23h on
     # spring-forward, 25h in autumn. (`timedelta(hours=24)` would do the same
@@ -770,13 +830,8 @@ def unreachable_first_pitch_warnings(
             continue
         if day <= first_pitch < next_day:
             continue
-        warnings.append(
-            f"WARNING: first pitch on {entry.get('id') or '<missing-id>'} cannot "
-            f"belong to the {schedule_day} schedule "
-            f"(first_pitch_utc={first_pitch.isoformat().replace('+00:00', 'Z')}) — "
-            "the recheck window will never open and nothing else will surface it"
-        )
-    return warnings
+        found.append((str(entry.get("id") or "<missing-id>"), first_pitch))
+    return found
 
 
 def overdue_recheck_warnings(

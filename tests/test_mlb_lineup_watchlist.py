@@ -1392,6 +1392,37 @@ class UnreachableFirstPitchWarningsTest(unittest.TestCase):
             with self.subTest(start=label):
                 self.assertEqual(self.warnings(self.chicago_entry(7, 19, hour, minute)), [])
 
+    def test_the_noise_margin_is_measured_not_asserted(self):
+        # PR #57 review. "No legitimate shape falls outside the Chicago day" is
+        # true and also unfalsifiable as written — it says nothing about HOW
+        # MUCH room is left. Reviewer measured it; this records the numbers so
+        # the next person tightening or widening this knows what they are near.
+        #
+        # UPPER edge, ~2h20m: the latest real start is a doubleheader nightcap,
+        # and the latest plausible one is a 7:40pm PT nightcap = 21:40 CT. That
+        # leaves 2h20m before Chicago midnight. Not a day — hours.
+        self.assertEqual(self.warnings(self.chicago_entry(7, 19, 21, 40)), [])
+
+        # LOWER cliff, 14:00 JST: an Asia-local start EARLIER than that lands on
+        # the previous Chicago day and WOULD be flagged. 6:10pm JST (the actual
+        # Tokyo Series start) is 04:10 CT and safe; 1:10pm JST is 23:10 CT the
+        # day BEFORE and is not. Every MLB regular-season game played in Asia
+        # has been an evening local start, so nothing real crosses this — but
+        # the margin is a few hours, not a comfortable buffer, and it is better
+        # written down than rediscovered during a Tokyo series.
+        tokyo = ZoneInfo("Asia/Tokyo")
+        for label, (hour, minute), expected in (
+            ("Tokyo 6:10pm JST (real)", (18, 10), 0),
+            ("Tokyo 2:00pm JST (the cliff itself)", (14, 0), 0),
+            ("Tokyo 1:10pm JST (past the cliff)", (13, 10), 1),
+        ):
+            with self.subTest(start=label):
+                local = datetime(2026, 7, 19, hour, minute, tzinfo=tokyo)
+                entry = self.entry(
+                    local.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+                )
+                self.assertEqual(len(self.warnings(entry)), expected, label)
+
     def test_the_day_boundaries_themselves_are_pinned(self):
         # Both edges, so neither can drift without a test noticing.
         self.assertEqual(self.warnings(self.chicago_entry(7, 19, 0, 0)), [])
