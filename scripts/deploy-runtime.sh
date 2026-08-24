@@ -365,23 +365,32 @@ fi
 # affirmatively healthy is worse (Reviewer, PR #59).
 #
 # Resolved the way CRON will resolve it: cwd is the runtime checkout, because
-# that is what the repoint writes as workdir, and the two directory knobs are
-# cleared because they are the deploy shell's, not the cron job's. A direct
-# SPORTS_PICKS_VENV_PYTHON is left alone — it is the documented job-env override,
-# and honouring it here can only make this check stricter, never falsely green.
+# that is what the repoint writes as workdir, and EVERY SPORTS_PICKS_* variable
+# is cleared because they belong to the deploy shell and a cron job does not
+# inherit it.
+#
+# All three, not two. An earlier version cleared the two directory knobs and
+# honoured SPORTS_PICKS_VENV_PYTHON, claiming that could only make the check
+# stricter. It could not: with that variable exported at a working interpreter,
+# the deploy printed "order-executor venv ok" about it while the executor
+# resolved somewhere else entirely — the same false green, one exported variable
+# instead of one flag, and it is the variable the skip-reason message tells the
+# operator to set. The asymmetry was the bug: either cron inherits this shell, in
+# which case clearing the directory knobs is wrong, or it does not, in which case
+# honouring the interpreter knob is. Both cannot hold (Reviewer, PR #59).
+#
+# Consequence, stated rather than hidden: a SPORTS_PICKS_VENV_PYTHON set in the
+# CRON JOB's own environment is invisible here, so this check can warn about a
+# venv that job would never have used. Warning too loudly is the safe direction;
+# the reverse is what got blocked twice.
 EXEC_REQS="skills/sports-picks/scripts/requirements-exec.txt"
 EXEC_SRC="$RUNTIME_DIR/skills/sports-picks/scripts/polymarket_us_sdk_bet.py"
+EXEC_RESOLVER="$RUNTIME_DIR/scripts/resolve_exec_venv.py"
 EXEC_VENV_PY=""
-if [ -f "$EXEC_SRC" ]; then
+if [ -f "$EXEC_SRC" ] && [ -f "$EXEC_RESOLVER" ]; then
   EXEC_VENV_PY="$(cd "$RUNTIME_DIR" && \
-    env -u SPORTS_PICKS_RUNTIME_DIR -u SPORTS_PICKS_ROOT _SP_VENV_REEXEC=1 \
-    python3 -c '
-import sys
-src = open(sys.argv[1]).read().split("import argparse", 1)[0]
-ns = {}
-exec(compile(src, sys.argv[1], "exec"), ns)
-print(ns["_SP_VENV"])
-' "$EXEC_SRC" 2>/dev/null)" || EXEC_VENV_PY=""
+    env -u SPORTS_PICKS_RUNTIME_DIR -u SPORTS_PICKS_ROOT -u SPORTS_PICKS_VENV_PYTHON \
+    python3 "$EXEC_RESOLVER" "$EXEC_SRC" 2>/dev/null)" || EXEC_VENV_PY=""
 fi
 if [ -z "$EXEC_VENV_PY" ]; then
   log "WARNING: could not ask $EXEC_SRC which interpreter it will re-exec into —"

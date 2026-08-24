@@ -50,11 +50,17 @@ def _sp_resolve_runtime_dir() -> str:
         _value = _os.environ.get(_var)
         if _value:
             return _os.path.expanduser(_value)
-    # Cron sets workdir to the runtime checkout, and a checkout the deploy
-    # manages always has .picks/ (the deploy refuses to finish without it). This
-    # rung is what makes --runtime-dir actually reach this process.
+    # Cron sets workdir to the runtime checkout, so cwd is what carries
+    # --runtime-dir into this process. The discriminator is .deploy/runtime.marker
+    # — the file deploy-runtime.sh writes into a checkout IT created and is the
+    # only thing it will hard-reset. ".picks/ exists" was the wrong test: it means
+    # "has pick state", not "is the deploy-managed runtime", and this repo's own
+    # instructions name a second such directory (--seed-picks-from
+    # ~/projects/sports-picks-skill). A dev checkout has .picks/ and no .venv, so
+    # that rung captured the resolution and reopened the silent skip with no flag
+    # and no env var needed (Reviewer, PR #59).
     _cwd = _os.getcwd()
-    if _os.path.isdir(_os.path.join(_cwd, ".picks")):
+    if _os.path.isfile(_os.path.join(_cwd, ".deploy", "runtime.marker")):
         return _cwd
     return _os.path.expanduser("~/projects/sports-picks-runtime")
 

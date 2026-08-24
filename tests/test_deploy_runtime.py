@@ -524,6 +524,29 @@ def _deployed_text_sources() -> list[Path]:
     return paths
 
 
+# A cd into a fixed runtime path in agent-read docs. Not covered by
+# BAKED_IN_HOME, which bans /home/<acct> and /Users/<acct> and says nothing about
+# "~". The default runtime dir is a legitimate string in code (it IS the default)
+# and a defect in an instruction, because the executor resolves its interpreter
+# partly from the working directory — so a doc that pins cwd contradicts the
+# carrier whenever the runtime was deployed anywhere else (Reviewer, PR #59).
+PINNED_RUNTIME_CWD = re.compile(r"cd\s+\S*projects/sports-picks-(runtime|skill)")
+
+
+def test_agent_read_docs_do_not_pin_a_runtime_working_directory():
+    offenders = []
+    for path in _skill_sources():
+        if path.suffix != ".md":
+            continue
+        for lineno, line in enumerate(path.read_text().splitlines(), 1):
+            if PINNED_RUNTIME_CWD.search(line):
+                offenders.append(f"{path.relative_to(REPO_ROOT)}:{lineno}: {line.strip()}")
+    assert not offenders, (
+        "agent-read doc pins a working directory the executor resolves from:\n"
+        + "\n".join(offenders)
+    )
+
+
 def test_deployed_scripts_and_docs_have_no_baked_in_home():
     """Production runs as sauce_packets, where /home/clawdbot does not exist."""
     offenders = _baked_in_home_offenders(_deployed_text_sources())
@@ -566,17 +589,37 @@ def test_skill_files_have_no_baked_in_home():
     assert not offenders, "baked-in home path in runtime-reachable skill files:\n" + "\n".join(offenders)
 
 
+EXECUTOR = REPO_ROOT / "skills" / "sports-picks" / "scripts" / "polymarket_us_sdk_bet.py"
+RESOLVER = REPO_ROOT / "scripts" / "resolve_exec_venv.py"
+
+
 def _executor_prologue() -> str:
-    executor = REPO_ROOT / "skills" / "sports-picks" / "scripts" / "polymarket_us_sdk_bet.py"
-    prologue = executor.read_text().split("import argparse", 1)[0]
+    prologue = EXECUTOR.read_text().split("import argparse", 1)[0]
     assert "_SP_VENV" in prologue
     return prologue
 
 
+def _resolve_venv(env: dict[str, str], cwd: Path | None = None,
+                  executor: Path | None = None) -> str:
+    """What the executor will re-exec into, via the SAME resolver the deploy uses.
+
+    Deliberately not a second copy of the prologue-extraction: the deploy had
+    one and this helper had another, and two copies of one computation agree
+    only until one of them changes (Reviewer, PR #59).
+
+    cwd matters, because the ladder consults the working directory — a test that
+    does not pin it measures whatever directory pytest happened to start in.
+    """
+    proc = subprocess.run(
+        [sys.executable, str(RESOLVER), str(executor or EXECUTOR)],
+        env=env, cwd=str(cwd) if cwd else tempfile.gettempdir(),
+        capture_output=True, text=True,
+    )
+    assert proc.returncode == 0, proc.stderr
+    return proc.stdout.strip()
+
+
 def _run_prologue(env: dict[str, str], expr: str, cwd: Path | None = None) -> str:
-    # cwd matters: the prologue's ladder consults the current directory when it
-    # looks like a state root, so a test that does not pin cwd is measuring
-    # whatever directory pytest happened to start in.
     proc = subprocess.run(
         [sys.executable, "-c", _executor_prologue() + f"\nprint({expr})\n"],
         env=env, cwd=str(cwd) if cwd else tempfile.gettempdir(),
@@ -660,8 +703,8 @@ def test_runtime_dir_flag_reaches_the_executor_through_the_workdir(tmp_path):
     already worked, and setting it here would let this pass while the flag
     stayed broken."""
     elsewhere = tmp_path / "elsewhere" / "runtime"
-    elsewhere.mkdir(parents=True)
-    (elsewhere / ".picks").mkdir()
+    (elsewhere / ".deploy").mkdir(parents=True)
+    (elsewhere / ".deploy" / "runtime.marker").write_text("runtime checkout\n")
 
     cron_like = {"PATH": "/usr/bin:/bin", "HOME": "/home/sauce_packets",
                  "_SP_VENV_REEXEC": "1"}
@@ -671,12 +714,65 @@ def test_runtime_dir_flag_reaches_the_executor_through_the_workdir(tmp_path):
         elsewhere / ".venv" / "bin" / "python"
     )
 
-    # A cwd that is NOT a state root must not be mistaken for one — otherwise
-    # any directory would silently become the runtime checkout.
+    # A cwd that is NOT a deploy-managed runtime must not be mistaken for one.
     plain = tmp_path / "not-a-checkout"
     plain.mkdir()
     assert _run_prologue(cron_like, "_SP_VENV", cwd=plain) == (
         "/home/sauce_packets/projects/sports-picks-runtime/.venv/bin/python"
+    )
+
+
+def test_a_dev_checkout_with_picks_is_not_mistaken_for_the_runtime(tmp_path):
+    """The rung's discriminator is .deploy/runtime.marker, not .picks/.
+
+    ".picks/ exists" means "has pick state", not "is the deploy-managed
+    runtime" — and docs/deploy-runtime.md names a second such directory in this
+    repo's own instructions: --seed-picks-from ~/projects/sports-picks-skill.
+    A dev checkout has .picks/ and no .venv, and every documented order command
+    is a relative path run from cwd, so that rung captured the resolution and
+    reopened the silent skip with NO flag and NO env var needed — a regression
+    against what is deployed today, on the order lane (Reviewer, PR #59).
+
+    The marker is the file deploy-runtime.sh writes into a checkout it created
+    and is the only checkout it will hard-reset, so it is exactly the
+    "deploy-managed runtime" predicate the carrier argument rests on.
+    """
+    cron_like = {"PATH": "/usr/bin:/bin", "HOME": "/home/sauce_packets",
+                 "_SP_VENV_REEXEC": "1"}
+
+    dev = tmp_path / "devcheckout"
+    (dev / ".picks").mkdir(parents=True)
+    assert _run_prologue(cron_like, "_SP_VENV", cwd=dev) == (
+        "/home/sauce_packets/projects/sports-picks-runtime/.venv/bin/python"
+    )
+
+    # The same directory, once a deploy has claimed it, IS the runtime.
+    (dev / ".deploy").mkdir()
+    (dev / ".deploy" / "runtime.marker").write_text("runtime checkout\n")
+    assert _run_prologue(cron_like, "_SP_VENV", cwd=dev) == str(
+        dev / ".venv" / "bin" / "python"
+    )
+
+
+def test_the_marker_the_rung_reads_is_the_one_the_deploy_writes(origin, tmp_path):
+    """Paired with the test above, and the reason it is not a magic string.
+
+    If the deploy ever renames or relocates its marker, the executor's rung must
+    stop resolving — otherwise the two agree only by coincidence."""
+    _run(origin, tmp_path)
+    runtime = tmp_path / "runtime"
+    marker = runtime / ".deploy" / "runtime.marker"
+    assert marker.is_file()
+    assert "runtime.marker" in DEPLOY.read_text()
+
+    cron_like = {"PATH": "/usr/bin:/bin", "HOME": str(tmp_path / "home"),
+                 "_SP_VENV_REEXEC": "1"}
+    assert _resolve_venv(cron_like, cwd=runtime) == str(
+        runtime / ".venv" / "bin" / "python"
+    )
+    marker.unlink()
+    assert _resolve_venv(cron_like, cwd=runtime) == str(
+        tmp_path / "home" / "projects" / "sports-picks-runtime" / ".venv" / "bin" / "python"
     )
 
 
@@ -722,21 +818,64 @@ def test_deploy_asks_the_executor_which_interpreter_it_will_use(origin, tmp_path
     assert str(tmp_path / "home" / "projects" / "sports-picks-runtime") not in proc.stdout
 
     # The assertion above cannot tell "asked the prologue" from "rebuilt the
-    # path", because for a runtime dir both now produce the same answer — which
-    # is the point of the fix, and also a hole in the test. This case separates
-    # them: SPORTS_PICKS_VENV_PYTHON is honoured by the prologue and invisible
-    # to any reconstruction of $RUNTIME_DIR/.venv/bin/python.
-    override = tmp_path / "override" / "bin" / "python"
-    override.parent.mkdir(parents=True)
-    override.write_text("#!/bin/sh\nexit 1\n")
-    override.chmod(0o755)
-    proc = subprocess.run(
-        args, capture_output=True, text=True,
-        env={**env, "SPORTS_PICKS_VENV_PYTHON": str(override)},
+    # path", because for a runtime dir both produce the same answer — which is
+    # the point of the fix and also a hole in the test. The previous version
+    # closed it with SPORTS_PICKS_VENV_PYTHON; that variable is now cleared (see
+    # test_the_deploy_check_ignores_an_exported_interpreter_knob), so the
+    # discriminator has to be the resolution ITSELF.
+    #
+    # Change where the EXECUTOR looks, change nothing else, and the deploy must
+    # follow. A reconstruction of $RUNTIME_DIR/.venv/bin/python cannot.
+    patched = EXECUTOR.read_text().replace(
+        '".venv", "bin", "python"', '".venv-alt", "bin", "python"'
     )
+    assert '".venv-alt"' in patched
+    _advance_origin_skill(origin, tmp_path, "polymarket_us_sdk_bet.py", patched)
+    proc = subprocess.run(args, capture_output=True, text=True, env=env)
     assert proc.returncode == 0, f"{proc.stdout}\n{proc.stderr}"
-    assert f"order-executor venv {override} cannot import polymarket_us" in proc.stdout
+    assert str(runtime / ".venv-alt" / "bin" / "python") in proc.stdout
     assert str(runtime / ".venv" / "bin" / "python") not in proc.stdout
+
+
+def _advance_origin_skill(origin: Path, tmp_path: Path, name: str, content: str) -> str:
+    """Push a commit replacing skills/sports-picks/scripts/<name> on main."""
+    work = tmp_path / f"origin-skill-work-{name}"
+    subprocess.run(["git", "clone", "-q", str(origin), str(work)], check=True)
+    (work / "skills" / "sports-picks" / "scripts" / name).write_text(content)
+    _git(work, "add", "-A")
+    _git(work, "commit", "-q", "-m", f"advance skill: {name}")
+    _git(work, "push", "-q", "origin", "main")
+    return _git(work, "rev-parse", "HEAD")
+
+
+def test_the_deploy_check_ignores_an_exported_interpreter_knob(origin, tmp_path):
+    """All three SPORTS_PICKS_* knobs are cleared, not two.
+
+    The check used to clear the two directory knobs and honour
+    SPORTS_PICKS_VENV_PYTHON, on the claim that honouring it "can only make this
+    check stricter, never falsely green". It could not: exported at a WORKING
+    interpreter, the deploy printed "order-executor venv ok" about that
+    interpreter while the executor resolved somewhere else — the same false
+    green, one exported variable instead of one flag, and it is the variable the
+    skip-reason message tells the operator to set.
+
+    The asymmetry was the bug: either cron inherits the deploy shell, so
+    clearing the directory knobs is wrong, or it does not, so honouring the
+    interpreter knob is. Both cannot hold (Reviewer, PR #59)."""
+    _run(origin, tmp_path)
+    runtime = tmp_path / "runtime"
+    # An interpreter that imports polymarket_us happily — the false-green shape.
+    good = tmp_path / "exported" / "bin" / "python"
+    good.parent.mkdir(parents=True)
+    good.write_text("#!/bin/sh\nexit 0\n")
+    good.chmod(0o755)
+
+    proc = _run(origin, tmp_path, env={**os.environ,
+                                       "SPORTS_PICKS_VENV_PYTHON": str(good)})
+    # It reports the interpreter the EXECUTOR resolves, and never the export.
+    assert str(good) not in proc.stdout
+    assert str(runtime / ".venv" / "bin" / "python") in proc.stdout
+    assert "order-executor venv ok" not in proc.stdout
 
 
 def test_executor_records_why_the_reexec_was_skipped(tmp_path):
