@@ -96,6 +96,41 @@ chooses `keep_all`, and tuning on the held-out month chooses
 any tie) and then asserts both the fold's chosen rule and its selection-set
 units, so a leak in either direction changes the answer and reds the test.
 
+## Side-selection attribution
+
+Every candidate gets a structured `side_selection_attribution` record stating
+what the card RECORDED about the side choice — never a reconstructed reason:
+
+- **Selected side** (canonical from the official row when reconciled, the
+  card's own value otherwise) and its recorded evidence: `thesis`,
+  `vig_notes`, model probabilities, prices, gate reasons, and on Phase 2
+  cards the structured `candidate_failure_path` and `named_risks`. A card
+  with none of these is labelled `not_recorded` explicitly.
+- **Opponent side**, named from the official row (identity only — which team,
+  never how the game ended), falling back to the card's own matchup when
+  unreconciled; unresolvable stays `None`, labelled.
+- **Why the opponent was not selected**, a closed category set:
+  `opponent_case_recorded` (the card carries an explicit
+  `opponent_shutdown_path`), `recorded_case_backed_selected_side` (a recorded
+  pregame case backs the chosen side and no separate opponent case exists),
+  or `not_recorded`.
+- **Opposing winners** — reconciled candidates whose selected side lost — are
+  enumerated separately from the per-candidate records and classified:
+  `evidence_process_miss` (executed on recorded evidence that pointed the
+  wrong way), `executed_without_recorded_evidence`, `risk_gate_declined`
+  (a recorded gate declined the losing side, so the gate was not the miss;
+  the winning opponent was never itself proposed), or `no_recorded_reason`.
+
+**No hindsight leakage.** The rationale inputs are the audit's
+`recorded_rationale`, which carries only pregame fields (`thesis`,
+`vig_notes`, `execution_note`, and the `baseball_evidence` subset) verbatim;
+the postgame vocabulary (`postgame_reflection`, `scoring_summary`,
+settlement fields) is excluded at the carrier, and a test proves the
+rationale half of every record is byte-identical when the official winner is
+flipped. Outcome fields appear only as labels and to select the
+opposing-winner cases. Headline replay totals are unchanged: a test strips
+every rationale input and asserts every pre-existing section is identical.
+
 ## What this report refuses to do
 
 - Execute, size, or route anything; import anything on the execution path.
