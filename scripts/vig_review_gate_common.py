@@ -58,6 +58,19 @@ from mlb_probability_model import (  # noqa: E402
     probability_component_errors,
     probability_contract_prompt_section,
 )
+from vig_run_journal import (  # noqa: E402
+    KIND_DATA_DEFECT,
+    KIND_OUTAGE,
+    OUTCOME_ERROR,
+    OUTCOME_NO_SCHEDULE,
+    OUTCOME_NO_WORK,
+    OUTCOME_REVIEWED,
+    SOURCE_LINEUP_FEED,
+    SOURCE_PRICE_FEED,
+    build_record,
+    deferral,
+    record_run,
+)
 
 HERMES = os.environ.get("HERMES_BIN") or shutil.which("hermes") or str(Path.home() / ".local/bin/hermes")
 
@@ -870,19 +883,42 @@ def _price_is_usable(price: dict[str, Any] | None) -> bool:
     )
 
 
-def _price_context(watchlist: list[dict[str, Any]]) -> tuple[str, set[str]]:
+def _price_context(
+    watchlist: list[dict[str, Any]],
+    deferrals: list[dict[str, Any]] | None = None,
+) -> tuple[str, set[str]]:
     """Return the price prompt section plus the ids whose live price was
     machine-verified unavailable this cycle: the fetch failed, the market is
     not open, or the book is unreliable (a side ask is None). A missing slug
     is a data defect, not a transient outage, so it earns no deferral — its
-    prompt line instructs a decisive pass instead."""
+    prompt line instructs a decisive pass instead.
+
+    ``deferrals`` is an optional sink the caller passes to capture the same
+    facts for the run journal. The prompt line and the journal entry are
+    built from one branch each so the record can never claim a different
+    reason from the one the reviewer was told.
+    """
     lines: list[str] = []
     no_price_ids: set[str] = set()
+
+    def _note(entry_id: Any, reason: str, kind: str = KIND_OUTAGE) -> None:
+        if deferrals is not None:
+            deferrals.append(deferral(entry_id, SOURCE_PRICE_FEED, reason, kind=kind))
+
     for entry in watchlist:
         slug = _entry_slug(entry)
         if not slug:
             lines.append(
                 f"{entry.get('id')}: no Polymarket slug resolvable — {PRICE_DEFECT_MARKER}"
+            )
+            # A data defect, not an outage: recorded so it is visible, but
+            # deliberately not deferral-eligible. The kind carries that, so
+            # the record no longer needs a reason string arguing with the
+            # field it sits in (Reviewer, PR #60).
+            _note(
+                entry.get("id"),
+                "no Polymarket slug resolvable",
+                kind=KIND_DATA_DEFECT,
             )
             continue
         price = fetch_market_price(slug)
@@ -892,6 +928,7 @@ def _price_context(watchlist: list[dict[str, Any]]) -> tuple[str, set[str]]:
                 f"{entry.get('id')}: current price unavailable ({slug}) — "
                 f"{PRICE_UNAVAILABLE_MARKER}"
             )
+            _note(entry.get("id"), f"current price unavailable ({slug})")
             continue
         if _price_is_usable(price):
             lines.append(
@@ -910,6 +947,11 @@ def _price_context(watchlist: list[dict[str, Any]]) -> tuple[str, set[str]]:
                 f"book={price['book_state']}, no executable ask — "
                 f"{PRICE_UNAVAILABLE_MARKER}"
             )
+            _note(
+                entry.get("id"),
+                f"no executable ask ({slug}); open={price['open']} ({price['reason']}), "
+                f"book={price['book_state']}",
+            )
     if not lines:
         return "", no_price_ids
     return (
@@ -920,7 +962,9 @@ def _price_context(watchlist: list[dict[str, Any]]) -> tuple[str, set[str]]:
 
 
 def build_lineup_recheck_prompt(
-    schedule_path: Path, watchlist: list[dict[str, Any]]
+    schedule_path: Path,
+    watchlist: list[dict[str, Any]],
+    deferrals: list[dict[str, Any]] | None = None,
 ) -> tuple[str, set[str]]:
     """Fetch schedule-mapped MLB feeds + deterministic prices for the review.
 
@@ -929,6 +973,12 @@ def build_lineup_recheck_prompt(
     Only these ids may legitimately remain an unchanged pending no-op at the
     review transition; validate_review_transition fails every other unchanged
     pending entry closed.
+
+    ``deferrals`` is an optional sink for the run journal, filled from the
+    same branches that build the prompt lines. A returned id says an entry
+    was deferred; the sink says which feed reported it, why, and when — which
+    is the difference between knowing the 08-16 entries went unreviewed and
+    knowing the lineup lane was down when they did.
     """
     snapshots: dict[str, dict[str, Any]] = {}
     unavailable: list[str] = []
@@ -936,10 +986,18 @@ def build_lineup_recheck_prompt(
         entry_id = str(entry.get("id", "<missing-id>"))
         try:
             snapshots[entry_id] = fetch_lineup_snapshot(entry)
-        except Exception:
+        except Exception as exc:
             unavailable.append(entry_id)
+            if deferrals is not None:
+                deferrals.append(
+                    deferral(
+                        entry_id,
+                        SOURCE_LINEUP_FEED,
+                        f"lineup snapshot fetch failed: {type(exc).__name__}: {exc}"[:300],
+                    )
+                )
     prompt = build_recheck_prompt(schedule_path, watchlist, snapshots)
-    price_context, no_price_ids = _price_context(watchlist)
+    price_context, no_price_ids = _price_context(watchlist, deferrals)
     prompt += price_context
     # Phase 3: a promoted candidate must carry the structured probability
     # component contract or the execution gate will reject it deterministically.
@@ -1170,30 +1228,102 @@ def schedule_day_now() -> str:
     return datetime.now(ZoneInfo("America/Chicago")).date().isoformat()
 
 
+def journal_gate_run(
+    sport: str,
+    day: str,
+    outcome: str,
+    stage: str,
+    *,
+    detail: str = "",
+    schedule_path: Path | None = None,
+    counts: dict[str, int] | None = None,
+    notices: list[str] | None = None,
+    deferrals: list[dict[str, Any]] | None = None,
+) -> str | None:
+    """Journal one gate outcome and report — never raise, never re-decide.
+
+    A journal failure is printed as its own CRITICAL line and nothing else:
+    the gate's verdict is authoritative, and failing a review because a log
+    line could not be written would add an outage mode to the lane whose
+    actual problem is losing work silently. Returns the error text so a test
+    can assert on it directly rather than parsing stdout.
+    """
+    try:
+        record = build_record(
+            sport=sport,
+            day=day,
+            outcome=outcome,
+            stage=stage,
+            detail=detail,
+            schedule_path=schedule_path,
+            counts=counts or {},
+            notices=notices or [],
+            deferrals=deferrals or [],
+        )
+        error = record_run(ROOT, record)
+    except Exception as exc:  # defensive: journalling must never propagate
+        error = f"could not build run journal record: {type(exc).__name__}: {exc}"
+    if error:
+        print(f"{sport} review gate JOURNAL CRITICAL: {error}")
+    return error
+
+
 def run_gate(sport: str) -> int:
     day = schedule_day_now()
     schedule_path = _schedule_path(sport, day)
+    notices: list[str] = []
     if not schedule_path.exists():
+        # A no-card day and a day the job never fired were previously the
+        # same observation: nothing on disk either way. This is the record
+        # that separates them.
+        journal_gate_run(
+            sport, day, OUTCOME_NO_SCHEDULE, "schedule_missing",
+            detail="no schedule file for this day; nothing was collected",
+            schedule_path=schedule_path,
+        )
         return 0
     try:
         data = json.loads(schedule_path.read_text(encoding="utf-8"))
     except Exception as exc:
         print(f"{sport} review gate ERROR: invalid schedule JSON: {exc}")
+        journal_gate_run(
+            sport, day, OUTCOME_ERROR, "schedule_parse",
+            detail=f"invalid schedule JSON: {exc}", schedule_path=schedule_path,
+        )
         return 1
     if isinstance(data, list):
         if not data:
+            journal_gate_run(
+                sport, day, OUTCOME_NO_WORK, "schedule_empty",
+                detail="empty legacy array schedule; no candidates",
+                schedule_path=schedule_path,
+            )
             return 0
         print(f"{sport} review gate ERROR: non-empty legacy array schedule requires migration")
+        journal_gate_run(
+            sport, day, OUTCOME_ERROR, "schedule_legacy_array",
+            detail="non-empty legacy array schedule requires migration",
+            schedule_path=schedule_path,
+        )
         return 1
     elif isinstance(data, dict):
         schedule = data
     else:
         print(f"{sport} review gate ERROR: expected object or list, got {type(data).__name__}")
+        journal_gate_run(
+            sport, day, OUTCOME_ERROR, "schedule_type",
+            detail=f"expected object or list, got {type(data).__name__}",
+            schedule_path=schedule_path,
+        )
         return 1
     try:
         candidates, watchlist = review_work(schedule, sport)
     except (ScheduleFormatError, WatchlistFormatError) as exc:
         print(f"{sport} review gate ERROR: {exc}")
+        journal_gate_run(
+            sport, day, OUTCOME_ERROR, "review_work",
+            detail=str(exc), schedule_path=schedule_path,
+        )
         return 1
     if sport == "MLB":
         # Rechecks belong to this lane, so this lane surfaces the zombies: a
@@ -1228,6 +1358,7 @@ def run_gate(sport: str) -> int:
             schedule, exclude_ids=in_flight | unreachable
         ):
             print(f"{sport} review gate NOTICE: {warning}")
+            notices.append(warning)
         # Same lane, same reason, different way of going invisible: an entry
         # whose first pitch cannot fall on this schedule day has a recheck
         # window that never opens, so overdue_recheck_warnings — whose deadline
@@ -1237,7 +1368,16 @@ def run_gate(sport: str) -> int:
             schedule, day, exclude_ids=in_flight
         ):
             print(f"{sport} review gate NOTICE: {warning}")
+            notices.append(warning)
     if not candidates and not watchlist:
+        # An explicit PASS: the slate was collected and produced nothing to
+        # review. Journalled with the notices this cycle raised, so a quiet
+        # cycle that still surfaced a zombie keeps that evidence on disk.
+        journal_gate_run(
+            sport, day, OUTCOME_NO_WORK, "no_reviewable_work",
+            detail="schedule present with no candidates and no due watchlist entries",
+            schedule_path=schedule_path, notices=notices,
+        )
         return 0
     if sport == "MLB":
         # Invalid entries whose first pitch already passed are dead as routing
@@ -1248,10 +1388,12 @@ def run_gate(sport: str) -> int:
         # gate loudly on any cycle with a routable sibling, so it does not have
         # the zombie's report-or-never property.
         for label, messages in sorted(stale_invalid_watchlist(schedule).items()):
-            print(
-                f"{sport} review gate NOTICE: quarantined invalid historical watchlist "
-                f"entry {label} (first pitch passed, never routable): {'; '.join(messages)}"
+            notice = (
+                f"quarantined invalid historical watchlist entry {label} "
+                f"(first pitch passed, never routable): {'; '.join(messages)}"
             )
+            print(f"{sport} review gate NOTICE: {notice}")
+            notices.append(notice)
 
     candidate_ids = [candidate_identity(candidate) for candidate in candidates]
     watchlist_ids = [str(entry["id"]) for entry in watchlist]
@@ -1265,11 +1407,18 @@ def run_gate(sport: str) -> int:
             )
         )
     deferral_eligible_ids: set[str] = set()
+    deferrals: list[dict[str, Any]] = []
     if watchlist:
         recheck_prompt, deferral_eligible_ids = build_lineup_recheck_prompt(
-            schedule_path, watchlist
+            schedule_path, watchlist, deferrals
         )
         prompts.append(recheck_prompt)
+    counts = {
+        "candidates": len(candidate_ids),
+        "watchlist_due": len(watchlist_ids),
+        "deferral_eligible": len(deferral_eligible_ids),
+        "notices": len(notices),
+    }
     prompt = "\n\n".join(prompts)
     cmd = [
         HERMES,
@@ -1291,11 +1440,23 @@ def run_gate(sport: str) -> int:
             f"{sport} review gate ERROR: child reviewer timed out; reviewed state was not "
             "accepted. Retry the job and inspect Vig session logs."
         )
+        journal_gate_run(
+            sport, day, OUTCOME_ERROR, "child_timeout",
+            detail="child reviewer timed out; reviewed state was not accepted",
+            schedule_path=schedule_path, counts=counts,
+            notices=notices, deferrals=deferrals,
+        )
         return 1
     except OSError:
         print(
             f"{sport} review gate ERROR: child reviewer could not start; reviewed state was "
             "not accepted. Verify the Hermes CLI and retry the job."
+        )
+        journal_gate_run(
+            sport, day, OUTCOME_ERROR, "child_start",
+            detail="child reviewer could not start; reviewed state was not accepted",
+            schedule_path=schedule_path, counts=counts,
+            notices=notices, deferrals=deferrals,
         )
         return 1
     if proc.returncode:
@@ -1303,15 +1464,30 @@ def run_gate(sport: str) -> int:
             f"{sport} review gate ERROR: child reviewer exited {proc.returncode}; "
             "reviewed state was not accepted. Retry the job and inspect Vig session logs."
         )
+        journal_gate_run(
+            sport, day, OUTCOME_ERROR, "child_exit",
+            detail=f"child reviewer exited {proc.returncode}; reviewed state was not accepted",
+            schedule_path=schedule_path, counts=counts,
+            notices=notices, deferrals=deferrals,
+        )
         return proc.returncode
+
+    def _journal_failure(stage: str, detail: str) -> None:
+        journal_gate_run(
+            sport, day, OUTCOME_ERROR, stage, detail=detail,
+            schedule_path=schedule_path, counts=counts,
+            notices=notices, deferrals=deferrals,
+        )
 
     try:
         updated = json.loads(schedule_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         print(f"{sport} review gate ERROR: could not validate reviewed state: {exc}")
+        _journal_failure("reviewed_state_parse", f"could not validate reviewed state: {exc}")
         return 1
     if not isinstance(updated, dict):
         print(f"{sport} review gate ERROR: reviewed schedule must remain an object")
+        _journal_failure("reviewed_state_type", "reviewed schedule must remain an object")
         return 1
     def _restore_pre_review_state(reason: str) -> None:
         """A rejected review must not stay live on disk where the poller reads it."""
@@ -1333,6 +1509,10 @@ def run_gate(sport: str) -> int:
             f"{'; '.join(normalization_errors)}"
         )
         _restore_pre_review_state("normalization failure")
+        _journal_failure(
+            "routing_normalization",
+            f"routing normalization failed closed: {'; '.join(normalization_errors)}",
+        )
         return 1
     transition_errors = validate_review_transition(
         schedule,
@@ -1346,13 +1526,40 @@ def run_gate(sport: str) -> int:
     if transition_errors:
         print(f"{sport} review gate ERROR: invalid review transition: {'; '.join(transition_errors)}")
         _restore_pre_review_state("transition validation failure")
+        _journal_failure(
+            "review_transition",
+            f"invalid review transition: {'; '.join(transition_errors)}",
+        )
         return 1
     try:
         write_latest_action(sport, day, updated, mlb_standing_authorized)
         persist_schedule_locked(schedule_path, updated)
     except (OSError, ScheduleFormatError) as exc:
         print(f"{sport} review gate ERROR: could not persist reviewed state: {exc}")
+        _journal_failure("persist", f"could not persist reviewed state: {exc}")
         return 1
+
+    reviewed = parse_candidates(updated)
+    counts = {
+        **counts,
+        "approved": sum(candidate.get("vig_approved") is True for candidate in reviewed),
+        "rejected": sum(candidate.get("vig_approved") is False for candidate in reviewed),
+        # Named for its POPULATION, because it is not the same one as
+        # watchlist_due on this record: that counts THIS RUN's due set, this
+        # counts every pending entry left on the whole watchlist afterwards.
+        # Called "deferred" they invited subtraction, and two counts over one
+        # source whose populations differ silently are indistinguishable from
+        # a stale counter (Reviewer, PR #60).
+        "watchlist_pending_after": sum(
+            isinstance(entry, dict) and entry.get("status") == PENDING_STATUS
+            for entry in updated.get("lineup_watchlist", [])
+        ),
+    }
+    journal_gate_run(
+        sport, day, OUTCOME_REVIEWED, "complete",
+        detail="review persisted", schedule_path=schedule_path,
+        counts=counts, notices=notices, deferrals=deferrals,
+    )
 
     report = build_validated_review_report(
         updated,

@@ -76,7 +76,14 @@ def main():
     recon=subprocess.run(['python3', str(ROOT/'scripts/receipts_ledger_reconcile.py')],
                          text=True, capture_output=True, timeout=120)
     recon_gap = recon.returncode != 0
-    if not open_picks and not recon_gap: return 0
+    # Second, independent question: receipts_ledger_reconcile asks whether every
+    # fill reached the ledger; this asks whether everything READING the ledger
+    # sees the same numbers. record.json is recomputed by this very agent, so a
+    # stale view is self-inflicted and was previously detected by nobody.
+    ledger=subprocess.run(['python3', str(ROOT/'scripts/vig_ledger_reconcile.py')],
+                          text=True, capture_output=True, timeout=120)
+    ledger_gap = ledger.returncode != 0
+    if not open_picks and not recon_gap and not ledger_gap: return 0
     ids=', '.join(str(p.get('pick_id') or '?') for p in open_picks) or 'none'
     cohort_section = marginal_cohort_stats(picks)
     small_cohort_section = small_stake_cohort_stats(picks)
@@ -86,6 +93,12 @@ def main():
             '\n\nRECEIPT AUDIT DISCREPANCIES (fix these first — every filled receipt must have a ledger row; '
             'backfill missing rows from the execution schedule + receipt before settling):\n'
             + recon.stdout.strip()[:2000]
+        )
+    if ledger_gap:
+        recon_section += (
+            '\n\nLEDGER CONFLICTS (picks.json is canonical — recompute record.json FROM it; '
+            'never edit a counter to match a report):\n'
+            + ledger.stdout.strip()[:2000]
         )
     prompt=build_settlement_prompt(
         open_pick_ids=ids,
