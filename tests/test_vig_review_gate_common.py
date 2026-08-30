@@ -3,7 +3,7 @@ import json
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import ExitStack, contextmanager, redirect_stdout
 from datetime import date, datetime, time, timedelta, timezone
 from io import StringIO
 from pathlib import Path
@@ -96,6 +96,10 @@ REFRESHED_RECHECK = {
 }
 
 _POLICY_STATE = None
+
+# Sentinel for "the child omitted this field", distinct from a None value the
+# child could legitimately write.
+_OMITTED = object()
 
 
 class VigReviewGateCommonTests(unittest.TestCase):
@@ -1670,7 +1674,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
         "book_state": "reliable",
     }
 
-    def _run_deferred_noop_gate(self, root, price, lineup_snapshot):
+    def _run_deferred_noop_gate(self, root, price, lineup_snapshot, extra_entries=()):
         """Drive run_gate with a due watchlist entry the child leaves untouched.
 
         price / lineup_snapshot configure the machine-verified availability of
@@ -1690,7 +1694,9 @@ class VigReviewGateCommonTests(unittest.TestCase):
             polymarket_slug="aec-mlb-min-chc-2026-07-17",
         )
         schedule_path.write_text(
-            json.dumps({"candidates": [], "lineup_watchlist": [entry]})
+            json.dumps(
+                {"candidates": [], "lineup_watchlist": [entry, *extra_entries]}
+            )
         )
 
         def noop_review(*args, **kwargs):
@@ -1907,6 +1913,35 @@ class VigReviewGateCommonTests(unittest.TestCase):
             finally:
                 setattr(vig_review_gate_common, "ROOT", original_root)
 
+    def test_the_two_watchlist_counts_name_two_different_populations(self):
+        # watchlist_due is THIS RUN's due set; watchlist_pending_after is every
+        # pending entry left on the watchlist. Called "deferred", the second
+        # invited subtraction against the first, and two counts over one
+        # source whose populations differ silently are indistinguishable from
+        # a stale counter (Reviewer, PR #60). This pins them APART: a run with
+        # one due entry and one far-future entry must report 1 and 2.
+        far_future = datetime.now(timezone.utc) + timedelta(days=2)
+        not_due = self._watch_entry(
+            id="not-due-today",
+            side="SEA",
+            game="Seattle Mariners at Texas Rangers",
+            first_pitch_utc=far_future.isoformat(),
+            recheck_due_utc=(far_future - timedelta(minutes=75)).isoformat(),
+            polymarket_slug="aec-mlb-sea-tex-2026-07-19",
+        )
+        with self._temp_root() as root:
+            status, _, _, _ = self._run_deferred_noop_gate(
+                root,
+                price=None,
+                lineup_snapshot=dict(self._RESOLVED_LINEUP_SNAPSHOT),
+                extra_entries=[not_due],
+            )
+            self.assertEqual(status, 0)
+            counts = self._journal_records(root)[0]["counts"]
+
+        self.assertEqual(counts["watchlist_due"], 1)
+        self.assertEqual(counts["watchlist_pending_after"], 2)
+
     def test_journal_records_a_failed_review_transition_it_rolled_back(self):
         # A rejected review is exactly the outcome that most needs a durable
         # trace: the schedule on disk is restored to its pre-review state, so
@@ -1960,6 +1995,350 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 self.assertNotIn("ERROR", text)
             finally:
                 setattr(vig_review_gate_common, "ROOT", original_root)
+
+    # --- journal: the ERROR paths, not only the four that already had a test
+    #
+    # Reviewer, PR #60: twelve of the sixteen journal call sites could each be
+    # deleted with the full suite still green, and every one of the twelve was
+    # an error path — including child_timeout, the scenario vig_run_journal's
+    # own docstring leads with. A feature whose stated purpose is that failed
+    # runs stop being invisible cannot leave its failure paths unobserved.
+    #
+    # One case per stage below, each asserting the STAGE rather than the exit
+    # code: nine of these stages return 1, so the exit code cannot say which
+    # path ran, and a test that cannot discriminate its causes does not
+    # observe the thing it is named for (PR #59, three times over).
+
+    # Enough to make the gate reach the child. The stages below the child do
+    # not care what the candidate says, only that there was one.
+    _CHILD_REACHING_SCHEDULE = json.dumps(
+        {"candidates": [{"event_id": "1", "side": "CWS"}], "lineup_watchlist": []}
+    )
+
+    @contextmanager
+    def _temp_root(self):
+        """A temp ROOT restored on the way out, including on failure."""
+        original_root = getattr(vig_review_gate_common, "ROOT")
+        with tempfile.TemporaryDirectory() as tmp:
+            try:
+                setattr(vig_review_gate_common, "ROOT", Path(tmp))
+                yield Path(tmp)
+            finally:
+                setattr(vig_review_gate_common, "ROOT", original_root)
+
+    def _journalled_gate(self, root, schedule_text, *, run=None, extra_patches=()):
+        """Drive run_gate("MLB") over schedule_text; return status, stdout, records, path.
+
+        schedule_text is written verbatim rather than dumped, because several
+        of these stages are reachable only by a schedule that is not valid
+        JSON or not an object at all. `run` replaces subprocess.run, so a case
+        can make the child time out, fail to start, exit nonzero, or write a
+        reviewed state back over the schedule.
+        """
+        day = vig_review_gate_common.schedule_day_now()
+        schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
+        schedule_path.parent.mkdir(parents=True, exist_ok=True)
+        schedule_path.write_text(schedule_text)
+        output = StringIO()
+        with ExitStack() as stack:
+            if run is not None:
+                stack.enter_context(
+                    patch.object(vig_review_gate_common.subprocess, "run", side_effect=run)
+                )
+            for patcher in extra_patches:
+                stack.enter_context(patcher)
+            stack.enter_context(redirect_stdout(output))
+            status = vig_review_gate_common.run_gate("MLB")
+        records = self._journal_records(root, sport="MLB")
+        return status, output.getvalue(), records, schedule_path
+
+    def _assert_single_record(self, records, outcome, stage, *, detail=None):
+        self.assertEqual(
+            [(record["outcome"], record["stage"]) for record in records],
+            [(outcome, stage)],
+        )
+        if detail is not None:
+            self.assertIn(detail, records[0]["detail"])
+
+    def test_journal_records_an_unparseable_schedule(self):
+        with self._temp_root() as root:
+            status, output, records, path = self._journalled_gate(root, "{not json")
+        self.assertEqual(status, 1)
+        self.assertIn("invalid schedule JSON", output)
+        self._assert_single_record(
+            records,
+            vig_run_journal.OUTCOME_ERROR,
+            "schedule_parse",
+            detail="invalid schedule JSON",
+        )
+        self.assertEqual(records[0]["schedule_path"], str(path))
+
+    def test_journal_records_an_empty_legacy_array_as_an_explicit_pass(self):
+        # An empty legacy array is a no-work day, not an error: the outcome
+        # has to distinguish it from the migration failure below, which shares
+        # its shape on disk and nothing else.
+        with self._temp_root() as root:
+            status, output, records, _ = self._journalled_gate(root, "[]")
+        self.assertEqual(status, 0)
+        self.assertEqual(output, "")
+        self._assert_single_record(
+            records, vig_run_journal.OUTCOME_NO_WORK, "schedule_empty"
+        )
+
+    def test_journal_records_a_legacy_array_that_needs_migration(self):
+        with self._temp_root() as root:
+            status, output, records, _ = self._journalled_gate(
+                root, json.dumps([{"side": "ABC", "vig_approved": None}])
+            )
+        self.assertEqual(status, 1)
+        self.assertIn("requires migration", output)
+        self._assert_single_record(
+            records,
+            vig_run_journal.OUTCOME_ERROR,
+            "schedule_legacy_array",
+            detail="requires migration",
+        )
+
+    def test_journal_records_a_schedule_that_is_neither_object_nor_array(self):
+        with self._temp_root() as root:
+            status, output, records, _ = self._journalled_gate(root, json.dumps("a string"))
+        self.assertEqual(status, 1)
+        self.assertIn("expected object or list", output)
+        self._assert_single_record(
+            records,
+            vig_run_journal.OUTCOME_ERROR,
+            "schedule_type",
+            detail="got str",
+        )
+
+    def test_journal_records_a_slate_whose_watchlist_cannot_be_read(self):
+        # A live invalid entry is a hard gate error (only provably-dead
+        # past-pitch entries quarantine), and the run dies before any child
+        # is spawned — so the journal is the only trace it ran at all.
+        now = datetime.now(timezone.utc)
+        bad_entry = self._watch_entry(
+            original_price="MIN +119 at DraftKings",
+            bettable_to_price="+105",
+            first_pitch_utc=(now + timedelta(hours=2)).isoformat().replace("+00:00", "Z"),
+            recheck_due_utc=(now + timedelta(minutes=45)).isoformat().replace("+00:00", "Z"),
+        )
+        with self._temp_root() as root:
+            status, output, records, _ = self._journalled_gate(
+                root, json.dumps({"candidates": [], "lineup_watchlist": [bad_entry]})
+            )
+        self.assertEqual(status, 1)
+        self.assertIn("original_price must be numeric", output)
+        self._assert_single_record(
+            records,
+            vig_run_journal.OUTCOME_ERROR,
+            "review_work",
+            detail="original_price must be numeric",
+        )
+
+    def test_journal_records_a_child_reviewer_that_timed_out(self):
+        # The scenario vig_run_journal's docstring leads with: before this
+        # slice a timed-out child printed one line to a cron delivery nobody
+        # reads and left the day looking like a day the job never fired.
+        def timeout(*args, **kwargs):
+            raise vig_review_gate_common.subprocess.TimeoutExpired(args[0], 1800)
+
+        with self._temp_root() as root:
+            status, output, records, _ = self._journalled_gate(
+                root, self._CHILD_REACHING_SCHEDULE, run=timeout
+            )
+        self.assertEqual(status, 1)
+        self.assertIn("child reviewer timed out", output)
+        self._assert_single_record(
+            records,
+            vig_run_journal.OUTCOME_ERROR,
+            "child_timeout",
+            detail="child reviewer timed out",
+        )
+        # The counts are the work that was pending when the child died —
+        # what the run was in the middle of, not what it finished.
+        self.assertEqual(records[0]["counts"]["candidates"], 1)
+
+    def test_journal_records_a_child_reviewer_that_could_not_start(self):
+        def cannot_start(*args, **kwargs):
+            raise OSError("hermes not on PATH")
+
+        with self._temp_root() as root:
+            status, output, records, _ = self._journalled_gate(
+                root, self._CHILD_REACHING_SCHEDULE, run=cannot_start
+            )
+        self.assertEqual(status, 1)
+        self.assertIn("could not start", output)
+        self._assert_single_record(
+            records,
+            vig_run_journal.OUTCOME_ERROR,
+            "child_start",
+            detail="could not start",
+        )
+
+    def test_journal_records_a_child_reviewer_that_exited_nonzero(self):
+        def failed(*args, **kwargs):
+            return vig_review_gate_common.subprocess.CompletedProcess(
+                args[0], 7, stdout="", stderr=""
+            )
+
+        with self._temp_root() as root:
+            status, output, records, _ = self._journalled_gate(
+                root, self._CHILD_REACHING_SCHEDULE, run=failed
+            )
+        self.assertEqual(status, 7)
+        self.assertIn("child reviewer exited 7", output)
+        self._assert_single_record(
+            records,
+            vig_run_journal.OUTCOME_ERROR,
+            "child_exit",
+            detail="child reviewer exited 7",
+        )
+
+    def test_journal_records_a_child_that_left_unparseable_reviewed_state(self):
+        def corrupt(*args, **kwargs):
+            path = args[0]
+            self._schedule_path.write_text("{")
+            return vig_review_gate_common.subprocess.CompletedProcess(
+                path, 0, stdout="", stderr=""
+            )
+
+        with self._temp_root() as root:
+            day = vig_review_gate_common.schedule_day_now()
+            self._schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
+            status, output, records, _ = self._journalled_gate(
+                root, self._CHILD_REACHING_SCHEDULE, run=corrupt
+            )
+        self.assertEqual(status, 1)
+        self.assertIn("could not validate reviewed state", output)
+        self._assert_single_record(
+            records,
+            vig_run_journal.OUTCOME_ERROR,
+            "reviewed_state_parse",
+            detail="could not validate reviewed state",
+        )
+
+    def test_journal_records_a_child_that_replaced_the_object_with_an_array(self):
+        def rewrite_as_array(*args, **kwargs):
+            self._schedule_path.write_text("[]")
+            return vig_review_gate_common.subprocess.CompletedProcess(
+                args[0], 0, stdout="", stderr=""
+            )
+
+        with self._temp_root() as root:
+            day = vig_review_gate_common.schedule_day_now()
+            self._schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
+            status, output, records, _ = self._journalled_gate(
+                root, self._CHILD_REACHING_SCHEDULE, run=rewrite_as_array
+            )
+        self.assertEqual(status, 1)
+        self.assertIn("must remain an object", output)
+        self._assert_single_record(
+            records,
+            vig_run_journal.OUTCOME_ERROR,
+            "reviewed_state_type",
+            detail="must remain an object",
+        )
+
+    # The two stages below need a review that gets far enough to be routed,
+    # so they carry a full candidate rather than the stub above.
+    _ROUTABLE_CANDIDATE = {
+        "event_id": "401816156",
+        "side": "CWS",
+        "unit_size": 18,
+        "polymarket_ask": 0.51,
+        "vig_approved": None,
+        "executed": False,
+    }
+
+    def _approving_child(self, **candidate_overrides):
+        """A child that approves _ROUTABLE_CANDIDATE, with fields overridable.
+
+        Omitting approved_polymarket_ask is how the routing normalizer is
+        driven to fail closed — the same fail-closed path that crashed the
+        live gate three runs running on 2026-08-18.
+        """
+        def review(*args, **kwargs):
+            updated = dict(self._ROUTABLE_CANDIDATE)
+            updated.update(
+                PROBABILITY_TRAIL,
+                vig_approved=True,
+                vig_notes="All gates hold.",
+                approved_polymarket_ask=0.48,
+                execution_mode="manual",
+                execution_status="pending_manual_fill",
+                manual_bet_status="awaiting_jerry",
+            )
+            updated.update(candidate_overrides)
+            for field, value in list(updated.items()):
+                if value is _OMITTED:
+                    del updated[field]
+            self._schedule_path.write_text(
+                json.dumps({"candidates": [updated], "lineup_watchlist": []})
+            )
+            return vig_review_gate_common.subprocess.CompletedProcess(
+                args[0], 0, stdout="Vig review complete", stderr=""
+            )
+
+        return review
+
+    def test_journal_records_a_routing_normalization_that_failed_closed(self):
+        with self._temp_root() as root:
+            day = vig_review_gate_common.schedule_day_now()
+            self._schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
+            status, output, records, _ = self._journalled_gate(
+                root,
+                json.dumps({"candidates": [self._ROUTABLE_CANDIDATE], "lineup_watchlist": []}),
+                run=self._approving_child(approved_polymarket_ask=_OMITTED),
+                extra_patches=[
+                    patch.object(
+                        vig_review_gate_common,
+                        "standing_authorization_enabled",
+                        return_value=True,
+                    )
+                ],
+            )
+        self.assertEqual(status, 1)
+        self.assertIn("routing normalization failed closed", output)
+        # And the rollback ran, which is precisely why the journal matters
+        # here: the restore puts the pre-review bytes back, so afterwards the
+        # schedule file carries no sign a review happened at all.
+        self.assertIn("pre-review schedule restored", output)
+        self._assert_single_record(
+            records,
+            vig_run_journal.OUTCOME_ERROR,
+            "routing_normalization",
+            detail="routing normalization failed closed",
+        )
+
+    def test_journal_records_a_reviewed_state_that_could_not_be_persisted(self):
+        with self._temp_root() as root:
+            day = vig_review_gate_common.schedule_day_now()
+            self._schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
+            status, output, records, _ = self._journalled_gate(
+                root,
+                json.dumps({"candidates": [self._ROUTABLE_CANDIDATE], "lineup_watchlist": []}),
+                run=self._approving_child(),
+                extra_patches=[
+                    patch.object(
+                        vig_review_gate_common,
+                        "standing_authorization_enabled",
+                        return_value=True,
+                    ),
+                    patch.object(
+                        vig_review_gate_common,
+                        "write_latest_action",
+                        side_effect=OSError("disk full"),
+                    ),
+                ],
+            )
+        self.assertEqual(status, 1)
+        self.assertIn("could not persist reviewed state", output)
+        self._assert_single_record(
+            records,
+            vig_run_journal.OUTCOME_ERROR,
+            "persist",
+            detail="disk full",
+        )
 
     def test_child_failure_is_concise_and_does_not_echo_child_output(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -2658,6 +3037,37 @@ def test_price_context_missing_slug_is_not_deferral_eligible(monkeypatch):
     ctx, no_price_ids = g._price_context([{"id": "e3", "thesis": "no slug here"}])
     assert "no Polymarket slug resolvable" in ctx
     assert no_price_ids == set()
+
+
+def test_journalled_skips_and_deferrals_are_distinguishable_by_kind(monkeypatch):
+    # Both land in the same list, and before the kind discriminator the field
+    # name said "deferral" for each — so a permanently-broken entry rendered
+    # as something to retry (Reviewer, PR #60). Both sides pinned here: a test
+    # that only checked the defect could pass with every item marked a defect.
+    import vig_review_gate_common as g
+
+    monkeypatch.setattr(g, "fetch_market_price", lambda slug: None)
+    recorded = []
+    g._price_context(
+        [
+            {"id": "defect", "thesis": "no slug here"},
+            {"id": "outage", "polymarket_slug": "aec-mlb-x-y-2026-07-27", "thesis": ""},
+        ],
+        recorded,
+    )
+
+    by_id = {item["id"]: item for item in recorded}
+    assert by_id["defect"]["kind"] == vig_run_journal.KIND_DATA_DEFECT
+    assert by_id["outage"]["kind"] == vig_run_journal.KIND_OUTAGE
+    # And the rendering follows the kind, which is where a reader sees it.
+    rendered = vig_run_journal.format_record(
+        vig_run_journal.build_record(
+            sport="MLB", day="2026-08-30", outcome=vig_run_journal.OUTCOME_REVIEWED,
+            stage="complete", deferrals=recorded,
+        )
+    )
+    assert "skipped: defect" in rendered
+    assert "deferred: outage" in rendered
 
 
 def test_price_context_defer_markers_correspond_to_eligibility(monkeypatch):

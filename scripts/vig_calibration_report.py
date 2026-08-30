@@ -41,7 +41,10 @@ def main() -> int:
     # with nothing on either page saying why. The difference is now printed.
     all_settled = [p for p in picks if p.get("status") == "settled"]
     settled = [p for p in all_settled if p.get("result") in ("win", "loss")]
-    voided = [p for p in all_settled if p not in settled]
+    # The complement stated as a predicate, not as a value-comparison against
+    # the other list: `p not in settled` is O(n^2) and correct only by the
+    # accident that a void's result differs from win/loss (Reviewer, PR #60).
+    voided = [p for p in all_settled if p.get("result") not in ("win", "loss")]
     wins = sum(1 for p in settled if p["result"] == "win")
     n = len(settled)
     staked = sum(float(p.get("entry_notional") or p.get("unit_size") or 0) for p in settled)

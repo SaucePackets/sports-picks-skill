@@ -54,6 +54,25 @@ class RunJournalTests(unittest.TestCase):
             with self.subTest(outcome=outcome):
                 self.assertEqual(self.record(outcome=outcome)["outcome"], outcome)
 
+    def test_unknown_deferral_kind_is_rejected(self):
+        # Same argument as the outcome vocabulary: a kind that renders the
+        # entry differently but is never validated is free text, and the
+        # renderer silently falls through to "deferred" on a typo.
+        with self.assertRaises(ValueError):
+            journal.deferral("e1", journal.SOURCE_PRICE_FEED, "why", kind="probably_fine")
+
+    def test_every_deferral_kind_constant_is_accepted_and_renders(self):
+        for kind in journal.KINDS:
+            with self.subTest(kind=kind):
+                item = journal.deferral("e1", journal.SOURCE_PRICE_FEED, "why", kind=kind)
+                self.assertEqual(item["kind"], kind)
+        # An outage is the default, because it is the recoverable case: an
+        # unmarked item must not read as permanently broken.
+        self.assertEqual(
+            journal.deferral("e1", journal.SOURCE_PRICE_FEED, "why")["kind"],
+            journal.KIND_OUTAGE,
+        )
+
     def test_records_append_and_survive_each_other(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

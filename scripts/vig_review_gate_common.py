@@ -59,6 +59,8 @@ from mlb_probability_model import (  # noqa: E402
     probability_contract_prompt_section,
 )
 from vig_run_journal import (  # noqa: E402
+    KIND_DATA_DEFECT,
+    KIND_OUTAGE,
     OUTCOME_ERROR,
     OUTCOME_NO_SCHEDULE,
     OUTCOME_NO_WORK,
@@ -899,9 +901,9 @@ def _price_context(
     lines: list[str] = []
     no_price_ids: set[str] = set()
 
-    def _note(entry_id: Any, reason: str) -> None:
+    def _note(entry_id: Any, reason: str, kind: str = KIND_OUTAGE) -> None:
         if deferrals is not None:
-            deferrals.append(deferral(entry_id, SOURCE_PRICE_FEED, reason))
+            deferrals.append(deferral(entry_id, SOURCE_PRICE_FEED, reason, kind=kind))
 
     for entry in watchlist:
         slug = _entry_slug(entry)
@@ -909,9 +911,15 @@ def _price_context(
             lines.append(
                 f"{entry.get('id')}: no Polymarket slug resolvable — {PRICE_DEFECT_MARKER}"
             )
-            # A data defect, not an outage: recorded as skipped so it is
-            # visible, but deliberately not deferral-eligible.
-            _note(entry.get("id"), "no Polymarket slug resolvable (data defect, not deferral-eligible)")
+            # A data defect, not an outage: recorded so it is visible, but
+            # deliberately not deferral-eligible. The kind carries that, so
+            # the record no longer needs a reason string arguing with the
+            # field it sits in (Reviewer, PR #60).
+            _note(
+                entry.get("id"),
+                "no Polymarket slug resolvable",
+                kind=KIND_DATA_DEFECT,
+            )
             continue
         price = fetch_market_price(slug)
         if not price:
@@ -1536,7 +1544,13 @@ def run_gate(sport: str) -> int:
         **counts,
         "approved": sum(candidate.get("vig_approved") is True for candidate in reviewed),
         "rejected": sum(candidate.get("vig_approved") is False for candidate in reviewed),
-        "deferred": sum(
+        # Named for its POPULATION, because it is not the same one as
+        # watchlist_due on this record: that counts THIS RUN's due set, this
+        # counts every pending entry left on the whole watchlist afterwards.
+        # Called "deferred" they invited subtraction, and two counts over one
+        # source whose populations differ silently are indistinguishable from
+        # a stale counter (Reviewer, PR #60).
+        "watchlist_pending_after": sum(
             isinstance(entry, dict) and entry.get("status") == PENDING_STATUS
             for entry in updated.get("lineup_watchlist", [])
         ),

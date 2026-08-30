@@ -11,7 +11,14 @@ answered on disk.
 
 Everything here is read-only about money. Nothing in this lane creates,
 previews, signs, or submits an order, and nothing reads or writes a betting
-rail; `tests/test_observability_adds_no_execution.py` enforces that.
+rail.
+
+`tests/test_observability_adds_no_execution.py` checks that for **these three
+modules by name**, and pins their sibling imports so the lane cannot acquire a
+dependency on the execution path. It does not discover the lane's membership:
+a fourth module added to `scripts/` and imported by none of the three is not
+scanned, and the test will not say so. Add a module to this lane, add it
+there — nothing mechanical will remind you.
 
 ## 1. The gate run journal
 
@@ -55,6 +62,14 @@ that reported it (`lineup_feed` / `price_feed`), the reason, and the instant it
 was observed. "Entry X was not reviewed" is unactionable; "the price feed had
 no executable ask for X at 15:29Z" is the 2026-08-16 diagnosis that took a
 week to reconstruct by hand.
+
+Each item also carries a **kind**, a second closed vocabulary: `outage` means a
+live input went quiet and a retry is the fix, `data_defect` means the entry
+itself is wrong and no retry can help (an unresolvable Polymarket slug is the
+standing example — it is deliberately *not* deferral-eligible). `format_record`
+renders an outage as `deferred:` and a defect as `skipped:`, because a
+permanently-broken entry printed as "deferred" tells the reader to wait for a
+retry that is never coming.
 
 ### Two deliberate properties
 

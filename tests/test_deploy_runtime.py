@@ -18,6 +18,8 @@ from pathlib import Path
 
 import pytest
 
+import import_closure
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEPLOY = REPO_ROOT / "scripts" / "deploy-runtime.sh"
 
@@ -468,6 +470,36 @@ def _manifest_names() -> list[str]:
     names = [line.strip() for line in block.splitlines() if line.strip().endswith(".py")]
     assert "execution_guard.py" in names and len(names) >= 10
     return names
+
+
+def test_the_profile_manifest_is_closed_under_sibling_imports():
+    """A manifest module that imports a sibling the manifest omits is a dead profile.
+
+    The deploy copies exactly the manifest into the Vig profile scripts dir.
+    A copied module that imports a sibling which was NOT copied raises
+    ImportError at import time, so every cron job using it dies — not
+    degraded, dead. This PR is what makes that edge live: it added
+    `vig_review_gate_common.py`'s unconditional `from vig_run_journal import
+    ...`, the first new hard sibling edge into the manifest set, and nothing
+    held the manifest right (Reviewer, PR #60).
+
+    The gap set is empty today, so this passes at this tip and reds the moment
+    someone adds an import without adding the module.
+    """
+    manifest = set(_manifest_names())
+    reached = import_closure.closure(manifest)
+
+    # Vacuity guard against a closure that computes nothing: the edge this PR
+    # introduced must actually be visible to the walk.
+    assert "vig_run_journal.py" in import_closure.sibling_imports(
+        "vig_review_gate_common.py"
+    )
+
+    missing = sorted(reached - manifest)
+    assert not missing, (
+        "PROFILE_MANIFEST is not import-closed; a profile copy would fail to "
+        f"import: {missing}"
+    )
 
 
 # Any absolute home directory, not one account name. Matching the literal

@@ -58,6 +58,16 @@ PASS_OUTCOMES = (OUTCOME_NO_SCHEDULE, OUTCOME_NO_WORK)
 SOURCE_LINEUP_FEED = "lineup_feed"
 SOURCE_PRICE_FEED = "price_feed"
 
+# Why the input was not reviewed. Both land in the same list because both
+# answer "what did this run not get to", but they are different problems and
+# the field name alone said "deferral" for each: an OUTAGE clears itself and
+# the entry is retried, a DATA DEFECT never will and is not deferral-eligible
+# at all (Reviewer, PR #60). Closed vocabulary, validated on construction,
+# same as OUTCOMES.
+KIND_OUTAGE = "outage"            # a live input went quiet; retry is the fix
+KIND_DATA_DEFECT = "data_defect"  # the entry itself is wrong; retry cannot help
+KINDS = (KIND_OUTAGE, KIND_DATA_DEFECT)
+
 
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
@@ -72,10 +82,19 @@ def journal_path(root: Path, day: str) -> Path:
     return Path(root) / ".picks" / "journal" / f"{day}-runs.jsonl"
 
 
-def deferral(entry_id: Any, source: str, reason: str, observed_at: str | None = None) -> dict[str, Any]:
-    """One deferred/skipped input, with the source and instant that saw it."""
+def deferral(
+    entry_id: Any,
+    source: str,
+    reason: str,
+    observed_at: str | None = None,
+    kind: str = KIND_OUTAGE,
+) -> dict[str, Any]:
+    """One deferred or skipped input, with its kind, source, and instant."""
+    if kind not in KINDS:
+        raise ValueError(f"unknown kind {kind!r}")
     return {
         "id": str(entry_id),
+        "kind": kind,
         "source": source,
         "reason": reason,
         "observed_at": observed_at or utc_now_iso(),
@@ -221,8 +240,12 @@ def format_record(record: dict[str, Any]) -> str:
     for notice in record.get("notices") or []:
         parts.append(f"  notice: {notice}")
     for item in record.get("deferrals") or []:
+        # An outage says "come back to this"; a data defect says "this entry
+        # needs fixing". Rendering both as "deferred" told the reader to wait
+        # for a retry that was never going to happen.
+        label = "skipped" if item.get("kind") == KIND_DATA_DEFECT else "deferred"
         parts.append(
-            f"  deferred: {item.get('id', '?')} via {item.get('source', '?')} "
+            f"  {label}: {item.get('id', '?')} via {item.get('source', '?')} "
             f"at {item.get('observed_at', '?')} — {item.get('reason', '')}"
         )
     return "\n".join(parts)
