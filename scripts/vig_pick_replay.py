@@ -44,6 +44,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from collections import Counter
 from pathlib import Path
@@ -106,21 +107,42 @@ def synthetic_units(record: dict[str, Any]) -> float | None:
 
 
 def eligible_for_replay(record: dict[str, Any]) -> bool:
-    """Decided against an official Final, with a usable price."""
-    return record["side_outcome"] in ("win", "loss") and synthetic_units(record) is not None
+    """Resolved against an official Final, with a usable price.
+
+    PUSH POLICY, applied consistently everywhere: a priced push IS replayable
+    — the stake came back, which is economic evidence worth zero units, not
+    absent evidence — so pushes enter the economic sample and the LOPO
+    grader. The WIN RATE alone stays strictly wins/(wins+losses); a push says
+    nothing about side-picking skill and never enters that denominator.
+    `synthetic_units` is the single arbiter: it is None exactly when there is
+    nothing to replay.
+    """
+    return synthetic_units(record) is not None
 
 
 def cohort_summary(records: list[dict[str, Any]], min_sample: int) -> dict[str, Any]:
+    """One cohort's numbers under the push policy on `eligible_for_replay`.
+
+    Pushes are counted (`pushes`, `resolved`) and priced pushes sit inside
+    `replayable_with_price`/`synthetic_units` at zero units. The WIN RATE, its
+    Wilson interval, and the sufficiency gate stay strictly wins/(wins+losses):
+    the claim `min_sample` protects is the rate, and a push carries no
+    information about it — counting pushes toward sufficiency would let
+    push-heavy cohorts make rate claims on fewer decided records.
+    """
     decided = [r for r in records if r["side_outcome"] in ("win", "loss")]
+    pushes = sum(1 for r in records if r["side_outcome"] == "push")
     wins = sum(1 for r in decided if r["side_outcome"] == "win")
     replayable = [r for r in records if eligible_for_replay(r)]
     units = round(sum(synthetic_units(r) for r in replayable), 6)
     lo, hi = wilson_ci(wins, len(decided)) if decided else (0.0, 1.0)
     return {
         "candidates": len(records),
+        "resolved": len(decided) + pushes,
         "decided": len(decided),
         "wins": wins,
         "losses": len(decided) - wins,
+        "pushes": pushes,
         "win_rate": round(wins / len(decided), 6) if decided else None,
         "wilson_95": [round(lo, 6), round(hi, 6)],
         "replayable_with_price": len(replayable),
@@ -447,15 +469,16 @@ def render(report: dict[str, Any]) -> str:
         flag = "" if s["sufficient_for_a_claim"] else (
             f"  [INSUFFICIENT SAMPLE — n<{report['min_sample_for_a_claim']}, no claim]"
         )
+        pushes = f", {s['pushes']} pushes" if s["pushes"] else ""
         if s["decided"]:
             out.append(
-                f"- {name}: {s['wins']}-{s['losses']} = {s['win_rate'] * 100:.1f}% "
-                f"(95% CI {s['wilson_95'][0] * 100:.1f}–{s['wilson_95'][1] * 100:.1f}%), "
+                f"- {name}: {s['wins']}-{s['losses']} = {s['win_rate'] * 100:.1f}% W/L "
+                f"(95% CI {s['wilson_95'][0] * 100:.1f}–{s['wilson_95'][1] * 100:.1f}%{pushes}), "
                 f"synthetic {_fmt_units(s['synthetic_units'])} over "
                 f"{s['replayable_with_price']} priced{flag}"
             )
         else:
-            out.append(f"- {name}: no decided candidates")
+            out.append(f"- {name}: no decided candidates{pushes}")
     out.append("")
 
     out.append(f"## Winners we passed on ({len(report['missed_winners'])})")
@@ -534,6 +557,20 @@ def main(argv: list[str] | None = None) -> int:
                         help="opt-in: populate missing results-cache dates via the audit's fetch helper")
     parser.add_argument("--json", action="store_true", help="emit the full report as JSON")
     args = parser.parse_args(argv)
+
+    # Fail closed on nonsense thresholds, mirroring vig_historical_audit's CLI:
+    # a negative --min-sample marks every cohort sufficient, --min-selection 0
+    # grades folds on zero selection records, and an out-of-range edge floor
+    # silently changes which candidates the audit even considers.
+    for flag, value in (("--since", args.since), ("--until", args.until)):
+        if value is not None and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+            parser.error(f"{flag} must be YYYY-MM-DD")
+    if not 0 < args.edge_floor < 1:
+        parser.error("--edge-floor must be between 0 and 1")
+    if args.min_sample < 1:
+        parser.error("--min-sample must be at least 1")
+    if args.min_selection < 1:
+        parser.error("--min-selection must be at least 1")
 
     picks_dir = args.picks_dir or (
         os.environ.get("SPORTS_PICKS_ROOT") and

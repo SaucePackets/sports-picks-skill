@@ -9,9 +9,12 @@ python scripts/vig_pick_replay.py --picks-dir ~/projects/sports-picks-runtime/.p
 
 # Opt-in cache population (the ONLY side effect, delegated to the audit's
 # fetch helper; writes the explicit results cache and nothing else).
-python scripts/vig_pick_replay.py --results-dir /tmp/mlb-results --fetch
+# --picks-dir (or SPORTS_PICKS_ROOT) is always required — it names the
+# schedules whose dates get fetched.
+python scripts/vig_pick_replay.py --picks-dir ~/projects/sports-picks-runtime/.picks \
+    --results-dir /tmp/mlb-results --fetch
 
-python scripts/vig_pick_replay.py --json
+python scripts/vig_pick_replay.py --picks-dir ~/projects/sports-picks-runtime/.picks --json
 ```
 
 ## Foundation: the audit, not a copy of it
@@ -51,6 +54,16 @@ forfeits the unit, a push returns it. A record with no decided outcome or no
 usable price contributes `None`, never zero — "no evidence" and "broke even"
 are different facts. Every derived number is labelled synthetic and travels
 with the caveats (quoted asks are not fills; gross of fees).
+
+**Push policy.** A priced push is replay-eligible: the stake came back, which
+is economic evidence worth zero units, not absent evidence. Pushes therefore
+count in `replayable_with_price`, `synthetic_units`, and the leave-one-month-
+out selection and held-out samples. The **win rate, its Wilson interval, and
+the `--min-sample` sufficiency gate stay strictly wins/(wins+losses)** — a
+push says nothing about side-picking skill, and counting it toward
+sufficiency would let push-heavy cohorts make rate claims on fewer decided
+records. Cohort summaries report `pushes` and `resolved` alongside `decided`
+so both populations are named.
 
 ## Rule-change candidates: bounded, and never tuned where they are graded
 

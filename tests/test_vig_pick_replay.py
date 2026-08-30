@@ -10,6 +10,8 @@ out-of-sample selection genuinely disagree, so a leak changes the answer.
 from __future__ import annotations
 
 import ast
+import contextlib
+import io
 import json
 import sys
 import tempfile
@@ -124,6 +126,42 @@ class AttributionTests(unittest.TestCase):
         self.assertEqual(summary["win_rate"], 1.0)
 
 
+class PushAccountingTests(unittest.TestCase):
+    """The documented push policy: economic sample yes, rate denominator no."""
+
+    def test_a_priced_push_is_replayable_and_an_unpriced_one_is_not(self):
+        self.assertTrue(replay.eligible_for_replay(record(side_outcome="push")))
+        self.assertFalse(replay.eligible_for_replay(record(side_outcome="push", entry_price=None)))
+        self.assertFalse(replay.eligible_for_replay(record(side_outcome="unreconciled")))
+
+    def test_cohort_pushes_enter_the_economic_sample_but_never_the_rate(self):
+        records = [
+            record(), record(),                                # 2 wins @0.5 → +1 each
+            record(side_outcome="loss"),                       # -1
+            record(side_outcome="push"), record(side_outcome="push"),
+            record(side_outcome="push", entry_price=None),     # push with no price: counted, not replayable
+            record(side_outcome="unreconciled"),
+        ]
+        summary = replay.cohort_summary(records, min_sample=3)
+        self.assertEqual(summary["candidates"], 7)
+        self.assertEqual(summary["decided"], 3)
+        self.assertEqual(summary["pushes"], 3)
+        self.assertEqual(summary["resolved"], 6)
+        self.assertEqual(summary["replayable_with_price"], 5)
+        self.assertEqual(summary["synthetic_units"], 1.0)
+        self.assertEqual(summary["win_rate"], round(2 / 3, 6))
+        self.assertEqual(summary["wilson_95"], [round(v, 6) for v in replay.wilson_ci(2, 3)])
+
+    def test_sufficiency_stays_on_decided_records_however_many_pushes_land(self):
+        # 3 decided + 3 pushes against min_sample=4: resolved (6) clears the
+        # bar but the rate's denominator (3) does not — a push-heavy cohort
+        # must not get to make a win-rate claim on fewer decided records.
+        records = [record(), record(), record(side_outcome="loss")]
+        records += [record(side_outcome="push")] * 3
+        self.assertFalse(replay.cohort_summary(records, min_sample=4)["sufficient_for_a_claim"])
+        self.assertTrue(replay.cohort_summary(records, min_sample=3)["sufficient_for_a_claim"])
+
+
 class LeaveOnePeriodOutTests(unittest.TestCase):
     """The safeguard under test: selection never sees the held-out slice."""
 
@@ -184,14 +222,31 @@ class LeaveOnePeriodOutTests(unittest.TestCase):
         for fold in result["folds"]:
             self.assertEqual(fold["chosen_rule"], expected)
 
-    def test_only_decided_priced_records_enter_the_grader(self):
-        months = self.month("2026-05-01", [(0.45, "win")] * 6)
+    def test_only_resolved_priced_records_enter_the_grader(self):
+        # A priced push is resolved economic evidence and enters; undecided
+        # and priceless records never do.
+        months = self.month("2026-05-01", [(0.45, "win")] * 6 + [(0.45, "push")])
         months += [
             record(date="2026-05-02", side_outcome="unreconciled"),
             record(date="2026-05-02", entry_price=None),
         ]
         result = replay.leave_one_period_out(months, replay.EXECUTED_RULES, min_selection=1)
-        self.assertEqual(result["eligible_records"], 6)
+        self.assertEqual(result["eligible_records"], 7)
+
+    def test_pushes_count_in_selection_sufficiency_and_held_out_at_zero_units(self):
+        # 4 decided + 2 pushes per month against min_selection=5: if pushes
+        # were excluded from the grader every fold would be
+        # insufficient_selection (4 < 5), so a graded fold IS the push
+        # accounting. Held-out kept counts the pushes; units come only from
+        # the wins.
+        m1 = self.month("2026-05-01", [(0.5, "win")] * 4 + [(0.5, "push")] * 2)
+        m2 = self.month("2026-06-01", [(0.5, "win")] * 4 + [(0.5, "push")] * 2)
+        result = replay.leave_one_period_out(m1 + m2, replay.EXECUTED_RULES, min_selection=5)
+        for fold in result["folds"]:
+            self.assertEqual(fold["status"], "graded")
+            self.assertEqual(fold["n_selection"], 6)
+            self.assertEqual(fold["held_out_kept"], 6)
+            self.assertEqual(fold["held_out_units"], 4.0)
 
     def test_the_passed_cohort_no_change_rule_is_taking_nothing(self):
         # For declined proposals the status quo is zero units — add_none must
@@ -361,6 +416,50 @@ class ReadOnlyGuardTests(unittest.TestCase):
 
     def test_the_floor_constant_is_the_audits_not_a_second_copy(self):
         self.assertIs(replay.DEFAULT_MIN_CONSERVATIVE_EDGE, audit.DEFAULT_MIN_CONSERVATIVE_EDGE)
+
+
+class CliValidationTests(unittest.TestCase):
+    """Nonsense thresholds must fail closed before any report is built:
+    a negative --min-sample marks every cohort sufficient and --min-selection
+    0 grades folds with no selection data."""
+
+    def assert_rejected(self, argv):
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit) as ctx:
+                replay.main(argv)
+        self.assertEqual(ctx.exception.code, 2, f"{argv} was not rejected")
+
+    def test_out_of_range_thresholds_are_rejected(self):
+        for argv in (
+            ["--min-sample", "0"],
+            ["--min-sample", "-1"],
+            ["--min-selection", "0"],
+            ["--min-selection", "-3"],
+            ["--edge-floor", "0"],
+            ["--edge-floor", "1"],
+            ["--edge-floor", "-0.05"],
+            ["--since", "06-10-2026"],
+            ["--until", "2026-6-1"],
+        ):
+            with self.subTest(argv=argv):
+                self.assert_rejected(argv)
+
+    def test_the_minimal_legal_thresholds_still_run(self):
+        root = Path(tempfile.mkdtemp())
+        write_results(root, "2026-06-10", [
+            {"away": "Athletics", "home": "Detroit Tigers", "away_score": 1, "home_score": 6},
+        ])
+        write_day(root, "2026-06-10", {
+            "date": "2026-06-10",
+            "candidates": [{"game": "Athletics at Detroit Tigers", "side": "DET",
+                            "executed": True, "polymarket_ask": 0.5}],
+        })
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(replay.main([
+                "--picks-dir", str(root), "--results-dir", str(root / "results"),
+                "--min-sample", "1", "--min-selection", "1", "--edge-floor", "0.05",
+                "--json",
+            ]), 0)
 
 
 if __name__ == "__main__":
