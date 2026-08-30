@@ -243,6 +243,12 @@ def format_record(record: dict[str, Any]) -> str:
         # An outage says "come back to this"; a data defect says "this entry
         # needs fixing". Rendering both as "deferred" told the reader to wait
         # for a retry that was never going to happen.
+        #
+        # A record written before `kind` existed has none and renders as
+        # "deferred". That is the safe read — it says "come back to this" —
+        # and it is the one case the closed vocabulary cannot police, because
+        # validation happens on construction and these records are already on
+        # disk.
         label = "skipped" if item.get("kind") == KIND_DATA_DEFECT else "deferred"
         parts.append(
             f"  {label}: {item.get('id', '?')} via {item.get('source', '?')} "

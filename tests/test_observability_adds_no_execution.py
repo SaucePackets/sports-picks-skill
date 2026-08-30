@@ -113,6 +113,14 @@ class ObservabilityStaysReadOnlyTests(unittest.TestCase):
         # Bounding the module is not enough: `from vig_review_gate_common
         # import resolve_root` and `... import normalize_review_routing` are
         # the same edge to the check above and very different dependencies.
+        #
+        # The allowance is a set of NAMES, so `import vig_review_gate_common`
+        # can never satisfy it — a whole-module bind takes every name on the
+        # module, which is strictly wider than either of those two and was the
+        # one form an earlier version of this check could not see (Reviewer,
+        # PR #60 round 2). Both forms are walked here; the plain form is a
+        # violation outright.
+        #
         # Vacuity guard first — the edge this pins must actually exist, or
         # the loop below asserts nothing.
         self.assertEqual(
@@ -122,6 +130,17 @@ class ObservabilityStaysReadOnlyTests(unittest.TestCase):
         for root, edges in ALLOWED_SIBLING_IMPORTS.items():
             tree = ast.parse((SCRIPTS / root).read_text(encoding="utf-8"))
             for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    for alias in node.names:
+                        target = f"{alias.name.split('.', 1)[0]}.py"
+                        if not (SCRIPTS / target).is_file():
+                            continue
+                        with self.subTest(module=root, whole_module=target):
+                            self.fail(
+                                f"{root} binds the whole {target} namespace; the "
+                                "allowance is name-scoped, so use the from-form"
+                            )
+                    continue
                 if not isinstance(node, ast.ImportFrom) or node.level:
                     continue
                 target = f"{(node.module or '').split('.', 1)[0]}.py"

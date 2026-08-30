@@ -5,7 +5,13 @@ their own directory on `sys.path`, so "what does module X drag in" is a real
 question with a mechanical answer, and two tests now need it: the deploy
 manifest must be import-closed (a profile copy missing a sibling fails to
 import, which kills the cron that uses it), and the observability guard must
-scan whatever its three named roots reach, not only the roots themselves.
+bound the sibling imports its three named roots have.
+
+`closure()` is the transitive form and has one caller today, the manifest test.
+The observability guard deliberately uses `sibling_imports` alone and does not
+token-scan the closure: reaching a module is not using its execution surface,
+and that sweep failed on an import of one path helper (PR #60). What it pins
+instead is the import EDGE.
 
 One implementation, deliberately — two copies of one computation agree only
 until one of them changes.

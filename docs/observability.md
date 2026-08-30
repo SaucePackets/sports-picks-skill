@@ -14,8 +14,10 @@ previews, signs, or submits an order, and nothing reads or writes a betting
 rail.
 
 `tests/test_observability_adds_no_execution.py` checks that for **these three
-modules by name**, and pins their sibling imports so the lane cannot acquire a
-dependency on the execution path. It does not discover the lane's membership:
+modules by name**, and pins their sibling imports — both the `from`-form and a
+whole-module `import`, which is strictly wider than any name-scoped allowance —
+so the lane cannot acquire a dependency on the execution path. It does not
+discover the lane's membership:
 a fourth module added to `scripts/` and imported by none of the three is not
 scanned, and the test will not say so. Add a module to this lane, add it
 there — nothing mechanical will remind you.
