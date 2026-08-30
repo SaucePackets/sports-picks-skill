@@ -241,7 +241,7 @@ def profile(records: list[dict[str, Any]]) -> dict[str, Any]:
         "skip_reasons": dict(Counter(
             str(r["skip_reason"]) for r in records if r["skip_reason"] is not None
         )),
-        "by_schema_source": dict(Counter(r["date"][:7] for r in records if r["date"])),
+        "by_month": dict(Counter(r["date"][:7] for r in records if r["date"])),
     }
 
 
@@ -342,6 +342,12 @@ def leave_one_period_out(
             "status": "graded",
             "chosen_rule": chosen,
             "chosen_on_selection_units": scored[chosen][1],
+            # A "chosen" rule that merely tied and won on name order is a
+            # different fact from one that won on the economics — disclose it.
+            "selection_ties": sorted(
+                name for name in scored
+                if name != chosen and scored[name][1] == scored[chosen][1]
+            ),
             "held_out_kept": n_kept,
             "held_out_units": units,
         })
@@ -411,6 +417,9 @@ def replay_report(
         "executed_losses": executed_losses(records),
         "profiles": {
             "executed": profile(executed),
+            "executed_wins": profile([
+                r for r in executed if r["side_outcome"] == "win"
+            ]),
             "executed_losses": profile([
                 r for r in executed if r["side_outcome"] == "loss"
             ]),
@@ -494,6 +503,12 @@ def render(report: dict[str, Any]) -> str:
     out.append(f"## Executed picks that lost ({len(report['executed_losses'])})")
     el = report["profiles"]["executed_losses"]
     out.append(f"- price bands: {el['price_band'] or 'none priced'}; no price: {el['no_price']}")
+    ew = report["profiles"]["executed_wins"]
+    out.append(
+        f"- executed WINS in the same bands (the denominator the loss bands "
+        f"must be read against): {ew['price_band'] or 'none priced'}; "
+        f"no price: {ew['no_price']}"
+    )
     presence = report["profiles"]["executed"]["field_presence"]
     total = report["profiles"]["executed"]["candidates"]
     out.append(
@@ -520,8 +535,12 @@ def render(report: dict[str, Any]) -> str:
         )
         for fold in lopo["folds"]:
             if fold["status"] == "graded":
+                tie = (
+                    f" [tied with {', '.join(fold['selection_ties'])}; won on name order]"
+                    if fold["selection_ties"] else ""
+                )
                 out.append(
-                    f"  - {fold['period']}: chose {fold['chosen_rule']} on the other "
+                    f"  - {fold['period']}: chose {fold['chosen_rule']}{tie} on the other "
                     f"{fold['n_selection']} records; held-out kept "
                     f"{fold['held_out_kept']}/{fold['n_held_out']} for "
                     f"{_fmt_units(fold['held_out_units'])}"
@@ -550,7 +569,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--edge-floor", type=float, default=DEFAULT_MIN_CONSERVATIVE_EDGE,
                         help="conservative edge floor passed through to the audit")
     parser.add_argument("--min-sample", type=int, default=DEFAULT_MIN_SAMPLE,
-                        help=f"minimum decided records before a rate is a claim (default {DEFAULT_MIN_SAMPLE})")
+                        help=(f"minimum decided records before a rate is a claim; also passed "
+                              f"through as the audit's calibration bucket threshold "
+                              f"(default {DEFAULT_MIN_SAMPLE})"))
     parser.add_argument("--min-selection", type=int, default=DEFAULT_MIN_SELECTION,
                         help=f"minimum selection records before a fold is graded (default {DEFAULT_MIN_SELECTION})")
     parser.add_argument("--fetch", action="store_true",

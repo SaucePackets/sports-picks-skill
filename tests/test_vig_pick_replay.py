@@ -173,23 +173,58 @@ class LeaveOnePeriodOutTests(unittest.TestCase):
             for price, outcome in specs
         ]
 
+    def _strict_argmax(self, records):
+        """The winning EXECUTED_RULES name on `records`, refusing ties.
+
+        A fixture argmax resolved by the name tiebreak proves nothing about
+        the economics, so any tie here is a broken fixture, not a result.
+        """
+        scored = {
+            name: replay.rule_units(records, rule)[1]
+            for name, rule in replay.EXECUTED_RULES.items()
+        }
+        top = max(scored.values())
+        winners = [name for name, units in scored.items() if units == top]
+        self.assertEqual(len(winners), 1, f"fixture tie: {scored}")
+        return winners[0], top
+
     def test_the_held_out_month_never_influences_its_own_rule_choice(self):
-        # In months 1-2, cheap (0.35) picks win and expensive (0.60) picks
-        # lose, so keep_under_0.50 dominates there. In month 3 the pattern
-        # INVERTS. The two ways this grader could leak both change month 3's
-        # answer: tuned in-sample on ALL data, keep_all wins (+8.3u vs +4.3u);
-        # tuned on month 3 itself, keep_0.40_to_0.55 wins (0u vs -2u). Only
-        # the honest complement-selection chooses keep_under_0.50 for month 3
-        # — and then it must eat the -6u loss rather than dodge it.
-        m1 = self.month("2026-05-01", [(0.35, "win")] * 6 + [(0.60, "loss")] * 6)
-        m2 = self.month("2026-06-01", [(0.35, "win")] * 6 + [(0.60, "loss")] * 6)
-        m3 = self.month("2026-07-01", [(0.35, "loss")] * 6 + [(0.60, "win")] * 6)
+        # The three selection sets a leaky grader could use must DISAGREE on
+        # the winning rule, each with a strictly best score, so a leak in
+        # either direction changes the ANSWER — not just a bookkeeping count.
+        # Complement (m1+m2): cheap wins, 0.50s and 0.80s lose
+        #   -> keep_under_0.50 (+12.0 vs 10.0 / 8.0 / 1.0).
+        # All data (in-sample leak): month 3's sixteen 0.80 winners flip the
+        #   total -> keep_all (+11.5 vs 9.5 / 8.5 / 5.5).
+        # Month 3 alone (held-out leak): cheap picks lose there
+        #   -> keep_0.40_to_0.55 (+4.5 vs 3.5 / -0.5 / -3.5).
+        # The 0.50-priced records keep keep_under_0.50 and keep_under_0.55
+        # extensionally different (10.0 vs 12.0 on the complement).
+        m1 = self.month("2026-05-01", [(0.25, "win")] * 2 + [(0.40, "win")]
+                        + [(0.50, "loss")] + [(0.80, "loss")])
+        m2 = self.month("2026-06-01", [(0.25, "win")] + [(0.40, "win")]
+                        + [(0.50, "loss")] + [(0.80, "loss")])
+        m3 = self.month("2026-07-01", [(0.25, "loss")] * 5 + [(0.40, "win")]
+                        + [(0.50, "win")] * 3 + [(0.80, "win")] * 16)
+
+        # Prove the fixture discriminates BEFORE trusting the grader with it:
+        # each candidate selection set names a different rule, strictly.
+        honest, honest_units = self._strict_argmax(m1 + m2)
+        leaked_in_sample, _ = self._strict_argmax(m1 + m2 + m3)
+        leaked_held_out, _ = self._strict_argmax(m3)
+        self.assertEqual(honest, "keep_under_0.50")
+        self.assertEqual(leaked_in_sample, "keep_all")
+        self.assertEqual(leaked_held_out, "keep_0.40_to_0.55")
+
         result = replay.leave_one_period_out(m1 + m2 + m3, replay.EXECUTED_RULES, min_selection=5)
-        folds = {f["period"]: f for f in result["folds"]}
-        self.assertEqual(folds["2026-07"]["chosen_rule"], "keep_under_0.50")
-        self.assertEqual(folds["2026-07"]["n_selection"], 24)
-        self.assertEqual(folds["2026-07"]["held_out_kept"], 6)
-        self.assertEqual(folds["2026-07"]["held_out_units"], -6.0)
+        fold = {f["period"]: f for f in result["folds"]}["2026-07"]
+        self.assertEqual(fold["chosen_rule"], "keep_under_0.50")
+        self.assertEqual(fold["chosen_on_selection_units"], honest_units)
+        self.assertEqual(fold["chosen_on_selection_units"], 12.0)
+        self.assertEqual(fold["selection_ties"], [])
+        self.assertEqual(fold["n_selection"], 9)
+        self.assertEqual(fold["held_out_kept"], 6)
+        self.assertEqual(fold["held_out_units"], -3.5)
 
     def test_an_insufficient_selection_set_grades_nothing(self):
         months = self.month("2026-05-01", [(0.45, "win")] * 3)
@@ -221,6 +256,8 @@ class LeaveOnePeriodOutTests(unittest.TestCase):
         expected = sorted(replay.EXECUTED_RULES)[0]
         for fold in result["folds"]:
             self.assertEqual(fold["chosen_rule"], expected)
+            # …and the fold must SAY the win came from name order, not economics.
+            self.assertEqual(fold["selection_ties"], sorted(replay.EXECUTED_RULES)[1:])
 
     def test_only_resolved_priced_records_enter_the_grader(self):
         # A priced push is resolved economic evidence and enters; undecided
@@ -315,6 +352,17 @@ class ReportTests(unittest.TestCase):
         self.assertIn("out of scope", rendered)
         self.assertIn("reference only, NEVER a verdict", rendered)
         json.dumps(report)  # the full report must stay JSON-serializable
+
+    def test_profiles_carry_the_win_denominator_and_honest_month_key(self):
+        report = self._report()
+        profiles = report["profiles"]
+        # The loss bands need a base rate to be read against — the wins
+        # profile is that denominator, in the same bands.
+        self.assertEqual(profiles["executed_wins"]["candidates"], 1)
+        self.assertIn("executed WINS", replay.render(report))
+        # The month histogram must be keyed by what it actually counts.
+        self.assertEqual(profiles["executed"]["by_month"], {"2026-06": 1})
+        self.assertNotIn("by_schema_source", profiles["executed"])
 
     def test_a_passed_winner_shows_up_with_its_recorded_reason(self):
         root = Path(tempfile.mkdtemp())

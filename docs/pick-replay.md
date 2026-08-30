@@ -35,7 +35,7 @@ so the no-writes assertion cannot pass vacuously).
 | Attribution matrix | every candidate, exactly once | disposition × official outcome |
 | Cohorts | executed vs passed | side quality (win rate + Wilson CI) from economic quality (synthetic units) |
 | Missed winners | passed candidates whose side won | each with its recorded `skip_reason`, price, band |
-| Executed losses | executed candidates whose side lost | price bands + field presence |
+| Executed losses | executed candidates whose side lost | price bands + field presence, with the executed WINS bands printed alongside as the denominator |
 | Profiles | per cohort | process/data completeness, confidence values, skip reasons |
 | Rule candidates | replay-eligible records | bounded rules graded leave-one-month-out |
 
@@ -65,6 +65,11 @@ sufficiency would let push-heavy cohorts make rate claims on fewer decided
 records. Cohort summaries report `pushes` and `resolved` alongside `decided`
 so both populations are named.
 
+One knob, two uses, disclosed: `--min-sample` is both this report's cohort
+claim threshold and the value passed through to the audit as its calibration
+bucket threshold. Both gates answer "how few records may back a rate", and a
+single floor keeps the two reports from disagreeing about sufficiency.
+
 ## Rule-change candidates: bounded, and never tuned where they are graded
 
 The rule sets are fixed enumerated dictionaries — price-band filters plus a
@@ -78,10 +83,18 @@ fold whose selection months hold fewer than `--min-selection` eligible
 records is reported `insufficient_selection` and grades nothing. The
 in-sample table is printed as reference only and is never a verdict.
 
+When the best selection score is shared, the graded fold reports the tied
+rules in `selection_ties` and the render says the winner came from name
+order — a rule that won on the tiebreak is a different fact from one that
+won on the economics.
+
 `tests/test_vig_pick_replay.py` proves the no-leak property with a fixture
-where in-sample selection, held-out-slice selection, and honest
-complement-selection all disagree — a grader that leaks in either direction
-changes the answer and reds the test.
+on which the three possible selection sets disagree with strictly distinct
+scores — the honest complement chooses `keep_under_0.50`, tuning on all data
+chooses `keep_all`, and tuning on the held-out month chooses
+`keep_0.40_to_0.55`. The test asserts those three argmaxes directly (refusing
+any tie) and then asserts both the fold's chosen rule and its selection-set
+units, so a leak in either direction changes the answer and reds the test.
 
 ## What this report refuses to do
 
