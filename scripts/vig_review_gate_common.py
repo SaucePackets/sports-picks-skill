@@ -35,6 +35,7 @@ from mlb_lineup_watchlist import (  # noqa: E402
     build_recheck_prompt,
     due_entries,
     entry_id as watchlist_entry_id,
+    expire_dead_pending_entries,
     fetch_lineup_snapshot,
     overdue_recheck_warnings,
     stale_invalid_watchlist,
@@ -1354,6 +1355,38 @@ def run_gate(sport: str) -> int:
         # the entry disagrees with. Nothing is lost, and the pair is now one
         # line per entry.
         unreachable = unreachable_first_pitch_ids(schedule, day, exclude_ids=in_flight)
+        # A valid pending entry past its window is not just worth a warning —
+        # it is dead: due_entries selects on the first-pitch window, so nothing
+        # can ever recheck it again, and "pending" on disk kept it re-alerting
+        # every cycle for the rest of the day. Expire it to an explicit
+        # terminal state BEFORE the child runs, so the child reads the file
+        # with the transition already applied and the untargeted-unchanged
+        # rule holds. The persist failure path reverts the in-memory mutation
+        # so before/after comparisons stay honest and the plain overdue
+        # warning below takes over — a bookkeeping failure must degrade to the
+        # old noise, never change what the gate accepts (same asymmetry as the
+        # journal).
+        expired_now = expire_dead_pending_entries(
+            schedule, exclude_ids=in_flight | unreachable
+        )
+        if expired_now:
+            try:
+                persist_schedule_locked(schedule_path, schedule)
+            except OSError as exc:
+                for entry, _notice in expired_now:
+                    entry["status"] = PENDING_STATUS
+                    entry.pop("expired_at_utc", None)
+                    entry.pop("expired_reason", None)
+                notice = (
+                    f"could not persist watchlist expiry ({exc}); entries left "
+                    "pending for the next cycle"
+                )
+                print(f"{sport} review gate NOTICE: {notice}")
+                notices.append(notice)
+            else:
+                for _entry, notice in expired_now:
+                    print(f"{sport} review gate NOTICE: {notice}")
+                    notices.append(notice)
         for warning in overdue_recheck_warnings(
             schedule, exclude_ids=in_flight | unreachable
         ):

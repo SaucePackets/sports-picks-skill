@@ -1203,6 +1203,87 @@ class OverdueRecheckWarningsTest(unittest.TestCase):
         self.assertEqual(len(warnings), 1)
         self.assertIn("LW-abandoned", warnings[0])
 
+    # The expiry tests need full valid entries, not the stubs above: expiry
+    # deliberately skips anything validate_entry rejects.
+    entry = MlbLineupWatchlistTests.entry
+
+    def test_expiry_transitions_a_dead_pending_entry_to_an_auditable_terminal(self):
+        # LW-20260830-PIT-001: due_entries selects on the first-pitch window,
+        # so a valid pending entry past window close can never be selected
+        # again — "pending" was a lie and the overdue warning repeated forever.
+        entry = self.entry()
+        schedule = {"lineup_watchlist": [entry]}
+        now = datetime(2026, 7, 17, 23, 30, tzinfo=timezone.utc)  # close was 22:25Z
+
+        results = mlb_lineup_watchlist.expire_dead_pending_entries(schedule, now)
+
+        self.assertEqual(len(results), 1)
+        expired, notice = results[0]
+        self.assertIs(expired, entry)
+        self.assertEqual(entry["status"], "expired")
+        self.assertEqual(entry["expired_at_utc"], "2026-07-17T23:30:00Z")
+        self.assertIn("recheck window close=2026-07-17T22:25:00Z", entry["expired_reason"])
+        self.assertIn("never promoted or routed", entry["expired_reason"])
+        self.assertIn("lineup recheck overdue on lineup-abc-def", notice)
+        # The transition itself must be a valid persisted state...
+        self.assertEqual(mlb_lineup_watchlist.validate_entry(entry), [])
+        # ...that every routing and alerting consumer now ignores.
+        self.assertEqual(mlb_lineup_watchlist.due_entries(schedule, now), [])
+        self.assertEqual(mlb_lineup_watchlist.overdue_recheck_warnings(schedule, now), [])
+        self.assertEqual(mlb_lineup_watchlist.expire_dead_pending_entries(schedule, now), [])
+
+    def test_expiry_leaves_live_excluded_invalid_and_terminal_entries_alone(self):
+        now = datetime(2026, 7, 17, 23, 30, tzinfo=timezone.utc)
+        live = self.entry(
+            id="LW-live",
+            first_pitch_utc="2026-07-18T01:00:00Z",  # window still ahead
+            recheck_due_utc="2026-07-17T23:45:00Z",
+        )
+        in_grace = self.entry(
+            id="LW-grace",
+            first_pitch_utc="2026-07-17T23:40:00Z",  # close 23:05Z, 25 min ago
+            recheck_due_utc="2026-07-17T22:25:00Z",
+        )
+        excluded = self.entry(id="LW-in-flight")
+        # Invalid entries belong to the quarantine/actionable lanes; expiring
+        # one would launder a validation defect into a clean terminal state.
+        invalid = self.entry(id="LW-invalid", original_price="MIN +119")
+        done = self.entry(
+            id="LW-done", status="passed",
+            rechecked_at_utc="2026-07-17T21:50:00Z",
+            recheck_notes="Lineups posted without the edge.",
+        )
+        schedule = {
+            "lineup_watchlist": [live, in_grace, excluded, invalid, done]
+        }
+
+        results = mlb_lineup_watchlist.expire_dead_pending_entries(
+            schedule, now, exclude_ids={"LW-in-flight"}
+        )
+
+        self.assertEqual(results, [])
+        for entry in (live, in_grace, excluded, invalid):
+            self.assertEqual(entry["status"], "pending_lineup_recheck")
+            self.assertNotIn("expired_at_utc", entry)
+        self.assertEqual(done["status"], "passed")
+
+    def test_a_hand_written_expired_entry_must_carry_its_audit_fields(self):
+        # Without the stamp and reason, "expired" is just a pending entry that
+        # went quiet under a different name.
+        bare = self.entry(status="expired")
+        errors = mlb_lineup_watchlist.validate_entry(bare)
+        self.assertIn("expired entry requires expired_at_utc", errors)
+        self.assertIn("expired entry requires non-empty expired_reason", errors)
+
+        stamped = self.entry(
+            status="expired",
+            expired_at_utc="2026-07-17T23:30:00Z",
+            expired_reason="recheck window closed while still pending",
+        )
+        self.assertEqual(mlb_lineup_watchlist.validate_entry(stamped), [])
+        # Expired is not a recheck conclusion: rechecked_at_utc is NOT required.
+        self.assertNotIn("rechecked_at_utc", stamped)
+
     def test_far_future_stamp_cannot_suppress_the_warning(self):
         # recheck_due_utc has no writer in this repo — the slate agent authors
         # it. A missing or unparseable stamp is loud already (validation error
