@@ -87,7 +87,15 @@ marked rather than hidden — hiding them would misrepresent coverage.
   land silently in a calibration bucket.
 - **Doubleheaders.** Two official rows for one team pair, and no `game_pk` on
   the card, is genuinely ambiguous. It fails closed as
-  `ambiguous_doubleheader`. With a `game_pk` it resolves exactly.
+  `ambiguous_doubleheader`. With a **verified** `game_pk` it resolves exactly —
+  the pk is a disambiguator, never an authority: it counts only when its row
+  also names the card's away/home pair. A pk naming some other game is
+  distrusted wholesale (matching falls back to the team pair, and the bad pk
+  cannot break a doubleheader tie either); a pk on a card with no matchup to
+  corroborate it is not a join at all.
+- **A Final row missing a score.** `winner` is unknowable, exactly as in a
+  genuine tie — but a data defect is not a baseball outcome. It is classified
+  `final_score_missing`, counted apart from `push`, and enters no denominator.
 - **Games that had not finished.** Reported `not_final: <status>`, distinct from
   `no_official_game`. Both stay unreconciled; only one is a defect in the card.
 - **Sides naming a team that did not play.** Reported unresolved rather than
@@ -122,3 +130,20 @@ resolves wrongly. Nothing available offline distinguishes it.
 demonstrates the gap rather than claiming it away. The report prints how many
 sides were resolved by abbreviation versus by name, so the exposure is visible
 rather than assumed to be zero.
+
+## The recorded-result cross-check states its population
+
+Some cards record their own result. That is the only evidence in the report
+that is independent of the mapping layer, so it corroborates the winner
+mapping — which means its population may never shrink silently. The corpus
+uses more than one vocabulary (`win`/`loss` on the 2026-07 cards, `W` on the
+2026-06-10/11 cards); `RECORDED_RESULT_FORMS` normalizes the forms the corpus
+actually contains, and any form outside the table is reported as an
+**unrecognized** category with its raw value and count, never dropped. The
+aggregate accounts for every card carrying a result exactly once: compared,
+unrecognized form, or recognized-but-uncompared (the candidate never
+reconciled).
+
+Only the recorded win/loss is machine-compared. `recorded_final_score` is
+carried as provenance and is **not** checked against the official score — the
+report says so rather than letting a reader assume it.

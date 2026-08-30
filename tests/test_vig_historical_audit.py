@@ -212,6 +212,47 @@ class PriceParsingTests(unittest.TestCase):
         )
         self.assertEqual(audit.effective_price(record), (0.53, "entry"))
 
+    def test_an_invalid_higher_priority_price_does_not_veto_a_valid_fallback(self):
+        # Reviewer's medium at tip 6e7d551: `fill_price: "n/a"` used to win the
+        # priority scan by being non-None and then parse to nothing, silently
+        # discarding the numeric execution_price behind it. Priority prefers a
+        # field's answer; it must not let a junk field silence the rest. The
+        # field skipped as invalid stays on the record as provenance — skipped
+        # and never-present are different facts.
+        record = audit.normalize_candidate(
+            {"game": "A at B", "fill_price": "n/a", "execution_price": 0.52}, "2026-07-12"
+        )
+        self.assertEqual(record["entry_price"], 0.52)
+        self.assertEqual(record["entry_price_field"], "execution_price")
+        self.assertEqual(record["entry_price_invalid_fields"], ["fill_price"])
+
+    def test_an_invalid_slate_ask_falls_through_to_a_later_slate_field(self):
+        record = audit.normalize_candidate(
+            {"game": "A at B", "polymarket_ask": "pending", "polymarket_price": 0.44}, "2026-07-12"
+        )
+        self.assertEqual(record["slate_price"], 0.44)
+        self.assertEqual(record["slate_price_field"], "polymarket_price")
+        self.assertEqual(record["slate_price_invalid_fields"], ["polymarket_ask"])
+
+    def test_all_invalid_price_fields_yield_no_price_with_their_provenance(self):
+        # 1.5 is out of (0, 1) and "n/a" is prose; neither becomes a price and
+        # both are named as present-but-unusable.
+        record = audit.normalize_candidate(
+            {"game": "A at B", "fill_price": "n/a", "execution_price": 1.5}, "2026-07-12"
+        )
+        self.assertIsNone(record["entry_price"])
+        self.assertIsNone(record["entry_price_field"])
+        self.assertEqual(record["entry_price_invalid_fields"], ["fill_price", "execution_price"])
+        self.assertEqual(audit.classify_price_quality(record), "no_price")
+
+    def test_an_invalid_stated_probability_falls_through_too(self):
+        record = audit.normalize_candidate(
+            {"game": "A at B", "win_probability": "0.74-ish", "raw_probability": 0.64}, "2026-07-12"
+        )
+        self.assertEqual(record["stated_probability"], 0.64)
+        self.assertEqual(record["stated_probability_field"], "raw_probability")
+        self.assertEqual(record["stated_probability_invalid_fields"], ["win_probability"])
+
 
 class SideAndWinnerMappingTests(unittest.TestCase):
     ROWS = audit.final_scores(statsapi_payload([
@@ -303,6 +344,49 @@ class SideAndWinnerMappingTests(unittest.TestCase):
         self.assertEqual(pinned["match_method"], "game_pk")
         self.assertEqual(pinned["side_outcome"], "loss")
 
+    def test_a_wrong_but_existing_game_pk_never_grades_against_the_wrong_game(self):
+        # Reviewer's blocker at tip 6e7d551: a stale pk that names a row that
+        # EXISTS — some other game — must not reconcile the candidate against
+        # it. The pk is only trusted when its row also names the card's
+        # matchup; here it doesn't, so matching falls back to the team pair
+        # and grades against the game these teams actually played.
+        rows = audit.final_scores(statsapi_payload([
+            {"away": "New York Mets", "home": "Atlanta Braves", "away_score": 3, "home_score": 1, "gamePk": 1},
+            {"away": "New York Yankees", "home": "Boston Red Sox", "away_score": 2, "home_score": 5, "gamePk": 99},
+        ]))
+        record = audit.audit_candidate(
+            {"game": "New York Mets at Atlanta Braves", "side": "New York Mets", "game_pk": 99},
+            "2026-06-15", rows, [], 0.05,
+        )
+        self.assertEqual(record["match_method"], "team_pair_after_game_pk_mismatch")
+        self.assertEqual(record["official"]["gamePk"], 1)
+        self.assertEqual(record["side_outcome"], "win")
+
+    def test_a_mismatched_game_pk_cannot_break_a_doubleheader_tie(self):
+        # Once the pk is known to name the wrong game, nothing it says is
+        # usable — including as a tiebreaker between the pair's two rows.
+        rows = audit.final_scores(statsapi_payload([
+            {"away": "New York Mets", "home": "Atlanta Braves", "away_score": 1, "home_score": 0, "gamePk": 1},
+            {"away": "New York Mets", "home": "Atlanta Braves", "away_score": 2, "home_score": 7, "gamePk": 2},
+            {"away": "New York Yankees", "home": "Boston Red Sox", "away_score": 2, "home_score": 5, "gamePk": 99},
+        ]))
+        record = audit.audit_candidate(
+            {"game": "New York Mets at Atlanta Braves", "side": "NYM", "game_pk": 99},
+            "2026-06-15", rows, [], 0.05,
+        )
+        self.assertEqual(record["match_method"], "ambiguous_doubleheader")
+        self.assertEqual(record["side_outcome"], "unreconciled")
+
+    def test_a_game_pk_with_no_matchup_to_corroborate_it_is_not_a_join(self):
+        # A card carrying only a pk gives the audit nothing to verify the row
+        # against, and an unverifiable join is treated as no join at all.
+        rows = audit.final_scores(statsapi_payload([
+            {"away": "New York Mets", "home": "Atlanta Braves", "away_score": 3, "home_score": 1, "gamePk": 1},
+        ]))
+        record = audit.audit_candidate({"side": "New York Mets", "game_pk": 1}, "2026-06-15", rows, [], 0.05)
+        self.assertEqual(record["match_method"], "game_pk_unverifiable_no_matchup_on_card")
+        self.assertEqual(record["side_outcome"], "unreconciled")
+
     def test_a_game_that_had_not_finished_is_distinguished_from_one_that_never_existed(self):
         payload = statsapi_payload([
             {"away": "Colorado Rockies", "home": "Atlanta Braves", "status": "Pre-Game"},
@@ -332,6 +416,50 @@ class SideAndWinnerMappingTests(unittest.TestCase):
         self.assertIs(agreeing["recorded_result_agrees"], True)
         contradicting = self._record({"game": "Athletics at Detroit Tigers", "side": "DET", "result": "loss"})
         self.assertIs(contradicting["recorded_result_agrees"], False)
+
+    def test_the_legacy_recorded_result_vocabulary_is_compared_not_dropped(self):
+        # Reviewer's blocker at tip 6e7d551: the 2026-06-10/11 cards say "W",
+        # and the old `in ("win", "loss")` gate silently dropped them from the
+        # one check that corroborates the mapping layer. Pin every form the
+        # corpus contains plus the obvious casings.
+        for raw, expected_agrees in (
+            ("W", True), ("w", True), ("won", True), ("Win", True),
+            ("L", False), ("l", False), ("lost", False), ("Loss", False),
+        ):
+            with self.subTest(raw=raw):
+                record = self._record(
+                    {"game": "Athletics at Detroit Tigers", "side": "DET", "result": raw}
+                )
+                self.assertEqual(record["side_outcome"], "win")
+                self.assertIs(record["recorded_result_agrees"], expected_agrees)
+
+    def test_an_unrecognized_recorded_result_is_flagged_never_silently_skipped(self):
+        record = self._record(
+            {"game": "Athletics at Detroit Tigers", "side": "DET", "result": "victory"}
+        )
+        self.assertIsNone(record["recorded_result_normalized"])
+        self.assertNotIn("recorded_result_agrees", record)
+        # The raw value survives so the aggregate can name it.
+        self.assertEqual(record["recorded_result"], "victory")
+
+    def test_a_final_row_missing_a_score_is_a_data_defect_not_a_push(self):
+        # A Final whose payload lacks a score has winner None — exactly like a
+        # genuine tie. The audit must not report a data defect as a baseball
+        # outcome; neither enters the win-rate denominator.
+        tie_rows = audit.final_scores(statsapi_payload([
+            {"away": "Athletics", "home": "Detroit Tigers", "away_score": 4, "home_score": 4},
+        ]))
+        tied = audit.audit_candidate(
+            {"game": "Athletics at Detroit Tigers", "side": "DET"}, "2026-07-08", tie_rows, [], 0.05
+        )
+        self.assertEqual(tied["side_outcome"], "push")
+        scoreless_rows = audit.final_scores(statsapi_payload([
+            {"away": "Athletics", "home": "Detroit Tigers", "away_score": None, "home_score": 6},
+        ]))
+        defective = audit.audit_candidate(
+            {"game": "Athletics at Detroit Tigers", "side": "DET"}, "2026-07-08", scoreless_rows, [], 0.05
+        )
+        self.assertEqual(defective["side_outcome"], "final_score_missing")
 
 
 class MissingDataAndFloorTests(unittest.TestCase):
@@ -647,6 +775,76 @@ class AggregateAndCalibrationTests(unittest.TestCase):
         self.assertEqual(counts["reconciled_to_official"] + counts["unreconciled"], counts["total"])
         self.assertEqual(counts["unreconciled_reasons"], {"no_official_game": 1})
 
+    def test_the_recorded_result_cross_check_states_its_whole_population(self):
+        # Every card that records a result is accounted for in exactly one of:
+        # compared, unrecognized form, or recognized-but-uncompared. No card
+        # falls through in silence — that silence was the round-2 blocker.
+        import tempfile
+        root = Path(tempfile.mkdtemp())
+        write_results(root, "2026-06-10", [
+            {"away": "Athletics", "home": "Detroit Tigers", "away_score": 1, "home_score": 6},
+        ])
+        day = audit.audit_day(
+            write_day(root, "2026-06-10", {
+                "date": "2026-06-10",
+                "candidates": [
+                    # Legacy vocabulary, agrees.
+                    {"game": "Athletics at Detroit Tigers", "side": "DET", "result": "W"},
+                    # Current vocabulary, disagrees.
+                    {"game": "Athletics at Detroit Tigers", "side": "DET", "result": "loss"},
+                    # Unrecognized form: named, never compared.
+                    {"game": "Athletics at Detroit Tigers", "side": "DET", "result": "victory"},
+                    # Recognized form on a card that never reconciles.
+                    {"game": "Nowhere at Nothing", "side": "Nowhere", "result": "win"},
+                    # No recorded result at all: outside the population.
+                    {"game": "Athletics at Detroit Tigers", "side": "ATH"},
+                ],
+            }),
+            root / "results", 0.05,
+        )
+        cross = audit.aggregate([day], 0.05, 0.05, 20)["recorded_vs_official"]
+        self.assertEqual(cross["cards_with_a_recorded_result"], 4)
+        self.assertEqual(cross["compared_to_official"], 2)
+        self.assertEqual(cross["agree"], 1)
+        self.assertEqual(len(cross["disagreements"]), 1)
+        self.assertEqual(cross["disagreements"][0]["recorded"], "loss")
+        self.assertEqual(cross["unrecognized_forms"], {"victory": 1})
+        self.assertEqual(cross["recognized_but_uncompared"], 1)
+        # The accounting closes: compared + unrecognized + uncompared = carrying.
+        self.assertEqual(
+            cross["compared_to_official"]
+            + sum(cross["unrecognized_forms"].values())
+            + cross["recognized_but_uncompared"],
+            cross["cards_with_a_recorded_result"],
+        )
+        # And the report names the unrecognized form and the score caveat.
+        rendered = audit.render({
+            "execute_dir": "x", "results_dir": "y", "days": [day],
+            "aggregate": audit.aggregate([day], 0.05, 0.05, 20),
+        })
+        self.assertIn("UNRECOGNIZED", rendered)
+        self.assertIn("'victory'=1", rendered)
+        self.assertIn("NOT checked against the official score", rendered)
+
+    def test_unevaluable_candidates_with_a_legacy_price_are_counted(self):
+        import tempfile
+        root = Path(tempfile.mkdtemp())
+        day = audit.audit_day(
+            write_day(root, "2026-06-05", {
+                "date": "2026-06-05",
+                "candidates": [
+                    {"game": "A at B", "side": "A", "polymarket_ask": 0.5},
+                    {"game": "C at D", "side": "C"},
+                ],
+            }),
+            root / "results", 0.05,
+        )
+        process = audit.aggregate([day], 0.05, 0.05, 20)["process"]
+        self.assertEqual(process["floor_verdict"], {"unevaluable": 2})
+        # Only the card that actually carries a price is counted; the caveat
+        # must never claim more coverage than exists.
+        self.assertEqual(process["floor_unevaluable_with_a_legacy_price"], 1)
+
 
 class ReadOnlyAndProvenanceTests(unittest.TestCase):
     """The audit must stay a report. These pin that it cannot become anything else.
@@ -734,6 +932,38 @@ class ReadOnlyAndProvenanceTests(unittest.TestCase):
         self.assertEqual(provenance["final_games"], 1)
         self.assertEqual(len(rows), 1)
         self.assertEqual(unfinished, [])
+
+    def test_a_malformed_cached_payload_is_not_a_valid_empty_day(self):
+        # Reviewer's medium at tip 6e7d551: any JSON object used to be handed
+        # to final_scores and stamped "ok", so a corrupt cache read as a day
+        # with no Final games and every candidate on it became
+        # `no_official_game` — a claim that official data was sourced and the
+        # game wasn't in it. A payload without the Stats API's `dates` list is
+        # now refused before any row is derived, and the day is unreconciled.
+        import tempfile
+        root = Path(tempfile.mkdtemp())
+        results = root / "results"
+        results.mkdir(parents=True)
+        for name, payload in (("2026-07-08", {"error": "rate limited"}), ("2026-07-09", {"dates": "nope"})):
+            with self.subTest(payload=payload):
+                (results / f"{name}.json").write_text(json.dumps(payload), encoding="utf-8")
+                rows, unfinished, provenance = audit.load_official_rows(results, name)
+                self.assertIsNone(rows)
+                self.assertEqual(unfinished, [])
+                self.assertEqual(provenance["status"], "malformed: payload has no 'dates' list")
+                self.assertNotIn("final_games", provenance)
+        # And at the day level the candidate is unreconciled, never
+        # `no_official_game`.
+        write_day(root, "2026-07-08", {
+            "date": "2026-07-08",
+            "candidates": [{"game": "Athletics at Detroit Tigers", "side": "DET"}],
+        })
+        day = audit.audit_day(root / "execute" / "2026-07-08-schedule.json", results, 0.05)
+        self.assertEqual(day["results_provenance"]["status"], "malformed: payload has no 'dates' list")
+        record = day["candidates"][0]
+        self.assertEqual(record["side_outcome"], "unreconciled")
+        self.assertIsNone(record["match_method"])
+        self.assertEqual(record["unreconciled_reason"], "no cached official results for this date")
 
     def test_a_missing_results_payload_is_reported_as_missing(self):
         import tempfile

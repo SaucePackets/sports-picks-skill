@@ -287,11 +287,44 @@ def contract_field_present(field: str, value: Any) -> bool:
     return _probability(value) is not None
 
 
-def _first_present(candidate: dict[str, Any], fields: tuple[str, ...]) -> tuple[str | None, Any]:
+def _first_probability(
+    candidate: dict[str, Any], fields: tuple[str, ...]
+) -> tuple[str | None, float | None, list[str]]:
+    """First field carrying a VALID probability, plus the invalid ones passed over.
+
+    Priority means "prefer this field's answer", not "let this field veto the
+    rest": a `fill_price` of `"n/a"` must not suppress a numeric
+    `execution_price` sitting right behind it. Present-but-unusable fields are
+    returned so their provenance survives — a value that was skipped as invalid
+    and a value that was never there are different facts.
+    """
+    invalid: list[str] = []
     for field in fields:
-        if field in candidate and candidate[field] is not None:
-            return field, candidate[field]
-    return None, None
+        if field not in candidate or candidate[field] is None:
+            continue
+        value = _probability(candidate[field])
+        if value is not None:
+            return field, value, invalid
+        invalid.append(field)
+    return None, None, invalid
+
+
+# The corpus records its own results in more than one vocabulary: the 2026-07
+# cards say "win"/"loss", the 2026-06-10/11 cards say "W". The recorded result
+# is the only evidence in this report that is independent of the mapping layer
+# it corroborates, so its population may never shrink silently: a form not in
+# this table is reported as unrecognized, not skipped.
+RECORDED_RESULT_FORMS = {
+    "win": "win", "won": "win", "w": "win",
+    "loss": "loss", "lost": "loss", "lose": "loss", "l": "loss",
+    "push": "push", "tie": "push",
+}
+
+
+def normalize_recorded_result(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    return RECORDED_RESULT_FORMS.get(value.strip().lower())
 
 
 def split_matchup(game: Any) -> tuple[str | None, str | None]:
@@ -356,15 +389,12 @@ def normalize_candidate(raw: dict[str, Any], date: str | None) -> dict[str, Any]
     side_field, side_value = side_candidates[0] if side_candidates else (None, None)
     away, home = split_matchup(raw.get("game"))
 
-    entry_field, entry_raw = _first_present(raw, ENTRY_PRICE_FIELDS)
-    slate_field, slate_raw = _first_present(raw, SLATE_PRICE_FIELDS)
-    entry_price = _probability(entry_raw)
-    slate_price = _probability(slate_raw)
+    entry_field, entry_price, entry_invalid = _first_probability(raw, ENTRY_PRICE_FIELDS)
+    slate_field, slate_price, slate_invalid = _first_probability(raw, SLATE_PRICE_FIELDS)
 
     book_odds, book_status = parse_american_odds(raw.get("price"))
 
-    stated_field, stated_raw = _first_present(raw, STATED_PROBABILITY_FIELDS)
-    stated_probability = _probability(stated_raw)
+    stated_field, stated_probability, stated_invalid = _first_probability(raw, STATED_PROBABILITY_FIELDS)
 
     contract_present = [f for f in REQUIRED_EXECUTION_FIELDS if contract_field_present(f, raw.get(f))]
     contract_missing = [f for f in REQUIRED_EXECUTION_FIELDS if f not in contract_present]
@@ -401,14 +431,17 @@ def normalize_candidate(raw: dict[str, Any], date: str | None) -> dict[str, Any]
         "opponent_raw": raw.get("opponent"),
         "confidence": raw.get("confidence"),
         "entry_price": entry_price,
-        "entry_price_field": entry_field if entry_price is not None else None,
+        "entry_price_field": entry_field,
+        "entry_price_invalid_fields": entry_invalid,
         "slate_price": slate_price,
-        "slate_price_field": slate_field if slate_price is not None else None,
+        "slate_price_field": slate_field,
+        "slate_price_invalid_fields": slate_invalid,
         "book_odds": book_odds,
         "book_odds_status": book_status,
         "book_price_raw": raw.get("price"),
         "stated_probability": stated_probability,
-        "stated_probability_field": stated_field if stated_probability is not None else None,
+        "stated_probability_field": stated_field,
+        "stated_probability_invalid_fields": stated_invalid,
         "dk_fair_prob": _probability(raw.get("dk_fair_prob")),
         "conservative_probability": _probability(raw.get("conservative_probability")),
         "current_ask": _probability(raw.get("current_ask")),
@@ -422,6 +455,9 @@ def normalize_candidate(raw: dict[str, Any], date: str | None) -> dict[str, Any]
         "commission_usd": _number(raw.get("commission")),
         "pnl_usd": pnl,
         "recorded_result": raw.get("result") or raw.get("settlement_result"),
+        "recorded_result_normalized": normalize_recorded_result(
+            raw.get("result") or raw.get("settlement_result")
+        ),
         "recorded_final_score": raw.get("final_score") or raw.get("score"),
     }
 
@@ -457,6 +493,14 @@ def load_official_rows(
         return None, [], provenance
     if not isinstance(payload, dict):
         provenance["status"] = "payload is not an object"
+        return None, [], provenance
+    if not isinstance(payload.get("dates"), list):
+        # Every Stats API schedule response carries a `dates` list, empty on a
+        # day with no games. An object without one is a corrupt or foreign
+        # cache, and `final_scores` returning [] over it would silently launder
+        # "no data was sourced" into "no game was Final" for every candidate
+        # on the day.
+        provenance["status"] = "malformed: payload has no 'dates' list"
         return None, [], provenance
     fetched_at = payload.get("_audit_fetched_at_utc")
     if isinstance(fetched_at, str):
@@ -526,30 +570,50 @@ def resolve_side(candidate: dict[str, Any], away: str, home: str) -> tuple[str |
     return None, "side_names_a_team_not_in_this_game"
 
 
+def _row_names_pair(row: dict[str, Any], away: str, home: str) -> bool:
+    """Does the official row name exactly this away/home pair, in order?"""
+    return (
+        isinstance(row.get("away"), str) and isinstance(row.get("home"), str)
+        and team_token_matches(away, row["away"])
+        and team_token_matches(home, row["home"])
+    )
+
+
 def match_official_game(candidate: dict[str, Any], rows: list[dict[str, Any]]) -> tuple[dict[str, Any] | None, str]:
     """Find the official row for a candidate's game.
 
     `event_id` on these cards is an ESPN id, not a Stats API `gamePk`, so it is
-    not a join key. Matching is on the team pair, with `game_pk` used when the
-    card happens to carry one. A doubleheader produces two rows for the same
-    pair; without a `game_pk` that is genuinely ambiguous and fails closed.
+    not a join key. Matching is on the team pair; a `game_pk` on the card is a
+    DISAMBIGUATOR, never an authority. A stale or wrong pk can name a row that
+    exists — a different game entirely — so a pk match counts only when that
+    row's away/home also match the candidate's matchup. A pk that names some
+    other game is distrusted wholesale and matching falls back to the team
+    pair; a pk the card cannot corroborate (no matchup on the card) is not a
+    join at all. A doubleheader produces two rows for the same pair; without a
+    verified `game_pk` that is genuinely ambiguous and fails closed.
     """
-    game_pk = candidate.get("game_pk")
-    if game_pk is not None:
-        for row in rows:
-            if row.get("gamePk") == game_pk or str(row.get("gamePk")) == str(game_pk):
-                return row, "game_pk"
     away, home = candidate.get("away_team"), candidate.get("home_team")
+    game_pk = candidate.get("game_pk")
+    pk_row = None
+    if game_pk is not None:
+        pk_row = next(
+            (row for row in rows
+             if row.get("gamePk") == game_pk or str(row.get("gamePk")) == str(game_pk)),
+            None,
+        )
+    if pk_row is not None:
+        if not away or not home:
+            return None, "game_pk_unverifiable_no_matchup_on_card"
+        if _row_names_pair(pk_row, away, home):
+            return pk_row, "game_pk"
+        # The pk names a game these teams did not play. Fall through to the
+        # pair — and because the pk is now known-bad, it cannot break a
+        # doubleheader tie either.
     if not away or not home:
         return None, "no_matchup_on_card"
-    hits = [
-        row for row in rows
-        if isinstance(row.get("away"), str) and isinstance(row.get("home"), str)
-        and team_token_matches(away, row["away"])
-        and team_token_matches(home, row["home"])
-    ]
+    hits = [row for row in rows if _row_names_pair(row, away, home)]
     if len(hits) == 1:
-        return hits[0], "team_pair"
+        return hits[0], "team_pair_after_game_pk_mismatch" if pk_row is not None else "team_pair"
     if len(hits) > 1:
         return None, "ambiguous_doubleheader"
     return None, "no_official_game"
@@ -695,15 +759,22 @@ def audit_candidate(
 
     winner = official.get("winner")
     if winner is None:
-        record["side_outcome"] = "push"
+        # A Final row without a winner has two causes with nothing in common:
+        # both scores present and equal (a genuine tie) or a score absent from
+        # the payload (a data defect). Neither enters the win rate, but a data
+        # defect must not be reported as a baseball outcome.
+        if official.get("away_score") is not None and official.get("home_score") is not None:
+            record["side_outcome"] = "push"
+        else:
+            record["side_outcome"] = "final_score_missing"
     elif winner.casefold() == resolved.casefold():
         record["side_outcome"] = "win"
     else:
         record["side_outcome"] = "loss"
 
-    recorded = record["recorded_result"]
-    if isinstance(recorded, str) and recorded.strip().lower() in ("win", "loss"):
-        record["recorded_result_agrees"] = recorded.strip().lower() == record["side_outcome"]
+    normalized = record["recorded_result_normalized"]
+    if normalized is not None and record["side_outcome"] in ("win", "loss", "push"):
+        record["recorded_result_agrees"] = normalized == record["side_outcome"]
     return record
 
 
@@ -787,10 +858,28 @@ def aggregate(days: list[dict[str, Any]], floor: float, width: float, min_sample
     pnl = sum(r["pnl_usd"] for r in with_pnl)
     pnl_staked = sum(r["stake_usd"] for r in with_pnl if r["stake_usd"] is not None)
 
-    disagreements = [
-        {"date": r["date"], "game": r["game"], "recorded": r["recorded_result"], "official": r["side_outcome"]}
-        for r in records if r.get("recorded_result_agrees") is False
-    ]
+    # The cross-check's population is stated, never implied: every card that
+    # records its own result is accounted for — compared, unrecognized form,
+    # or recognized but uncompared because the candidate never reconciled.
+    carrying = [r for r in records if isinstance(r.get("recorded_result"), str) and r["recorded_result"].strip()]
+    unrecognized = [r for r in carrying if r["recorded_result_normalized"] is None]
+    compared = [r for r in carrying if r.get("recorded_result_agrees") is not None]
+    recorded_vs_official = {
+        "population": "candidates whose card records its own result",
+        "cards_with_a_recorded_result": len(carrying),
+        "compared_to_official": len(compared),
+        "agree": sum(1 for r in compared if r["recorded_result_agrees"]),
+        "disagreements": [
+            {"date": r["date"], "game": r["game"], "recorded": r["recorded_result"], "official": r["side_outcome"]}
+            for r in compared if not r["recorded_result_agrees"]
+        ],
+        "unrecognized_forms": dict(Counter(r["recorded_result"].strip() for r in unrecognized)),
+        "recognized_but_uncompared": len(carrying) - len(compared) - len(unrecognized),
+        "score_note": (
+            "Only the recorded win/loss is machine-compared; recorded_final_score "
+            "is carried as provenance and is NOT checked against the official score."
+        ),
+    }
 
     return {
         "edge_floor": floor,
@@ -823,6 +912,9 @@ def aggregate(days: list[dict[str, Any]], floor: float, width: float, min_sample
             "win_rate": round(wins / len(decided), 6) if decided else None,
             "wilson_95": [round(lo, 6), round(hi, 6)],
             "pushes": sum(1 for r in records if r["side_outcome"] == "push"),
+            # A Final row missing a score is a data defect, not a baseball
+            # outcome; it is counted apart from pushes.
+            "final_score_missing": sum(1 for r in records if r["side_outcome"] == "final_score_missing"),
             "side_unresolved": sum(1 for r in records if r["side_outcome"] == "side_unresolved"),
             # How much of the mapping rests on the abbreviation table, stated
             # rather than left for a reader to assume is zero.
@@ -840,6 +932,14 @@ def aggregate(days: list[dict[str, Any]], floor: float, width: float, min_sample
             "floor_unevaluable_reasons": dict(Counter(
                 r["floor"]["reason"] for r in records if r["floor"]["verdict"] == "unevaluable"
             )),
+            # "missing current_ask" means the CURRENT contract field is absent,
+            # not that no price existed — most of these cards carry a price
+            # under a legacy name, deliberately not aliased into the contract.
+            "floor_unevaluable_with_a_legacy_price": sum(
+                1 for r in records
+                if r["floor"]["verdict"] == "unevaluable"
+                and (r["entry_price"] is not None or r["slate_price"] is not None)
+            ),
         },
         "economics": {
             "population": "candidates marked executed",
@@ -859,7 +959,7 @@ def aggregate(days: list[dict[str, Any]], floor: float, width: float, min_sample
                 "wager is unsettled on the card."
             ),
         },
-        "recorded_vs_official_disagreements": disagreements,
+        "recorded_vs_official": recorded_vs_official,
         "calibration": {
             "population": "decided candidates carrying a stated win probability",
             "bucket_width": width,
@@ -951,7 +1051,10 @@ def render(report: dict[str, Any]) -> str:
         )
     else:
         out.append("- no decided candidates; no rate is reportable")
-    out.append(f"- pushes {s['pushes']}, side unresolved {s['side_unresolved']}")
+    out.append(
+        f"- pushes {s['pushes']}, final rows missing a score {s['final_score_missing']} "
+        f"(data defect, not an outcome), side unresolved {s['side_unresolved']}"
+    )
     out.append(f"- game matched by: {', '.join(f'{k}={v}' for k, v in sorted(s['match_method'].items()))}")
     out.append(f"- side resolved by: {', '.join(f'{k}={v}' for k, v in sorted(s['side_resolution'].items()))}")
     out.append("")
@@ -969,6 +1072,12 @@ def render(report: dict[str, Any]) -> str:
         out.append(f"- {label}: {rendered or 'none'}")
     for reason, count in sorted(p["floor_unevaluable_reasons"].items(), key=lambda kv: -kv[1]):
         out.append(f"  - unevaluable because {reason}: {count}")
+    if p["floor_unevaluable_with_a_legacy_price"]:
+        out.append(
+            f"  - {p['floor_unevaluable_with_a_legacy_price']} of the unevaluable candidates DO "
+            "carry a price under a legacy field name; 'missing current_ask' means the current "
+            "contract field is absent, not that no price existed"
+        )
     out.append("")
 
     e = a["economics"]
@@ -1005,11 +1114,25 @@ def render(report: dict[str, Any]) -> str:
             f"actual {bucket['wins']}/{bucket['n']} = {bucket['actual_rate'] * 100:.1f}% "
             f"(95% CI {bucket['wilson_95'][0] * 100:.1f}–{bucket['wilson_95'][1] * 100:.1f}%){flag}"
         )
-    if a["recorded_vs_official_disagreements"]:
-        out.append("")
-        out.append("## Card result disagrees with the official final")
-        for row in a["recorded_vs_official_disagreements"]:
-            out.append(f"- {row['date']} {row['game']}: card says {row['recorded']}, official says {row['official']}")
+    r = a["recorded_vs_official"]
+    out.append("")
+    out.append("## Card-recorded result vs official final (mapping cross-check)")
+    out.append(f"- population: {r['population']}")
+    out.append(
+        f"- {r['cards_with_a_recorded_result']} cards record a result; "
+        f"{r['compared_to_official']} compared, {r['agree']} agree"
+    )
+    if r["unrecognized_forms"]:
+        forms = ", ".join(f"{k!r}={v}" for k, v in sorted(r["unrecognized_forms"].items()))
+        out.append(f"- UNRECOGNIZED recorded-result forms, NOT compared: {forms}")
+    if r["recognized_but_uncompared"]:
+        out.append(
+            f"- {r['recognized_but_uncompared']} recognized but uncompared "
+            "(candidate not reconciled to an official Final)"
+        )
+    out.append(f"- {r['score_note']}")
+    for row in r["disagreements"]:
+        out.append(f"- DISAGREES {row['date']} {row['game']}: card says {row['recorded']}, official says {row['official']}")
     return "\n".join(out)
 
 
