@@ -84,6 +84,29 @@ string rather than raising, and the gate prints
 Observability that can fail a review would add an outage mode to the lane whose
 whole problem is losing work silently. The failure is loud; it is not fatal.
 
+### Dead watchlist entries expire instead of alerting forever
+
+`due_entries` selects on the first-pitch window and nothing else, so a valid
+entry still `pending_lineup_recheck` after its window closes can never be
+selected again — but before 2026-08-30 its status said otherwise, and the
+overdue notice re-fired on every remaining cycle of the day
+(LW-20260830-PIT-001). The gate now transitions such an entry to
+`status=expired` with `expired_at_utc` and `expired_reason`, persists it, and
+says so once in that run's notices. Expired is terminal and auditable: the
+entry is never deleted, never routed (every routing consumer selects on
+pending), and carries no execution fields. A recheck the child is actually
+working is excluded, an entry whose first pitch disagrees with the schedule
+day keeps its human-facing warning instead (its numbers are not trustworthy
+enough to act on), and if the expiry cannot be persisted the in-memory state
+reverts and the old repeating warning takes over — bookkeeping failure
+degrades to noise, never to a changed verdict.
+
+A notice is never an exit-1 condition: the gate exits nonzero only for an
+actual unaccepted review or error (for example the 2026-08-30 Phillies
+candidate approved without `current_ask`, `projected_edge_at_current_ask`,
+`model_version`, or an object-valued `environment` — that stays a fail-closed
+rollback, correctly, every time it happens).
+
 ### Using it
 
 ```bash

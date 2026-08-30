@@ -1114,14 +1114,17 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 )
 
                 def complete_review(*args, **kwargs):
-                    schedule_path.write_text(
-                        json.dumps(
-                            {
-                                "candidates": [],
-                                "lineup_watchlist": [passed_entry, zombie],
-                            }
-                        )
-                    )
+                    # Edit the file the gate handed over instead of rewriting
+                    # it from captured dicts: the gate now expires the zombie
+                    # on disk BEFORE spawning the child, and a child that
+                    # resurrects the pre-expiry copy is an untargeted-entry
+                    # edit the transition validator rightly rejects.
+                    on_disk = json.loads(schedule_path.read_text())
+                    on_disk["lineup_watchlist"] = [
+                        passed_entry if entry.get("id") == due_entry["id"] else entry
+                        for entry in on_disk["lineup_watchlist"]
+                    ]
+                    schedule_path.write_text(json.dumps(on_disk))
                     return vig_review_gate_common.subprocess.CompletedProcess(
                         args[0], 0, stdout="", stderr=""
                     )
@@ -1145,6 +1148,20 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 self.assertIn("lineup recheck overdue on watch-zombie", printed)
                 self.assertIn("MLB review gate NOTICE:", printed)
                 self.assertNotIn("watch-1", printed)
+                # The zombie is not merely warned any more: it is expired on
+                # disk, terminal and auditable, while the live recheck's
+                # result is untouched beside it.
+                persisted = json.loads(schedule_path.read_text())
+                by_id = {
+                    entry["id"]: entry for entry in persisted["lineup_watchlist"]
+                }
+                self.assertEqual(by_id["watch-zombie"]["status"], "expired")
+                self.assertIn("expired_at_utc", by_id["watch-zombie"])
+                self.assertIn(
+                    "still pending_lineup_recheck",
+                    by_id["watch-zombie"]["expired_reason"],
+                )
+                self.assertEqual(by_id[due_entry["id"]]["status"], "passed")
             finally:
                 setattr(vig_review_gate_common, "ROOT", original_root)
 
@@ -2308,6 +2325,183 @@ class VigReviewGateCommonTests(unittest.TestCase):
             vig_run_journal.OUTCOME_ERROR,
             "routing_normalization",
             detail="routing normalization failed closed",
+        )
+
+    # --- 2026-08-30 cron exit-1 regression pair (LW-20260830-PIT-001 and the
+    # malformed Phillies candidate). The two failures shared one cron status
+    # but are opposite cases: the Pittsburgh entry is DEAD state that must
+    # stop alerting without becoming invisible, while the Phillies review is
+    # a LIVE contract violation that must keep failing closed every time.
+
+    def _overdue_pending_entry(self, now, **overrides):
+        """A valid pending entry whose recheck window closed over an hour ago.
+
+        90 minutes keeps the Chicago-day straddle window (the pre-existing
+        midnight flake shape) as small as the overdue threshold allows.
+        """
+        first_pitch = now - timedelta(minutes=90)
+        return self._watch_entry(
+            id="LW-20260830-PIT-001",
+            side="PIT",
+            game="Pittsburgh Pirates at Cincinnati Reds",
+            first_pitch_utc=first_pitch.isoformat().replace("+00:00", "Z"),
+            recheck_due_utc=(first_pitch - timedelta(minutes=75))
+            .isoformat()
+            .replace("+00:00", "Z"),
+        )
+
+    def test_a_dead_pending_entry_expires_once_and_then_stays_quiet(self):
+        # The Pittsburgh shape: valid, pending, window closed, nothing else on
+        # the schedule. Before this fix the entry could never be selected
+        # again (due_entries keys on the first-pitch window) yet stayed
+        # "pending" on disk, so every remaining cycle of the day re-printed
+        # the same overdue warning about a state no run could change.
+        now = datetime.now(timezone.utc)
+        entry = self._overdue_pending_entry(now)
+        no_child = AssertionError("no reviewer child may spawn for dead state")
+        with self._temp_root() as root:
+            status, output, records, path = self._journalled_gate(
+                root,
+                json.dumps({"candidates": [], "lineup_watchlist": [entry]}),
+                run=no_child,
+                extra_patches=[
+                    patch.object(
+                        vig_review_gate_common,
+                        "standing_authorization_enabled",
+                        return_value=True,
+                    )
+                ],
+            )
+            # First run: exit 0 — a notice is never an exit-1 condition —
+            # with the transition stated once and kept in the journal.
+            self.assertEqual(status, 0)
+            self.assertIn("lineup recheck overdue on LW-20260830-PIT-001", output)
+            self.assertIn("expired the entry", output)
+            persisted = json.loads(path.read_text())
+            expired = persisted["lineup_watchlist"][0]
+            self.assertEqual(expired["status"], "expired")
+            self.assertIn("still pending_lineup_recheck", expired["expired_reason"])
+            datetime.fromisoformat(expired["expired_at_utc"].replace("Z", "+00:00"))
+            # Auditable no-op, not deletion, and never an execution surface:
+            # the entry is intact minus the transition fields, no candidate
+            # exists, and nothing execution-shaped appeared on it.
+            self.assertEqual(persisted["candidates"], [])
+            self.assertNotIn("promoted_candidate", expired)
+            for field in ("execution_mode", "execution_status", "executed"):
+                self.assertNotIn(field, expired)
+            self.assertEqual(len(records), 1)
+            self.assertEqual(records[0]["outcome"], vig_run_journal.OUTCOME_NO_WORK)
+            self.assertTrue(
+                any("expired the entry" in notice for notice in records[0]["notices"])
+            )
+
+            # Second run over the SAME persisted state: silence. This is the
+            # claim the fix exists for — the dead entry alerts exactly once.
+            second_out = StringIO()
+            with (
+                patch.object(
+                    vig_review_gate_common.subprocess, "run", side_effect=no_child
+                ),
+                patch.object(
+                    vig_review_gate_common,
+                    "standing_authorization_enabled",
+                    return_value=True,
+                ),
+                redirect_stdout(second_out),
+            ):
+                second_status = vig_review_gate_common.run_gate("MLB")
+            self.assertEqual(second_status, 0)
+            self.assertEqual(second_out.getvalue(), "")
+            second_records = self._journal_records(root, sport="MLB")
+            self.assertEqual(len(second_records), 2)
+            self.assertEqual(second_records[1]["notices"], [])
+
+    def test_an_expiry_that_cannot_persist_reverts_and_keeps_the_old_warning(self):
+        # Bookkeeping must degrade to the old noise, never change gate
+        # behavior: if the expiry cannot reach disk, the in-memory mutation is
+        # reverted (so before/after comparisons stay honest), the plain
+        # overdue warning still fires, and the run still exits 0.
+        now = datetime.now(timezone.utc)
+        entry = self._overdue_pending_entry(now)
+        with self._temp_root() as root:
+            status, output, records, path = self._journalled_gate(
+                root,
+                json.dumps({"candidates": [], "lineup_watchlist": [entry]}),
+                run=AssertionError("no reviewer child on a no-work cycle"),
+                extra_patches=[
+                    patch.object(
+                        vig_review_gate_common,
+                        "standing_authorization_enabled",
+                        return_value=True,
+                    ),
+                    patch.object(
+                        vig_review_gate_common,
+                        "persist_schedule_locked",
+                        side_effect=OSError("disk full"),
+                    ),
+                ],
+            )
+            on_disk = json.loads(path.read_text())["lineup_watchlist"][0]
+        self.assertEqual(status, 0)
+        self.assertIn("could not persist watchlist expiry", output)
+        self.assertIn("lineup recheck overdue on LW-20260830-PIT-001", output)
+        self.assertEqual(on_disk["status"], "pending_lineup_recheck")
+        self.assertNotIn("expired_at_utc", on_disk)
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]["outcome"], vig_run_journal.OUTCOME_NO_WORK)
+
+    def test_the_malformed_phillies_review_fails_closed_and_restores(self):
+        # The other half of the 2026-08-30 cron status: the child approved a
+        # candidate missing current_ask, projected_edge_at_current_ask, and
+        # model_version, with baseball environment as a string. That is an
+        # actual unaccepted review — exit 1 is CORRECT here and must name the
+        # producer defects, restore the pre-review bytes, and route nothing.
+        bad_evidence = valid_baseball_evidence()
+        bad_evidence["environment"] = "hot, wind out"
+        with self._temp_root() as root:
+            day = vig_review_gate_common.schedule_day_now()
+            self._schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
+            pre_review = json.dumps(
+                {"candidates": [self._ROUTABLE_CANDIDATE], "lineup_watchlist": []}
+            )
+            status, output, records, path = self._journalled_gate(
+                root,
+                pre_review,
+                run=self._approving_child(
+                    current_ask=_OMITTED,
+                    projected_edge_at_current_ask=_OMITTED,
+                    model_version=_OMITTED,
+                    baseball_evidence=bad_evidence,
+                ),
+                extra_patches=[
+                    patch.object(
+                        vig_review_gate_common,
+                        "standing_authorization_enabled",
+                        return_value=True,
+                    )
+                ],
+            )
+            restored = json.loads(path.read_text())
+        self.assertEqual(status, 1)
+        self.assertIn("routing normalization failed closed", output)
+        for defect in (
+            "current_ask must be a number between 0 and 1",
+            "projected_edge_at_current_ask must be a number between 0 and 1",
+            "model_version must be a non-empty string",
+            "environment must be an object",
+        ):
+            self.assertIn(defect, output)
+        # Never invent a probability, price, or evidence object: the reviewed
+        # state is rejected wholesale and the pre-review bytes come back.
+        self.assertIn("pre-review schedule restored", output)
+        self.assertEqual(restored, json.loads(pre_review))
+        self.assertIsNone(restored["candidates"][0]["vig_approved"])
+        self.assertNotIn("execution_mode", restored["candidates"][0])
+        self._assert_single_record(
+            records,
+            vig_run_journal.OUTCOME_ERROR,
+            "routing_normalization",
+            detail="environment must be an object",
         )
 
     def test_journal_records_a_reviewed_state_that_could_not_be_persisted(self):

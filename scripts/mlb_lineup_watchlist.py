@@ -39,7 +39,14 @@ MIN_MINUTES_BEFORE_FIRST_PITCH = 35
 MAX_MINUTES_BEFORE_FIRST_PITCH = 90
 PENDING_STATUS = "pending_lineup_recheck"
 TERMINAL_STATUSES = {"promoted", "passed", "filled_manual"}
-VALID_STATUSES = {PENDING_STATUS, *TERMINAL_STATUSES}
+# Expired is terminal in the "never changes again" sense but is deliberately
+# NOT in TERMINAL_STATUSES: that set means "a recheck concluded" and demands
+# rechecked_at_utc, while expired means the opposite — the recheck window
+# closed with no recheck ever happening. Only the gate writes it (a targeted
+# recheck must still reach promoted or passed), and every routing consumer
+# selects on PENDING_STATUS, so an expired entry can never route or execute.
+EXPIRED_STATUS = "expired"
+VALID_STATUSES = {PENDING_STATUS, EXPIRED_STATUS, *TERMINAL_STATUSES}
 FORBIDDEN_EXECUTION_FIELDS = {
     "execution_cron_id",
     "execution_cron_fire_utc",
@@ -494,6 +501,15 @@ def validate_entry(entry: dict[str, Any]) -> list[str]:
 
     if status in TERMINAL_STATUSES and parse_instant(entry.get("rechecked_at_utc")) is None:
         errors.append(f"{status} entry requires rechecked_at_utc")
+    if status == EXPIRED_STATUS:
+        # The audit trail is the whole point of expiring instead of deleting:
+        # an expired entry must say when it expired and why, or it is just a
+        # pending entry that went quiet under a different name.
+        if parse_instant(entry.get("expired_at_utc")) is None:
+            errors.append("expired entry requires expired_at_utc")
+        reason = entry.get("expired_reason")
+        if not isinstance(reason, str) or not reason.strip():
+            errors.append("expired entry requires non-empty expired_reason")
     if status == "passed":
         notes = entry.get("recheck_notes")
         if not isinstance(notes, str) or not notes.strip():
@@ -941,6 +957,90 @@ def overdue_recheck_warnings(
                 f"({overdue_minutes:.0f} min past due) and still pending_lineup_recheck"
             )
     return warnings
+
+
+def expire_dead_pending_entries(
+    schedule: dict[str, Any],
+    now: datetime | None = None,
+    exclude_ids: set[str] | None = None,
+) -> list[tuple[dict[str, Any], str]]:
+    """Transition pending entries whose recheck window has closed to ``expired``.
+
+    ``due_entries`` selects on the first-pitch window and nothing else, so a
+    valid entry still ``pending_lineup_recheck`` after the window closes can
+    never be selected again — it is dead as a routing input, but its status
+    says otherwise, and ``overdue_recheck_warnings`` re-reported it every
+    cycle for the rest of the day (LW-20260830-PIT-001). A warning that fires
+    forever on a state nothing can change is alarm noise, and the state itself
+    was a lie: "pending" named an entry with nothing pending.
+
+    The transition is the auditable alternative to both failure modes: the
+    entry stays on the watchlist byte-for-byte except for status,
+    ``expired_at_utc``, and ``expired_reason``, so the day's record shows a
+    recheck that never happened rather than showing nothing. No candidate is
+    touched, nothing is deleted, and an expired entry fails every routing
+    filter (they all select on PENDING_STATUS), so no execution state can
+    change because of this.
+
+    Scope is deliberately the same population the overdue warning covered:
+    - entries that fail ``validate_entry`` are skipped — invalid entries
+      belong to the quarantine/actionable lanes, and expiring one would
+      launder a validation defect into a clean-looking terminal state;
+    - ``exclude_ids`` (this run's due set plus unreachable-first-pitch
+      entries) are skipped — in-flight work is not dead, and an entry whose
+      first pitch disagrees with the schedule day has a WRONG number, which
+      deserves a human-facing warning, not a terminal transition computed
+      from the number that is wrong;
+    - the deadline is the window close derived from ``first_pitch_utc`` with
+      the same ``OVERDUE_RECHECK_MINUTES`` grace the warning used, so
+      warning-then-expire cannot disagree about when an entry died. An entry
+      with no parseable first pitch is invalid and already skipped above.
+
+    Mutates ``schedule`` in place and returns ``(entry, notice)`` pairs so the
+    caller can persist and report, or revert the mutation if persisting fails.
+    """
+    results: list[tuple[dict[str, Any], str]] = []
+    entries = schedule.get("lineup_watchlist")
+    if not isinstance(entries, list):
+        return results
+    current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    skip = exclude_ids or set()
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("status") != PENDING_STATUS:
+            continue
+        if entry_id(entry) in skip:
+            continue
+        if validate_entry(entry):
+            continue
+        first_pitch = parse_instant(entry.get("first_pitch_utc"))
+        if first_pitch is None:
+            continue
+        window_close = first_pitch - timedelta(minutes=MIN_MINUTES_BEFORE_FIRST_PITCH)
+        overdue_minutes = (current - window_close).total_seconds() / 60
+        if overdue_minutes <= OVERDUE_RECHECK_MINUTES:
+            continue
+        close_text = window_close.isoformat().replace("+00:00", "Z")
+        entry["status"] = EXPIRED_STATUS
+        entry["expired_at_utc"] = current.isoformat().replace("+00:00", "Z")
+        entry["expired_reason"] = (
+            f"recheck window close={close_text} passed {overdue_minutes:.0f} "
+            "minutes ago with status still pending_lineup_recheck; the window "
+            "cannot reopen, no recheck ever completed, and the entry was never "
+            "promoted or routed"
+        )
+        results.append(
+            (
+                entry,
+                f"WARNING: lineup recheck overdue on {entry_id(entry)}, "
+                f"recheck window close={close_text} "
+                f"({overdue_minutes:.0f} min past due) and never rechecked; "
+                "expired the entry (terminal, kept on the watchlist for audit, "
+                "never routed, no bet placed) so it stops re-alerting",
+            )
+        )
+    return results
 
 
 def due_entries(schedule: dict[str, Any], now: datetime | None = None) -> list[dict[str, Any]]:
