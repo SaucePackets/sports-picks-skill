@@ -35,8 +35,10 @@ PROFILE_MANIFEST=(
   receipts_ledger_reconcile.py
   vig_calibration_report.py
   vig_mlb_review_gate.py
+  vig_ledger_reconcile.py
   vig_postgame_gate.py
   vig_review_gate_common.py
+  vig_run_journal.py
   vig_soccer_review_gate.py
 )
 

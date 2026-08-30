@@ -18,6 +18,8 @@ assert spec.loader is not None
 sys.modules["vig_review_gate_common"] = vig_review_gate_common
 spec.loader.exec_module(vig_review_gate_common)
 
+import vig_run_journal
+
 from mlb_baseball_evidence import valid_baseball_evidence, valid_execution_checks
 from mlb_probability_model import valid_probability_components
 
@@ -1483,6 +1485,173 @@ class VigReviewGateCommonTests(unittest.TestCase):
             finally:
                 setattr(vig_review_gate_common, "ROOT", original_root)
 
+    # --- run journal: every gate outcome leaves a dated artifact -----------
+    #
+    # The lane's observability defect was not that any single path was wrong,
+    # it was that only ONE path (a completed review) wrote anything, and it
+    # wrote to a single file the next run overwrote. These tests pin the
+    # outcomes that previously left nothing behind.
+
+    def _journal_records(self, root, day=None, sport=None):
+        day = day or vig_review_gate_common.schedule_day_now()
+        records, problems = vig_run_journal.read_records(
+            vig_run_journal.journal_path(root, day)
+        )
+        self.assertEqual(problems, [], "journal must be parseable")
+        if sport:
+            records = [r for r in records if r["sport"] == sport]
+        return records
+
+    def test_journal_records_a_day_with_no_schedule_at_all(self):
+        # The 08-12/13/14/19/20 shape: the gate ran and there was no schedule
+        # file. Before this, the run left nothing, so a PASS day and a day the
+        # cron never fired were the same observation afterwards.
+        with tempfile.TemporaryDirectory() as tmp:
+            original_root = getattr(vig_review_gate_common, "ROOT")
+            try:
+                root = Path(tmp)
+                setattr(vig_review_gate_common, "ROOT", root)
+                day = vig_review_gate_common.schedule_day_now()
+
+                output = StringIO()
+                with redirect_stdout(output):
+                    status = vig_review_gate_common.run_gate("MLB")
+
+                self.assertEqual(status, 0)
+                self.assertEqual(output.getvalue(), "")
+                records = self._journal_records(root, day)
+                self.assertEqual(len(records), 1)
+                self.assertEqual(records[0]["outcome"], vig_run_journal.OUTCOME_NO_SCHEDULE)
+                self.assertEqual(records[0]["stage"], "schedule_missing")
+                self.assertEqual(records[0]["day"], day)
+                self.assertEqual(records[0]["sport"], "MLB")
+                # And the coverage audit now names the gap rather than
+                # inferring it from an absent file.
+                self.assertEqual(
+                    vig_run_journal.unjournalled_days(root, [day]), []
+                )
+                self.assertEqual(
+                    vig_run_journal.unjournalled_days(root, ["1999-01-01"]), ["1999-01-01"]
+                )
+            finally:
+                setattr(vig_review_gate_common, "ROOT", original_root)
+
+    def test_journal_records_an_explicit_pass_on_an_empty_card(self):
+        # Explicit PASS: the slate was collected and produced no card. Silence
+        # on stdout is still correct — the artifact is on disk, not in the
+        # cron delivery.
+        with tempfile.TemporaryDirectory() as tmp:
+            original_root = getattr(vig_review_gate_common, "ROOT")
+            try:
+                root = Path(tmp)
+                setattr(vig_review_gate_common, "ROOT", root)
+                day = vig_review_gate_common.schedule_day_now()
+                schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
+                schedule_path.parent.mkdir(parents=True)
+                schedule_path.write_text(
+                    json.dumps({"candidates": [], "lineup_watchlist": []})
+                )
+
+                output = StringIO()
+                with redirect_stdout(output):
+                    status = vig_review_gate_common.run_gate("MLB")
+
+                self.assertEqual(status, 0)
+                self.assertEqual(output.getvalue(), "")
+                records = self._journal_records(root, day)
+                self.assertEqual(len(records), 1)
+                self.assertEqual(records[0]["outcome"], vig_run_journal.OUTCOME_NO_WORK)
+                self.assertEqual(records[0]["stage"], "no_reviewable_work")
+                self.assertEqual(records[0]["schedule_path"], str(schedule_path))
+                # A pass is distinguishable from a missing slate, which is the
+                # whole point of having two outcomes rather than one silence.
+                self.assertNotEqual(
+                    records[0]["outcome"], vig_run_journal.OUTCOME_NO_SCHEDULE
+                )
+            finally:
+                setattr(vig_review_gate_common, "ROOT", original_root)
+
+    def test_journal_appends_rather_than_overwriting_within_a_day(self):
+        # latest-action.md's actual defect: the second cycle of the day
+        # destroyed the first cycle's evidence. Two runs, two records.
+        with tempfile.TemporaryDirectory() as tmp:
+            original_root = getattr(vig_review_gate_common, "ROOT")
+            try:
+                root = Path(tmp)
+                setattr(vig_review_gate_common, "ROOT", root)
+                day = vig_review_gate_common.schedule_day_now()
+
+                with redirect_stdout(StringIO()):
+                    vig_review_gate_common.run_gate("MLB")
+                    vig_review_gate_common.run_gate("MLB")
+
+                self.assertEqual(len(self._journal_records(root, day)), 2)
+            finally:
+                setattr(vig_review_gate_common, "ROOT", original_root)
+
+    def test_journal_records_a_positive_candidate_review(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            original_root = getattr(vig_review_gate_common, "ROOT")
+            try:
+                root = Path(tmp)
+                setattr(vig_review_gate_common, "ROOT", root)
+                day = vig_review_gate_common.schedule_day_now()
+                schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
+                schedule_path.parent.mkdir(parents=True)
+                candidate = {
+                    "event_id": "401816156",
+                    "game": "Chicago White Sox at Toronto Blue Jays",
+                    "side": "CWS",
+                    "sport": "MLB",
+                    "market_type": "moneyline",
+                    "unit_size": 18,
+                    "polymarket_ask": 0.51,
+                    "vig_approved": None,
+                    "execution_mode": "manual",
+                    "manual_bet_status": None,
+                    "executed": False,
+                }
+                schedule_path.write_text(
+                    json.dumps({"candidates": [candidate], "lineup_watchlist": []})
+                )
+
+                def complete_review(*args, **kwargs):
+                    updated = dict(candidate)
+                    updated.update(
+                        PROBABILITY_TRAIL,
+                        vig_approved=True,
+                        vig_notes="All gates hold.",
+                        approved_polymarket_ask=0.48,
+                        execution_mode="manual",
+                        execution_status="pending_manual_fill",
+                        manual_bet_status="awaiting_jerry",
+                    )
+                    schedule_path.write_text(
+                        json.dumps({"candidates": [updated], "lineup_watchlist": []})
+                    )
+                    return vig_review_gate_common.subprocess.CompletedProcess(
+                        args[0], 0, stdout="Vig review complete", stderr=""
+                    )
+
+                with (
+                    patch.object(
+                        vig_review_gate_common.subprocess, "run", side_effect=complete_review
+                    ),
+                    redirect_stdout(StringIO()),
+                ):
+                    status = vig_review_gate_common.run_gate("MLB")
+
+                self.assertEqual(status, 0)
+                records = self._journal_records(root, day)
+                self.assertEqual(len(records), 1)
+                self.assertEqual(records[0]["outcome"], vig_run_journal.OUTCOME_REVIEWED)
+                self.assertEqual(records[0]["stage"], "complete")
+                self.assertEqual(records[0]["counts"]["candidates"], 1)
+                self.assertEqual(records[0]["counts"]["approved"], 1)
+                self.assertEqual(records[0]["counts"]["rejected"], 0)
+            finally:
+                setattr(vig_review_gate_common, "ROOT", original_root)
+
     _RESOLVED_LINEUP_SNAPSHOT = {
         "game_pk": 823110,
         "away_team": "Minnesota Twins",
@@ -1680,6 +1849,115 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 persisted = json.loads(schedule_path.read_text())
                 self.assertEqual(persisted["lineup_watchlist"], [entry])
                 self.assertEqual(persisted["candidates"], [])
+            finally:
+                setattr(vig_review_gate_common, "ROOT", original_root)
+
+    def test_journal_records_a_price_deferral_with_its_source_and_instant(self):
+        # "Entry X was not reviewed" is unactionable. The 08-16 winners went
+        # unreviewed for a knowable reason nobody could read afterwards, so the
+        # record has to name the feed and the instant, not just the id.
+        with tempfile.TemporaryDirectory() as tmp:
+            original_root = getattr(vig_review_gate_common, "ROOT")
+            try:
+                root = Path(tmp)
+                setattr(vig_review_gate_common, "ROOT", root)
+                status, _, entry, _ = self._run_deferred_noop_gate(
+                    root, price=None, lineup_snapshot=dict(self._RESOLVED_LINEUP_SNAPSHOT)
+                )
+                self.assertEqual(status, 0)
+
+                records = self._journal_records(root)
+                self.assertEqual(len(records), 1)
+                self.assertEqual(records[0]["outcome"], vig_run_journal.OUTCOME_REVIEWED)
+                deferrals = records[0]["deferrals"]
+                self.assertEqual(len(deferrals), 1)
+                self.assertEqual(deferrals[0]["id"], entry["id"])
+                self.assertEqual(deferrals[0]["source"], vig_run_journal.SOURCE_PRICE_FEED)
+                self.assertIn("price unavailable", deferrals[0]["reason"])
+                # A timestamp, parseable — a bare "yes it was deferred" cannot
+                # tell a one-cycle outage from a lane that has been down a week.
+                self.assertTrue(deferrals[0]["observed_at"].endswith("Z"))
+                datetime.fromisoformat(deferrals[0]["observed_at"].replace("Z", "+00:00"))
+                self.assertEqual(records[0]["counts"]["deferral_eligible"], 1)
+            finally:
+                setattr(vig_review_gate_common, "ROOT", original_root)
+
+    def test_journal_records_a_lineup_feed_deferral_against_the_right_source(self):
+        # The two deferral sources must be distinguishable in the record: the
+        # remedy for a dead price feed is not the remedy for a dead lineup feed.
+        with tempfile.TemporaryDirectory() as tmp:
+            original_root = getattr(vig_review_gate_common, "ROOT")
+            try:
+                root = Path(tmp)
+                setattr(vig_review_gate_common, "ROOT", root)
+                status, _, entry, _ = self._run_deferred_noop_gate(
+                    root,
+                    price=dict(self._LIVE_QUOTE),
+                    lineup_snapshot=Exception("lineup feed unavailable"),
+                )
+                self.assertEqual(status, 0)
+
+                deferrals = self._journal_records(root)[0]["deferrals"]
+                self.assertEqual(
+                    [item["source"] for item in deferrals],
+                    [vig_run_journal.SOURCE_LINEUP_FEED],
+                )
+                self.assertEqual(deferrals[0]["id"], entry["id"])
+                self.assertIn("lineup feed unavailable", deferrals[0]["reason"])
+            finally:
+                setattr(vig_review_gate_common, "ROOT", original_root)
+
+    def test_journal_records_a_failed_review_transition_it_rolled_back(self):
+        # A rejected review is exactly the outcome that most needs a durable
+        # trace: the schedule on disk is restored to its pre-review state, so
+        # afterwards the file itself carries no sign the review ever ran.
+        with tempfile.TemporaryDirectory() as tmp:
+            original_root = getattr(vig_review_gate_common, "ROOT")
+            try:
+                root = Path(tmp)
+                setattr(vig_review_gate_common, "ROOT", root)
+                status, _, _, _ = self._run_deferred_noop_gate(
+                    root,
+                    price=dict(self._LIVE_QUOTE),
+                    lineup_snapshot=dict(self._RESOLVED_LINEUP_SNAPSHOT),
+                )
+                self.assertEqual(status, 1)
+
+                records = self._journal_records(root)
+                self.assertEqual(len(records), 1)
+                self.assertEqual(records[0]["outcome"], vig_run_journal.OUTCOME_ERROR)
+                self.assertEqual(records[0]["stage"], "review_transition")
+                self.assertIn("invalid review transition", records[0]["detail"])
+                self.assertEqual(records[0]["counts"]["watchlist_due"], 1)
+            finally:
+                setattr(vig_review_gate_common, "ROOT", original_root)
+
+    def test_journal_write_failure_is_loud_and_never_changes_the_verdict(self):
+        # Deliberate asymmetry: observability must not become a new way for a
+        # review to fail. The gate keeps its own verdict and the failure is
+        # reported on its own line rather than escalated into an exit code.
+        with tempfile.TemporaryDirectory() as tmp:
+            original_root = getattr(vig_review_gate_common, "ROOT")
+            try:
+                root = Path(tmp)
+                setattr(vig_review_gate_common, "ROOT", root)
+                day = vig_review_gate_common.schedule_day_now()
+                # A regular FILE where the journal directory must be, so the
+                # append's mkdir raises for a real filesystem reason.
+                journal_dir = root / ".picks" / "journal"
+                journal_dir.parent.mkdir(parents=True)
+                journal_dir.write_text("not a directory")
+
+                output = StringIO()
+                with redirect_stdout(output):
+                    status = vig_review_gate_common.run_gate("MLB")
+
+                self.assertEqual(status, 0)
+                text = output.getvalue()
+                self.assertIn("MLB review gate JOURNAL CRITICAL", text)
+                self.assertIn(str(vig_run_journal.journal_path(root, day)), text)
+                # Nothing else leaked: the failure names itself and stops.
+                self.assertNotIn("ERROR", text)
             finally:
                 setattr(vig_review_gate_common, "ROOT", original_root)
 

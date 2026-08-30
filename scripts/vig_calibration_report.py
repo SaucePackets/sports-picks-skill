@@ -32,19 +32,38 @@ def fmt_pct(x: float) -> str:
 
 def main() -> int:
     picks = json.loads(PICKS.read_text()).get("picks", [])
-    settled = [p for p in picks if p.get("status") == "settled" and p.get("result") in ("win", "loss")]
+    # POPULATION, stated rather than implied. This report covers DECIDED
+    # wagers — settled with a win/loss result — because a void has no outcome
+    # to calibrate against. record.json counts the SETTLED population, which
+    # includes voids, so the two documents legitimately quote different
+    # headline totals from the same ledger. Unlabelled, that reads as a
+    # ledger conflict: 44 picks / $842.36 here against 45 / $859.96 there,
+    # with nothing on either page saying why. The difference is now printed.
+    all_settled = [p for p in picks if p.get("status") == "settled"]
+    settled = [p for p in all_settled if p.get("result") in ("win", "loss")]
+    voided = [p for p in all_settled if p not in settled]
     wins = sum(1 for p in settled if p["result"] == "win")
     n = len(settled)
     staked = sum(float(p.get("entry_notional") or p.get("unit_size") or 0) for p in settled)
+    void_staked = sum(float(p.get("entry_notional") or p.get("unit_size") or 0) for p in voided)
     pnl = sum(float(p.get("pnl") or 0) for p in settled)
     commission = sum(float(p.get("commission") or 0) for p in settled)
     lo, hi = wilson_ci(wins, n)
 
-    print(f"# Vig calibration report — {n} settled picks")
+    print(f"# Vig calibration report — {n} decided picks")
+    print(f"Ledger: {PICKS} (canonical) | population: settled AND decided (win/loss)")
     print(f"Record: {wins}-{n - wins} | win rate {fmt_pct(wins / n if n else 0)} "
           f"(95% CI {fmt_pct(lo)}–{fmt_pct(hi)})")
     print(f"Staked ${staked:.2f} | P&L ${pnl:+.2f} | ROI {fmt_pct(pnl / staked if staked else 0)} "
           f"| commission drag {fmt_pct(commission / staked if staked else 0)} of stakes")
+    if voided:
+        print(f"RECONCILES TO record.json: + {len(voided)} void/push "
+              f"(${void_staked:.2f}) = {len(all_settled)} settled, "
+              f"${staked + void_staked:.2f} staked. Voids are excluded here and included there; "
+              "run scripts/vig_ledger_reconcile.py to prove the counters agree.")
+    else:
+        print(f"RECONCILES TO record.json: no voids, so both documents cover the same "
+              f"{len(all_settled)} settled picks.")
     breakeven = 0.545  # rough avg ask + fees
     print(f"NOTE: with n={n}, a CI spanning {fmt_pct(lo)}–{fmt_pct(hi)} cannot distinguish "
           f"this from break-even (~{fmt_pct(breakeven)} needed at typical prices). "
