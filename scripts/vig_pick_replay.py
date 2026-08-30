@@ -1,0 +1,571 @@
+"""Read-only historical replay and attribution over the audited MLB pick corpus.
+
+This module answers two questions the audit deliberately did not: why did
+executed picks miss, and why did we pass on winners. It is built ON the audit,
+not beside it:
+
+1. Reconciliation, official-result provenance, normalization, and every
+   per-candidate classification come from `vig_historical_audit.build_report`
+   — the same code path the merged audit runs, not a copy of it. This module
+   never re-derives an outcome, re-reads a schedule shape, or re-fetches a
+   score.
+2. It is read-only end to end. It writes nothing; the one opt-in side effect
+   (`--fetch`) delegates to the audit's `fetch_missing_results`, which writes
+   only the explicit results cache.
+3. "Passed opportunities" means candidates that were PROPOSED and not
+   executed. A no-pick control day carries no candidate, so it contributes
+   nothing to the passed cohort and is never graded as a bet — and games the
+   slate never proposed at all are OUT OF SCOPE of this report entirely. The
+   report says so rather than letting the passed-winner count read as "all the
+   winners we could have had".
+
+Economics here are SYNTHETIC: a flat one-unit stake at the record's effective
+price (paid price when recorded, quoted ask otherwise), gross of fees. Only 8
+cards in the corpus carry a real P&L, so a synthetic replay is the only way to
+grade cohorts — and every number derived from it is labelled synthetic and
+travels with that caveat.
+
+Rule-change candidates are BOUNDED and graded honestly: the rule set is a
+fixed, enumerated dictionary (no fitted thresholds), and evaluation is
+leave-one-period-out by calendar month — the rule applied to a held-out month
+is chosen only on the other months, so nothing is ever tuned and graded on the
+same slice. Each cohort's rule set contains its own no-change rule
+(`keep_all` / `add_none`), so when no filter beats doing nothing on the
+selection months, the honest winner is the status quo.
+
+Usage:
+  python scripts/vig_pick_replay.py --picks-dir ~/projects/sports-picks-runtime/.picks
+  python scripts/vig_pick_replay.py --results-dir /tmp/mlb-results --fetch
+  python scripts/vig_pick_replay.py --json
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+from collections import Counter
+from pathlib import Path
+from typing import Any, Callable
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from vig_calibration_report import wilson_ci  # noqa: E402
+from vig_historical_audit import (  # noqa: E402
+    DEFAULT_MIN_CONSERVATIVE_EDGE,
+    build_report,
+    effective_price,
+    fetch_missing_results,
+    schedule_paths,
+)
+
+DEFAULT_MIN_SAMPLE = 20
+# A rule may only be SELECTED for a held-out month when the selection months
+# hold at least this many eligible records; below it the fold reports
+# insufficient_selection instead of pretending a choice was informed.
+DEFAULT_MIN_SELECTION = 15
+
+SYNTHETIC_CAVEATS = (
+    "P&L here is SYNTHETIC: flat one-unit stakes at the recorded effective "
+    "price (paid price when the card records one, quoted ask otherwise), "
+    "gross of fees. Quoted asks are not fills and move against the taker.",
+    "The passed cohort covers only candidates the slate PROPOSED and did not "
+    "execute. Control days carry no candidates, and games never proposed are "
+    "out of scope — this report cannot see the slate's blind spots, only its "
+    "declined proposals.",
+    "No number below is a claim about model edge at these sample sizes; the "
+    "insufficient-sample flags are load-bearing, not decoration.",
+)
+
+
+# ---------------------------------------------------------------------------
+# Synthetic economics
+# ---------------------------------------------------------------------------
+
+
+def synthetic_units(record: dict[str, Any]) -> float | None:
+    """Flat one-unit outcome at the record's effective price, or None.
+
+    A win at price p returns (1-p)/p units of profit (one unit buys 1/p
+    contracts paying 1 each); a loss forfeits the unit; a push returns it.
+    Undecided or priceless records have no synthetic result at all — None,
+    never zero, because "no evidence" and "broke even" are different facts.
+    """
+    price, _ = effective_price(record)
+    if price is None or price <= 0.0:
+        return None
+    outcome = record["side_outcome"]
+    if outcome == "win":
+        return round((1.0 - price) / price, 6)
+    if outcome == "loss":
+        return -1.0
+    if outcome == "push":
+        return 0.0
+    return None
+
+
+def eligible_for_replay(record: dict[str, Any]) -> bool:
+    """Decided against an official Final, with a usable price."""
+    return record["side_outcome"] in ("win", "loss") and synthetic_units(record) is not None
+
+
+def cohort_summary(records: list[dict[str, Any]], min_sample: int) -> dict[str, Any]:
+    decided = [r for r in records if r["side_outcome"] in ("win", "loss")]
+    wins = sum(1 for r in decided if r["side_outcome"] == "win")
+    replayable = [r for r in records if eligible_for_replay(r)]
+    units = round(sum(synthetic_units(r) for r in replayable), 6)
+    lo, hi = wilson_ci(wins, len(decided)) if decided else (0.0, 1.0)
+    return {
+        "candidates": len(records),
+        "decided": len(decided),
+        "wins": wins,
+        "losses": len(decided) - wins,
+        "win_rate": round(wins / len(decided), 6) if decided else None,
+        "wilson_95": [round(lo, 6), round(hi, 6)],
+        "replayable_with_price": len(replayable),
+        "synthetic_units": units,
+        "sufficient_for_a_claim": len(decided) >= min_sample,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Attribution
+# ---------------------------------------------------------------------------
+
+
+PRICE_BANDS = (
+    ("under_0.40", lambda p: p < 0.40),
+    ("0.40_to_0.55", lambda p: 0.40 <= p < 0.55),
+    ("0.55_and_up", lambda p: p >= 0.55),
+)
+
+
+def price_band(record: dict[str, Any]) -> str | None:
+    price, _ = effective_price(record)
+    if price is None:
+        return None
+    for name, member in PRICE_BANDS:
+        if member(price):
+            return name
+    return None
+
+
+def attribution_matrix(records: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
+    """disposition x side_outcome, every candidate counted exactly once."""
+    matrix: dict[str, dict[str, int]] = {}
+    for record in records:
+        row = matrix.setdefault(record["disposition"], {})
+        row[record["side_outcome"]] = row.get(record["side_outcome"], 0) + 1
+    return matrix
+
+
+def passed_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [r for r in records if r["disposition"] != "executed"]
+
+
+def _entry_line(record: dict[str, Any]) -> dict[str, Any]:
+    price, basis = effective_price(record)
+    return {
+        "date": record["date"],
+        "game": record["game"],
+        "side": record.get("resolved_side") or record["side_raw"],
+        "disposition": record["disposition"],
+        "skip_reason": record["skip_reason"],
+        "price": price,
+        "price_basis": basis,
+        "price_band": price_band(record),
+        "stated_probability": record["stated_probability"],
+        "confidence": record["confidence"],
+        "synthetic_units": synthetic_units(record),
+    }
+
+
+def missed_winners(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Passed candidates whose side won — proposals declined that were right."""
+    return [_entry_line(r) for r in passed_records(records) if r["side_outcome"] == "win"]
+
+
+def executed_losses(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [_entry_line(r) for r in records
+            if r["disposition"] == "executed" and r["side_outcome"] == "loss"]
+
+
+def profile(records: list[dict[str, Any]]) -> dict[str, Any]:
+    """Where a cohort's records sit: price bands, field presence, reasons.
+
+    Field presence is reported against the cohort size, because on this corpus
+    absence is the norm — a profile that only described the present fields
+    would read as coverage the data does not have.
+    """
+    total = len(records)
+    bands = Counter(b for r in records if (b := price_band(r)) is not None)
+    return {
+        "candidates": total,
+        "price_band": dict(bands),
+        "no_price": total - sum(bands.values()),
+        "field_presence": {
+            "stated_probability": sum(1 for r in records if r["stated_probability"] is not None),
+            "confidence": sum(1 for r in records if r["confidence"] is not None),
+            "entry_price": sum(1 for r in records if r["entry_price"] is not None),
+            "slate_price": sum(1 for r in records if r["slate_price"] is not None),
+            "conservative_probability": sum(
+                1 for r in records if r["conservative_probability"] is not None
+            ),
+        },
+        "confidence_values": dict(Counter(
+            str(r["confidence"]) for r in records if r["confidence"] is not None
+        )),
+        "skip_reasons": dict(Counter(
+            str(r["skip_reason"]) for r in records if r["skip_reason"] is not None
+        )),
+        "by_schema_source": dict(Counter(r["date"][:7] for r in records if r["date"])),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Bounded rule candidates, graded leave-one-period-out
+# ---------------------------------------------------------------------------
+
+
+Rule = Callable[[dict[str, Any]], bool]
+
+
+def _price_under(limit: float) -> Rule:
+    def rule(record: dict[str, Any]) -> bool:
+        price, _ = effective_price(record)
+        return price is not None and price < limit
+    return rule
+
+
+def _price_between(low: float, high: float) -> Rule:
+    def rule(record: dict[str, Any]) -> bool:
+        price, _ = effective_price(record)
+        return price is not None and low <= price < high
+    return rule
+
+
+# Exclusion rules for the EXECUTED cohort: which executed picks to keep.
+# `keep_all` is the no-change policy and must stay in the set — when nothing
+# beats it on the selection months, the honest recommendation is no change.
+EXECUTED_RULES: dict[str, Rule] = {
+    "keep_all": lambda record: True,
+    "keep_under_0.55": _price_under(0.55),
+    "keep_under_0.50": _price_under(0.50),
+    "keep_0.40_to_0.55": _price_between(0.40, 0.55),
+}
+
+# Inclusion rules for the PASSED cohort: which declined proposals to take.
+# `add_none` is that cohort's no-change policy.
+PASSED_RULES: dict[str, Rule] = {
+    "add_none": lambda record: False,
+    "add_under_0.55": _price_under(0.55),
+    "add_under_0.50": _price_under(0.50),
+    "add_0.40_to_0.55": _price_between(0.40, 0.55),
+}
+
+
+def period_of(record: dict[str, Any]) -> str:
+    return (record["date"] or "unknown")[:7]
+
+
+def rule_units(records: list[dict[str, Any]], rule: Rule) -> tuple[int, float]:
+    kept = [r for r in records if rule(r)]
+    return len(kept), round(sum(synthetic_units(r) for r in kept), 6)
+
+
+def in_sample_table(records: list[dict[str, Any]], rules: dict[str, Rule]) -> dict[str, Any]:
+    """Every rule scored on the WHOLE cohort — reference only, never a verdict.
+
+    This table is what over-fitting looks like when it wins, which is why it
+    is printed next to the held-out result instead of instead of it.
+    """
+    return {
+        name: {"n": n, "synthetic_units": units}
+        for name, (n, units) in ((name, rule_units(records, rule)) for name, rule in rules.items())
+    }
+
+
+def leave_one_period_out(
+    records: list[dict[str, Any]], rules: dict[str, Rule], min_selection: int,
+) -> dict[str, Any]:
+    """Grade a rule-selection POLICY, not a rule.
+
+    For each calendar-month period, the rule applied to that month is the one
+    with the best synthetic units on all OTHER months (deterministic tiebreak:
+    rule name). The held-out months' results are the only ones aggregated. A
+    fold whose selection months hold fewer than `min_selection` eligible
+    records selects nothing and is reported as insufficient rather than
+    letting a coin-flip choice into the aggregate.
+    """
+    eligible = [r for r in records if eligible_for_replay(r)]
+    periods = sorted({period_of(r) for r in eligible})
+    folds = []
+    held_out_n = 0
+    held_out_units = 0.0
+    for held in periods:
+        selection = [r for r in eligible if period_of(r) != held]
+        test = [r for r in eligible if period_of(r) == held]
+        fold: dict[str, Any] = {
+            "period": held, "n_selection": len(selection), "n_held_out": len(test),
+        }
+        if len(selection) < min_selection:
+            fold["status"] = "insufficient_selection"
+            folds.append(fold)
+            continue
+        scored = {name: rule_units(selection, rule) for name, rule in rules.items()}
+        chosen = max(sorted(scored), key=lambda name: scored[name][1])
+        n_kept, units = rule_units(test, rules[chosen])
+        fold.update({
+            "status": "graded",
+            "chosen_rule": chosen,
+            "chosen_on_selection_units": scored[chosen][1],
+            "held_out_kept": n_kept,
+            "held_out_units": units,
+        })
+        held_out_n += n_kept
+        held_out_units += units
+        folds.append(fold)
+    graded = [f for f in folds if f["status"] == "graded"]
+    return {
+        "method": (
+            "leave-one-calendar-month-out; the rule for each month is chosen "
+            "only on the other months, so no record is ever tuned on and "
+            "graded on the same slice"
+        ),
+        "eligible_records": len(eligible),
+        "periods": periods,
+        "min_selection": min_selection,
+        "folds": folds,
+        "held_out": {
+            "graded_folds": len(graded),
+            "insufficient_folds": len(folds) - len(graded),
+            "kept": held_out_n,
+            "synthetic_units": round(held_out_units, 6),
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
+# Report
+# ---------------------------------------------------------------------------
+
+
+def replay_report(
+    audit_report: dict[str, Any], min_sample: int, min_selection: int,
+) -> dict[str, Any]:
+    days = audit_report["days"]
+    records = [record for day in days for record in day["candidates"]]
+    executed = [r for r in records if r["disposition"] == "executed"]
+    passed = passed_records(records)
+    control_dates = audit_report["aggregate"]["days"]["control_dates"]
+
+    executed_lopo = leave_one_period_out(executed, EXECUTED_RULES, min_selection)
+    passed_lopo = leave_one_period_out(passed, PASSED_RULES, min_selection)
+
+    return {
+        "foundation": {
+            "source": "vig_historical_audit.build_report — same reconciliation and provenance",
+            "execute_dir": audit_report["execute_dir"],
+            "results_dir": audit_report["results_dir"],
+            "candidates": len(records),
+            "reconciled": audit_report["aggregate"]["candidates"]["reconciled_to_official"],
+        },
+        "controls": {
+            "no_pick_control_days": len(control_dates),
+            "control_dates": control_dates,
+            "note": (
+                "A control day proposed no candidate. It contributes nothing "
+                "to the passed cohort and is never graded as a bet; the "
+                "passed-opportunity numbers below cover declined PROPOSALS only."
+            ),
+        },
+        "attribution_matrix": attribution_matrix(records),
+        "cohorts": {
+            "executed": cohort_summary(executed, min_sample),
+            "passed": cohort_summary(passed, min_sample),
+        },
+        "missed_winners": missed_winners(records),
+        "executed_losses": executed_losses(records),
+        "profiles": {
+            "executed": profile(executed),
+            "executed_losses": profile([
+                r for r in executed if r["side_outcome"] == "loss"
+            ]),
+            "passed": profile(passed),
+            "missed_winners": profile([
+                r for r in passed if r["side_outcome"] == "win"
+            ]),
+        },
+        "rule_candidates": {
+            "executed_exclusions": {
+                "in_sample_reference_only": in_sample_table(
+                    [r for r in executed if eligible_for_replay(r)], EXECUTED_RULES
+                ),
+                "leave_one_period_out": executed_lopo,
+            },
+            "passed_inclusions": {
+                "in_sample_reference_only": in_sample_table(
+                    [r for r in passed if eligible_for_replay(r)], PASSED_RULES
+                ),
+                "leave_one_period_out": passed_lopo,
+            },
+        },
+        "min_sample_for_a_claim": min_sample,
+        "caveats": list(SYNTHETIC_CAVEATS),
+    }
+
+
+def _fmt_units(value: float) -> str:
+    return f"{value:+.2f}u"
+
+
+def render(report: dict[str, Any]) -> str:
+    out: list[str] = []
+    f = report["foundation"]
+    out.append("# MLB historical pick replay & attribution")
+    out.append(f"Foundation: {f['source']}")
+    out.append(f"Schedules: {f['execute_dir']}; official results: {f['results_dir']}")
+    out.append(f"{f['reconciled']}/{f['candidates']} candidates reconciled to an official Final")
+    out.append("")
+
+    c = report["controls"]
+    out.append("## Controls")
+    out.append(f"- {c['no_pick_control_days']} no-pick control days")
+    out.append(f"- {c['note']}")
+    out.append("")
+
+    out.append("## Attribution: disposition x official outcome")
+    for disposition, row in sorted(report["attribution_matrix"].items()):
+        cells = ", ".join(f"{k}={v}" for k, v in sorted(row.items()))
+        out.append(f"- {disposition}: {cells}")
+    out.append("")
+
+    out.append("## Cohorts")
+    for name in ("executed", "passed"):
+        s = report["cohorts"][name]
+        flag = "" if s["sufficient_for_a_claim"] else (
+            f"  [INSUFFICIENT SAMPLE — n<{report['min_sample_for_a_claim']}, no claim]"
+        )
+        if s["decided"]:
+            out.append(
+                f"- {name}: {s['wins']}-{s['losses']} = {s['win_rate'] * 100:.1f}% "
+                f"(95% CI {s['wilson_95'][0] * 100:.1f}–{s['wilson_95'][1] * 100:.1f}%), "
+                f"synthetic {_fmt_units(s['synthetic_units'])} over "
+                f"{s['replayable_with_price']} priced{flag}"
+            )
+        else:
+            out.append(f"- {name}: no decided candidates")
+    out.append("")
+
+    out.append(f"## Winners we passed on ({len(report['missed_winners'])})")
+    for line in report["missed_winners"]:
+        price = f" at {line['price']:.2f}" if line["price"] is not None else ""
+        reason = f" — {line['skip_reason']}" if line["skip_reason"] else ""
+        out.append(f"- {line['date']} {line['game']} ({line['disposition']}{price}){reason}")
+    mw = report["profiles"]["missed_winners"]
+    if mw["candidates"]:
+        out.append(f"- price bands: {mw['price_band'] or 'none priced'}; no price: {mw['no_price']}")
+    out.append("")
+
+    out.append(f"## Executed picks that lost ({len(report['executed_losses'])})")
+    el = report["profiles"]["executed_losses"]
+    out.append(f"- price bands: {el['price_band'] or 'none priced'}; no price: {el['no_price']}")
+    presence = report["profiles"]["executed"]["field_presence"]
+    total = report["profiles"]["executed"]["candidates"]
+    out.append(
+        "- field presence across ALL executed: "
+        + ", ".join(f"{k}={v}/{total}" for k, v in sorted(presence.items()))
+    )
+    out.append("")
+
+    out.append("## Rule-change candidates (bounded set, graded leave-one-month-out)")
+    for label, key in (("executed exclusions", "executed_exclusions"),
+                       ("passed inclusions", "passed_inclusions")):
+        block = report["rule_candidates"][key]
+        lopo = block["leave_one_period_out"]
+        out.append(f"### {label}")
+        out.append("- in-sample (reference only, NEVER a verdict): " + "; ".join(
+            f"{name} n={cell['n']} {_fmt_units(cell['synthetic_units'])}"
+            for name, cell in sorted(block["in_sample_reference_only"].items())
+        ))
+        held = lopo["held_out"]
+        out.append(
+            f"- held-out: {held['graded_folds']} folds graded, "
+            f"{held['insufficient_folds']} insufficient; kept {held['kept']}, "
+            f"synthetic {_fmt_units(held['synthetic_units'])}"
+        )
+        for fold in lopo["folds"]:
+            if fold["status"] == "graded":
+                out.append(
+                    f"  - {fold['period']}: chose {fold['chosen_rule']} on the other "
+                    f"{fold['n_selection']} records; held-out kept "
+                    f"{fold['held_out_kept']}/{fold['n_held_out']} for "
+                    f"{_fmt_units(fold['held_out_units'])}"
+                )
+            else:
+                out.append(
+                    f"  - {fold['period']}: INSUFFICIENT SELECTION "
+                    f"({fold['n_selection']} < {lopo['min_selection']}) — not graded"
+                )
+        out.append("")
+
+    out.append("## Caveats (these travel with every number above)")
+    for caveat in report["caveats"]:
+        out.append(f"- {caveat}")
+    return "\n".join(out)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Read-only historical MLB pick replay/attribution report"
+    )
+    parser.add_argument("--picks-dir", help="the .picks directory (default: $SPORTS_PICKS_ROOT/.picks)")
+    parser.add_argument("--results-dir", help="cache of MLB Stats API schedule payloads (default: <picks-dir>/audit-results)")
+    parser.add_argument("--since", help="earliest schedule date YYYY-MM-DD")
+    parser.add_argument("--until", help="latest schedule date YYYY-MM-DD")
+    parser.add_argument("--edge-floor", type=float, default=DEFAULT_MIN_CONSERVATIVE_EDGE,
+                        help="conservative edge floor passed through to the audit")
+    parser.add_argument("--min-sample", type=int, default=DEFAULT_MIN_SAMPLE,
+                        help=f"minimum decided records before a rate is a claim (default {DEFAULT_MIN_SAMPLE})")
+    parser.add_argument("--min-selection", type=int, default=DEFAULT_MIN_SELECTION,
+                        help=f"minimum selection records before a fold is graded (default {DEFAULT_MIN_SELECTION})")
+    parser.add_argument("--fetch", action="store_true",
+                        help="opt-in: populate missing results-cache dates via the audit's fetch helper")
+    parser.add_argument("--json", action="store_true", help="emit the full report as JSON")
+    args = parser.parse_args(argv)
+
+    picks_dir = args.picks_dir or (
+        os.environ.get("SPORTS_PICKS_ROOT") and
+        str(Path(os.environ["SPORTS_PICKS_ROOT"]) / ".picks")
+    )
+    if not picks_dir:
+        print("no --picks-dir and no SPORTS_PICKS_ROOT", file=sys.stderr)
+        return 2
+    execute_dir = Path(picks_dir).expanduser() / "execute"
+    results_dir = (
+        Path(args.results_dir).expanduser() if args.results_dir
+        else Path(picks_dir).expanduser() / "audit-results"
+    )
+
+    if args.fetch:
+        dates = []
+        for path in schedule_paths(execute_dir, args.since, args.until):
+            dates.append(path.name[:10])
+        written = fetch_missing_results(dates, results_dir)
+        print(f"fetched {len(written)} result payloads", file=sys.stderr)
+
+    audit_report = build_report(
+        execute_dir, results_dir, args.edge_floor, args.since, args.until,
+        0.05, args.min_sample,
+    )
+    report = replay_report(audit_report, args.min_sample, args.min_selection)
+    if args.json:
+        print(json.dumps(report, indent=2))
+    else:
+        print(render(report))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
