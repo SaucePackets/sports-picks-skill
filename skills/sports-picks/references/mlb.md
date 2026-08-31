@@ -277,8 +277,30 @@ Both watchlist price fields use signed American odds as JSON numbers:
 such as `-120`). Values such as `"MIN +119 at DraftKings"` and `"+105"` are
 invalid. Keep source and timestamp prose in the slate or `thesis`, not in the
 numeric fields. Validate the finished schedule with
-`python3 scripts/mlb_lineup_watchlist.py <schedule> --validate` before reporting
-slate success.
+`python3 scripts/mlb_lineup_watchlist.py <schedule> --validate` and
+`python3 scripts/mlb_game_reads.py <schedule> --validate --denominator <stage2-output.json>`
+before reporting slate success.
+
+### Recording the refusals
+
+The second validator covers the per-game refusal record described in
+`SKILL.md`. The numbers it wants are the ones the writeup is already computing
+in order to say "the ask is already below the DK fair prior": `dk_fair_prob`
+comes straight from `mlb_stage2_scan`'s `away_fair` / `home_fair`,
+`polymarket_ask` and `net_edge` from the price discipline step, and
+`refusing_rails` from the gate that actually stopped it.
+
+The rail vocabulary is the six handicapping gates
+(`starter_floor`, `opposing_starter_shutdown_path`,
+`bullpen_close_game_survival`, `cold_fade_reset`, `price_discipline`,
+`real_winner_conviction`), the two deferrable blockers (`lineups_unconfirmed`,
+`starter_unannounced`), and five structural rails for a game that could not be
+priced or was closed out by a volume rail (`no_dk_price`,
+`no_polymarket_market`, `game_already_started`, `park_environment_cap`,
+`daily_volume_cap`). Name every rail that refused the game, not just the first.
+
+Recording is not a gate change. A read never causes a bet and never blocks one;
+it records the decision the existing gates already made.
 
 The conditional review gate runs frequently enough to select the entry 60-90
 minutes before first pitch. At recheck, refresh ALL material baseball inputs —
