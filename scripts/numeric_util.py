@@ -17,14 +17,27 @@ re-derive it.
 pinned for all three importers: each holds THIS function object, so a change to
 the rule cannot reach one and miss another. Consultation — that a validator
 CALLS the shared rule rather than re-deriving it inline while leaving the
-import untouched — is pinned PER CALL SITE, and only at the sites where the
-drift was found: ``usable_expected_ip`` on the read side,
-``validate_baseball_evidence``'s ``expected_ip`` check on the write side, and
-``validate_probability_components`` here. ``mlb_baseball_evidence`` has six
-``_is_number`` call sites and five are covered by identity alone; re-deriving
-the check inline at one of those (``supported_price``) leaves the suite green
-(Reviewer, PR #69). So: no module-wide enforcement is claimed. Identity
-everywhere, consultation at three sites.
+import untouched — is pinned PER CALL SITE, at exactly five named sites:
+
+- ``mlb_postgame_evidence.usable_expected_ip``
+- ``mlb_baseball_evidence.validate_baseball_evidence``'s ``expected_ip`` check
+- ``mlb_probability_model._component_entries``' entry-value check (the
+  adjustment ``delta`` / haircut ``amount`` path)
+- ``mlb_probability_model.validate_probability_components``' two own sites: the
+  ``uncertainty_haircut`` numeric check and the ``conservative_probability``
+  consistency check
+
+Every other call site rests on identity alone, and identity does not catch a
+re-derived copy at a call site. ``mlb_baseball_evidence`` has six ``_is_number``
+call sites and one is pinned; re-deriving the check inline at another
+(``supported_price``) leaves the suite green (Reviewer, PR #69). An earlier
+version of this list said "``validate_probability_components`` here", which was
+wrong twice over — the pinned site was in ``_component_entries``, and that
+function's own two sites were unpinned, so re-deriving the rule at the haircut
+check left the full suite green (Reviewer, PR #70). Naming a function when the
+pin is on one call site inside it is the same overclaim in miniature. So: no
+module-wide enforcement is claimed anywhere. Identity everywhere, consultation
+at the five sites listed above.
 
 **Three of five, not three of three.** The same rule is still written out
 separately in ``vig_review_gate_common.py`` and ``mlb_runtime_policy.py``.

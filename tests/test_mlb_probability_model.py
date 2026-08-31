@@ -589,7 +589,7 @@ class SharedNumberPredicateTests(unittest.TestCase):
         # That is exactly how this copy came to exist.
         self.assertIs(mlb_probability_model._is_number, write_gate_is_number)
 
-    def test_the_validator_CALLS_the_shared_rule_rather_than_merely_importing_it(self):
+    def test_the_component_entry_path_CALLS_the_shared_rule_rather_than_merely_importing_it(self):
         # `_is_number` being the shared object says nothing about whether
         # `validate_probability_components` consults it — the import name can
         # stay bound while the check is re-derived inline at the call site, and
@@ -622,9 +622,113 @@ class SharedNumberPredicateTests(unittest.TestCase):
                 ),
             )
 
-    def test_the_validator_reports_the_huge_integer_instead_of_raising(self):
+    def test_validate_probability_components_CALLS_the_shared_rule_at_BOTH_of_its_own_sites(self):
+        # The test above pins the entry path (`_component_entries`), which is
+        # where the huge-int defect surfaced. `validate_probability_components`
+        # has two `_is_number` call sites of ITS OWN — the `uncertainty_haircut`
+        # numeric check and the `conservative_probability` consistency check —
+        # and neither was pinned: re-deriving the rule inline at the haircut
+        # check, total and behaviourally identical with `_is_number` still bound
+        # to the shared object, left the FULL suite green at 762 (Reviewer, PR
+        # #70). Same selected-not-applied shape as #69's round-2 blocker, one
+        # level down, inside the function the docstring named as covered.
+        #
+        # Two things make these sites awkward to pin, and both shaped the stubs:
+        #
+        # 1. A blanket `lambda _v: False` cannot reach either site.
+        #    `_is_probability` is built on `_is_number`, so the `dk_fair_prob`
+        #    gate returns early first.
+        # 2. `validate_probability_components` returns as soon as the entry
+        #    lists produce any error, so a stub keyed on a plain value that the
+        #    fixture also uses inside a component entry (0.03 is both the
+        #    haircut total AND the haircut component's amount) short-circuits
+        #    before the site under test.
+        #
+        # So the stubs differ from the real rule at ONE probe OBJECT — a float
+        # subclass carried only by the field under test — and agree with it
+        # everywhere else. That is what makes the assertion about this site.
+        real = mlb_probability_model._is_number
+
+        class Probe(float):
+            """A float the stub can recognise; the real rule accepts it."""
+
+        self.assertTrue(real(Probe(0.03)), "the real rule must accept the probe")
+
+        # --- site 1: the `uncertainty_haircut` numeric check ---
+        message = "uncertainty_haircut must be a non-negative number"
+        probed = candidate_trail(uncertainty_haircut=Probe(0.03))
+        self.assertNotIn(
+            message,
+            probability_component_errors(probed),
+            "positive control: the probe validates cleanly when unstubbed, so a "
+            "failure below is the stub being consulted and not the probe itself",
+        )
+        with unittest.mock.patch.object(
+            mlb_probability_model,
+            "_is_number",
+            lambda v: real(v) and not isinstance(v, Probe),
+        ):
+            # The shared rule now refuses this haircut, so the ANSWER must
+            # follow. An inline copy keeps accepting it and stays silent.
+            self.assertIn(message, probability_component_errors(probed))
+        with unittest.mock.patch.object(
+            mlb_probability_model,
+            "_is_number",
+            lambda v: real(v) or v == float("inf"),
+        ):
+            # And the other direction — a one-directional check is satisfied by
+            # a stub that returns False for any reason at all.
+            self.assertNotIn(
+                message,
+                probability_component_errors(
+                    candidate_trail(uncertainty_haircut=float("inf"))
+                ),
+            )
+
+        # --- site 2: the `conservative_probability` consistency check ---
+        prefix = "conservative_probability must equal raw_probability - "
+        reported = lambda trail: any(  # noqa: E731
+            e.startswith(prefix) for e in probability_component_errors(trail)
+        )
+        # raw 0.57 - haircut 0.03 is 0.54, so 0.10 is inconsistent and reported.
+        inconsistent = candidate_trail(conservative_probability=Probe(0.10))
+        self.assertTrue(
+            reported(inconsistent),
+            "positive control: an inconsistent conservative_probability is "
+            "reported when the shared rule is not stubbed",
+        )
+        with unittest.mock.patch.object(
+            mlb_probability_model,
+            "_is_number",
+            lambda v: real(v) and not isinstance(v, Probe),
+        ):
+            # The check is GUARDED by the predicate, so refusing the value must
+            # skip it. An inline copy keeps accepting and keeps reporting.
+            self.assertFalse(reported(inconsistent))
+        with unittest.mock.patch.object(
+            mlb_probability_model,
+            "_is_number",
+            lambda v: real(v) or v == float("inf"),
+        ):
+            self.assertTrue(
+                reported(candidate_trail(conservative_probability=float("inf")))
+            )
+
+    def test_the_validator_RETURNS_A_LIST_for_the_huge_integer_instead_of_raising(self):
         # The defect, at each field that reaches the predicate. Every one of
         # these raised `OverflowError` out of the validator before the fix.
+        #
+        # Named for what it asserts and nothing more: list-ness, not an error.
+        # Three of the four fields do produce an error (covered by
+        # test_every_unusable_number_is_reported_as_an_error and by the
+        # consultation pins above), but `conservative_probability` returns an
+        # EMPTY list — its consistency check is guarded by `_is_number` and is
+        # simply skipped for a value the rule refuses, before and after this
+        # change. That is bounded downstream rather than here:
+        # `vig_review_gate_common` fails closed on any conservative_probability
+        # outside `0 < x < 1`, which rejects a huge int by integer comparison
+        # without ever converting it to a float. Calling this test "reports"
+        # would have been the overclaim it exists to avoid.
         for label, trail in (
             ("adjustment delta", candidate_trail(
                 probability_components=valid_probability_components(
