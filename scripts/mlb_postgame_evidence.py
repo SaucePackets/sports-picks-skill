@@ -30,7 +30,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import re
 import sys
 from pathlib import Path
@@ -41,6 +40,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from http_util import fetch_json  # noqa: E402
+from numeric_util import is_finite_number  # noqa: E402
 
 FEED_URL = "https://statsapi.mlb.com/api/v1.1/game/{game_pk}/feed/live"
 SCHEDULE_URL = "https://statsapi.mlb.com/api/v1/schedule?sportId=1&date={date}"
@@ -121,12 +121,15 @@ def usable_expected_ip(value: Any) -> bool:
     with `NaN` is false — but passes `Infinity` straight into
     `round(expected_ip * 3)`, which raises `OverflowError`. That escapes
     `validate_process_grade`, which only catches `ValueError`, so a settlement
-    grade crashes rather than reporting. A value the grader cannot use is
-    `unknown`; it is never an exception.
+    grade crashes rather than reporting.
+
+    A value the grader cannot use is `unknown`; it is never an exception. That
+    sentence is only true because `is_finite_number` is total — including on
+    an integer too large to convert to a float, which `math.isfinite` itself
+    raises on. The `> 0` comparison after it is integer arithmetic and cannot
+    raise on any input that reaches it.
     """
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return False
-    return math.isfinite(value) and value > 0
+    return is_finite_number(value) and value > 0
 
 
 def ip_to_outs(innings_pitched: Any) -> int | None:

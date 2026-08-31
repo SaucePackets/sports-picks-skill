@@ -32,6 +32,7 @@ PROFILE_MANIFEST=(
   mlb_probability_model.py
   mlb_runtime_policy.py
   mlb_stage2_scan.py
+  numeric_util.py
   receipts_ledger_reconcile.py
   vig_calibration_report.py
   vig_ledger_reconcile.py

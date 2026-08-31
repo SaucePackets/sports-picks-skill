@@ -747,13 +747,25 @@ class ReadOnlyGuardTests(unittest.TestCase):
         )
 
     def test_the_transitive_closure_stays_off_the_execution_path(self):
+        # `numeric_util.py` is in this set deliberately: the grader's number
+        # rule is shared with the write side, and a shared helper between an
+        # execution-path module and a read-only one may only live somewhere
+        # that reaches neither. That it imports nothing is what keeps this
+        # closure off the execution path, and the next test pins it.
         self.assertEqual(
             import_closure.closure([MODULE]),
             {"vig_loss_evidence_report.py", "http_util.py",
              "mlb_final_scores.py", "mlb_postgame_evidence.py",
-             "mlb_runtime_policy.py", "vig_calibration_report.py",
-             "vig_historical_audit.py", "vig_pick_replay.py"},
+             "mlb_runtime_policy.py", "numeric_util.py",
+             "vig_calibration_report.py", "vig_historical_audit.py",
+             "vig_pick_replay.py"},
         )
+
+    def test_the_shared_numeric_helper_reaches_nothing(self):
+        # If it ever imported a sibling, that sibling would enter BOTH the
+        # read-only closure above and the execution gate's — one edge added in
+        # a helper, two contracts broken, and only the first test would say so.
+        self.assertEqual(import_closure.sibling_imports("numeric_util.py"), set())
 
     def test_every_sibling_import_is_name_scoped(self):
         # A whole-module bind takes every name on the module, which is strictly
