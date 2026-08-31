@@ -273,15 +273,26 @@ OPPONENT_CATEGORIES = (
     "not_recorded",
 )
 
-# Classification of a miss where the OPPOSING side won. `risk_gate_declined`
-# means a recorded gate declined the (losing) selected side — the gate was not
-# the miss, and the winning opponent was never itself proposed.
+# Classification of a miss where the OPPOSING side won, keyed on recorded
+# STATE — disposition and `vig_approved` — never on what a reason's prose
+# says. `risk_gate_declined` means a recorded gate declined the (losing)
+# selected side before approval — the gate was not the miss, and the winning
+# opponent was never itself proposed. `approved_not_executed` is the state
+# those claims cannot cover: the review APPROVED the side and no order was
+# ever placed (manual routing, pipeline failure, or a post-approval
+# execution-time stop). Post-approval reasons are heterogeneous — genuine
+# price/weather re-checks sit next to SDK failures — and telling them apart
+# takes reading prose, so the label states only the machine-readable fact
+# and the recorded reason travels verbatim.
 MISS_CLASSIFICATIONS = (
     "evidence_process_miss",
     "executed_without_recorded_evidence",
+    "approved_not_executed",
     "risk_gate_declined",
     "no_recorded_reason",
 )
+
+EVIDENCE_STATUSES = ("recorded", "not_recorded")
 
 
 def _rationale(record: dict[str, Any]) -> dict[str, Any]:
@@ -415,13 +426,19 @@ def attribution_record(record: dict[str, Any]) -> dict[str, Any]:
 
 
 def classify_opposing_winner_miss(record: dict[str, Any]) -> str:
-    """Why the winning opponent was missed — from recorded dispositions only."""
+    """Why the winning opponent was missed — from recorded STATE only.
+
+    The approval check comes first: an approved side that never reached the
+    market is not a gate save whatever its skip_reason says, and `vig_notes`
+    is no signal at all — it is present on approved-and-executed cards too,
+    so its mere existence carries no polarity.
+    """
     kinds = selection_evidence_kinds(record)
     if record.get("disposition") == "executed":
         return "evidence_process_miss" if kinds else "executed_without_recorded_evidence"
-    if (record.get("skip_reason")
-            or record.get("disposition") == "review_rejected"
-            or _rationale(record).get("vig_notes")):
+    if record.get("vig_approved") is True:
+        return "approved_not_executed"
+    if record.get("disposition") == "review_rejected" or record.get("skip_reason"):
         return "risk_gate_declined"
     return "no_recorded_reason"
 
@@ -445,8 +462,29 @@ def opposing_winner_cases(records: list[dict[str, Any]]) -> list[dict[str, Any]]
         line["recorded_reason"] = (
             record.get("skip_reason") or _rationale(record).get("vig_notes")
         )
+        # The state the classification read, surfaced so it can be audited.
+        line["vig_approved"] = record.get("vig_approved")
+        line["execution_mode"] = record.get("execution_mode")
+        line["manual_bet_status"] = record.get("manual_bet_status")
         cases.append(line)
     return cases
+
+
+def _closed_counts(names: tuple[str, ...], values: list[str]) -> dict[str, int]:
+    """Counts over a closed category set, zero-filled.
+
+    Zero-filling is disclosure: a category that has never occurred on this
+    corpus prints as 0 instead of vanishing, so a reader can tell an axis
+    that never varied from one that was never possible. It also makes the
+    category tuples load-bearing — an emitted value outside its set is a
+    hard error, not a silent new bucket.
+    """
+    counts = dict.fromkeys(names, 0)
+    for value in values:
+        if value not in counts:
+            raise ValueError(f"{value!r} is not in the closed set {names}")
+        counts[value] += 1
+    return counts
 
 
 def side_selection_attribution(records: list[dict[str, Any]]) -> dict[str, Any]:
@@ -462,12 +500,14 @@ def side_selection_attribution(records: list[dict[str, Any]]) -> dict[str, Any]:
             "cases. Games the slate never proposed are out of scope entirely."
         ),
         "records": rows,
-        "evidence_status_counts": dict(Counter(
-            row["selected_evidence"]["status"] for row in rows
-        )),
-        "why_opponent_counts": dict(Counter(
-            row["why_opponent_not_selected"]["category"] for row in rows
-        )),
+        "evidence_status_counts": _closed_counts(
+            EVIDENCE_STATUSES,
+            [row["selected_evidence"]["status"] for row in rows],
+        ),
+        "why_opponent_counts": _closed_counts(
+            OPPONENT_CATEGORIES,
+            [row["why_opponent_not_selected"]["category"] for row in rows],
+        ),
         "opposing_winners": {
             "note": (
                 "reconciled candidates whose selected side lost — the opposing "
@@ -475,9 +515,10 @@ def side_selection_attribution(records: list[dict[str, Any]]) -> dict[str, Any]:
                 "per-candidate records above"
             ),
             "cases": cases,
-            "classification_counts": dict(Counter(
-                case["miss_classification"] for case in cases
-            )),
+            "classification_counts": _closed_counts(
+                MISS_CLASSIFICATIONS,
+                [case["miss_classification"] for case in cases],
+            ),
         },
     }
 

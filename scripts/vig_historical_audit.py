@@ -487,6 +487,11 @@ def normalize_candidate(raw: dict[str, Any], date: str | None) -> dict[str, Any]
         "contract_fields_missing": contract_missing,
         "disposition": disposition,
         "skip_reason": raw.get("skip_reason"),
+        # Recorded review/routing STATE, carried so downstream classification
+        # can read what the pipeline decided instead of parsing reason prose.
+        "vig_approved": raw.get("vig_approved") if isinstance(raw.get("vig_approved"), bool) else None,
+        "execution_mode": _clean_text(raw.get("execution_mode")),
+        "manual_bet_status": _clean_text(raw.get("manual_bet_status")),
         "recorded_rationale": recorded_rationale(raw),
         "stake_usd": stake,
         "commission_usd": _number(raw.get("commission")),

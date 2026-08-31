@@ -115,11 +115,26 @@ what the card RECORDED about the side choice — never a reconstructed reason:
   pregame case backs the chosen side and no separate opponent case exists),
   or `not_recorded`.
 - **Opposing winners** — reconciled candidates whose selected side lost — are
-  enumerated separately from the per-candidate records and classified:
-  `evidence_process_miss` (executed on recorded evidence that pointed the
-  wrong way), `executed_without_recorded_evidence`, `risk_gate_declined`
-  (a recorded gate declined the losing side, so the gate was not the miss;
-  the winning opponent was never itself proposed), or `no_recorded_reason`.
+  enumerated separately from the per-candidate records and classified from
+  recorded STATE (disposition and `vig_approved`), never from what a
+  reason's prose says: `evidence_process_miss` (executed on recorded
+  evidence that pointed the wrong way), `executed_without_recorded_evidence`,
+  `approved_not_executed` (the review approved the side and no order was
+  ever placed — manual routing, pipeline failure, or a post-approval
+  execution-time stop; these are neither gate saves nor evidence misses,
+  and the recorded reason travels verbatim because post-approval reasons
+  are too heterogeneous to grade mechanically), `risk_gate_declined`
+  (a recorded gate declined the losing side before approval, so the gate
+  was not the miss; the winning opponent was never itself proposed), or
+  `no_recorded_reason`. `vig_notes` is not a gate signal: it is present on
+  approved-and-executed cards too, so its existence carries no polarity.
+- **Category counts are zero-filled** over each closed set, so a category
+  that has never occurred prints as 0 instead of vanishing. On the corpus
+  to date every card records a thesis and none records an opponent case, so
+  several categories (`opponent_case_recorded`, `not_recorded`,
+  `card_matchup`/`card_only` resolutions, and some miss classes) have only
+  ever varied in synthetic tests — the zeros in the report are how a reader
+  can tell.
 
 **No hindsight leakage.** The rationale inputs are the audit's
 `recorded_rationale`, which carries only pregame fields (`thesis`,
