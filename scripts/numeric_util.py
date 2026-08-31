@@ -29,8 +29,16 @@ import untouched — is pinned PER CALL SITE, at exactly six named sites:
 - ``mlb_probability_model._is_probability``, which is where ``dk_fair_prob``
   and ``raw_probability`` reach the rule
 
-Every other call site rests on identity alone, and identity does not catch a
-re-derived copy at a call site. ``mlb_baseball_evidence`` has six ``_is_number``
+Two limits on that, both load-bearing. Every other call site rests on identity
+alone, and identity does not catch a re-derived copy at a call site. And a
+consultation pin catches a copy layered with a REDUNDANT opinion only to the
+extent its probe disagrees with that opinion: the ``_is_probability`` pin uses
+an object probe, and its first version missed ``_is_number(v) and value ==
+value and 0 < v < 1`` outright because identity equality made the probe satisfy
+the clause (Reviewer, PR #71). The probe now disagrees on equality, on
+``math.isfinite`` and on ``abs``/``round``, so those flavours red — but a
+clause the probe happens to satisfy is still invisible, and no probe-based pin
+retires that. ``mlb_baseball_evidence`` has six ``_is_number``
 call sites and one is pinned; re-deriving the check inline at another
 (``supported_price``) leaves the suite green (Reviewer, PR #69). An earlier
 version of this list said "``validate_probability_components`` here", which was

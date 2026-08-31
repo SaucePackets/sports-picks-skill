@@ -757,7 +757,40 @@ class SharedNumberPredicateTests(unittest.TestCase):
             """A float the stub can recognise; the real rule accepts it."""
 
         class AcceptedByStub:
-            """In range, and not a number the real rule will ever accept."""
+            """In range, and not a number the real rule will ever accept.
+
+            The `accepts` arm is only as wide as this object's DISAGREEMENTS
+            with a drifted copy: any redundant clause the probe happens to
+            SATISFY is a clause the arm cannot see. My first version defined
+            only the comparisons and `__float__`, and it missed the canonical
+            redundant clause this lane has been chasing since #69 —
+            `_is_number(v) and value == value and 0 < v < 1`. Identity equality
+            made `value == value` True for the probe, so the whole suite stayed
+            green (Reviewer, PR #71).
+
+            So the disagreements are deliberate, one per clause shape:
+
+            - `__eq__` returns False, so a NaN-flavoured `value == value`
+              clause changes the answer. `__hash__` is None because an
+              `__eq__` override without it would be a silent lie about
+              hashability, and nothing here needs to hash.
+            - `__float__` returns NaN. It has to exist at all because the
+              validator calls `float(raw)` downstream once the gate passes,
+              and returning NaN is what makes a redundant `math.isfinite(v)`
+              clause disagree too — `math.isfinite` converts through
+              `__float__`, so a probe returning 0.57 there would satisfy that
+              clause silently. The NaN then propagates into the sum
+              comparisons, where every comparison is False, so no unrelated
+              error appears to muddy the assertion.
+            - `__abs__` and `__round__` are deliberately NOT defined, so
+              `abs(v) != inf` or a `round(v)` opinion RAISES rather than
+              quietly agreeing. An error is a worse diagnostic than a failure
+              but it is still red; silently agreeing is the only outcome that
+              is not.
+
+            A clause this object satisfies is still invisible. That is a
+            property of probe-based pins, not a claim this test can retire.
+            """
 
             def __gt__(self, other):
                 return 0.57 > other
@@ -765,8 +798,13 @@ class SharedNumberPredicateTests(unittest.TestCase):
             def __lt__(self, other):
                 return 0.57 < other
 
+            def __eq__(self, other):
+                return False
+
+            __hash__ = None
+
             def __float__(self):
-                return 0.57
+                return float("nan")
 
         self.assertTrue(real(Probe(0.57)), "the real rule must accept the probe")
         self.assertFalse(
@@ -774,6 +812,22 @@ class SharedNumberPredicateTests(unittest.TestCase):
             "the real rule must refuse the object the stub will accept",
         )
         self.assertTrue(0 < AcceptedByStub() < 1, "the probe must pass the range clause")
+        probe = AcceptedByStub()
+        self.assertFalse(
+            probe == probe,
+            "the probe must DISAGREE with a NaN-flavoured `value == value` "
+            "clause, or a copy layered with one is invisible to this arm",
+        )
+        self.assertFalse(
+            math.isfinite(AcceptedByStub()),
+            "the probe must DISAGREE with a redundant `math.isfinite` clause; "
+            "isfinite converts through __float__, so a finite __float__ would "
+            "satisfy that clause silently",
+        )
+        for opinion in (abs, round):
+            with self.subTest(opinion=opinion.__name__):
+                with self.assertRaises(TypeError):
+                    opinion(AcceptedByStub())
 
         for field in ("raw_probability", "dk_fair_prob"):
             with self.subTest(field=field, direction="shared rule refuses"):
