@@ -315,6 +315,16 @@ def test_policy_without_a_ceiling_stops_rather_than_chasing(sp):
     assert (decision["action"], decision["reason_code"]) == ("stop", "no_approved_ceiling")
 
 
+def test_policy_refuses_sell_intents(sp):
+    # make_proposal's ceiling gate applies only to BUY intents; on a sell the
+    # price-direction comparison inverts, so the policy must stop rather than
+    # call an adverse move a retry.
+    decision = decide(sp, intent="ORDER_INTENT_SELL_LONG", current_ask=Decimal("0.40"))
+    assert (decision["action"], decision["reason_code"]) == ("stop", "non_buy_intent")
+    # Buy intents (long or short side) are unaffected.
+    assert decide(sp, intent="ORDER_INTENT_BUY_SHORT")["reason_code"] != "non_buy_intent"
+
+
 def test_policy_provenance_carries_price_source_and_timestamps(sp):
     decision = decide(sp)
     provenance = decision["provenance"]
@@ -347,6 +357,22 @@ def test_unfilled_ioc_receipt_carries_policy_decision(monkeypatch, sp, tmp_path)
     # The re-quote is the second preview call (make_proposal made the first
     # within cmd_order); no further create was attempted.
     assert orders.create_calls == 1
+
+
+def test_unfilled_with_moved_ask_reprices_through_the_real_wiring(monkeypatch, sp):
+    # End-to-end reprice: the post-expiry re-quote (preview #3) returns 0.59
+    # while the original order price was 0.575 and the approved ceiling 0.60.
+    # This proves current_ask flows out of fresh_outcome_ask into the decision
+    # for a price that is NOT the fixture's original.
+    moved = {"order": {"price": "0.59", "marketMetadata": {"outcome": "Houston Astros"}}}
+    orders = StubOrders([UNFILLED_RESPONSE], preview_results=[PREVIEW, PREVIEW, moved])
+    receipt = run_order(monkeypatch, sp, orders, max_price="0.60")
+    followup = receipt["unfilled_followup"]
+    assert (followup["action"], followup["reason_code"]) == (
+        "reprice", "ask_within_approved_ceiling")
+    assert followup["provenance"]["current_ask"] == "0.59"
+    assert followup["provenance"]["original_outcome_price"] == "0.575"
+    assert followup["provenance"]["approved_max_price"] == "0.60"
 
 
 def test_unfilled_policy_counts_prior_unfilled_receipts_across_invocations(monkeypatch, sp, tmp_path):

@@ -384,9 +384,12 @@ def prior_unfilled_order_count(market_slug: str, outcome: str | None) -> int:
     """Count earlier live-order receipts for this market+outcome that went unfilled.
 
     Read from the receipts on disk so the bound holds across separate CLI
-    invocations — the 06-20 pattern was two orders in two processes. Receipts
-    predating the fill_status field carry no signal and are not counted;
-    unreadable receipt files are skipped rather than guessed at.
+    invocations run from the same working directory — the 06-20 pattern was
+    two orders in two processes. RECEIPT_ROOT is cwd-relative, so a different
+    cwd sees a different receipt store; production cron pins cwd to the
+    deploy-managed runtime checkout, which is what makes the bound hold there.
+    Receipts predating the fill_status field carry no signal and are not
+    counted; unreadable receipt files are skipped rather than guessed at.
     """
     count = 0
     if not RECEIPT_ROOT.is_dir():
@@ -419,6 +422,7 @@ def decide_unfilled_followup(
     first_pitch_utc: dt.datetime | None,
     now_utc: dt.datetime,
     prior_unfilled: int,
+    intent: str | None = None,
 ) -> dict[str, Any]:
     """Deterministic retry/reprice/stop decision for an order that did not fill.
 
@@ -429,6 +433,10 @@ def decide_unfilled_followup(
       1. stop  prior_unfilled >= MAX_UNFILLED_FOLLOWUPS (the follow-up already ran)
       2. stop  first pitch has started (never chase live; unknown first pitch
                cannot fire this rule and is recorded as such)
+      2b. stop non-BUY intent: the price-direction rules below are defined for
+               buy-side asks only, matching make_proposal's ceiling gate which
+               applies only when "BUY" is in the intent — on a sell the same
+               comparison would call an adverse move a retry
       3. stop  no fresh executable quote to decide on
       4. retry current ask at or below the original order price
       5. stop  ask moved up and no approved ceiling exists to bound a chase
@@ -446,6 +454,7 @@ def decide_unfilled_followup(
         "now_utc": now_utc.isoformat().replace("+00:00", "Z"),
         "prior_unfilled": prior_unfilled,
         "max_unfilled_followups": MAX_UNFILLED_FOLLOWUPS,
+        "intent": intent,
     }
 
     def decision(action: str, reason_code: str, reason: str) -> dict[str, Any]:
@@ -473,6 +482,12 @@ def decide_unfilled_followup(
         return decision(
             "stop", "first_pitch_started",
             "first pitch has started; never chase a live game",
+        )
+    if intent is not None and "BUY" not in intent:
+        return decision(
+            "stop", "non_buy_intent",
+            f"price-direction rules are defined for buy-side asks only and {intent} is a sell; "
+            f"refusing to recommend a re-entry whose comparison could call an adverse move a retry",
         )
     if current_ask is None:
         return decision(
@@ -986,6 +1001,7 @@ def cmd_order(args: argparse.Namespace) -> dict[str, Any]:
             prior_unfilled=prior_unfilled_order_count(
                 args.market_slug, proposal.get("preview_outcome")
             ),
+            intent=args.intent,
         )
     elif requested_quantity is not None and filled_quantity < requested_quantity:
         receipt["fill_status"] = "partial"

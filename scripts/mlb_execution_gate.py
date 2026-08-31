@@ -368,8 +368,11 @@ current time immediately after locking and release without ordering if started.
 Use {sdk} to create a capped propose-moneyline proposal receipt first, with exact
 expected outcome, explicit --price, --cash-order-qty, --max-notional, and
 --max-price. Verify preview metadata and liquidity before passing that exact approval
-token to order-moneyline with --execute, --i-accept-live-trading, and
---write-watchlist. Keep the SDK brotli identity/fallback workaround intact.
+token to order-moneyline with --execute, --i-accept-live-trading,
+--write-watchlist, and --first-pitch-utc <candidate first_pitch_utc>. The
+first-pitch timestamp is what lets the executor's unfilled follow-up policy
+refuse to recommend a re-entry once the game has started — omit it and that
+rule can never fire. Keep the SDK brotli identity/fallback workaround intact.
 
 PARTIAL-FILL LADDER (never chase; every share fills at or under max_polymarket_price):
 From the preview, compute the notional fillable at or under max_polymarket_price
