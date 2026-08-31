@@ -916,6 +916,25 @@ class NestedLaneEnumerationTests(unittest.TestCase):
         self.assertEqual(day["writeups"], [])
         self.assertTrue(report["reconciliation"]["ok"], report["reconciliation"])
 
+    def test_evidence_still_applies_to_a_day_whose_only_files_are_another_lane(self):
+        # The precedence is "the corpus can class this day itself", and a lane
+        # this report does not classify cannot do that. Keying the check on the
+        # bare file listing would make a correctly-explained day reconcile as a
+        # violation the moment another sport wrote on the same date.
+        report = self._report(
+            nested=("2026-08-26",),
+            run_evidence=run_evidence(
+                {"2026-08-26": evidence_entry("job_never_fired")}
+            ),
+        )
+        day = {d["date"]: d for d in report["days"]}["2026-08-26"]
+        self.assertEqual(day["roots_with_files"], ["dev"])
+        self.assertEqual(day["roots_with_mlb_lane_files"], [])
+        self.assertTrue(day["run_evidence"]["applied"])
+        self.assertEqual(day["day_class"], "job_never_fired")
+        self.assertEqual(day["day_class_source"], "run_evidence")
+        self.assertTrue(report["reconciliation"]["ok"], report["reconciliation"])
+
     def test_a_nested_only_date_is_not_reported_as_a_primary_root_miss(self):
         # `dates_missing_from_primary` is the DEFECT list. A lane this report
         # does not classify cannot be a miss in it, or the finding fills up
