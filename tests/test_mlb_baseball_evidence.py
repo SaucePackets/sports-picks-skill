@@ -2,6 +2,7 @@ import inspect
 import json
 import sys
 import unittest
+import unittest.mock
 from pathlib import Path
 
 from scripts import mlb_baseball_evidence, mlb_postgame_evidence
@@ -141,6 +142,47 @@ class SharedNumberPredicateTests(unittest.TestCase):
         # The load-bearing identity: the two consumers hold ONE object, so a
         # change to the rule cannot reach one side and miss the other.
         self.assertIs(mlb_baseball_evidence._is_number, mlb_postgame_evidence.is_finite_number)
+
+    def test_each_side_CALLS_the_shared_rule_rather_than_merely_importing_it(self):
+        # The identity assertion above compares module-level NAMES. On the
+        # write side that name IS what the validators call, but on the read
+        # side `usable_expected_ip` could re-derive the rule inline and leave
+        # the import untouched — and the whole suite stays green (Reviewer
+        # proved it on PR #69's first tip: 754 passed, nothing red).
+        #
+        # That is the selected-not-applied shape, and the direction it leaves
+        # open is the one the drift historically ran in: PR #43 changed the
+        # write side and the read side did not follow. So rebind the rule and
+        # require the ANSWER to follow, in both directions — a one-directional
+        # check is satisfied by a function that returns False for any reason.
+        with unittest.mock.patch.object(
+            mlb_postgame_evidence, "is_finite_number", lambda _v: False
+        ):
+            self.assertFalse(mlb_postgame_evidence.usable_expected_ip(6.0))
+        with unittest.mock.patch.object(
+            mlb_postgame_evidence, "is_finite_number", lambda _v: True
+        ):
+            self.assertTrue(mlb_postgame_evidence.usable_expected_ip(float("inf")))
+
+    def test_the_write_gate_CALLS_the_shared_rule_at_its_validation_site(self):
+        # Same property on the write side: `_is_number` being the shared object
+        # says nothing about whether `validate_baseball_evidence` consults it.
+        message = "expected_ip must be a positive number"
+        with unittest.mock.patch.object(
+            mlb_baseball_evidence, "_is_number", lambda _v: False
+        ):
+            self.assertIn(
+                message, validate_baseball_evidence(valid_baseball_evidence())
+            )
+        with unittest.mock.patch.object(
+            mlb_baseball_evidence, "_is_number", lambda _v: True
+        ):
+            self.assertNotIn(
+                message,
+                validate_baseball_evidence(
+                    valid_baseball_evidence(expected_ip=float("inf"))
+                ),
+            )
 
     def test_the_dual_import_convention_duplicates_the_module_not_the_rule(self):
         # Named because it is a real hazard and it surprised me here: this repo

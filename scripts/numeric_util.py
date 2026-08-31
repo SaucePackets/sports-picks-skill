@@ -5,13 +5,24 @@ Canonical copy: ``scripts/numeric_util.py`` in the sports-picks-skill repo.
 A byte-identical copy ships next to deployed skill scripts (for same-directory
 imports); keep every copy in sync with the canonical file.
 
-Two modules validate recorded numbers against the same rule — the write side
-(``mlb_baseball_evidence`` at the execution gate) and the read side
-(``mlb_postgame_evidence`` at settlement). They had two copies of it, and two
-copies of one computation agree only until one of them changes: the write side
-gained ``math.isfinite`` in PR #43 and the grader did not, which is the drift
-PR #68 was fixing. This module is the single implementation both import, and
-neither may re-derive it.
+Two modules import it today — the write side (``mlb_baseball_evidence`` at the
+execution gate) and the read side (``mlb_postgame_evidence`` at settlement).
+They had two copies of one rule, and two copies of one computation agree only
+until one of them changes: the write side gained ``math.isfinite`` in PR #43
+and the grader did not, which is the drift PR #68 was fixing. Neither may
+re-derive it; the tests pin that each side CALLS this function, not merely that
+it imports it.
+
+**Two of five, not two of two.** The same rule is still written out separately
+in ``mlb_probability_model.py`` (a verbatim copy of the body deleted from
+``mlb_baseball_evidence``, and non-total in exactly the same way — a
+``10 ** 400`` delta makes ``probability_component_errors`` raise instead of
+returning its error list), ``vig_review_gate_common.py``, and
+``mlb_runtime_policy.py``. ``mlb_lineup_watchlist.py`` has a fourth copy that
+is a genuinely DIFFERENT rule wearing the same name: no finiteness clause at
+all, so it accepts ``inf``. Those are out of the slice that created this
+module and are named here so the next reader does not take this file as
+evidence the drift is closed everywhere (Reviewer, PR #69).
 
 Deliberately dependency-free: the write side is on the execution path and the
 read-only analysis layer pins its import closure OFF that path, so a shared
