@@ -1,0 +1,630 @@
+{
+  "aggregates": {
+    "candidate_stops": {
+      "approved_not_executed": 0,
+      "executed": 0,
+      "review_gate_rejected": 2,
+      "unknown": 0
+    },
+    "day_classes": {
+      "candidates_executed": 0,
+      "candidates_rejected": 1,
+      "no_slate_artifact": 5,
+      "slate_empty": 10,
+      "watchlist_only": 5
+    },
+    "total_candidates": 2,
+    "total_executed": 0,
+    "total_watchlist_entries": 12
+  },
+  "data_gaps": [
+    {
+      "dates": [
+        "2026-08-12",
+        "2026-08-13",
+        "2026-08-14",
+        "2026-08-19",
+        "2026-08-20",
+        "2026-08-31"
+      ],
+      "detail": "no denominator for these days: the scan's output cannot be read against the slate that was actually available",
+      "kind": "no_cached_mlb_schedule"
+    },
+    {
+      "dates": [
+        "2026-08-12",
+        "2026-08-13",
+        "2026-08-14",
+        "2026-08-19",
+        "2026-08-20"
+      ],
+      "detail": "no schedule JSON and no writeup. The corpus cannot distinguish 'the job did not run' from 'the job ran and wrote nothing'; that needs cron/journal state, which is outside this report's inputs",
+      "kind": "no_slate_artifact"
+    },
+    {
+      "detail": "status is outside the validator's accepted set, so no transition can act on the entry again",
+      "entries": [
+        {
+          "date": "2026-08-11",
+          "id": "LW-20260811-MIL-SD",
+          "status": "recheck_complete"
+        },
+        {
+          "date": "2026-08-11",
+          "id": "LW-20260811-HOU-SF",
+          "status": "recheck_complete"
+        }
+      ],
+      "kind": "invalid_watchlist_status"
+    }
+  ],
+  "days": [
+    {
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 2
+      },
+      "date": "2026-08-11",
+      "day_class": "watchlist_only",
+      "games_scheduled": 15,
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "slate_json_corrupt": null,
+      "slate_json_present": true,
+      "watchlist": [
+        {
+          "game": "Milwaukee Brewers at San Diego Padres",
+          "id": "LW-20260811-MIL-SD",
+          "status": "recheck_complete",
+          "status_is_valid": false,
+          "validator_errors": [
+            "blocked_only_by must be a non-empty list drawn only from ['lineups_unconfirmed', 'starter_unannounced'] with no duplicates",
+            "status must be one of ['expired', 'filled_manual', 'passed', 'pending_lineup_recheck', 'promoted']"
+          ]
+        },
+        {
+          "game": "Houston Astros at San Francisco Giants",
+          "id": "LW-20260811-HOU-SF",
+          "status": "recheck_complete",
+          "status_is_valid": false,
+          "validator_errors": [
+            "blocked_only_by must be a non-empty list drawn only from ['lineups_unconfirmed', 'starter_unannounced'] with no duplicates",
+            "status must be one of ['expired', 'filled_manual', 'passed', 'pending_lineup_recheck', 'promoted']"
+          ]
+        }
+      ],
+      "writeups": [
+        "2026-08-11.md"
+      ]
+    },
+    {
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 0
+      },
+      "date": "2026-08-12",
+      "day_class": "no_slate_artifact",
+      "games_scheduled": null,
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "slate_json_corrupt": null,
+      "slate_json_present": false,
+      "watchlist": [],
+      "writeups": []
+    },
+    {
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 0
+      },
+      "date": "2026-08-13",
+      "day_class": "no_slate_artifact",
+      "games_scheduled": null,
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "slate_json_corrupt": null,
+      "slate_json_present": false,
+      "watchlist": [],
+      "writeups": []
+    },
+    {
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 0
+      },
+      "date": "2026-08-14",
+      "day_class": "no_slate_artifact",
+      "games_scheduled": null,
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "slate_json_corrupt": null,
+      "slate_json_present": false,
+      "watchlist": [],
+      "writeups": []
+    },
+    {
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 0
+      },
+      "date": "2026-08-15",
+      "day_class": "slate_empty",
+      "games_scheduled": 15,
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "slate_json_corrupt": null,
+      "slate_json_present": true,
+      "watchlist": [],
+      "writeups": [
+        "2026-08-15.md"
+      ]
+    },
+    {
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 3
+      },
+      "date": "2026-08-16",
+      "day_class": "watchlist_only",
+      "games_scheduled": 15,
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "slate_json_corrupt": null,
+      "slate_json_present": true,
+      "watchlist": [
+        {
+          "game": "New York Yankees at Toronto Blue Jays",
+          "id": "LW-20260816-NYY-TOR",
+          "status": "pending_lineup_recheck",
+          "status_is_valid": true,
+          "validator_errors": []
+        },
+        {
+          "game": "San Diego Padres at Cleveland Guardians",
+          "id": "LW-20260816-SD-CLE",
+          "status": "pending_lineup_recheck",
+          "status_is_valid": true,
+          "validator_errors": []
+        },
+        {
+          "game": "Washington Nationals at New York Mets",
+          "id": "LW-20260816-WSH-NYM",
+          "status": "pending_lineup_recheck",
+          "status_is_valid": true,
+          "validator_errors": []
+        }
+      ],
+      "writeups": [
+        "2026-08-16.md"
+      ]
+    },
+    {
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 0
+      },
+      "date": "2026-08-17",
+      "day_class": "slate_empty",
+      "games_scheduled": 11,
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "slate_json_corrupt": null,
+      "slate_json_present": true,
+      "watchlist": [],
+      "writeups": [
+        "2026-08-17.md"
+      ]
+    },
+    {
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 2
+      },
+      "date": "2026-08-18",
+      "day_class": "watchlist_only",
+      "games_scheduled": 15,
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "slate_json_corrupt": null,
+      "slate_json_present": true,
+      "watchlist": [
+        {
+          "game": "Miami Marlins at Philadelphia Phillies",
+          "id": "LW-20260818-MIA-PHI",
+          "status": "pending_lineup_recheck",
+          "status_is_valid": true,
+          "validator_errors": []
+        },
+        {
+          "game": "San Diego Padres at New York Mets",
+          "id": "LW-20260818-SD-NYM",
+          "status": "pending_lineup_recheck",
+          "status_is_valid": true,
+          "validator_errors": []
+        }
+      ],
+      "writeups": [
+        "2026-08-18.md"
+      ]
+    },
+    {
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 0
+      },
+      "date": "2026-08-19",
+      "day_class": "no_slate_artifact",
+      "games_scheduled": null,
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "slate_json_corrupt": null,
+      "slate_json_present": false,
+      "watchlist": [],
+      "writeups": []
+    },
+    {
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 0
+      },
+      "date": "2026-08-20",
+      "day_class": "no_slate_artifact",
+      "games_scheduled": null,
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "slate_json_corrupt": null,
+      "slate_json_present": false,
+      "watchlist": [],
+      "writeups": []
+    },
+    {
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 1
+      },
+      "date": "2026-08-21",
+      "day_class": "watchlist_only",
+      "games_scheduled": 15,
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "slate_json_corrupt": null,
+      "slate_json_present": true,
+      "watchlist": [
+        {
+          "game": "Los Angeles Angels at Texas Rangers",
+          "id": "WL-20260821-LAA-TEX-001",
+          "status": "passed",
+          "status_is_valid": true,
+          "validator_errors": []
+        }
+      ],
+      "writeups": [
+        "2026-08-21.md"
+      ]
+    },
+    {
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 0
+      },
+      "date": "2026-08-22",
+      "day_class": "slate_empty",
+      "games_scheduled": 15,
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "slate_json_corrupt": null,
+      "slate_json_present": true,
+      "watchlist": [],
+      "writeups": [
+        "2026-08-22.md"
+      ]
+    },
+    {
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 0
+      },
+      "date": "2026-08-23",
+      "day_class": "slate_empty",
+      "games_scheduled": 15,
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "slate_json_corrupt": null,
+      "slate_json_present": true,
+      "watchlist": [],
+      "writeups": [
+        "2026-08-23-evening.md",
+        "2026-08-23.md"
+      ]
+    },
+    {
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 1
+      },
+      "date": "2026-08-24",
+      "day_class": "watchlist_only",
+      "games_scheduled": 10,
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "slate_json_corrupt": null,
+      "slate_json_present": true,
+      "watchlist": [
+        {
+          "game": "Philadelphia Phillies at Seattle Mariners",
+          "id": "LW20260824-PHI-001",
+          "status": "passed",
+          "status_is_valid": true,
+          "validator_errors": []
+        }
+      ],
+      "writeups": [
+        "2026-08-24.md"
+      ]
+    },
+    {
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 0
+      },
+      "date": "2026-08-25",
+      "day_class": "slate_empty",
+      "games_scheduled": 15,
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "slate_json_corrupt": null,
+      "slate_json_present": true,
+      "watchlist": [],
+      "writeups": [
+        "2026-08-25-evening.md",
+        "2026-08-25.md"
+      ]
+    },
+    {
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 0
+      },
+      "date": "2026-08-26",
+      "day_class": "slate_empty",
+      "games_scheduled": 15,
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "slate_json_corrupt": null,
+      "slate_json_present": true,
+      "watchlist": [],
+      "writeups": [
+        "2026-08-26-evening.md",
+        "2026-08-26.md"
+      ]
+    },
+    {
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 0
+      },
+      "date": "2026-08-27",
+      "day_class": "slate_empty",
+      "games_scheduled": 7,
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "slate_json_corrupt": null,
+      "slate_json_present": true,
+      "watchlist": [],
+      "writeups": [
+        "2026-08-27-evening.md",
+        "2026-08-27.md"
+      ]
+    },
+    {
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 0
+      },
+      "date": "2026-08-28",
+      "day_class": "slate_empty",
+      "games_scheduled": 15,
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "slate_json_corrupt": null,
+      "slate_json_present": true,
+      "watchlist": [],
+      "writeups": [
+        "2026-08-28-evening.md",
+        "2026-08-28.md"
+      ]
+    },
+    {
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 0
+      },
+      "date": "2026-08-29",
+      "day_class": "slate_empty",
+      "games_scheduled": 17,
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "slate_json_corrupt": null,
+      "slate_json_present": true,
+      "watchlist": [],
+      "writeups": [
+        "2026-08-29-evening.md",
+        "2026-08-29.md"
+      ]
+    },
+    {
+      "candidates": [
+        {
+          "event_id": "401816733",
+          "executed": false,
+          "execution_mode": "standing_authorized",
+          "game": "Colorado Rockies at Atlanta Braves",
+          "net_edge": 0.055,
+          "outcome_known": true,
+          "outcome_score": "2-3",
+          "outcome_side_won": true,
+          "outcome_winner": "Atlanta Braves",
+          "polymarket_ask": 0.685,
+          "side": "Atlanta Braves",
+          "stop": "review_gate_rejected",
+          "stop_reason": "review gate rejected the candidate: Rejected. Refreshed: Mahle 4.41 ERA/4.16 FIP, 14.1% K-BB, 118.1 IP/22 GS; Adams 2.25 ERA/6.15 FIP, 4.0 IP/1 GS; ATL 6-1/+5 RD, COL 2-5/-10 RD; both lineups confirmed; Truist run factor 101; current Polymarket page shows ATL 0.68. Model-gated fallback only: dk_fair_prob 0.6898, raw/conservative 0.6898, haircut 0.000; refreshed edge 0.0098, below the required 0.05 floor. No bet; exposure $0.",
+          "trace_id": "2026-08-30-cand-00",
+          "vig_approved": false,
+          "vig_review_needed": true
+        },
+        {
+          "event_id": "401816734",
+          "executed": false,
+          "execution_mode": "standing_authorized",
+          "game": "Houston Astros at New York Mets",
+          "net_edge": 0.04,
+          "outcome_known": true,
+          "outcome_score": "6-3",
+          "outcome_side_won": false,
+          "outcome_winner": "Houston Astros",
+          "polymarket_ask": 0.535,
+          "side": "New York Mets",
+          "stop": "review_gate_rejected",
+          "stop_reason": "review gate rejected the candidate",
+          "trace_id": "2026-08-30-cand-01",
+          "vig_approved": false,
+          "vig_review_needed": true
+        }
+      ],
+      "counts": {
+        "candidates": 2,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 3
+      },
+      "date": "2026-08-30",
+      "day_class": "candidates_rejected",
+      "games_scheduled": 14,
+      "outcome_refetch_error": null,
+      "outcome_source": "live-refetch",
+      "slate_json_corrupt": null,
+      "slate_json_present": true,
+      "watchlist": [
+        {
+          "game": "Philadelphia Phillies at Los Angeles Angels",
+          "id": "LW-20260830-PHI-001",
+          "status": "passed",
+          "status_is_valid": true,
+          "validator_errors": []
+        },
+        {
+          "game": "Pittsburgh Pirates at St. Louis Cardinals",
+          "id": "LW-20260830-PIT-001",
+          "status": "expired",
+          "status_is_valid": true,
+          "validator_errors": []
+        },
+        {
+          "game": "Houston Astros at New York Mets",
+          "id": "LW-20260830-NYM-001",
+          "status": "passed",
+          "status_is_valid": true,
+          "validator_errors": []
+        }
+      ],
+      "writeups": [
+        "2026-08-30-evening.md",
+        "2026-08-30.md"
+      ]
+    },
+    {
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 0
+      },
+      "date": "2026-08-31",
+      "day_class": "slate_empty",
+      "games_scheduled": null,
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "slate_json_corrupt": null,
+      "slate_json_present": true,
+      "watchlist": [],
+      "writeups": [
+        "2026-08-31.md"
+      ]
+    }
+  ],
+  "reconciliation": {
+    "checks": [
+      {
+        "actual": 21,
+        "check": "every day is classified exactly once",
+        "expected": 21,
+        "ok": true
+      },
+      {
+        "actual": 2,
+        "check": "every candidate has exactly one stop",
+        "expected": 2,
+        "ok": true
+      },
+      {
+        "actual": 1,
+        "check": "days with candidates are classed rejected or executed",
+        "expected": 1,
+        "ok": true
+      }
+    ],
+    "ok": true
+  },
+  "schema": "vig-mlb-drought-diagnostic-v1",
+  "sources": {
+    "execute_dir": "~/.buzz/.scratch/claude-freshcorpus-20260831/execute",
+    "ledger": "~/.buzz/.scratch/claude-freshcorpus-20260831/picks.json",
+    "picks_dir": "~/.buzz/.scratch/claude-freshcorpus-20260831",
+    "repo_revision": "9fcb465f82acc2ca6a6bc91f8ca9991e2b341bd7",
+    "results_dir": "~/.buzz/.scratch/claude-freshcorpus-20260831/audit-results",
+    "runtime_revision": "03d201c86cea3f5643b3fdee59b9df1be35551a5",
+    "slate_dir": "~/.buzz/.scratch/claude-freshcorpus-20260831/slate"
+  },
+  "window": {
+    "days": 21,
+    "since": "2026-08-11",
+    "until": "2026-08-31"
+  }
+}
