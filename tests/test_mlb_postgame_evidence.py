@@ -167,7 +167,20 @@ class NonFiniteExpectedIpTests(unittest.TestCase):
     returning an error list it could report.
     """
 
-    NON_FINITE = (("nan", float("nan")), ("inf", float("inf")), ("-inf", float("-inf")))
+    # A 401-digit integer: `json.loads` parses it straight off a card, and
+    # `math.isfinite` raises `OverflowError` converting it to a float. It is
+    # grouped with the non-finite values because it fails for the same reason
+    # at the point of use — no float arithmetic downstream can accept it —
+    # even though a Python int is never actually infinite.
+    HUGE_INT = 10 ** 400
+
+    NON_FINITE = (
+        ("nan", float("nan")),
+        ("inf", float("inf")),
+        ("-inf", float("-inf")),
+        ("huge_int", HUGE_INT),
+        ("negative_huge_int", -(10 ** 400)),
+    )
 
     def setUp(self):
         self.fixture = load_fixture("sd_arizona_starter_thesis_reversal.json")
@@ -228,6 +241,44 @@ class NonFiniteExpectedIpTests(unittest.TestCase):
             self.fixture["team"],
         )
         self.assertEqual(grades["starter_quality"]["grade"], "unknown")
+
+    def test_the_predicate_is_total_and_the_docstring_is_true(self):
+        # The docstring promises "a value the grader cannot use is unknown; it
+        # is never an exception". That is only true if the predicate itself is
+        # total, and `math.isfinite` is not total on ints. Sweep the shapes a
+        # card can carry, including the ones that used to raise.
+        cases = [
+            None, True, False, "6.0", "", [6.0], {"ip": 6}, object(),
+            0, -1, 6, 6.0, 0.1, -0.0,
+            float("nan"), float("inf"), float("-inf"),
+            self.HUGE_INT, -self.HUGE_INT, 10 ** 308, 10 ** 309,
+        ]
+        for value in cases:
+            with self.subTest(value=repr(value)[:32]):
+                self.assertIsInstance(usable_expected_ip(value), bool)
+
+    def test_the_huge_integer_reaches_both_settlement_paths_without_raising(self):
+        # At the base of PR #68 this raised out of `round(inf * 3)`; after it,
+        # `usable_expected_ip` itself raised on this input. Both entry points
+        # must now report rather than raise.
+        evidence = self._evidence_with(self.HUGE_INT)
+        grades = auto_pillar_grades(evidence, self.evidence, self.fixture["team"])
+        self.assertEqual(grades["starter_quality"]["grade"], "unknown")
+        errors = validate_process_grade(
+            grade_obj(self.fixture),
+            result=self.fixture["result"],
+            baseball_evidence=evidence,
+            postgame_evidence=self.evidence,
+            team=self.fixture["team"],
+        )
+        self.assertIsInstance(errors, list)
+
+    def test_the_huge_integer_arrives_by_json_not_by_hand(self):
+        # Reachability again: an arbitrarily long integer literal is ordinary
+        # JSON, so this is a card shape, not a synthetic Python value.
+        loaded = json.loads('{"expected_ip": %d}' % self.HUGE_INT)
+        self.assertIsInstance(loaded["expected_ip"], int)
+        self.assertFalse(usable_expected_ip(loaded["expected_ip"]))
 
     def test_a_finite_expected_ip_grades_exactly_as_before(self):
         # The regression rail: finiteness must not move any finite verdict.

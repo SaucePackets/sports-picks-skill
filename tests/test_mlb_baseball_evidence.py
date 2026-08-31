@@ -1,7 +1,10 @@
+import inspect
 import json
+import sys
 import unittest
 from pathlib import Path
 
+from scripts import mlb_baseball_evidence, mlb_postgame_evidence
 from scripts.mlb_baseball_evidence import (
     baseball_evidence_errors,
     execution_checks_errors,
@@ -10,6 +13,8 @@ from scripts.mlb_baseball_evidence import (
     validate_baseball_evidence,
     validate_execution_checks,
 )
+from scripts.mlb_postgame_evidence import usable_expected_ip
+from scripts.numeric_util import is_finite_number
 
 FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures" / "baseball_evidence"
 
@@ -117,6 +122,88 @@ class BaseballEvidenceTests(unittest.TestCase):
         }
         self.assertEqual(baseball_evidence_errors(candidate), [])
         self.assertEqual(execution_checks_errors(candidate), [])
+
+
+class SharedNumberPredicateTests(unittest.TestCase):
+    """The write gate and the settlement grader share ONE number rule.
+
+    They drifted once: this module gained `math.isfinite` in PR #43 and
+    `mlb_postgame_evidence` did not, which is the whole reason a non-finite
+    `expected_ip` could crash a settlement grade while the gate that wrote the
+    card was correct. Equality of behaviour is not the pin — identity is,
+    because a re-derived copy passes a behaviour test on the day it is written
+    and fails silently on the day one side moves.
+    """
+
+    HUGE_INT = 10 ** 400
+
+    def test_both_sides_are_the_same_function_object(self):
+        # The load-bearing identity: the two consumers hold ONE object, so a
+        # change to the rule cannot reach one side and miss the other.
+        self.assertIs(mlb_baseball_evidence._is_number, mlb_postgame_evidence.is_finite_number)
+
+    def test_the_dual_import_convention_duplicates_the_module_not_the_rule(self):
+        # Named because it is a real hazard and it surprised me here: this repo
+        # imports the same file two ways — as a package member (`scripts.x`,
+        # from the tests) and as a bare sibling (`x`, from the runtime profile
+        # copies) — and Python caches those as SEPARATE module objects. So
+        # `scripts.numeric_util.is_finite_number is numeric_util.
+        # is_finite_number` is FALSE while both are the same source.
+        #
+        # That is why the assertion above compares the two CONSUMERS rather
+        # than either of them against a directly-imported copy: identity
+        # against the package form would fail for a reason that says nothing
+        # about drift, and "fix" it by weakening to equality.
+        self.assertIsNot(is_finite_number, mlb_baseball_evidence._is_number)
+        self.assertEqual(
+            inspect.getsourcefile(is_finite_number),
+            inspect.getsourcefile(mlb_baseball_evidence._is_number),
+        )
+        self.assertEqual(
+            {"numeric_util", "scripts.numeric_util"} & set(sys.modules),
+            {"numeric_util", "scripts.numeric_util"},
+        )
+
+    def test_the_write_gate_rejects_every_unusable_number(self):
+        for label, value in (
+            ("nan", float("nan")), ("inf", float("inf")),
+            ("-inf", float("-inf")), ("huge_int", HUGE := 10 ** 400),
+            ("zero", 0), ("negative", -1), ("bool", True), ("string", "6.0"),
+        ):
+            with self.subTest(value=label):
+                evidence = valid_baseball_evidence(expected_ip=value)
+                errors = validate_baseball_evidence(evidence)
+                self.assertIn("expected_ip must be a positive number", errors)
+        self.assertEqual(HUGE, self.HUGE_INT)
+
+    def test_the_write_gate_reports_the_huge_integer_instead_of_raising(self):
+        # `_is_number` called `math.isfinite` directly, so this input raised
+        # `OverflowError` out of the execution gate's own validator.
+        evidence = valid_baseball_evidence(expected_ip=self.HUGE_INT)
+        self.assertIsInstance(baseball_evidence_errors(
+            {"baseball_evidence": evidence,
+             "execution_checks": valid_execution_checks()}
+        ), list)
+
+    def test_a_valid_card_is_still_valid(self):
+        # The regression rail on the write side: sharing the predicate must
+        # not reject anything the gate accepted before.
+        self.assertEqual(validate_baseball_evidence(valid_baseball_evidence()), [])
+
+    def test_the_two_sides_agree_on_every_shape_a_card_can_carry(self):
+        # Behaviour agreement is the consequence of the identity above, and
+        # asserting it separately is what makes a future divergence read as a
+        # contradiction rather than as two independent test failures.
+        for value in (6.0, 6, 0.1, 0, -1, True, None, "6.0", [6],
+                      float("nan"), float("inf"), float("-inf"),
+                      self.HUGE_INT, -self.HUGE_INT):
+            with self.subTest(value=repr(value)[:32]):
+                write_ok = "expected_ip must be a positive number" not in (
+                    validate_baseball_evidence(
+                        valid_baseball_evidence(expected_ip=value)
+                    )
+                )
+                self.assertEqual(write_ok, usable_expected_ip(value))
 
 
 if __name__ == "__main__":

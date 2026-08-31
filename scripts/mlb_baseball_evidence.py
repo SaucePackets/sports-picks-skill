@@ -10,8 +10,20 @@ execution easier; execution checks are never allowed to increase probability.
 
 from __future__ import annotations
 
-import math
+import sys
+from pathlib import Path
 from typing import Any
+
+# This module is imported both as a package member (`scripts.mlb_baseball_
+# evidence`, from the tests) and as a bare sibling (`from mlb_baseball_evidence
+# import ...`, from the runtime profile copies). The sibling import below has
+# to resolve under both, which is the same bootstrap every other sibling-
+# importing module here uses.
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from numeric_util import is_finite_number  # noqa: E402
 
 
 STARTER_ROLES = frozenset({"starter", "opener", "bulk", "piggyback", "unknown"})
@@ -51,8 +63,13 @@ REQUIRED_EXECUTION_CHECK_FIELDS = (
 )
 
 
-def _is_number(value: Any) -> bool:
-    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+# The write side's number rule IS the read side's, by identity rather than by
+# a matching line of code. The two drifted once already — this module gained
+# `math.isfinite` in PR #43 and the settlement grader did not — and the pin in
+# the tests asserts `is`, so a re-derived copy fails rather than silently
+# diverging again. Kept under the original private name so no call site here
+# changes: this is a write-path module, and the narrow diff is the point.
+_is_number = is_finite_number
 
 
 def _is_non_negative_int(value: Any) -> bool:
