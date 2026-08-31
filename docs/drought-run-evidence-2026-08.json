@@ -108,18 +108,26 @@
       "basis": "The job fired on schedule, ran for nine minutes, exhausted its tool-iteration budget, and delivered its analysis 0.19s after the turn ended. The delivered report says in its own words that it never reached the write. Nothing about the market or the slate is implicated.",
       "receipts": [
         {
+          "kind": "verbatim",
+          "roles": ["firing_signature"],
           "source": "~/.hermes/profiles/vig/logs/agent.log.3",
           "quote": "2026-08-12 15:30:57,475 INFO cron.scheduler: Running job 'Vig — MLB Daily Slate (10:30am CT)' (ID: c9452052719c)"
         },
         {
+          "kind": "verbatim",
+          "roles": ["turn_budget_exhausted"],
           "source": "~/.hermes/profiles/vig/logs/agent.log.3",
           "quote": "2026-08-12 15:39:55,705 INFO [cron_c9452052719c_20260812_103057] agent.conversation_loop: Turn ended: reason=max_iterations_reached(30/30) model=deepseek-v4-flash api_calls=30/30 budget=30/30 tool_turns=30 last_msg_role=assistant response_len=8365 session=cron_c9452052719c_20260812_103057"
         },
         {
+          "kind": "verbatim",
+          "roles": ["delivery"],
           "source": "~/.hermes/profiles/vig/logs/agent.log.3",
           "quote": "2026-08-12 15:39:55,895 INFO cron.scheduler: Job 'c9452052719c': delivered to buzz:72db9b5f-3e70-4add-978d-5caaeab48a82 via live adapter"
         },
         {
+          "kind": "verbatim",
+          "roles": ["run_self_report"],
           "source": "buzz message 7b589043d76dd10c, delivered 2026-08-12T15:39:55Z",
           "quote": "One honesty flag: this cron hit its tool-iteration cap before I could persist the schedule JSON / slate file to `.picks/`, so this report is the record; nothing was executed and nothing is pending execution, so the operational risk from the missing artifacts is nil"
         }
@@ -130,18 +138,26 @@
       "basis": "Same shape as 08-12: fired on schedule, hit the 30/30 iteration cap, delivered 0.4s later, and the delivered report names the unwritten files and the skipped validator explicitly.",
       "receipts": [
         {
+          "kind": "verbatim",
+          "roles": ["firing_signature"],
           "source": "~/.hermes/profiles/vig/logs/agent.log.3",
           "quote": "2026-08-13 15:30:17,991 INFO cron.scheduler: Running job 'Vig — MLB Daily Slate (10:30am CT)' (ID: c9452052719c)"
         },
         {
+          "kind": "verbatim",
+          "roles": ["turn_budget_exhausted"],
           "source": "~/.hermes/profiles/vig/logs/agent.log.3",
           "quote": "2026-08-13 15:44:06,551 INFO [20260813_153938_fc3ecb] agent.conversation_loop: Turn ended: reason=max_iterations_reached(30/30) model=deepseek-v4-pro api_calls=30/30 budget=30/30 tool_turns=13 last_msg_role=assistant response_len=3117 session=20260813_153938_fc3ecb"
         },
         {
+          "kind": "verbatim",
+          "roles": ["delivery"],
           "source": "~/.hermes/profiles/vig/logs/agent.log.3",
           "quote": "2026-08-13 15:44:06,958 INFO cron.scheduler: Job 'c9452052719c': delivered to buzz:72db9b5f-3e70-4add-978d-5caaeab48a82 via live adapter"
         },
         {
+          "kind": "verbatim",
+          "roles": ["run_self_report"],
           "source": "buzz message d08a6a73f89fe2b9, delivered 2026-08-13T15:44:06Z",
           "quote": "the full slate scan and per-game analysis are complete, but the tool loop hit its iteration cap before the `schedule.json` write and `mlb_lineup_watchlist.py --validate` step could run. Files for today's slate are **not** written to disk; validator was not run."
         }
@@ -152,18 +168,26 @@
       "basis": "Third instance of the same failure on three consecutive days. Fired, capped at 30/30, delivered 0.39s later, and the report names both artifact paths it could not persist.",
       "receipts": [
         {
+          "kind": "verbatim",
+          "roles": ["firing_signature"],
           "source": "~/.hermes/profiles/vig/logs/agent.log.3",
           "quote": "2026-08-14 15:30:41,308 INFO cron.scheduler: Running job 'Vig — MLB Daily Slate (10:30am CT)' (ID: c9452052719c)"
         },
         {
+          "kind": "verbatim",
+          "roles": ["turn_budget_exhausted"],
           "source": "~/.hermes/profiles/vig/logs/agent.log.3",
           "quote": "2026-08-14 15:46:50,129 INFO [20260814_153938_b42762] agent.conversation_loop: Turn ended: reason=max_iterations_reached(30/30) model=deepseek-v4-pro api_calls=30/30 budget=30/30 tool_turns=15 last_msg_role=assistant response_len=6431 session=20260814_153938_b42762"
         },
         {
+          "kind": "verbatim",
+          "roles": ["delivery"],
           "source": "~/.hermes/profiles/vig/logs/agent.log.3",
           "quote": "2026-08-14 15:46:50,519 INFO cron.scheduler: Job 'c9452052719c': delivered to buzz:72db9b5f-3e70-4add-978d-5caaeab48a82 via live adapter"
         },
         {
+          "kind": "verbatim",
+          "roles": ["run_self_report"],
           "source": "buzz message 0c724662dce8ae3c, delivered 2026-08-14T15:46:50Z",
           "quote": "this run reached its execution budget before I could persist `.picks/slate/2026-08-14.md`, `.picks/execute/2026-08-14-schedule.json`, and run the `mlb_lineup_watchlist.py --validate` step. The read below is complete and honest, but the slate artifacts are **NOT saved and NOT validated this cycle**"
         }
@@ -174,18 +198,26 @@
       "basis": "An ABSENCE argument, so it is stated with its denominator. The claim is that no vig cron job of any kind started on 2026-08-19. Three things make that absence meaningful rather than a gap in the record: the log is continuous across the day (the rotation boundaries are 08-12 17:05 and 08-20 02:16, both outside it); the logger was demonstrably writing throughout, at 1727 mem_trim heartbeat lines — MORE than 08-18's 1698 and 08-20's 1726; and the neighbouring dates both show the firing signature, 2 running_job lines each. An independent source outside the host agrees: the delivery channel has zero messages on 08-19 and at least one on every other date in the window. WHY it did not fire is NOT answerable from any of these sources and is left open.",
       "receipts": [
         {
+          "kind": "derived",
+          "roles": ["firing_signature_absence", "neighbour_comparison"],
           "source": "~/.hermes/profiles/vig/logs/agent.log.2",
           "quote": "grep -c \"^2026-08-19 .*Running job\" over agent.log{,.1,.2,.3} => 0; the same grep for 2026-08-18 => 2 and for 2026-08-20 => 2"
         },
         {
+          "kind": "derived",
+          "roles": ["liveness_control"],
           "source": "~/.hermes/profiles/vig/logs/agent.log.2",
           "quote": "grep -c \"^2026-08-19 .*mem_trim\" over agent.log{,.1,.2,.3} => 1727 (2026-08-18 => 1698, 2026-08-20 => 1726): the profile logger wrote continuously through the day with no job line in it"
         },
         {
+          "kind": "verbatim",
+          "roles": ["log_continuity"],
           "source": "~/.hermes/profiles/vig/logs/agent.log.2",
           "quote": "2026-08-20 02:16:55,517 INFO cron.scheduler: Job 'Vig — MLB Standing-Authorized Execution Poller': script produced no output, skipping AI"
         },
         {
+          "kind": "derived",
+          "roles": ["independent_source"],
           "source": "buzz channel 72db9b5f-3e70-4add-978d-5caaeab48a82",
           "quote": "150 messages 2026-08-11..2026-08-31; per-date counts show 2026-08-19 = 0 and every other date >= 1. Independent of the VPS host."
         }
