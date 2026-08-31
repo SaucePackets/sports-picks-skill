@@ -108,11 +108,45 @@ ACCEPTING_DISPOSITIONS = frozenset({"candidate", "lineup_watchlist"})
 
 # Per-side probability fields. Each is either a two-sided object of usable
 # probabilities or explicitly unavailable with a reason.
-SIDE_PROBABILITY_FIELDS = ("dk_fair_prob", "polymarket_ask", "conservative_probability")
+SIDE_PROBABILITY_FIELDS = (
+    "dk_fair_prob",
+    "polymarket_ask",
+    # The handicap BEFORE the uncertainty buffer. Recorded on every game, not
+    # just the ones we bet, because ``picks.json`` — the only source the model
+    # evaluator has ever had — contains exclusively games the model liked
+    # enough to clear a five-point floor. Calibration measured on that set is
+    # calibration measured where the model was most confident. The reads are
+    # the unbiased population.
+    "raw_probability",
+    "conservative_probability",
+)
 # Edges are signed and may legitimately be negative, so they are checked for
 # usability but not for the 0 < x < 1 range.
 SIDE_SIGNED_FIELDS = ("net_edge",)
 SIDE_FIELDS = SIDE_PROBABILITY_FIELDS + SIDE_SIGNED_FIELDS
+
+# One non-negative number for the whole read, not a per-side object: the
+# uncertainty haircut is a buffer on the handicap, and the market-only fallback
+# charges ZERO. Zero is the single most common legal value, which is why this
+# field can never be checked with the probability rule — ``0 < x < 1`` would
+# reject the fallback's own contract.
+SCALAR_NON_NEGATIVE_FIELDS = ("uncertainty_haircut",)
+
+# Which model produced ``raw_probability``. The deployment gate filters rows by
+# this exact string, so a probability recorded without it cannot be evaluated,
+# only counted.
+READ_STRING_FIELDS = ("model_version",)
+
+# Everything a read may declare unavailable-with-a-reason. Absence still has to
+# be explained; that requirement is the module's whole point.
+EXPLAINABLE_FIELDS = SIDE_FIELDS + SCALAR_NON_NEGATIVE_FIELDS + READ_STRING_FIELDS
+
+# ``conservative_probability == raw_probability - uncertainty_haircut`` is the
+# contract in mlb_probability_model, applied here per side. The tolerance is
+# defined independently rather than imported: a recording check must not pull
+# the execution-path model module into its import closure. A test pins the two
+# constants equal so the pair cannot drift apart in silence.
+COHERENCE_TOLERANCE = 1e-3
 
 IDENTITY_STRING_FIELDS = ("event_id", "away", "home")
 
@@ -156,7 +190,7 @@ def _side_field_errors(label: str, entry: dict[str, Any]) -> list[str]:
         return [f"{label}.unavailable must be an object mapping field name to reason"]
 
     for field in unavailable:
-        if field not in SIDE_FIELDS:
+        if field not in EXPLAINABLE_FIELDS:
             errors.append(f"{label}.unavailable names unknown field {field!r}")
         reason = unavailable[field]
         if not isinstance(reason, str) or not reason.strip():
@@ -193,6 +227,83 @@ def _side_field_errors(label: str, entry: dict[str, Any]) -> list[str]:
                     )
             elif not is_finite_number(side_value):
                 errors.append(f"{label}.{field}.{side} must be a usable number")
+
+    for field in SCALAR_NON_NEGATIVE_FIELDS:
+        value = entry.get(field)
+        explained = field in unavailable
+        if value is None:
+            if not explained:
+                errors.append(
+                    f"{label}.{field} is absent and {label}.unavailable does not say why"
+                )
+            continue
+        if explained:
+            errors.append(
+                f"{label}.{field} is recorded but also listed unavailable; it is one or the other"
+            )
+        # Deliberately NOT the probability rule: a zero haircut is the
+        # market-only fallback's own contract, and 0 < x < 1 would reject it.
+        if not is_finite_number(value) or value < 0:
+            errors.append(f"{label}.{field} must be a usable number greater than or equal to 0")
+
+    for field in READ_STRING_FIELDS:
+        value = entry.get(field)
+        explained = field in unavailable
+        if value is None:
+            if not explained:
+                errors.append(
+                    f"{label}.{field} is absent and {label}.unavailable does not say why"
+                )
+            continue
+        if explained:
+            errors.append(
+                f"{label}.{field} is recorded but also listed unavailable; it is one or the other"
+            )
+        if not isinstance(value, str) or not value.strip():
+            errors.append(f"{label}.{field} must be a non-empty string")
+
+    return errors
+
+
+def _model_trail_errors(label: str, entry: dict[str, Any]) -> list[str]:
+    """The three model numbers have to agree with each other, or say nothing.
+
+    A read may legitimately carry no handicap at all — a game with no DK price
+    was never handicapped. What it may not do is carry a handicap that does not
+    hold together, because every row of the evaluation dataset is built from
+    exactly these fields and a row that quietly disagrees with itself is worse
+    than a row that is missing: it is counted.
+    """
+    errors: list[str] = []
+    raw = entry.get("raw_probability")
+    if raw is None:
+        return errors
+
+    # A probability with no model identity cannot be evaluated, only counted —
+    # the deployment gate segments rows by this exact string.
+    if entry.get("model_version") is None:
+        errors.append(
+            f"{label}.raw_probability is recorded but {label}.model_version is not; "
+            "a handicap with no model identity cannot be evaluated"
+        )
+
+    conservative = entry.get("conservative_probability")
+    haircut = entry.get("uncertainty_haircut")
+    if not isinstance(raw, dict) or not isinstance(conservative, dict):
+        return errors
+    if not is_finite_number(haircut) or haircut < 0:
+        return errors
+    for side in ("away", "home"):
+        raw_side = raw.get(side)
+        conservative_side = conservative.get(side)
+        if not _is_probability(raw_side) or not _is_probability(conservative_side):
+            continue
+        expected = float(raw_side) - float(haircut)
+        if abs(float(conservative_side) - expected) > COHERENCE_TOLERANCE:
+            errors.append(
+                f"{label}.conservative_probability.{side} is {float(conservative_side):.4f} but "
+                f"raw_probability.{side} minus uncertainty_haircut is {expected:.4f}"
+            )
     return errors
 
 
@@ -235,6 +346,7 @@ def validate_read(entry: Any, index: int) -> list[str]:
     return (
         _identity_errors(label, entry)
         + _side_field_errors(label, entry)
+        + _model_trail_errors(label, entry)
         + _disposition_errors(label, entry)
     )
 
