@@ -646,6 +646,42 @@ class EndToEndTests(unittest.TestCase):
         )
         self.assertIn("recorded but ungradeable on 1 cards", rendered)
 
+    def test_a_non_finite_expected_ip_is_recorded_ungradeable_end_to_end(self):
+        # The analysis layer inherits the grader's finiteness rule because it
+        # imports the predicate rather than restating it. Written as a bare
+        # `Infinity` literal through `json.dumps`/`json.loads`, which is the
+        # form a card on disk would actually carry.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_day(root, "2026-06-10", {
+                "date": "2026-06-10", "sport": "mlb", "market_type": "moneyline",
+                "candidates": [
+                    {"game": "Alpha at Beta", "side": "Alpha", "executed": True,
+                     "polymarket_ask": 0.5, "thesis": "recorded thesis",
+                     "baseball_evidence": {
+                         "starter_role": "starter", "expected_ip": float("inf"),
+                     }},
+                ],
+            })
+            self.assertIn(
+                "Infinity",
+                (root / "execute" / "2026-06-10-schedule.json").read_text(encoding="utf-8"),
+            )
+            (root / "audit-results").mkdir()
+            (root / "audit-results" / "2026-06-10.json").write_text(
+                json.dumps(statsapi_payload([
+                    {"gamePk": 700001, "away": "Alpha", "home": "Beta",
+                     "away_score": 5, "home_score": 2},
+                ])), encoding="utf-8")
+            write_evidence(root / "postgame-evidence", postgame_evidence())
+            code, out, _ = self.run_cli(["--picks-dir", str(root), "--json"])
+        self.assertEqual(code, 0)  # reports, never raises
+        row = json.loads(out)["games"][0]
+        self.assertIn("expected_ip", row["bet_time_evidence_fields"])
+        self.assertNotIn("expected_ip", row["gradeable_bet_time_evidence_fields"])
+        self.assertEqual(row["pillars"]["starter_quality"]["grade"], "unknown")
+        self.assertEqual(row["pillars"]["starter_role"]["grade"], "held")
+
     def test_a_starter_role_outside_the_graders_vocabulary_is_not_coverage(self):
         # Same seam on the other value field, and the predicate comes from the
         # grader's own EXPECTED_STARTER_ROLES rather than a second copy of it.
