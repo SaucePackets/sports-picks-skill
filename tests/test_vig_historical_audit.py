@@ -207,6 +207,27 @@ class RecordedRationaleTests(unittest.TestCase):
         self.assertEqual(len(rationale["named_risks"]), 1)
         self.assertTrue(rationale["has_structured_evidence"])
 
+    def test_structured_value_fields_are_carried_in_their_recorded_type(self):
+        # The postgame grader keys `starter_role` on the VALUE and
+        # `expected_ip` on the NUMBER. Carrying them as prose, or not at all,
+        # makes two settlement pillars ungradeable however complete the card is.
+        rationale = audit.recorded_rationale({
+            "baseball_evidence": {"starter_role": " starter ", "expected_ip": 5.5},
+        })
+        self.assertEqual(rationale["starter_role"], "starter")
+        self.assertEqual(rationale["expected_ip"], 5.5)
+
+    def test_structured_values_of_the_wrong_type_become_none_never_coerced(self):
+        for evidence in (
+            {"starter_role": 5, "expected_ip": "5.5"},
+            {"starter_role": "   ", "expected_ip": True},
+            {},
+        ):
+            with self.subTest(evidence=evidence):
+                rationale = audit.recorded_rationale({"baseball_evidence": evidence})
+                self.assertIsNone(rationale["starter_role"])
+                self.assertIsNone(rationale["expected_ip"])
+
     def test_postgame_fields_are_never_carried(self):
         # A rationale reconstructed from postgame prose is hindsight; the
         # carrier must not even offer those fields to the attribution layer.
@@ -229,6 +250,19 @@ class RecordedRationaleTests(unittest.TestCase):
         self.assertEqual(
             audit.STRUCTURED_EVIDENCE_TEXT_FIELDS,
             ("opponent_shutdown_path", "candidate_failure_path"),
+        )
+        self.assertEqual(
+            audit.STRUCTURED_EVIDENCE_VALUE_FIELDS, ("starter_role", "expected_ip")
+        )
+        # The carried set is the union of the three tuples plus the structured
+        # flag — a field dropped from the emitted rationale while its tuple
+        # still names it would pass the three assertions above.
+        self.assertEqual(
+            set(audit.recorded_rationale({})),
+            set(audit.PREGAME_RATIONALE_FIELDS)
+            | set(audit.STRUCTURED_EVIDENCE_TEXT_FIELDS)
+            | set(audit.STRUCTURED_EVIDENCE_VALUE_FIELDS)
+            | {"named_risks", "has_structured_evidence"},
         )
 
     def test_normalize_candidate_carries_the_rationale(self):

@@ -1,0 +1,4278 @@
+{
+  "population": "executed picks with an official win/loss outcome, from the same audit build the merged replay grades; pillar grades are the postgame collector's deterministic output",
+  "corpus_selection": {
+    "candidates_total": 111,
+    "executed": 89,
+    "executed_decided": 89,
+    "wins": 51,
+    "losses": 38,
+    "executed_excluded": [],
+    "loss_classification_counts": {
+      "evidence_process_miss": 38,
+      "executed_without_recorded_evidence": 0,
+      "approved_not_executed": 0,
+      "risk_gate_declined": 0,
+      "no_recorded_reason": 0
+    }
+  },
+  "games": [
+    {
+      "date": "2026-05-19",
+      "game": "New York Mets at Washington Nationals",
+      "game_pk": 822736,
+      "team": "New York Mets",
+      "side_outcome": "loss",
+      "price": null,
+      "price_basis": null,
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 17 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "1 relievers allowed 0 runs (Daniel Duarte 2.1 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 6 runs on 10 hits, 0 walks, 3 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 17,
+        "starter_earned_runs": 6,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 6
+      },
+      "note": null
+    },
+    {
+      "date": "2026-05-19",
+      "game": "Los Angeles Dodgers at San Diego Padres",
+      "game_pk": 823302,
+      "team": "Los Angeles Dodgers",
+      "side_outcome": "win",
+      "price": null,
+      "price_basis": null,
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 12 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "5 relievers allowed 0 runs (Edgardo Henriquez 1.1 IP/0 R, Alex Vesia 0.2 IP/0 R, Blake Treinen 0.2 IP/0 R, Tanner Scott 1.1 IP/0 R, Will Klein 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 5 runs on 6 hits, 2 walks, 2 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 12,
+        "starter_earned_runs": 4,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 5
+      },
+      "note": null
+    },
+    {
+      "date": "2026-05-20",
+      "game": "Athletics at Los Angeles Angels",
+      "game_pk": 824032,
+      "team": "Athletics",
+      "side_outcome": "win",
+      "price": 0.54,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 15 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "4 relievers allowed 0 runs (Luis Medina 2.0 IP/0 R, Mark Leiter Jr. 1.0 IP/0 R, Scott Barlow 1.0 IP/0 R, Hogan Harris 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 6 runs on 6 hits, 6 walks, 1 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 15,
+        "starter_earned_runs": 5,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 6
+      },
+      "note": null
+    },
+    {
+      "date": "2026-05-20",
+      "game": "Texas Rangers at Colorado Rockies",
+      "game_pk": 824355,
+      "team": "Texas Rangers",
+      "side_outcome": "win",
+      "price": 0.54,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 15 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "3 relievers allowed 0 runs (Jakob Junis 1.0 IP/0 R, Tyler Alexander 1.0 IP/0 R, Jacob Latz 2.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 5 runs on 13 hits, 2 walks, 2 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 15,
+        "starter_earned_runs": 4,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 5
+      },
+      "note": null
+    },
+    {
+      "date": "2026-05-20",
+      "game": "Milwaukee Brewers at Chicago Cubs",
+      "game_pk": 824678,
+      "team": "Milwaukee Brewers",
+      "side_outcome": "win",
+      "price": 0.49,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 21 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "1 relievers allowed 0 runs (DL Hall 2.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 5 runs on 8 hits, 4 walks, 0 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 21,
+        "starter_earned_runs": 0,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 5
+      },
+      "note": null
+    },
+    {
+      "date": "2026-05-22",
+      "game": "Los Angeles Dodgers at Milwaukee Brewers",
+      "game_pk": 823788,
+      "team": "Los Angeles Dodgers",
+      "side_outcome": "loss",
+      "price": 0.5,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 15 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "2 relievers allowed 0 runs (Paul Gervase 2.0 IP/0 R, Jonathan Hern\u00e1ndez 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "failed",
+          "evidence": "scored 1 runs on 3 hits, 6 walks, 0 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 15,
+        "starter_earned_runs": 5,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 1
+      },
+      "note": null
+    },
+    {
+      "date": "2026-05-22",
+      "game": "Texas Rangers at Los Angeles Angels",
+      "game_pk": 824029,
+      "team": "Texas Rangers",
+      "side_outcome": "loss",
+      "price": 0.61,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 9 outs, classified 'short_start'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "mixed",
+          "evidence": "3 relievers allowed 3 runs (Cal Quantrill 3.0 IP/0 R, Jalen Beeks 1.0 IP/1 R, Chris Martin 1.0 IP/2 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 6 runs on 11 hits, 3 walks, 2 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "short_start",
+        "starter_outs": 9,
+        "starter_earned_runs": 6,
+        "bullpen_runs_allowed": 3,
+        "team_runs": 6
+      },
+      "note": null
+    },
+    {
+      "date": "2026-05-23",
+      "game": "Texas Rangers at Los Angeles Angels",
+      "game_pk": 824030,
+      "team": "Texas Rangers",
+      "side_outcome": "loss",
+      "price": 0.57,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 21 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "mixed",
+          "evidence": "2 relievers allowed 2 runs (Cole Winn 0.1 IP/2 R, Tyler Alexander 0.2 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "failed",
+          "evidence": "scored 2 runs on 8 hits, 5 walks, 1 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 21,
+        "starter_earned_runs": 3,
+        "bullpen_runs_allowed": 2,
+        "team_runs": 2
+      },
+      "note": null
+    },
+    {
+      "date": "2026-05-24",
+      "game": "Cleveland Guardians at Philadelphia Phillies",
+      "game_pk": 823459,
+      "team": "Cleveland Guardians",
+      "side_outcome": "win",
+      "price": 0.52,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 17 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "4 relievers allowed 1 runs (Colin Holderman 0.1 IP/0 R, Tim Herrin 0.2 IP/1 R, Hunter Gaddis 1.1 IP/0 R, Cade Smith 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "mixed",
+          "evidence": "scored 3 runs on 9 hits, 2 walks, 1 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 17,
+        "starter_earned_runs": 0,
+        "bullpen_runs_allowed": 1,
+        "team_runs": 3
+      },
+      "note": null
+    },
+    {
+      "date": "2026-05-24",
+      "game": "Los Angeles Dodgers at Milwaukee Brewers",
+      "game_pk": 823786,
+      "team": "Los Angeles Dodgers",
+      "side_outcome": "win",
+      "price": 0.6,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 21 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "2 relievers allowed 0 runs (Will Klein 1.0 IP/0 R, Tanner Scott 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 5 runs on 6 hits, 6 walks, 1 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 21,
+        "starter_earned_runs": 1,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 5
+      },
+      "note": null
+    },
+    {
+      "date": "2026-05-25",
+      "game": "Minnesota Twins at Chicago White Sox",
+      "game_pk": 824598,
+      "team": "Minnesota Twins",
+      "side_outcome": "loss",
+      "price": 0.51,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 18 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "1 relievers allowed 0 runs (Simeon Woods Richardson 2.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "failed",
+          "evidence": "scored 1 runs on 7 hits, 1 walks, 1 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 18,
+        "starter_earned_runs": 3,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 1
+      },
+      "note": null
+    },
+    {
+      "date": "2026-05-26",
+      "game": "Arizona Diamondbacks at San Francisco Giants",
+      "game_pk": 823216,
+      "team": "Arizona Diamondbacks",
+      "side_outcome": "win",
+      "price": 0.5,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 18 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "mixed",
+          "evidence": "3 relievers allowed 3 runs (Kevin Ginkel 1.0 IP/1 R, Juan Morillo 1.0 IP/1 R, Paul Sewald 1.0 IP/1 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 7 runs on 8 hits, 6 walks, 2 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 18,
+        "starter_earned_runs": 2,
+        "bullpen_runs_allowed": 3,
+        "team_runs": 7
+      },
+      "note": null
+    },
+    {
+      "date": "2026-05-26",
+      "game": "Minnesota Twins at Chicago White Sox",
+      "game_pk": 824597,
+      "team": "Minnesota Twins",
+      "side_outcome": "win",
+      "price": 0.52,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 23 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "4 relievers allowed 1 runs (Anthony Banda 0.2 IP/0 R, Andrew Morris 0.2 IP/0 R, Taylor Rogers 1.0 IP/0 R, Yoendrys G\u00f3mez 1.0 IP/1 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 5 runs on 7 hits, 3 walks, 0 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 23,
+        "starter_earned_runs": 2,
+        "bullpen_runs_allowed": 1,
+        "team_runs": 5
+      },
+      "note": null
+    },
+    {
+      "date": "2026-05-26",
+      "game": "Tampa Bay Rays at Baltimore Orioles",
+      "game_pk": 824837,
+      "team": "Tampa Bay Rays",
+      "side_outcome": "loss",
+      "price": 0.52,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 6 outs, classified 'opener_bulk'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "mixed",
+          "evidence": "3 relievers allowed 3 runs (Garrett Cleavinger 2.0 IP/0 R, Trevor Martin 3.0 IP/3 R, Craig Kimbrel 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "failed",
+          "evidence": "scored 1 runs on 9 hits, 2 walks, 0 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "opener_bulk",
+        "starter_outs": 6,
+        "starter_earned_runs": 1,
+        "bullpen_runs_allowed": 3,
+        "team_runs": 1
+      },
+      "note": null
+    },
+    {
+      "date": "2026-05-27",
+      "game": "Arizona Diamondbacks at San Francisco Giants",
+      "game_pk": 823217,
+      "team": "Arizona Diamondbacks",
+      "side_outcome": "win",
+      "price": 0.53,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 18 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "4 relievers allowed 0 runs (Ryan Thompson 0.2 IP/0 R, Brandyn Garcia 0.1 IP/0 R, Kevin Ginkel 1.0 IP/0 R, Paul Sewald 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "mixed",
+          "evidence": "scored 3 runs on 6 hits, 2 walks, 0 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 18,
+        "starter_earned_runs": 2,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 3
+      },
+      "note": null
+    },
+    {
+      "date": "2026-05-27",
+      "game": "Philadelphia Phillies at San Diego Padres",
+      "game_pk": 823295,
+      "team": "Philadelphia Phillies",
+      "side_outcome": "win",
+      "price": 0.57,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 21 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "2 relievers allowed 0 runs (Jonathan Bowlan 1.0 IP/0 R, Jos\u00e9 Alvarado 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "mixed",
+          "evidence": "scored 3 runs on 6 hits, 0 walks, 1 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 21,
+        "starter_earned_runs": 0,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 3
+      },
+      "note": null
+    },
+    {
+      "date": "2026-05-27",
+      "game": "New York Yankees at Kansas City Royals",
+      "game_pk": 824104,
+      "team": "New York Yankees",
+      "side_outcome": "win",
+      "price": 0.59,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 20 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "2 relievers allowed 0 runs (Fernando Cruz 1.1 IP/0 R, Camilo Doval 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 7 runs on 8 hits, 4 walks, 1 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 20,
+        "starter_earned_runs": 0,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 7
+      },
+      "note": null
+    },
+    {
+      "date": "2026-05-27",
+      "game": "Atlanta Braves at Boston Red Sox",
+      "game_pk": 824756,
+      "team": "Atlanta Braves",
+      "side_outcome": "loss",
+      "price": 0.5,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 10 outs, classified 'short_start'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "mixed",
+          "evidence": "2 relievers allowed 2 runs (Dylan Dodd 0.2 IP/0 R, Carlos Carrasco 4.0 IP/2 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "failed",
+          "evidence": "scored 0 runs on 5 hits, 4 walks, 0 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "short_start",
+        "starter_outs": 10,
+        "starter_earned_runs": 5,
+        "bullpen_runs_allowed": 2,
+        "team_runs": 0
+      },
+      "note": null
+    },
+    {
+      "date": "2026-05-28",
+      "game": "Toronto Blue Jays at Baltimore Orioles",
+      "game_pk": 824834,
+      "team": "Toronto Blue Jays",
+      "side_outcome": "win",
+      "price": 0.46,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 15 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "4 relievers allowed 0 runs (Braydon Fisher 1.0 IP/0 R, Jeff Hoffman 1.0 IP/0 R, Tyler Rogers 0.2 IP/0 R, Louis Varland 1.1 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "failed",
+          "evidence": "scored 2 runs on 6 hits, 5 walks, 1 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 15,
+        "starter_earned_runs": 1,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 2
+      },
+      "note": null
+    },
+    {
+      "date": "2026-05-29",
+      "game": "Atlanta Braves at Cincinnati Reds",
+      "game_pk": 824515,
+      "team": "Atlanta Braves",
+      "side_outcome": "win",
+      "price": 0.56,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 14 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "4 relievers allowed 0 runs (Didier Fuentes 1.1 IP/0 R, Dylan Lee 1.0 IP/0 R, Robert Suarez 1.0 IP/0 R, Tyler Kinley 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 8 runs on 13 hits, 4 walks, 1 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 14,
+        "starter_earned_runs": 3,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 8
+      },
+      "note": null
+    },
+    {
+      "date": "2026-05-30",
+      "game": "Minnesota Twins at Pittsburgh Pirates",
+      "game_pk": 823375,
+      "team": "Pittsburgh Pirates",
+      "side_outcome": "win",
+      "price": 0.57,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 12 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "mixed",
+          "evidence": "5 relievers allowed 2 runs (Yohan Ram\u00edrez 1.0 IP/0 R, Evan Sisk 1.1 IP/0 R, Dennis Santana 0.2 IP/0 R, Mason Montgomery 0.2 IP/2 R, Gregory Soto 1.1 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 10 runs on 15 hits, 6 walks, 3 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 12,
+        "starter_earned_runs": 7,
+        "bullpen_runs_allowed": 2,
+        "team_runs": 10
+      },
+      "note": null
+    },
+    {
+      "date": "2026-05-30",
+      "game": "Boston Red Sox at Cleveland Guardians",
+      "game_pk": 824431,
+      "team": "Cleveland Guardians",
+      "side_outcome": "loss",
+      "price": 0.55,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 15 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "failed",
+          "evidence": "4 relievers allowed 8 runs (Matt Festa 0.2 IP/1 R, Codi Heuer 1.1 IP/0 R, Shawn Armstrong 1.0 IP/1 R, Will Dion 1.0 IP/6 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "failed",
+          "evidence": "scored 1 runs on 6 hits, 4 walks, 0 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 15,
+        "starter_earned_runs": 1,
+        "bullpen_runs_allowed": 8,
+        "team_runs": 1
+      },
+      "note": null
+    },
+    {
+      "date": "2026-05-30",
+      "game": "Atlanta Braves at Cincinnati Reds",
+      "game_pk": 824513,
+      "team": "Atlanta Braves",
+      "side_outcome": "win",
+      "price": 0.54,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 15 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "4 relievers allowed 0 runs (Tyler Kinley 1.0 IP/0 R, Dylan Lee 1.0 IP/0 R, Robert Suarez 1.0 IP/0 R, Raisel Iglesias 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 5 runs on 7 hits, 5 walks, 4 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 15,
+        "starter_earned_runs": 2,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 5
+      },
+      "note": null
+    },
+    {
+      "date": "2026-05-31",
+      "game": "Atlanta Braves at Cincinnati Reds",
+      "game_pk": 824512,
+      "team": "Atlanta Braves",
+      "side_outcome": "loss",
+      "price": 0.54,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 15 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "mixed",
+          "evidence": "3 relievers allowed 2 runs (Didier Fuentes 1.0 IP/1 R, Dylan Dodd 1.0 IP/1 R, Reynaldo L\u00f3pez 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 4 runs on 7 hits, 6 walks, 2 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 15,
+        "starter_earned_runs": 3,
+        "bullpen_runs_allowed": 2,
+        "team_runs": 4
+      },
+      "note": null
+    },
+    {
+      "date": "2026-06-02",
+      "game": "Chicago White Sox at Minnesota Twins",
+      "game_pk": 823700,
+      "team": "Chicago White Sox",
+      "side_outcome": "loss",
+      "price": 0.54,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 14 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "2 relievers allowed 0 runs (Sean Newcomb 1.2 IP/0 R, Trevor Richards 1.2 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 4 runs on 8 hits, 3 walks, 0 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 14,
+        "starter_earned_runs": 6,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 4
+      },
+      "note": null
+    },
+    {
+      "date": "2026-06-05",
+      "game": "Seattle Mariners at Detroit Tigers",
+      "game_pk": 824271,
+      "team": "Seattle Mariners",
+      "side_outcome": "loss",
+      "price": 0.55,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 19 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "mixed",
+          "evidence": "2 relievers allowed 2 runs (Eduard Bazardo 0.2 IP/0 R, Alex Hoppe 1.0 IP/2 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "mixed",
+          "evidence": "scored 3 runs on 11 hits, 3 walks, 1 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 19,
+        "starter_earned_runs": 5,
+        "bullpen_runs_allowed": 2,
+        "team_runs": 3
+      },
+      "note": null
+    },
+    {
+      "date": "2026-06-05",
+      "game": "Pittsburgh Pirates at Atlanta Braves",
+      "game_pk": 824914,
+      "team": "Atlanta Braves",
+      "side_outcome": "win",
+      "price": 0.58,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 15 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "4 relievers allowed 0 runs (Didier Fuentes 1.0 IP/0 R, Dylan Lee 1.0 IP/0 R, Robert Suarez 1.0 IP/0 R, Raisel Iglesias 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 6 runs on 9 hits, 5 walks, 1 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 15,
+        "starter_earned_runs": 3,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 6
+      },
+      "note": null
+    },
+    {
+      "date": "2026-06-06",
+      "game": "New York Mets at San Diego Padres",
+      "game_pk": 823292,
+      "team": "New York Mets",
+      "side_outcome": "loss",
+      "price": 0.54,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 18 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "mixed",
+          "evidence": "1 relievers allowed 2 runs (Austin Warren 2.0 IP/2 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "failed",
+          "evidence": "scored 2 runs on 6 hits, 3 walks, 1 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 18,
+        "starter_earned_runs": 1,
+        "bullpen_runs_allowed": 2,
+        "team_runs": 2
+      },
+      "note": null
+    },
+    {
+      "date": "2026-06-07",
+      "game": "Cleveland Guardians at Texas Rangers",
+      "game_pk": 822890,
+      "team": "Texas Rangers",
+      "side_outcome": "win",
+      "price": 0.56,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 18 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "3 relievers allowed 0 runs (Peyton Gray 1.0 IP/0 R, Tyler Alexander 1.0 IP/0 R, Luis Curvelo 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 10 runs on 16 hits, 3 walks, 4 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 18,
+        "starter_earned_runs": 0,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 10
+      },
+      "note": null
+    },
+    {
+      "date": "2026-06-07",
+      "game": "New York Mets at San Diego Padres",
+      "game_pk": 823291,
+      "team": "New York Mets",
+      "side_outcome": "win",
+      "price": 0.5,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 3 outs, classified 'opener_bulk'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "mixed",
+          "evidence": "5 relievers allowed 3 runs (Sean Manaea 4.0 IP/2 R, Brooks Raley 1.0 IP/0 R, A.J. Minter 1.0 IP/0 R, Luke Weaver 1.0 IP/0 R, Devin Williams 1.0 IP/1 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 7 runs on 13 hits, 4 walks, 3 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "opener_bulk",
+        "starter_outs": 3,
+        "starter_earned_runs": 0,
+        "bullpen_runs_allowed": 3,
+        "team_runs": 7
+      },
+      "note": null
+    },
+    {
+      "date": "2026-06-07",
+      "game": "Kansas City Royals at Minnesota Twins",
+      "game_pk": 823696,
+      "team": "Kansas City Royals",
+      "side_outcome": "win",
+      "price": 0.52,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 18 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "failed",
+          "evidence": "4 relievers allowed 4 runs (John Schreiber 1.0 IP/0 R, Mason Black 1.0 IP/0 R, Beck Way 0.1 IP/4 R, Lucas Erceg 0.2 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 6 runs on 9 hits, 3 walks, 1 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 18,
+        "starter_earned_runs": 0,
+        "bullpen_runs_allowed": 4,
+        "team_runs": 6
+      },
+      "note": null
+    },
+    {
+      "date": "2026-06-08",
+      "game": "Philadelphia Phillies at Toronto Blue Jays",
+      "game_pk": 822806,
+      "team": "Philadelphia Phillies",
+      "side_outcome": "win",
+      "price": 0.62,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 21 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "2 relievers allowed 0 runs (Brad Keller 1.0 IP/0 R, Jhoan Duran 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 5 runs on 7 hits, 5 walks, 1 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 21,
+        "starter_earned_runs": 2,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 5
+      },
+      "note": null
+    },
+    {
+      "date": "2026-06-08",
+      "game": "Boston Red Sox at Tampa Bay Rays",
+      "game_pk": 822972,
+      "team": "Boston Red Sox",
+      "side_outcome": "loss",
+      "price": 0.52,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 14 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "4 relievers allowed 1 runs (Tyron Guerrero 1.1 IP/0 R, Greg Weissert 0.1 IP/0 R, Danny Coulombe 1.0 IP/1 R, Alec Gamboa 0.2 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "failed",
+          "evidence": "scored 1 runs on 4 hits, 1 walks, 1 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 14,
+        "starter_earned_runs": 2,
+        "bullpen_runs_allowed": 1,
+        "team_runs": 1
+      },
+      "note": null
+    },
+    {
+      "date": "2026-06-08",
+      "game": "Milwaukee Brewers at Athletics",
+      "game_pk": 824998,
+      "team": "Milwaukee Brewers",
+      "side_outcome": "win",
+      "price": 0.58,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 7 outs, classified 'short_start'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "failed",
+          "evidence": "6 relievers allowed 6 runs (Grant Anderson 2.2 IP/0 R, Joel Kuhnel 1.2 IP/1 R, Drew Rom 1.1 IP/1 R, Aaron Ashby 1.2 IP/4 R, Abner Uribe 1.1 IP/0 R, Chad Patrick 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 15 runs on 18 hits, 6 walks, 4 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "short_start",
+        "starter_outs": 7,
+        "starter_earned_runs": 8,
+        "bullpen_runs_allowed": 6,
+        "team_runs": 15
+      },
+      "note": null
+    },
+    {
+      "date": "2026-06-09",
+      "game": "Philadelphia Phillies at Toronto Blue Jays",
+      "game_pk": 822805,
+      "team": "Philadelphia Phillies",
+      "side_outcome": "loss",
+      "price": 0.51,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 18 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "mixed",
+          "evidence": "3 relievers allowed 2 runs (Orion Kerkering 1.1 IP/0 R, Jos\u00e9 Alvarado 0.2 IP/0 R, Jhoan Duran 0.0 IP/2 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "failed",
+          "evidence": "scored 2 runs on 5 hits, 2 walks, 0 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 18,
+        "starter_earned_runs": 1,
+        "bullpen_runs_allowed": 2,
+        "team_runs": 2
+      },
+      "note": null
+    },
+    {
+      "date": "2026-06-10",
+      "game": "Philadelphia Phillies at Toronto Blue Jays",
+      "game_pk": 822804,
+      "team": "Philadelphia Phillies",
+      "side_outcome": "win",
+      "price": 0.56,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 17 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "mixed",
+          "evidence": "5 relievers allowed 3 runs (Jonathan Bowlan 0.1 IP/0 R, Chase Shugart 0.1 IP/3 R, Brad Keller 0.2 IP/0 R, Jos\u00e9 Alvarado 1.0 IP/0 R, Jhoan Duran 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 7 runs on 10 hits, 5 walks, 3 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 17,
+        "starter_earned_runs": 1,
+        "bullpen_runs_allowed": 3,
+        "team_runs": 7
+      },
+      "note": null
+    },
+    {
+      "date": "2026-06-10",
+      "game": "Houston Astros at Los Angeles Angels",
+      "game_pk": 824022,
+      "team": "Los Angeles Angels",
+      "side_outcome": "win",
+      "price": 0.47,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 21 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "3 relievers allowed 1 runs (Chase Silseth 1.0 IP/1 R, Sam Bachman 1.0 IP/0 R, Ryan Zeferjahn 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "mixed",
+          "evidence": "scored 3 runs on 7 hits, 2 walks, 2 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 21,
+        "starter_earned_runs": 1,
+        "bullpen_runs_allowed": 1,
+        "team_runs": 3
+      },
+      "note": null
+    },
+    {
+      "date": "2026-06-11",
+      "game": "Arizona Diamondbacks at Miami Marlins",
+      "game_pk": 823855,
+      "team": "Miami Marlins",
+      "side_outcome": "win",
+      "price": null,
+      "price_basis": null,
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 15 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "4 relievers allowed 0 runs (Michael Petersen 1.0 IP/0 R, Anthony Bender 1.0 IP/0 R, Calvin Faucher 1.0 IP/0 R, Pete Fairbanks 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "failed",
+          "evidence": "scored 2 runs on 5 hits, 3 walks, 0 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 15,
+        "starter_earned_runs": 0,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 2
+      },
+      "note": null
+    },
+    {
+      "date": "2026-06-11",
+      "game": "Minnesota Twins at Detroit Tigers",
+      "game_pk": 824265,
+      "team": "Detroit Tigers",
+      "side_outcome": "win",
+      "price": 0.45,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 19 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "2 relievers allowed 0 runs (Tyler Holton 1.2 IP/0 R, Beau Brieske 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 11 runs on 13 hits, 3 walks, 6 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 19,
+        "starter_earned_runs": 0,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 11
+      },
+      "note": null
+    },
+    {
+      "date": "2026-06-13",
+      "game": "New York Yankees at Toronto Blue Jays",
+      "game_pk": 822802,
+      "team": "New York Yankees",
+      "side_outcome": "win",
+      "price": 0.52,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 21 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "2 relievers allowed 0 runs (Fernando Cruz 1.0 IP/0 R, David Bednar 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "mixed",
+          "evidence": "scored 3 runs on 5 hits, 2 walks, 2 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 21,
+        "starter_earned_runs": 1,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 3
+      },
+      "note": null
+    },
+    {
+      "date": "2026-06-13",
+      "game": "Miami Marlins at Pittsburgh Pirates",
+      "game_pk": 823369,
+      "team": "Miami Marlins",
+      "side_outcome": "loss",
+      "price": 0.49,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 6 outs, classified 'short_start'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "mixed",
+          "evidence": "5 relievers allowed 2 runs (John King 0.2 IP/1 R, Calvin Faucher 1.0 IP/0 R, Cade Gibson 1.1 IP/0 R, Michael Petersen 2.0 IP/0 R, Anthony Bender 1.0 IP/1 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "failed",
+          "evidence": "scored 2 runs on 7 hits, 2 walks, 0 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "short_start",
+        "starter_outs": 6,
+        "starter_earned_runs": 1,
+        "bullpen_runs_allowed": 2,
+        "team_runs": 2
+      },
+      "note": null
+    },
+    {
+      "date": "2026-06-14",
+      "game": "Atlanta Braves at New York Mets",
+      "game_pk": 823615,
+      "team": "Atlanta Braves",
+      "side_outcome": "loss",
+      "price": 0.47,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 12 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "mixed",
+          "evidence": "4 relievers allowed 2 runs (Dylan Dodd 1.0 IP/0 R, James Karinchak 1.0 IP/0 R, Reynaldo L\u00f3pez 1.0 IP/0 R, Anthony Molina 1.0 IP/2 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "failed",
+          "evidence": "scored 1 runs on 4 hits, 3 walks, 0 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 12,
+        "starter_earned_runs": 6,
+        "bullpen_runs_allowed": 2,
+        "team_runs": 1
+      },
+      "note": null
+    },
+    {
+      "date": "2026-06-14",
+      "game": "St. Louis Cardinals at Minnesota Twins",
+      "game_pk": 823693,
+      "team": "St. Louis Cardinals",
+      "side_outcome": "loss",
+      "price": 0.49,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 18 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "mixed",
+          "evidence": "2 relievers allowed 3 runs (JoJo Romero 0.1 IP/2 R, George Soriano 1.2 IP/1 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 4 runs on 7 hits, 2 walks, 2 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 18,
+        "starter_earned_runs": 2,
+        "bullpen_runs_allowed": 3,
+        "team_runs": 4
+      },
+      "note": null
+    },
+    {
+      "date": "2026-06-16",
+      "game": "Los Angeles Angels at Arizona Diamondbacks",
+      "game_pk": 825070,
+      "team": "Los Angeles Angels",
+      "side_outcome": "win",
+      "price": 0.51,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 21 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "2 relievers allowed 0 runs (Kirby Yates 1.0 IP/0 R, Chase Silseth 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 7 runs on 14 hits, 1 walks, 2 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 21,
+        "starter_earned_runs": 0,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 7
+      },
+      "note": null
+    },
+    {
+      "date": "2026-06-19",
+      "game": "Cleveland Guardians at Houston Astros",
+      "game_pk": 824179,
+      "team": "Cleveland Guardians",
+      "side_outcome": "loss",
+      "price": 0.47,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 16 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "failed",
+          "evidence": "4 relievers allowed 5 runs (Matt Festa 0.2 IP/1 R, Daniel Espino 1.0 IP/2 R, Erik Sabrowski 0.1 IP/2 R, Shawn Armstrong 0.2 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "mixed",
+          "evidence": "scored 3 runs on 7 hits, 0 walks, 1 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 16,
+        "starter_earned_runs": 3,
+        "bullpen_runs_allowed": 5,
+        "team_runs": 3
+      },
+      "note": null
+    },
+    {
+      "date": "2026-06-19",
+      "game": "Los Angeles Angels at Athletics",
+      "game_pk": 824990,
+      "team": "Los Angeles Angels",
+      "side_outcome": "loss",
+      "price": 0.42,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 15 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "failed",
+          "evidence": "5 relievers allowed 8 runs (Mitch Farris 2.0 IP/3 R, Chase Silseth 1.0 IP/2 R, Sam Bachman 1.0 IP/2 R, Kirby Yates 0.1 IP/1 R, Samy Natera Jr. 0.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 11 runs on 11 hits, 5 walks, 5 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 15,
+        "starter_earned_runs": 3,
+        "bullpen_runs_allowed": 8,
+        "team_runs": 11
+      },
+      "note": null
+    },
+    {
+      "date": "2026-06-21",
+      "game": "San Francisco Giants at Miami Marlins",
+      "game_pk": 823852,
+      "team": "San Francisco Giants",
+      "side_outcome": "loss",
+      "price": 0.575,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 24 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "no relievers used",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "failed",
+          "evidence": "scored 1 runs on 4 hits, 3 walks, 0 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 24,
+        "starter_earned_runs": 2,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 1
+      },
+      "note": null
+    },
+    {
+      "date": "2026-06-21",
+      "game": "Chicago White Sox at Detroit Tigers",
+      "game_pk": 824260,
+      "team": "Detroit Tigers",
+      "side_outcome": "win",
+      "price": 0.48,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 21 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "3 relievers allowed 1 runs (Drew Sommers 1.0 IP/0 R, Kyle Finnegan 1.0 IP/0 R, Will Vest 1.0 IP/1 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 5 runs on 13 hits, 4 walks, 1 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 21,
+        "starter_earned_runs": 3,
+        "bullpen_runs_allowed": 1,
+        "team_runs": 5
+      },
+      "note": null
+    },
+    {
+      "date": "2026-06-23",
+      "game": "Phillies at Nationals",
+      "game_pk": 822718,
+      "team": "Philadelphia Phillies",
+      "side_outcome": "win",
+      "price": 0.615,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 20 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "failed",
+          "evidence": "3 relievers allowed 4 runs (Jonathan Bowlan 0.1 IP/0 R, Orion Kerkering 1.0 IP/3 R, Chase Shugart 1.0 IP/1 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 14 runs on 17 hits, 3 walks, 3 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 20,
+        "starter_earned_runs": 1,
+        "bullpen_runs_allowed": 4,
+        "team_runs": 14
+      },
+      "note": null
+    },
+    {
+      "date": "2026-06-23",
+      "game": "Diamondbacks at Cardinals",
+      "game_pk": 823043,
+      "team": "Arizona Diamondbacks",
+      "side_outcome": "win",
+      "price": 0.495,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 20 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "mixed",
+          "evidence": "4 relievers allowed 3 runs (Juan Morillo 0.1 IP/0 R, Kevin Ginkel 1.0 IP/0 R, Paul Sewald 0.2 IP/3 R, Brandyn Garcia 0.1 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 4 runs on 6 hits, 6 walks, 0 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 20,
+        "starter_earned_runs": 0,
+        "bullpen_runs_allowed": 3,
+        "team_runs": 4
+      },
+      "note": null
+    },
+    {
+      "date": "2026-06-23",
+      "game": "Orioles at Angels",
+      "game_pk": 824017,
+      "team": "Baltimore Orioles",
+      "side_outcome": "loss",
+      "price": 0.56,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 15 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "1 relievers allowed 0 runs (Albert Su\u00e1rez 3.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "failed",
+          "evidence": "scored 1 runs on 3 hits, 2 walks, 0 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 15,
+        "starter_earned_runs": 5,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 1
+      },
+      "note": null
+    },
+    {
+      "date": "2026-06-23",
+      "game": "Yankees at Tigers",
+      "game_pk": 824262,
+      "team": "Detroit Tigers",
+      "side_outcome": "loss",
+      "price": 0.51,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 17 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "3 relievers allowed 0 runs (Tyler Holton 1.0 IP/0 R, Kyle Finnegan 1.1 IP/0 R, Enmanuel De Jesus 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "mixed",
+          "evidence": "scored 3 runs on 8 hits, 3 walks, 0 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 17,
+        "starter_earned_runs": 4,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 3
+      },
+      "note": null
+    },
+    {
+      "date": "2026-06-26",
+      "game": "Rangers at Blue Jays",
+      "game_pk": 822796,
+      "team": "Texas Rangers",
+      "side_outcome": "win",
+      "price": 0.495,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 21 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "failed",
+          "evidence": "3 relievers allowed 4 runs (Robby Ahlstrom 0.1 IP/2 R, Jakob Junis 0.2 IP/2 R, Jacob Latz 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 5 runs on 9 hits, 3 walks, 1 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 21,
+        "starter_earned_runs": 0,
+        "bullpen_runs_allowed": 4,
+        "team_runs": 5
+      },
+      "note": null
+    },
+    {
+      "date": "2026-06-26",
+      "game": "Diamondbacks at Rays",
+      "game_pk": 822962,
+      "team": "Tampa Bay Rays",
+      "side_outcome": "win",
+      "price": 0.565,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 17 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "4 relievers allowed 0 runs (Cam Booser 0.1 IP/0 R, Kevin Kelly 1.0 IP/0 R, Garrett Cleavinger 1.0 IP/0 R, Craig Kimbrel 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 6 runs on 6 hits, 2 walks, 2 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 17,
+        "starter_earned_runs": 1,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 6
+      },
+      "note": null
+    },
+    {
+      "date": "2026-06-27",
+      "game": "Cubs at Brewers",
+      "game_pk": 823770,
+      "team": "Milwaukee Brewers",
+      "side_outcome": "loss",
+      "price": 0.59,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 15 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "failed",
+          "evidence": "4 relievers allowed 6 runs (Chad Patrick 0.2 IP/4 R, Grant Anderson 1.1 IP/1 R, Jared Koenig 1.0 IP/0 R, Joel Kuhnel 1.0 IP/1 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "failed",
+          "evidence": "scored 2 runs on 5 hits, 1 walks, 1 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 15,
+        "starter_earned_runs": 2,
+        "bullpen_runs_allowed": 6,
+        "team_runs": 2
+      },
+      "note": null
+    },
+    {
+      "date": "2026-06-27",
+      "game": "Mariners at Guardians",
+      "game_pk": 824421,
+      "team": "Seattle Mariners",
+      "side_outcome": "loss",
+      "price": 0.575,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 21 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "1 relievers allowed 0 runs (Jos\u00e9 A. Ferrer 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "mixed",
+          "evidence": "scored 3 runs on 8 hits, 3 walks, 1 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 21,
+        "starter_earned_runs": 4,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 3
+      },
+      "note": null
+    },
+    {
+      "date": "2026-06-28",
+      "game": "Philadelphia Phillies at New York Mets",
+      "game_pk": 823608,
+      "team": "Philadelphia Phillies",
+      "side_outcome": "win",
+      "price": 0.605,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 15 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "mixed",
+          "evidence": "5 relievers allowed 3 runs (Chase Shugart 0.1 IP/3 R, Kyle Backhus 0.2 IP/0 R, Jos\u00e9 Alvarado 1.0 IP/0 R, Orion Kerkering 1.0 IP/0 R, Jhoan Duran 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 5 runs on 10 hits, 1 walks, 1 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 15,
+        "starter_earned_runs": 1,
+        "bullpen_runs_allowed": 3,
+        "team_runs": 5
+      },
+      "note": null
+    },
+    {
+      "date": "2026-06-29",
+      "game": "Pirates at Phillies",
+      "game_pk": 823444,
+      "team": "Pittsburgh Pirates",
+      "side_outcome": "win",
+      "price": 0.495,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 18 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "mixed",
+          "evidence": "4 relievers allowed 2 runs (Evan Sisk 1.0 IP/0 R, Gregory Soto 0.2 IP/2 R, Yohan Ram\u00edrez 0.1 IP/0 R, Mason Montgomery 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 11 runs on 11 hits, 5 walks, 3 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 18,
+        "starter_earned_runs": 5,
+        "bullpen_runs_allowed": 2,
+        "team_runs": 11
+      },
+      "note": null
+    },
+    {
+      "date": "2026-06-30",
+      "game": "Tampa Bay Rays at Kansas City Royals",
+      "game_pk": 824096,
+      "team": "Tampa Bay Rays",
+      "side_outcome": "win",
+      "price": 0.515,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 18 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "3 relievers allowed 1 runs (Cam Booser 1.0 IP/0 R, Cole Sulser 1.0 IP/1 R, Craig Kimbrel 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 10 runs on 11 hits, 11 walks, 2 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 18,
+        "starter_earned_runs": 3,
+        "bullpen_runs_allowed": 1,
+        "team_runs": 10
+      },
+      "note": null
+    },
+    {
+      "date": "2026-06-30",
+      "game": "Washington Nationals at Boston Red Sox",
+      "game_pk": 824742,
+      "team": "Boston Red Sox",
+      "side_outcome": "loss",
+      "price": 0.55,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 12 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "failed",
+          "evidence": "5 relievers allowed 8 runs (Danny Coulombe 0.2 IP/1 R, Greg Weissert 1.2 IP/2 R, Justin Slaten 0.2 IP/1 R, Tommy Kahnle 1.0 IP/4 R, Ryan Watson 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "failed",
+          "evidence": "scored 1 runs on 4 hits, 0 walks, 0 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 12,
+        "starter_earned_runs": 0,
+        "bullpen_runs_allowed": 8,
+        "team_runs": 1
+      },
+      "note": null
+    },
+    {
+      "date": "2026-06-30",
+      "game": "Chicago White Sox at Baltimore Orioles",
+      "game_pk": 824819,
+      "team": "Chicago White Sox",
+      "side_outcome": "win",
+      "price": 0.43,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 15 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "1 relievers allowed 0 runs (Tyler Schweitzer 4.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 9 runs on 11 hits, 6 walks, 2 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 15,
+        "starter_earned_runs": 3,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 9
+      },
+      "note": null
+    },
+    {
+      "date": "2026-07-01",
+      "game": "Rays at Royals",
+      "game_pk": 824094,
+      "team": "Tampa Bay Rays",
+      "side_outcome": "win",
+      "price": 0.58,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 18 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "3 relievers allowed 0 runs (Cole Sulser 1.0 IP/0 R, Garrett Cleavinger 0.2 IP/0 R, Kevin Kelly 1.1 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 4 runs on 11 hits, 0 walks, 2 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 18,
+        "starter_earned_runs": 0,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 4
+      },
+      "note": null
+    },
+    {
+      "date": "2026-07-01",
+      "game": "Marlins at Rockies",
+      "game_pk": 824337,
+      "team": "Miami Marlins",
+      "side_outcome": "loss",
+      "price": 0.57,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 18 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "2 relievers allowed 1 runs (Tyler Zuber 1.0 IP/1 R, John King 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "mixed",
+          "evidence": "scored 3 runs on 7 hits, 2 walks, 1 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 18,
+        "starter_earned_runs": 1,
+        "bullpen_runs_allowed": 1,
+        "team_runs": 3
+      },
+      "note": null
+    },
+    {
+      "date": "2026-07-02",
+      "game": "Rays at Royals",
+      "game_pk": 824093,
+      "team": "Tampa Bay Rays",
+      "side_outcome": "win",
+      "price": 0.54,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 18 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "3 relievers allowed 1 runs (Cam Booser 1.0 IP/1 R, Garrett Cleavinger 1.0 IP/0 R, Bryan Baker 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 5 runs on 11 hits, 3 walks, 1 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 18,
+        "starter_earned_runs": 1,
+        "bullpen_runs_allowed": 1,
+        "team_runs": 5
+      },
+      "note": null
+    },
+    {
+      "date": "2026-07-02",
+      "game": "White Sox at Guardians",
+      "game_pk": 824416,
+      "team": "Chicago White Sox",
+      "side_outcome": "loss",
+      "price": 0.48,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 10 outs, classified 'short_start'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "failed",
+          "evidence": "4 relievers allowed 4 runs (Chris Murphy 1.2 IP/0 R, Sean Newcomb 1.0 IP/1 R, Brandon Eisert 1.0 IP/1 R, Grant Taylor 1.1 IP/2 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 5 runs on 10 hits, 2 walks, 1 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "short_start",
+        "starter_outs": 10,
+        "starter_earned_runs": 2,
+        "bullpen_runs_allowed": 4,
+        "team_runs": 5
+      },
+      "note": null
+    },
+    {
+      "date": "2026-07-03",
+      "game": "Blue Jays at Mariners",
+      "game_pk": 823120,
+      "team": "Toronto Blue Jays",
+      "side_outcome": "win",
+      "price": 0.55,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 21 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "2 relievers allowed 0 runs (Jeff Hoffman 1.0 IP/0 R, Louis Varland 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "failed",
+          "evidence": "scored 2 runs on 6 hits, 2 walks, 0 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 21,
+        "starter_earned_runs": 0,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 2
+      },
+      "note": null
+    },
+    {
+      "date": "2026-07-03",
+      "game": "Rays at Astros",
+      "game_pk": 824173,
+      "team": "Tampa Bay Rays",
+      "side_outcome": "win",
+      "price": 0.505,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 16 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "3 relievers allowed 0 runs (Kevin Kelly 1.2 IP/0 R, Casey Legumina 1.0 IP/0 R, Bryan Baker 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "mixed",
+          "evidence": "scored 3 runs on 5 hits, 1 walks, 2 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 16,
+        "starter_earned_runs": 1,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 3
+      },
+      "note": null
+    },
+    {
+      "date": "2026-07-04",
+      "game": "Rays at Astros",
+      "game_pk": 824171,
+      "team": "Tampa Bay Rays",
+      "side_outcome": "loss",
+      "price": 0.485,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 15 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "failed",
+          "evidence": "4 relievers allowed 5 runs (Cole Sulser 1.0 IP/3 R, Garrett Cleavinger 0.2 IP/0 R, Craig Kimbrel 1.1 IP/0 R, Casey Legumina 0.0 IP/2 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 8 runs on 9 hits, 8 walks, 3 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 15,
+        "starter_earned_runs": 5,
+        "bullpen_runs_allowed": 5,
+        "team_runs": 8
+      },
+      "note": null
+    },
+    {
+      "date": "2026-07-05",
+      "game": "BOS @ LAA",
+      "game_pk": 824010,
+      "team": "Boston Red Sox",
+      "side_outcome": "win",
+      "price": 0.605,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 8 outs, classified 'short_start'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "mixed",
+          "evidence": "5 relievers allowed 2 runs (Greg Weissert 1.1 IP/0 R, Tyron Guerrero 2.0 IP/0 R, Garrett Whitlock 1.0 IP/0 R, Justin Slaten 1.0 IP/1 R, Aroldis Chapman 1.0 IP/1 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 7 runs on 10 hits, 3 walks, 2 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "short_start",
+        "starter_outs": 8,
+        "starter_earned_runs": 3,
+        "bullpen_runs_allowed": 2,
+        "team_runs": 7
+      },
+      "note": null
+    },
+    {
+      "date": "2026-07-08",
+      "game": "Seattle Mariners at Miami Marlins",
+      "game_pk": 823848,
+      "team": "Seattle Mariners",
+      "side_outcome": "loss",
+      "price": 0.545,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 18 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "1 relievers allowed 0 runs (Nick Davila 2.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "failed",
+          "evidence": "scored 0 runs on 5 hits, 2 walks, 0 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 18,
+        "starter_earned_runs": 2,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 0
+      },
+      "note": null
+    },
+    {
+      "date": "2026-07-08",
+      "game": "Athletics at Detroit Tigers",
+      "game_pk": 824253,
+      "team": "Detroit Tigers",
+      "side_outcome": "win",
+      "price": 0.56,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 16 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "3 relievers allowed 0 runs (Keider Montero 1.2 IP/0 R, Tyler Holton 1.0 IP/0 R, Beau Brieske 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 6 runs on 7 hits, 6 walks, 2 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 16,
+        "starter_earned_runs": 0,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 6
+      },
+      "note": null
+    },
+    {
+      "date": "2026-07-09",
+      "game": "Seattle Mariners at Miami Marlins",
+      "game_pk": 823846,
+      "team": "Seattle Mariners",
+      "side_outcome": "loss",
+      "price": 0.545,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 15 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "mixed",
+          "evidence": "2 relievers allowed 2 runs (Michael Rucker 2.0 IP/2 R, Cole Wilcox 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 4 runs on 7 hits, 6 walks, 2 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 15,
+        "starter_earned_runs": 4,
+        "bullpen_runs_allowed": 2,
+        "team_runs": 4
+      },
+      "note": null
+    },
+    {
+      "date": "2026-07-10",
+      "game": "Los Angeles Angels at Minnesota Twins",
+      "game_pk": 823685,
+      "team": "Minnesota Twins",
+      "side_outcome": "loss",
+      "price": 0.59,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 18 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "2 relievers allowed 0 runs (Andrew Morris 2.0 IP/0 R, Travis Adams 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "mixed",
+          "evidence": "scored 3 runs on 9 hits, 3 walks, 0 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 18,
+        "starter_earned_runs": 4,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 3
+      },
+      "note": null
+    },
+    {
+      "date": "2026-07-10",
+      "game": "Philadelphia Phillies at Detroit Tigers",
+      "game_pk": 824252,
+      "team": "Detroit Tigers",
+      "side_outcome": "win",
+      "price": 0.525,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 18 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "3 relievers allowed 0 runs (Jacob Waguespack 0.2 IP/0 R, Drew Sommers 0.1 IP/0 R, Beau Brieske 2.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 10 runs on 8 hits, 5 walks, 3 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 18,
+        "starter_earned_runs": 2,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 10
+      },
+      "note": null
+    },
+    {
+      "date": "2026-07-12",
+      "game": "Boston Red Sox at New York Mets",
+      "game_pk": 823602,
+      "team": "Boston Red Sox",
+      "side_outcome": "win",
+      "price": 0.51,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 11 outs, classified 'short_start'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "3 relievers allowed 1 runs (Brayan Bello 4.1 IP/1 R, Aroldis Chapman 1.0 IP/0 R, Garrett Whitlock 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "mixed",
+          "evidence": "scored 3 runs on 4 hits, 4 walks, 0 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "short_start",
+        "starter_outs": 11,
+        "starter_earned_runs": 1,
+        "bullpen_runs_allowed": 1,
+        "team_runs": 3
+      },
+      "note": null
+    },
+    {
+      "date": "2026-07-12",
+      "game": "Los Angeles Angels at Minnesota Twins",
+      "game_pk": 823681,
+      "team": "Minnesota Twins",
+      "side_outcome": "win",
+      "price": 0.555,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 21 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "1 relievers allowed 0 runs (Andrew Morris 2.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 4 runs on 6 hits, 3 walks, 1 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 21,
+        "starter_earned_runs": 2,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 4
+      },
+      "note": null
+    },
+    {
+      "date": "2026-07-19",
+      "game": "Chicago White Sox at Toronto Blue Jays",
+      "game_pk": 822786,
+      "team": "Chicago White Sox",
+      "side_outcome": "win",
+      "price": 0.525,
+      "price_basis": "slate",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 20 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "2 relievers allowed 0 runs (Bryan Hudson 1.1 IP/0 R, Grant Taylor 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "mixed",
+          "evidence": "scored 3 runs on 6 hits, 2 walks, 1 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 20,
+        "starter_earned_runs": 0,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 3
+      },
+      "note": null
+    },
+    {
+      "date": "2026-07-26",
+      "game": "San Diego Padres at Miami Marlins",
+      "game_pk": 823840,
+      "team": "San Diego Padres",
+      "side_outcome": "win",
+      "price": 0.46,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 16 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "4 relievers allowed 0 runs (Yuki Matsui 0.2 IP/0 R, Wandy Peralta 1.0 IP/0 R, Adrian Morejon 1.0 IP/0 R, Mason Miller 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 5 runs on 13 hits, 0 walks, 2 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 16,
+        "starter_earned_runs": 2,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 5
+      },
+      "note": null
+    },
+    {
+      "date": "2026-07-27",
+      "game": "New York Yankees at Chicago White Sox",
+      "game_pk": 824570,
+      "team": "New York Yankees",
+      "side_outcome": "win",
+      "price": 0.57,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 9 outs, classified 'short_start'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "mixed",
+          "evidence": "7 relievers allowed 2 runs (Angel Chivilli 1.0 IP/0 R, Tim Hill 0.1 IP/1 R, Fernando Cruz 1.1 IP/0 R, Brent Headrick 1.1 IP/0 R, Paul Blackburn 1.0 IP/0 R, Camilo Doval 0.2 IP/1 R, David Bednar 0.1 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 9 runs on 10 hits, 3 walks, 1 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "short_start",
+        "starter_outs": 9,
+        "starter_earned_runs": 3,
+        "bullpen_runs_allowed": 2,
+        "team_runs": 9
+      },
+      "note": null
+    },
+    {
+      "date": "2026-07-27",
+      "game": "Boston Red Sox at Athletics",
+      "game_pk": 824977,
+      "team": "Boston Red Sox",
+      "side_outcome": "win",
+      "price": 0.635,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 16 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "4 relievers allowed 0 runs (Justin Slaten 0.2 IP/0 R, Jovani Mor\u00e1n 1.0 IP/0 R, Garrett Whitlock 1.0 IP/0 R, Aroldis Chapman 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 4 runs on 5 hits, 4 walks, 1 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 16,
+        "starter_earned_runs": 2,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 4
+      },
+      "note": null
+    },
+    {
+      "date": "2026-08-05",
+      "game": "San Diego Padres at Arizona Diamondbacks",
+      "game_pk": 825052,
+      "team": "San Diego Padres",
+      "side_outcome": "loss",
+      "price": 0.565,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 10 outs, classified 'short_start'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "mixed",
+          "evidence": "3 relievers allowed 2 runs (Kyle Hart 2.2 IP/0 R, Wandy Peralta 1.0 IP/0 R, Griffin Canning 1.0 IP/2 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 4 runs on 3 hits, 5 walks, 1 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "short_start",
+        "starter_outs": 10,
+        "starter_earned_runs": 8,
+        "bullpen_runs_allowed": 2,
+        "team_runs": 4
+      },
+      "note": null
+    },
+    {
+      "date": "2026-08-06",
+      "game": "New York Mets at Cleveland Guardians",
+      "game_pk": 824401,
+      "team": "New York Mets",
+      "side_outcome": "win",
+      "price": 0.47,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 15 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "3 relievers allowed 1 runs (Nate Lavender 1.0 IP/0 R, Kodai Senga 1.0 IP/0 R, Xzavion Curry 2.0 IP/1 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 13 runs on 18 hits, 6 walks, 3 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 15,
+        "starter_earned_runs": 5,
+        "bullpen_runs_allowed": 1,
+        "team_runs": 13
+      },
+      "note": null
+    },
+    {
+      "date": "2026-08-06",
+      "game": "Chicago White Sox at Boston Red Sox",
+      "game_pk": 824729,
+      "team": "Boston Red Sox",
+      "side_outcome": "win",
+      "price": 0.64,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 9 outs, classified 'short_start'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "failed",
+          "evidence": "8 relievers allowed 7 runs (Greg Weissert 1.0 IP/1 R, Justin Slaten 1.0 IP/2 R, Tyron Guerrero 1.0 IP/0 R, Erik Miller 2.0 IP/0 R, Jovani Mor\u00e1n 1.0 IP/0 R, Aroldis Chapman 1.0 IP/2 R, Garrett Whitlock 1.0 IP/1 R, Brayan Bello 2.0 IP/1 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 12 runs on 16 hits, 7 walks, 1 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "short_start",
+        "starter_outs": 9,
+        "starter_earned_runs": 3,
+        "bullpen_runs_allowed": 7,
+        "team_runs": 12
+      },
+      "note": null
+    },
+    {
+      "date": "2026-08-07",
+      "game": "Detroit Tigers at San Francisco Giants",
+      "game_pk": 823191,
+      "team": "Detroit Tigers",
+      "side_outcome": "loss",
+      "price": 0.57,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 18 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "2 relievers allowed 0 runs (Drew Sommers 1.0 IP/0 R, Enmanuel De Jesus 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "failed",
+          "evidence": "scored 2 runs on 11 hits, 4 walks, 0 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 18,
+        "starter_earned_runs": 5,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 2
+      },
+      "note": null
+    },
+    {
+      "date": "2026-08-07",
+      "game": "Minnesota Twins at Milwaukee Brewers",
+      "game_pk": 823750,
+      "team": "Milwaukee Brewers",
+      "side_outcome": "loss",
+      "price": 0.62,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 15 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "mixed",
+          "evidence": "2 relievers allowed 2 runs (Antonio Senzatela 1.0 IP/2 R, Bryse Wilson 3.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 6 runs on 9 hits, 5 walks, 1 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 15,
+        "starter_earned_runs": 6,
+        "bullpen_runs_allowed": 2,
+        "team_runs": 6
+      },
+      "note": null
+    },
+    {
+      "date": "2026-08-08",
+      "game": "Chicago Cubs at Kansas City Royals",
+      "game_pk": 824079,
+      "team": "Chicago Cubs",
+      "side_outcome": "loss",
+      "price": 0.59,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 12 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "mixed",
+          "evidence": "1 relievers allowed 2 runs (Colin Rea 4.0 IP/2 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "mixed",
+          "evidence": "scored 3 runs on 7 hits, 3 walks, 1 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 12,
+        "starter_earned_runs": 4,
+        "bullpen_runs_allowed": 2,
+        "team_runs": 3
+      },
+      "note": null
+    },
+    {
+      "date": "2026-08-10",
+      "game": "Boston Red Sox at Toronto Blue Jays",
+      "game_pk": 822780,
+      "team": "Boston Red Sox",
+      "side_outcome": "loss",
+      "price": 0.6,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 18 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "1 relievers allowed 0 runs (Jovani Mor\u00e1n 2.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "failed",
+          "evidence": "scored 1 runs on 6 hits, 5 walks, 0 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 18,
+        "starter_earned_runs": 2,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 1
+      },
+      "note": null
+    },
+    {
+      "date": "2026-08-10",
+      "game": "Philadelphia Phillies at St. Louis Cardinals",
+      "game_pk": 823018,
+      "team": "St. Louis Cardinals",
+      "side_outcome": "loss",
+      "price": 0.48,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 15 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "mixed",
+          "evidence": "4 relievers allowed 3 runs (Luis Gastelum 1.1 IP/0 R, Caleb Ferguson 0.0 IP/1 R, Gordon Graceffo 1.2 IP/2 R, Justin Bruihl 1.0 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "held",
+          "evidence": "scored 5 runs on 8 hits, 4 walks, 0 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 15,
+        "starter_earned_runs": 1,
+        "bullpen_runs_allowed": 3,
+        "team_runs": 5
+      },
+      "note": null
+    },
+    {
+      "date": "2026-08-10",
+      "game": "Milwaukee Brewers at San Diego Padres",
+      "game_pk": 823265,
+      "team": "Milwaukee Brewers",
+      "side_outcome": "loss",
+      "price": 0.53,
+      "price_basis": "entry",
+      "bet_time_evidence_fields": [],
+      "evidence_file_status": "complete",
+      "pillars": {
+        "starter_role": {
+          "grade": "unknown",
+          "evidence": "expected None; actual first pitcher recorded 19 outs, classified 'starter'",
+          "source": "deterministic"
+        },
+        "starter_quality": {
+          "grade": "unknown",
+          "evidence": "expected_ip or the actual starter line is unavailable",
+          "source": "deterministic"
+        },
+        "bullpen_availability": {
+          "grade": "held",
+          "evidence": "1 relievers allowed 0 runs (Lyon Richardson 1.2 IP/0 R)",
+          "source": "deterministic"
+        },
+        "offense_conversion": {
+          "grade": "failed",
+          "evidence": "scored 2 runs on 6 hits, 3 walks, 1 HR",
+          "source": "deterministic"
+        },
+        "named_risk": {
+          "grade": "unknown",
+          "evidence": "reviewer must grade whether the bet-time named risks materialized (unrecorded)",
+          "source": "deterministic"
+        }
+      },
+      "descriptive": {
+        "actual_role": "starter",
+        "starter_outs": 19,
+        "starter_earned_runs": 3,
+        "bullpen_runs_allowed": 0,
+        "team_runs": 2
+      },
+      "note": null
+    }
+  ],
+  "aggregates": {
+    "loss": {
+      "games": 38,
+      "graded": 38,
+      "ungraded": 0,
+      "pillars": {
+        "starter_role": {
+          "counts": {
+            "held": 0,
+            "failed": 0,
+            "mixed": 0,
+            "unknown": 38
+          },
+          "graded": 38,
+          "decided": 0,
+          "failed_rate": null
+        },
+        "starter_quality": {
+          "counts": {
+            "held": 0,
+            "failed": 0,
+            "mixed": 0,
+            "unknown": 38
+          },
+          "graded": 38,
+          "decided": 0,
+          "failed_rate": null
+        },
+        "bullpen_availability": {
+          "counts": {
+            "held": 15,
+            "failed": 7,
+            "mixed": 16,
+            "unknown": 0
+          },
+          "graded": 38,
+          "decided": 38,
+          "failed_rate": 0.184211
+        },
+        "offense_conversion": {
+          "counts": {
+            "held": 12,
+            "failed": 19,
+            "mixed": 7,
+            "unknown": 0
+          },
+          "graded": 38,
+          "decided": 38,
+          "failed_rate": 0.5
+        },
+        "named_risk": {
+          "counts": {
+            "held": 0,
+            "failed": 0,
+            "mixed": 0,
+            "unknown": 38
+          },
+          "graded": 38,
+          "decided": 0,
+          "failed_rate": null
+        }
+      },
+      "backed_side_actual_role": {
+        "starter": 32,
+        "opener_bulk": 1,
+        "short_start": 5,
+        "unknown": 0
+      }
+    },
+    "win": {
+      "games": 51,
+      "graded": 51,
+      "ungraded": 0,
+      "pillars": {
+        "starter_role": {
+          "counts": {
+            "held": 0,
+            "failed": 0,
+            "mixed": 0,
+            "unknown": 51
+          },
+          "graded": 51,
+          "decided": 0,
+          "failed_rate": null
+        },
+        "starter_quality": {
+          "counts": {
+            "held": 0,
+            "failed": 0,
+            "mixed": 0,
+            "unknown": 51
+          },
+          "graded": 51,
+          "decided": 0,
+          "failed_rate": null
+        },
+        "bullpen_availability": {
+          "counts": {
+            "held": 37,
+            "failed": 5,
+            "mixed": 9,
+            "unknown": 0
+          },
+          "graded": 51,
+          "decided": 51,
+          "failed_rate": 0.098039
+        },
+        "offense_conversion": {
+          "counts": {
+            "held": 40,
+            "failed": 3,
+            "mixed": 8,
+            "unknown": 0
+          },
+          "graded": 51,
+          "decided": 51,
+          "failed_rate": 0.058824
+        },
+        "named_risk": {
+          "counts": {
+            "held": 0,
+            "failed": 0,
+            "mixed": 0,
+            "unknown": 51
+          },
+          "graded": 51,
+          "decided": 0,
+          "failed_rate": null
+        }
+      },
+      "backed_side_actual_role": {
+        "starter": 45,
+        "opener_bulk": 1,
+        "short_start": 5,
+        "unknown": 0
+      }
+    }
+  },
+  "coverage": {
+    "counts": {
+      "complete": 89,
+      "insufficient": 0,
+      "missing": 0,
+      "invalid": 0
+    },
+    "insufficient": [],
+    "missing": [],
+    "invalid": [],
+    "bet_time_evidence": {
+      "note": "pillars starter_role, starter_quality, and named_risk need recorded bet-time evidence (starter_role/expected_ip/named_risks); games recording none grade those pillars unknown by contract",
+      "records_by_field": {
+        "starter_role": 0,
+        "expected_ip": 0,
+        "named_risks": 0
+      },
+      "records_with_any_field": 0,
+      "records_total": 89
+    }
+  },
+  "caveats": [
+    "Pillar failure rates are DESCRIPTIVE postgame facts about this corpus. They are not a model change; any adjustment mined from them must be graded leave-one-period-out before it is a candidate.",
+    "The loss cohort is every executed decided loss; all currently classify evidence_process_miss, and the classification counts above are the receipt, not an assumption.",
+    "starter_quality and named_risk (and starter_role's expected half) grade unknown wherever the card recorded no structured bet-time evidence \u2014 a corpus coverage limit, stated with its denominator."
+  ]
+}
