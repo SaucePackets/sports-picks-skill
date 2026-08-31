@@ -2,8 +2,11 @@ import json
 import math
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
+from scripts import mlb_probability_model
+from scripts.mlb_baseball_evidence import _is_number as write_gate_is_number
 from scripts.mlb_probability_model import (
     MARKET_MODEL_VERSION,
     brier_score,
@@ -564,6 +567,259 @@ class PromptWiringTests(unittest.TestCase):
                 Path("/tmp/schedule.json"), [{"id": "lineup-abc"}]
             )
         self.assertIn("PROBABILITY COMPONENTS", prompt)
+
+
+class SharedNumberPredicateTests(unittest.TestCase):
+    """This module validates recorded numbers with the SHARED rule.
+
+    `_is_number` here was a verbatim copy of the body PR #69 deleted from
+    `mlb_baseball_evidence`, and it carried the copy's defect: `math.isfinite`
+    raises `OverflowError` on an integer too large to convert to a float, and
+    `json.loads` parses one straight off a card. So a `10 ** 400` value made
+    `probability_component_errors` RAISE instead of returning its error list —
+    the same shape as PR #68's settlement grade, except this validator is on
+    the execution path.
+    """
+
+    HUGE_INT = 10 ** 400
+
+    def test_this_module_holds_the_same_object_as_the_write_gate(self):
+        # Identity, not behaviour: a re-derived copy passes a behaviour test on
+        # the day it is written and fails silently on the day one side moves.
+        # That is exactly how this copy came to exist.
+        self.assertIs(mlb_probability_model._is_number, write_gate_is_number)
+
+    def test_the_component_entry_path_CALLS_the_shared_rule_rather_than_merely_importing_it(self):
+        # `_is_number` being the shared object says nothing about whether
+        # `validate_probability_components` consults it — the import name can
+        # stay bound while the check is re-derived inline at the call site, and
+        # the whole suite stays green (Reviewer proved that shape on PR #69's
+        # first tip). So rebind the rule and require the ANSWER to follow, in
+        # BOTH directions: a one-directional check is satisfied by a function
+        # that returns False for any reason at all.
+        message = (
+            "probability_components.adjustments[0].delta must be a finite number"
+        )
+        with unittest.mock.patch.object(
+            mlb_probability_model, "_is_number", lambda _v: False
+        ):
+            self.assertIn(message, probability_component_errors(candidate_trail()))
+        with unittest.mock.patch.object(
+            mlb_probability_model, "_is_number", lambda _v: True
+        ):
+            self.assertNotIn(
+                message,
+                probability_component_errors(
+                    candidate_trail(
+                        probability_components=valid_probability_components(
+                            adjustments=[{
+                                "component": "starter_run_prevention",
+                                "delta": float("inf"),
+                                "evidence": "would be rejected by the real rule",
+                            }],
+                        ),
+                    )
+                ),
+            )
+
+    def test_validate_probability_components_CALLS_the_shared_rule_at_BOTH_of_its_own_sites(self):
+        # The test above pins the entry path (`_component_entries`), which is
+        # where the huge-int defect surfaced. `validate_probability_components`
+        # has two `_is_number` call sites of ITS OWN — the `uncertainty_haircut`
+        # numeric check and the `conservative_probability` consistency check —
+        # and neither was pinned: re-deriving the rule inline at the haircut
+        # check, total and behaviourally identical with `_is_number` still bound
+        # to the shared object, left the FULL suite green at 762 (Reviewer, PR
+        # #70). Same selected-not-applied shape as #69's round-2 blocker, one
+        # level down, inside the function the docstring named as covered.
+        #
+        # Two things make these sites awkward to pin, and both shaped the stubs:
+        #
+        # 1. A blanket `lambda _v: False` cannot reach either site.
+        #    `_is_probability` is built on `_is_number`, so the `dk_fair_prob`
+        #    gate returns early first.
+        # 2. `validate_probability_components` returns as soon as the entry
+        #    lists produce any error, so a stub keyed on a plain value that the
+        #    fixture also uses inside a component entry (0.03 is both the
+        #    haircut total AND the haircut component's amount) short-circuits
+        #    before the site under test.
+        #
+        # So the stubs differ from the real rule at ONE probe OBJECT — a float
+        # subclass carried only by the field under test — and agree with it
+        # everywhere else. That is what makes the assertion about this site.
+        real = mlb_probability_model._is_number
+
+        class Probe(float):
+            """A float the stub can recognise; the real rule accepts it."""
+
+        self.assertTrue(real(Probe(0.03)), "the real rule must accept the probe")
+
+        # --- site 1: the `uncertainty_haircut` numeric check ---
+        message = "uncertainty_haircut must be a non-negative number"
+        probed = candidate_trail(uncertainty_haircut=Probe(0.03))
+        self.assertNotIn(
+            message,
+            probability_component_errors(probed),
+            "positive control: the probe validates cleanly when unstubbed, so a "
+            "failure below is the stub being consulted and not the probe itself",
+        )
+        with unittest.mock.patch.object(
+            mlb_probability_model,
+            "_is_number",
+            lambda v: real(v) and not isinstance(v, Probe),
+        ):
+            # The shared rule now refuses this haircut, so the ANSWER must
+            # follow. An inline copy keeps accepting it and stays silent.
+            self.assertIn(message, probability_component_errors(probed))
+        with unittest.mock.patch.object(
+            mlb_probability_model,
+            "_is_number",
+            lambda v: real(v) or v == float("inf"),
+        ):
+            # And the other direction — a one-directional check is satisfied by
+            # a stub that returns False for any reason at all.
+            self.assertNotIn(
+                message,
+                probability_component_errors(
+                    candidate_trail(uncertainty_haircut=float("inf"))
+                ),
+            )
+
+        # --- site 2: the `conservative_probability` consistency check ---
+        prefix = "conservative_probability must equal raw_probability - "
+        reported = lambda trail: any(  # noqa: E731
+            e.startswith(prefix) for e in probability_component_errors(trail)
+        )
+        # raw 0.57 - haircut 0.03 is 0.54, so 0.10 is inconsistent and reported.
+        inconsistent = candidate_trail(conservative_probability=Probe(0.10))
+        self.assertTrue(
+            reported(inconsistent),
+            "positive control: an inconsistent conservative_probability is "
+            "reported when the shared rule is not stubbed",
+        )
+        with unittest.mock.patch.object(
+            mlb_probability_model,
+            "_is_number",
+            lambda v: real(v) and not isinstance(v, Probe),
+        ):
+            # The check is GUARDED by the predicate, so refusing the value must
+            # skip it. An inline copy keeps accepting and keeps reporting.
+            self.assertFalse(reported(inconsistent))
+        with unittest.mock.patch.object(
+            mlb_probability_model,
+            "_is_number",
+            lambda v: real(v) or v == float("inf"),
+        ):
+            self.assertTrue(
+                reported(candidate_trail(conservative_probability=float("inf")))
+            )
+
+    def test_the_validator_RETURNS_A_LIST_for_the_huge_integer_instead_of_raising(self):
+        # The defect, at each field that reaches the predicate. Every one of
+        # these raised `OverflowError` out of the validator before the fix.
+        #
+        # Named for what it asserts and nothing more: list-ness, not an error.
+        # Three of the four fields do produce an error (covered by
+        # test_every_unusable_number_is_reported_as_an_error and by the
+        # consultation pins above), but `conservative_probability` returns an
+        # EMPTY list — its consistency check is guarded by `_is_number` and is
+        # simply skipped for a value the rule refuses, before and after this
+        # change. That is bounded downstream rather than here:
+        # `vig_review_gate_common` fails closed on any conservative_probability
+        # outside `0 < x < 1`, which rejects a huge int by integer comparison
+        # without ever converting it to a float. Calling this test "reports"
+        # would have been the overclaim it exists to avoid.
+        for label, trail in (
+            ("adjustment delta", candidate_trail(
+                probability_components=valid_probability_components(
+                    adjustments=[{
+                        "component": "starter_run_prevention",
+                        "delta": self.HUGE_INT,
+                        "evidence": "huge integer straight off a card",
+                    }],
+                ),
+            )),
+            ("uncertainty_haircut", candidate_trail(uncertainty_haircut=self.HUGE_INT)),
+            ("raw_probability", candidate_trail(raw_probability=self.HUGE_INT)),
+            ("conservative_probability",
+             candidate_trail(conservative_probability=self.HUGE_INT)),
+        ):
+            for sign, value in (("+", 1), ("-", -1)):
+                with self.subTest(field=label, sign=sign):
+                    scaled = _rescale_huge(trail, value)
+                    errors = probability_component_errors(scaled)
+                    self.assertIsInstance(errors, list)
+
+    def test_the_huge_integer_is_what_json_parses_off_a_card(self):
+        # Without this the guard reads as defending against nothing: an
+        # arbitrarily long integer literal is not hand-built, it is what
+        # `json.loads` returns for a value already written to disk.
+        parsed = json.loads('{"delta": 1' + "0" * 400 + "}")["delta"]
+        self.assertIsInstance(parsed, int)
+        self.assertEqual(parsed, self.HUGE_INT)
+        self.assertFalse(mlb_probability_model._is_number(parsed))
+
+    def test_every_unusable_number_is_reported_as_an_error(self):
+        # Errors, not exceptions, for every shape the arithmetic cannot take.
+        for label, value in (
+            ("nan", float("nan")),
+            ("inf", float("inf")),
+            ("-inf", float("-inf")),
+            ("huge_int", HUGE := 10 ** 400),
+            ("-huge_int", -HUGE),
+        ):
+            with self.subTest(value=label):
+                errors = probability_component_errors(
+                    candidate_trail(
+                        probability_components=valid_probability_components(
+                            adjustments=[{
+                                "component": "starter_run_prevention",
+                                "delta": value,
+                                "evidence": "unusable value",
+                            }],
+                        ),
+                    )
+                )
+                self.assertIn(
+                    "probability_components.adjustments[0].delta must be a "
+                    "finite number",
+                    errors,
+                )
+        self.assertEqual(HUGE, self.HUGE_INT)
+
+    def test_a_valid_contract_is_still_valid(self):
+        # The regression rail: sharing the predicate must not reject anything
+        # the contract accepted before. Finite positives, at the boundaries the
+        # component bounds allow.
+        self.assertEqual(probability_component_errors(candidate_trail()), [])
+        for delta in (0.015, 0.005, -0.02, 0.0):
+            with self.subTest(delta=delta):
+                self.assertTrue(mlb_probability_model._is_number(delta))
+        for value in (0, 1, -1, 0.5, 1e308, -1e308):
+            with self.subTest(value=value):
+                self.assertTrue(mlb_probability_model._is_number(value))
+        for value in (True, False, None, "0.5", [1]):
+            with self.subTest(value=repr(value)):
+                self.assertFalse(mlb_probability_model._is_number(value))
+
+
+def _rescale_huge(value, sign):
+    """Return `value` with every `10 ** 400` replaced by `sign * 10 ** 400`.
+
+    The signed variant matters because the old body rejected `-inf` and `nan`
+    by accident but raised on an integer of either sign — the magnitude is what
+    `math.isfinite` cannot convert, not the sign.
+    """
+    if sign == 1:
+        return value
+    huge = 10 ** 400
+    if isinstance(value, dict):
+        return {k: _rescale_huge(v, sign) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_rescale_huge(v, sign) for v in value]
+    if isinstance(value, int) and not isinstance(value, bool) and value == huge:
+        return -huge
+    return value
 
 
 if __name__ == "__main__":

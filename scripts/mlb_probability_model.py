@@ -51,6 +51,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from mlb_runtime_policy import resolve_state_dir  # noqa: E402
+from numeric_util import is_finite_number  # noqa: E402
 
 MARKET_MODEL_VERSION = "vig-mlb-market-v1"
 DEPLOYMENT_POLICY_SCHEMA = "vig-mlb-model-deployment-policy-v1"
@@ -117,12 +118,14 @@ POSTGAME_LEAKAGE_KEYS = frozenset(
 )
 
 
-def _is_number(value: Any) -> bool:
-    return (
-        isinstance(value, (int, float))
-        and not isinstance(value, bool)
-        and math.isfinite(value)
-    )
+# The shared rule, not a third copy of it. This was a verbatim copy of the body
+# PR #69 deleted from `mlb_baseball_evidence`, and it carried the same defect:
+# `math.isfinite` raises `OverflowError` on an integer too large to convert to a
+# float, and `json.loads` parses one straight off a card. So a `10 ** 400` delta
+# made `probability_component_errors` RAISE instead of returning its error list —
+# the same "the function whose job is to report errors throws instead" shape as
+# the settlement grade in PR #68, here on the execution path.
+_is_number = is_finite_number
 
 
 def _is_probability(value: Any) -> bool:
