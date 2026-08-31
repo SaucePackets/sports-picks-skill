@@ -27,6 +27,7 @@ PROFILE_MANIFEST=(
   mlb_baseball_evidence.py
   mlb_execution_gate.py
   mlb_final_scores.py
+  mlb_game_reads.py
   mlb_lineup_watchlist.py
   mlb_postgame_evidence.py
   mlb_probability_model.py

@@ -1,0 +1,429 @@
+#!/usr/bin/env python3
+"""Per-game refusal recording for the MLB slate, and its coverage check.
+
+Every analysis this repo has run so far — the gate replay (PR #63), the
+side-selection attribution (PR #64), the loss-evidence report (PR #66) — takes
+a PRICED CANDIDATE as its unit. A day on which nothing was priced contributes
+zero rows to all of them, by construction. So the largest bucket of the
+2026-08-11..08-31 drought (eleven ``slate_empty`` days against slates averaging
+fourteen games) has never appeared in any corpus we have studied: we know the
+gate's record on what it lets THROUGH and have never measured what it REFUSES.
+
+The reasons are not missing — they are written into the slate prose, and on a
+good day that prose is genuinely detailed. They are just not recorded. Over
+2026-08-11..08-31, seven of twenty-one dates carry structured per-game reads
+covering 88 of 209 scheduled games; the other 58% is narrated, and WHICH games
+land in that 58% is decided by how tersely a particular run happened to write.
+A refusal rate computed over it would measure the writeup's verbosity.
+
+So this module defines a ``game_reads`` array on the schedule JSON and the
+check that makes it honest. The design point is the one PR #65 paid two review
+rounds to learn: **a field the prompt asks for is not a field that gets
+written.** Structural forcing beats prompt instruction, so the denominator
+comes from code and the reads come from the run:
+
+- ``scripts/mlb_stage2_scan.py`` enumerates the slate deterministically and now
+  emits ``game_pk`` alongside ``event_id``. Its rows are the denominator.
+- The run records that denominator into the schedule as ``slate_denominator``
+  and one ``game_reads`` entry per game.
+- ``--validate`` refuses the slate when the two disagree, and ``--denominator``
+  additionally checks the recorded denominator against a fresh scan output, so
+  a run cannot shrink its own denominator to match a short read set.
+
+**Both id spaces, always.** The slate's ``event_id`` is an ESPN id and the MLB
+``gamePk`` is a different id space entirely — 2026-08-30 records ``401816733``
+for the game MLB calls ``824876``. Anything joining the two on one id gets
+silence that reads as missing data, which is how the drought diagnostic found
+it. A read carries both, and validation requires both.
+
+**A missing number must say why.** A numeric field may be absent only when
+``unavailable`` carries a non-empty reason for it. ``null`` with no reason is
+an error, because "no price" and "a price nobody recorded" are different facts
+and only one of them is a finding.
+
+**What this does not do.** It does not judge a refusal, rank rails, or change
+any gate. It records what the run already computed. And the vocabulary is
+closed but not complete — it is the set of rails observable in the slate prose
+plus the gates the watchlist already names; a refusal that fits none of them is
+an error here rather than a silent ``other`` bucket, so the vocabulary grows by
+review instead of by default.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+from typing import Any
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from mlb_lineup_watchlist import (  # noqa: E402
+    ALLOWED_BLOCKERS,
+    REQUIRED_ORIGINAL_GATES,
+)
+from numeric_util import is_finite_number  # noqa: E402
+
+# Rails that are not handicapping gates: the slate could not price the game at
+# all, or a volume rail closed the card before the read mattered. Every one is
+# observable verbatim in the 2026-08 slate prose ("DK line unavailable", "the
+# exact Polymarket slug returned no market data", "underway, no action",
+# "Coors is a 112 run-factor extreme hitter park, which caps confidence").
+STRUCTURAL_RAILS = frozenset(
+    {
+        "no_dk_price",
+        "no_polymarket_market",
+        "game_already_started",
+        "park_environment_cap",
+        "daily_volume_cap",
+        # Added because the hypothesis scan found refusals that fitted none of
+        # the other twelve: "missing offense input", "Arizona offense row was
+        # missing, so non-starter data is incomplete", "Starter missing for
+        # Colorado". A required input that never arrived is a real and common
+        # reason to refuse, and it was not a rail anyone had named. That is the
+        # passenger doing its one job.
+        "incomplete_input_data",
+    }
+)
+
+# The closed vocabulary. The handicapping gates and the two deferrable blockers
+# are IMPORTED rather than restated: this repo has now spent three review
+# rounds (PRs #69, #70, #71) on copies of one rule drifting apart, and a
+# restated gate list would be the same defect in a new file.
+REFUSAL_RAILS = frozenset(REQUIRED_ORIGINAL_GATES) | frozenset(ALLOWED_BLOCKERS) | STRUCTURAL_RAILS
+
+# What the run decided about the game. ``not_priced`` is deliberately distinct
+# from ``pass``: a game nobody could price was never handicapped, and folding
+# the two would recreate the drought report's own collapsed-class defect.
+DISPOSITIONS = frozenset({"candidate", "lineup_watchlist", "pass", "not_priced"})
+
+# A disposition that means "the card refused this game" must name at least one
+# rail; a disposition that means "the card took it" must name none. Anything
+# else is a read that does not say what happened.
+REFUSING_DISPOSITIONS = frozenset({"pass", "not_priced"})
+ACCEPTING_DISPOSITIONS = frozenset({"candidate", "lineup_watchlist"})
+
+# Per-side probability fields. Each is either a two-sided object of usable
+# probabilities or explicitly unavailable with a reason.
+SIDE_PROBABILITY_FIELDS = ("dk_fair_prob", "polymarket_ask", "conservative_probability")
+# Edges are signed and may legitimately be negative, so they are checked for
+# usability but not for the 0 < x < 1 range.
+SIDE_SIGNED_FIELDS = ("net_edge",)
+SIDE_FIELDS = SIDE_PROBABILITY_FIELDS + SIDE_SIGNED_FIELDS
+
+IDENTITY_STRING_FIELDS = ("event_id", "away", "home")
+
+
+def _is_probability(value: Any) -> bool:
+    """A usable number strictly inside (0, 1).
+
+    Consults the shared rule rather than re-deriving it. See
+    ``numeric_util.is_finite_number`` for why the range clause alone is not
+    enough and why the two clauses are not interchangeable.
+    """
+    return is_finite_number(value) and 0 < value < 1
+
+
+def _identity_errors(label: str, entry: dict[str, Any]) -> list[str]:
+    """Both id spaces present and well-formed, plus the team names."""
+    errors: list[str] = []
+    game_pk = entry.get("game_pk")
+    if isinstance(game_pk, bool) or not isinstance(game_pk, int) or game_pk <= 0:
+        errors.append(f"{label}.game_pk must be a positive integer MLB gamePk")
+    for field in IDENTITY_STRING_FIELDS:
+        value = entry.get(field)
+        if not isinstance(value, str) or not value.strip():
+            errors.append(f"{label}.{field} must be a non-empty string")
+    return errors
+
+
+def _side_field_errors(label: str, entry: dict[str, Any]) -> list[str]:
+    """Every numeric field is either usable on both sides or explained.
+
+    The explanation requirement is the point. A field left ``null`` with no
+    entry in ``unavailable`` is indistinguishable from a field nobody got
+    around to writing, and this whole module exists because that distinction
+    was lost in prose.
+    """
+    errors: list[str] = []
+    unavailable = entry.get("unavailable")
+    if unavailable is None:
+        unavailable = {}
+    if not isinstance(unavailable, dict):
+        return [f"{label}.unavailable must be an object mapping field name to reason"]
+
+    for field in unavailable:
+        if field not in SIDE_FIELDS:
+            errors.append(f"{label}.unavailable names unknown field {field!r}")
+        reason = unavailable[field]
+        if not isinstance(reason, str) or not reason.strip():
+            errors.append(f"{label}.unavailable[{field!r}] must be a non-empty reason")
+
+    for field in SIDE_FIELDS:
+        value = entry.get(field)
+        explained = field in unavailable
+        if value is None:
+            if not explained:
+                errors.append(
+                    f"{label}.{field} is absent and {label}.unavailable does not say why"
+                )
+            continue
+        if explained:
+            errors.append(
+                f"{label}.{field} is recorded but also listed unavailable; it is one or the other"
+            )
+        if not isinstance(value, dict):
+            errors.append(f"{label}.{field} must be an object with away and home")
+            continue
+        extra = set(value) - {"away", "home"}
+        if extra:
+            errors.append(f"{label}.{field} has unexpected side(s) {sorted(extra)}")
+        for side in ("away", "home"):
+            if side not in value:
+                errors.append(f"{label}.{field}.{side} is missing")
+                continue
+            side_value = value[side]
+            if field in SIDE_PROBABILITY_FIELDS:
+                if not _is_probability(side_value):
+                    errors.append(
+                        f"{label}.{field}.{side} must be a usable probability strictly inside (0, 1)"
+                    )
+            elif not is_finite_number(side_value):
+                errors.append(f"{label}.{field}.{side} must be a usable number")
+    return errors
+
+
+def _disposition_errors(label: str, entry: dict[str, Any]) -> list[str]:
+    """The disposition and its rails have to agree about what happened."""
+    errors: list[str] = []
+    disposition = entry.get("disposition")
+    if disposition not in DISPOSITIONS:
+        errors.append(
+            f"{label}.disposition must be one of {sorted(DISPOSITIONS)}, got {disposition!r}"
+        )
+
+    rails = entry.get("refusing_rails")
+    if not isinstance(rails, list):
+        errors.append(f"{label}.refusing_rails must be a list")
+        return errors
+    for rail in rails:
+        if rail not in REFUSAL_RAILS:
+            errors.append(
+                f"{label}.refusing_rails contains unknown rail {rail!r}; "
+                f"known rails are {sorted(REFUSAL_RAILS)}"
+            )
+    if len(set(map(repr, rails))) != len(rails):
+        errors.append(f"{label}.refusing_rails repeats a rail")
+
+    if disposition in REFUSING_DISPOSITIONS and not rails:
+        errors.append(f"{label}.disposition is {disposition!r} but names no refusing rail")
+    if disposition in ACCEPTING_DISPOSITIONS and rails:
+        errors.append(
+            f"{label}.disposition is {disposition!r} but names refusing rails {sorted(rails)}"
+        )
+    return errors
+
+
+def validate_read(entry: Any, index: int) -> list[str]:
+    """Every error in one ``game_reads`` entry, as a flat list of strings."""
+    label = f"game_reads[{index}]"
+    if not isinstance(entry, dict):
+        return [f"{label} must be an object"]
+    return (
+        _identity_errors(label, entry)
+        + _side_field_errors(label, entry)
+        + _disposition_errors(label, entry)
+    )
+
+
+def denominator_games(schedule: dict[str, Any]) -> list[dict[str, Any]]:
+    """The games the slate is accountable for, or ``[]`` when unrecorded."""
+    denominator = schedule.get("slate_denominator")
+    if not isinstance(denominator, dict):
+        return []
+    games = denominator.get("games")
+    return games if isinstance(games, list) else []
+
+
+def _denominator_errors(schedule: dict[str, Any]) -> list[str]:
+    """The recorded denominator itself has to be usable before it can bind.
+
+    Fail closed: a slate with no denominator is UNVERIFIABLE, not compliant.
+    An earlier draft of this module keyed coverage on ``audit-results/``, and
+    every file in that directory turned out to carry an ``_audit_fetched_at_utc``
+    from the drought lane's own analysis run — it is written by the audit
+    tooling, not by the scan, so at slate time it does not exist yet.
+    """
+    denominator = schedule.get("slate_denominator")
+    if not isinstance(denominator, dict):
+        return ["slate_denominator is missing; coverage cannot be checked"]
+    errors: list[str] = []
+    source = denominator.get("source")
+    if not isinstance(source, str) or not source.strip():
+        errors.append("slate_denominator.source must name where the game list came from")
+    fetched = denominator.get("fetched_at_utc")
+    if not isinstance(fetched, str) or not fetched.strip():
+        errors.append("slate_denominator.fetched_at_utc must be a non-empty timestamp")
+    games = denominator.get("games")
+    if not isinstance(games, list):
+        return errors + ["slate_denominator.games must be a list"]
+    for index, game in enumerate(games):
+        label = f"slate_denominator.games[{index}]"
+        if not isinstance(game, dict):
+            errors.append(f"{label} must be an object")
+            continue
+        errors.extend(_identity_errors(label, game))
+    return errors
+
+
+def coverage_errors(schedule: dict[str, Any]) -> list[str]:
+    """One read per scheduled game, keyed on ``game_pk``, in both directions.
+
+    Both directions matter and for different reasons. A game in the
+    denominator with no read is the terse-writeup failure this module exists
+    to stop. A read for a game NOT in the denominator means the read set and
+    the schedule disagree about what was played, which is the id-space defect
+    showing up as a phantom row.
+    """
+    errors = _denominator_errors(schedule)
+    reads = schedule.get("game_reads")
+    if not isinstance(reads, list):
+        return errors + ["game_reads must be a list"]
+
+    expected: list[int] = []
+    for game in denominator_games(schedule):
+        if isinstance(game, dict) and isinstance(game.get("game_pk"), int):
+            expected.append(game["game_pk"])
+    seen: dict[int, int] = {}
+    for entry in reads:
+        if isinstance(entry, dict) and isinstance(entry.get("game_pk"), int):
+            seen[entry["game_pk"]] = seen.get(entry["game_pk"], 0) + 1
+
+    for game_pk in expected:
+        if game_pk not in seen:
+            errors.append(f"scheduled game {game_pk} has no game_reads entry")
+    for game_pk, count in sorted(seen.items()):
+        if game_pk not in expected:
+            errors.append(f"game_reads entry {game_pk} is not in slate_denominator")
+        if count > 1:
+            errors.append(f"game_reads has {count} entries for game {game_pk}")
+    return errors
+
+
+def card_reconciliation_errors(schedule: dict[str, Any]) -> list[str]:
+    """The reads and the card must agree on how many games were taken.
+
+    A read set that says ``candidate`` three times over a schedule carrying one
+    candidate is not a recording detail — it means the record of the decision
+    and the decision itself have come apart, and the record is what every later
+    analysis will read.
+    """
+    errors: list[str] = []
+    reads = schedule.get("game_reads")
+    if not isinstance(reads, list):
+        return errors
+    for disposition, key in (("candidate", "candidates"), ("lineup_watchlist", "lineup_watchlist")):
+        recorded = sum(
+            1
+            for entry in reads
+            if isinstance(entry, dict) and entry.get("disposition") == disposition
+        )
+        actual = schedule.get(key)
+        actual_count = len(actual) if isinstance(actual, list) else 0
+        if recorded != actual_count:
+            errors.append(
+                f"{recorded} game_reads entries say {disposition!r} but the schedule carries "
+                f"{actual_count} {key}"
+            )
+    return errors
+
+
+def validate_game_reads(schedule: Any) -> list[str]:
+    """Every error in a schedule's per-game refusal record."""
+    if not isinstance(schedule, dict):
+        return ["schedule must be a JSON object"]
+    reads = schedule.get("game_reads")
+    if not isinstance(reads, list):
+        return ["game_reads must be a list"] + _denominator_errors(schedule)
+    errors: list[str] = []
+    for index, entry in enumerate(reads):
+        errors.extend(validate_read(entry, index))
+    errors.extend(coverage_errors(schedule))
+    errors.extend(card_reconciliation_errors(schedule))
+    return errors
+
+
+def scan_denominator_errors(schedule: dict[str, Any], scan_rows: Any) -> list[str]:
+    """Cross-check the recorded denominator against a fresh scan output.
+
+    Without this, the denominator is only as honest as the run that wrote it —
+    a run could record the games it felt like reading and be perfectly
+    self-consistent. ``mlb_stage2_scan.py`` output is the independent copy.
+    """
+    if not isinstance(scan_rows, list):
+        return ["scan output must be a JSON list of rows"]
+    scanned = {
+        row["game_pk"]
+        for row in scan_rows
+        if isinstance(row, dict) and isinstance(row.get("game_pk"), int)
+    }
+    unresolved = [
+        row
+        for row in scan_rows
+        if isinstance(row, dict) and not isinstance(row.get("game_pk"), int)
+    ]
+    recorded = {
+        game["game_pk"]
+        for game in denominator_games(schedule)
+        if isinstance(game, dict) and isinstance(game.get("game_pk"), int)
+    }
+    errors: list[str] = []
+    for game_pk in sorted(scanned - recorded):
+        errors.append(f"scan lists game {game_pk} but slate_denominator does not")
+    for game_pk in sorted(recorded - scanned):
+        errors.append(f"slate_denominator lists game {game_pk} but the scan does not")
+    if unresolved:
+        errors.append(
+            f"{len(unresolved)} scan row(s) carry no game_pk; the denominator cannot be "
+            "verified against a scan that failed to identify every game"
+        )
+    return errors
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Validate the per-game refusal record on an MLB schedule."
+    )
+    parser.add_argument("schedule", type=Path)
+    parser.add_argument(
+        "--validate", action="store_true", help="validate game_reads (default action)"
+    )
+    parser.add_argument(
+        "--denominator",
+        type=Path,
+        help="mlb_stage2_scan.py output to cross-check slate_denominator against",
+    )
+    args = parser.parse_args(argv)
+
+    try:
+        schedule = json.loads(args.schedule.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        parser.error(str(exc))
+
+    errors = validate_game_reads(schedule)
+    if args.denominator is not None:
+        try:
+            scan_rows = json.loads(args.denominator.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            parser.error(str(exc))
+        if isinstance(schedule, dict):
+            errors = errors + scan_denominator_errors(schedule, scan_rows)
+    print(json.dumps({"ok": not errors, "errors": errors}, indent=2))
+    return 1 if errors else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

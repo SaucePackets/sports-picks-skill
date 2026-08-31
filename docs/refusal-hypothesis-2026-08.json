@@ -1,0 +1,3093 @@
+{
+  "by_rail": {
+    "bullpen_close_game_survival": {
+      "reads_naming_this_rail": 38,
+      "value_side_outcome_unknown": 0,
+      "value_side_resolved": 28,
+      "value_side_won": 11
+    },
+    "cold_fade_reset": {
+      "reads_naming_this_rail": 0,
+      "value_side_outcome_unknown": 0,
+      "value_side_resolved": 0,
+      "value_side_won": 0
+    },
+    "daily_volume_cap": {
+      "reads_naming_this_rail": 0,
+      "value_side_outcome_unknown": 0,
+      "value_side_resolved": 0,
+      "value_side_won": 0
+    },
+    "game_already_started": {
+      "reads_naming_this_rail": 1,
+      "value_side_outcome_unknown": 0,
+      "value_side_resolved": 0,
+      "value_side_won": 0
+    },
+    "incomplete_input_data": {
+      "reads_naming_this_rail": 8,
+      "value_side_outcome_unknown": 0,
+      "value_side_resolved": 5,
+      "value_side_won": 4
+    },
+    "lineups_unconfirmed": {
+      "reads_naming_this_rail": 9,
+      "value_side_outcome_unknown": 0,
+      "value_side_resolved": 8,
+      "value_side_won": 3
+    },
+    "no_dk_price": {
+      "reads_naming_this_rail": 2,
+      "value_side_outcome_unknown": 0,
+      "value_side_resolved": 0,
+      "value_side_won": 0
+    },
+    "no_polymarket_market": {
+      "reads_naming_this_rail": 16,
+      "value_side_outcome_unknown": 0,
+      "value_side_resolved": 0,
+      "value_side_won": 0
+    },
+    "opposing_starter_shutdown_path": {
+      "reads_naming_this_rail": 3,
+      "value_side_outcome_unknown": 0,
+      "value_side_resolved": 3,
+      "value_side_won": 0
+    },
+    "park_environment_cap": {
+      "reads_naming_this_rail": 28,
+      "value_side_outcome_unknown": 2,
+      "value_side_resolved": 28,
+      "value_side_won": 13
+    },
+    "price_discipline": {
+      "reads_naming_this_rail": 39,
+      "value_side_outcome_unknown": 0,
+      "value_side_resolved": 26,
+      "value_side_won": 14
+    },
+    "real_winner_conviction": {
+      "reads_naming_this_rail": 41,
+      "value_side_outcome_unknown": 3,
+      "value_side_resolved": 28,
+      "value_side_won": 16
+    },
+    "starter_floor": {
+      "reads_naming_this_rail": 4,
+      "value_side_outcome_unknown": 0,
+      "value_side_resolved": 4,
+      "value_side_won": 2
+    },
+    "starter_unannounced": {
+      "reads_naming_this_rail": 2,
+      "value_side_outcome_unknown": 0,
+      "value_side_resolved": 1,
+      "value_side_won": 0
+    }
+  },
+  "corpus": "Slate writeups copied from the VPS runtime .picks on 2026-08-31 (~/.buzz/.scratch/claude-freshcorpus-20260831), the same corpus the drought diagnostic used.",
+  "counts": {
+    "files_eligible": 10,
+    "files_in_window": 23,
+    "game_sections_parsed": 109,
+    "outcomes_attached": 105,
+    "reads_with_a_classified_rail": 108,
+    "reads_with_a_resolvable_value_side": 79,
+    "reads_with_no_classified_rail": 1
+  },
+  "days": [
+    {
+      "date": "2026-08-16",
+      "file": "2026-08-16.md",
+      "reads": [
+        {
+          "away": "Baltimore Orioles",
+          "heading": "Baltimore Orioles at Tampa Bay Rays \u2014 11:15 AM CT",
+          "home": "Tampa Bay Rays",
+          "outcome_known": true,
+          "outcome_score": "Baltimore Orioles 10 at Tampa Bay Rays 2",
+          "outcome_winner": "away",
+          "polymarket_ask": {
+            "away": 0.395,
+            "home": 0.61
+          },
+          "polymarket_ask_pattern": "ask_positional_dec",
+          "price_line": "DK line unavailable; PM ask 0.395/0.610; price discipline cannot be completed. (Polymarket US quote as of 2026-08-16T16:23:11Z; ask source).",
+          "refusal_clause": "\u26a0\ufe0f pass \u2014 price/data/park/conviction gate failed; no official card DK line unavailable; PM ask 0.395/0.610; price discipline cannot be completed. (Polymarket US quote as of 2026-08-16T16:23:11Z; ask source).",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "no_dk_price",
+            "price_discipline",
+            "real_winner_conviction"
+          ],
+          "unreadable": [
+            "dk_fair_prob: no two-sided value matched ['fair_labelled_pct', 'fair_labelled_dec', 'fair_positional_pct', 'fair_positional_dec', 'fair_single_side_dec', 'fair_single_side_pct', 'fair_single_label_dec', 'fair_single_label_pct']"
+          ]
+        },
+        {
+          "away": "Arizona Diamondbacks",
+          "dk_fair_prob": {
+            "away": 0.457,
+            "home": 0.5429999999999999
+          },
+          "dk_fair_prob_pattern": "fair_single_side_dec",
+          "heading": "Arizona Diamondbacks at Atlanta Braves \u2014 12:35 PM CT",
+          "home": "Atlanta Braves",
+          "outcome_known": true,
+          "outcome_score": "Arizona Diamondbacks 3 at Atlanta Braves 5",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.465,
+            "home": 0.54
+          },
+          "polymarket_ask_pattern": "ask_positional_dec",
+          "price_line": "DK 115/-124 -> de-vig fair away 0.457; PM ask 0.465/0.540; model 0.550/0.450; edges +0.085/-0.090 (Polymarket US quote as of 2026-08-16T16:23:11Z; ask source).",
+          "refusal_clause": "\u26a0\ufe0f pass \u2014 price/data/park/conviction gate failed; no official card DK 115/-124 -> de-vig fair away 0.457; PM ask 0.465/0.540; model 0.550/0.450; edges +0.085/-0.090 (Polymarket US quote as of 2026-08-16T16:23:11Z; ask source).",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "real_winner_conviction"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Boston Red Sox",
+          "dk_fair_prob": {
+            "away": 0.519,
+            "home": 0.481
+          },
+          "dk_fair_prob_pattern": "fair_single_side_dec",
+          "heading": "Boston Red Sox at Pittsburgh Pirates \u2014 12:35 PM CT",
+          "home": "Pittsburgh Pirates",
+          "outcome_known": true,
+          "outcome_score": "Boston Red Sox 3 at Pittsburgh Pirates 8",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.515,
+            "home": 0.49
+          },
+          "polymarket_ask_pattern": "ask_positional_dec",
+          "price_line": "DK -112/104 -> de-vig fair away 0.519; PM ask 0.515/0.490; model 0.470/0.530; edges -0.045/+0.040 (Polymarket US quote as of 2026-08-16T16:23:11Z; ask source).",
+          "refusal_clause": "\u26a0\ufe0f pass \u2014 price/data/park/conviction gate failed; no official card DK -112/104 -> de-vig fair away 0.519; PM ask 0.515/0.490; model 0.470/0.530; edges -0.045/+0.040 (Polymarket US quote as of 2026-08-16T16:23:11Z; ask source).",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "real_winner_conviction"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "New York Yankees",
+          "dk_fair_prob": {
+            "away": 0.468,
+            "home": 0.532
+          },
+          "dk_fair_prob_pattern": "fair_single_side_dec",
+          "heading": "New York Yankees at Toronto Blue Jays \u2014 12:37 PM CT",
+          "home": "Toronto Blue Jays",
+          "outcome_known": true,
+          "outcome_score": "New York Yankees 4 at Toronto Blue Jays 3",
+          "outcome_winner": "away",
+          "polymarket_ask": {
+            "away": 0.47,
+            "home": 0.535
+          },
+          "polymarket_ask_pattern": "ask_positional_dec",
+          "price_line": "DK 110/-118 -> de-vig fair away 0.468; PM ask 0.470/0.535; model 0.540/0.460; edges +0.070/-0.075 (Polymarket US quote as of 2026-08-16T16:23:11Z; ask source).",
+          "refusal_clause": "\u2705 6/6 original gates; \u26a0\ufe0f lineups_confirmed pending \u2014 watchlist only DK 110/-118 -> de-vig fair away 0.468; PM ask 0.470/0.535; model 0.540/0.460; edges +0.070/-0.075 (Polymarket US quote as of 2026-08-16T16:23:11Z; ask source).",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "lineups_unconfirmed"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Chicago White Sox",
+          "dk_fair_prob": {
+            "away": 0.484,
+            "home": 0.516
+          },
+          "dk_fair_prob_pattern": "fair_single_side_dec",
+          "heading": "Chicago White Sox at Detroit Tigers \u2014 12:40 PM CT",
+          "home": "Detroit Tigers",
+          "outcome_known": true,
+          "outcome_score": "Chicago White Sox 7 at Detroit Tigers 5",
+          "outcome_winner": "away",
+          "polymarket_ask": {
+            "away": 0.485,
+            "home": 0.52
+          },
+          "polymarket_ask_pattern": "ask_positional_dec",
+          "price_line": "DK 103/-111 -> de-vig fair away 0.484; PM ask 0.485/0.520; model 0.500/0.500; edges +0.015/-0.020 (Polymarket US quote as of 2026-08-16T16:23:11Z; ask source).",
+          "refusal_clause": "\u26a0\ufe0f pass \u2014 price/data/park/conviction gate failed; no official card DK 103/-111 -> de-vig fair away 0.484; PM ask 0.485/0.520; model 0.500/0.500; edges +0.015/-0.020 (Polymarket US quote as of 2026-08-16T16:23:11Z; ask source).",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "real_winner_conviction"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Miami Marlins",
+          "dk_fair_prob": {
+            "away": 0.532,
+            "home": 0.46799999999999997
+          },
+          "dk_fair_prob_pattern": "fair_single_side_dec",
+          "heading": "Miami Marlins at Cincinnati Reds \u2014 12:40 PM CT",
+          "home": "Cincinnati Reds",
+          "outcome_known": true,
+          "outcome_score": "Miami Marlins 7 at Cincinnati Reds 1",
+          "outcome_winner": "away",
+          "polymarket_ask": {
+            "away": 0.53,
+            "home": 0.475
+          },
+          "polymarket_ask_pattern": "ask_positional_dec",
+          "price_line": "DK -118/110 -> de-vig fair away 0.532; PM ask 0.530/0.475; model 0.600/0.400; edges +0.070/-0.075 (Polymarket US quote as of 2026-08-16T16:23:11Z; ask source).",
+          "refusal_clause": "\u26a0\ufe0f pass \u2014 price/data/park/conviction gate failed; no official card DK -118/110 -> de-vig fair away 0.532; PM ask 0.530/0.475; model 0.600/0.400; edges +0.070/-0.075 (Polymarket US quote as of 2026-08-16T16:23:11Z; ask source).",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "real_winner_conviction"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "San Diego Padres",
+          "dk_fair_prob": {
+            "away": 0.502,
+            "home": 0.498
+          },
+          "dk_fair_prob_pattern": "fair_single_side_dec",
+          "heading": "San Diego Padres at Cleveland Guardians \u2014 12:40 PM CT",
+          "home": "Cleveland Guardians",
+          "outcome_known": true,
+          "outcome_score": "San Diego Padres 5 at Cleveland Guardians 0",
+          "outcome_winner": "away",
+          "polymarket_ask": {
+            "away": 0.515,
+            "home": 0.49
+          },
+          "polymarket_ask_pattern": "ask_positional_dec",
+          "price_line": "DK -105/-103 -> de-vig fair away 0.502; PM ask 0.515/0.490; model 0.570/0.430; edges +0.055/-0.060 (Polymarket US quote as of 2026-08-16T16:23:11Z; ask source).",
+          "refusal_clause": "\u2705 6/6 original gates; \u26a0\ufe0f lineups_confirmed pending \u2014 watchlist only DK -105/-103 -> de-vig fair away 0.502; PM ask 0.515/0.490; model 0.570/0.430; edges +0.055/-0.060 (Polymarket US quote as of 2026-08-16T16:23:11Z; ask source).",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "lineups_unconfirmed"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Washington Nationals",
+          "dk_fair_prob": {
+            "away": 0.396,
+            "home": 0.604
+          },
+          "dk_fair_prob_pattern": "fair_single_side_dec",
+          "heading": "Washington Nationals at New York Mets \u2014 12:40 PM CT",
+          "home": "New York Mets",
+          "outcome_known": true,
+          "outcome_score": "Washington Nationals 3 at New York Mets 4",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.395,
+            "home": 0.61
+          },
+          "polymarket_ask_pattern": "ask_positional_dec",
+          "price_line": "DK 148/-160 -> de-vig fair away 0.396; PM ask 0.395/0.610; model 0.350/0.650; edges -0.045/+0.040 (Polymarket US quote as of 2026-08-16T16:23:11Z; ask source).",
+          "refusal_clause": "\u2705 6/6 original gates; \u26a0\ufe0f lineups_confirmed pending \u2014 watchlist only DK 148/-160 -> de-vig fair away 0.396; PM ask 0.395/0.610; model 0.350/0.650; edges -0.045/+0.040 (Polymarket US quote as of 2026-08-16T16:23:11Z; ask source).",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "lineups_unconfirmed"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Philadelphia Phillies",
+          "dk_fair_prob": {
+            "away": 0.513,
+            "home": 0.487
+          },
+          "dk_fair_prob_pattern": "fair_single_side_dec",
+          "heading": "Philadelphia Phillies at Minnesota Twins \u2014 1:10 PM CT",
+          "home": "Minnesota Twins",
+          "outcome_known": true,
+          "outcome_score": "Philadelphia Phillies 7 at Minnesota Twins 5",
+          "outcome_winner": "away",
+          "polymarket_ask": {
+            "away": 0.51,
+            "home": 0.495
+          },
+          "polymarket_ask_pattern": "ask_positional_dec",
+          "price_line": "DK -109/102 -> de-vig fair away 0.513; PM ask 0.510/0.495; model 0.540/0.460; edges +0.030/-0.035 (Polymarket US quote as of 2026-08-16T16:23:11Z; ask source).",
+          "refusal_clause": "\u26a0\ufe0f pass \u2014 price/data/park/conviction gate failed; no official card DK -109/102 -> de-vig fair away 0.513; PM ask 0.510/0.495; model 0.540/0.460; edges +0.030/-0.035 (Polymarket US quote as of 2026-08-16T16:23:11Z; ask source).",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "real_winner_conviction"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "St. Louis Cardinals",
+          "dk_fair_prob": {
+            "away": 0.375,
+            "home": 0.625
+          },
+          "dk_fair_prob_pattern": "fair_single_side_dec",
+          "heading": "St. Louis Cardinals at Chicago Cubs \u2014 2:00 PM CT",
+          "home": "Chicago Cubs",
+          "outcome_known": true,
+          "outcome_score": "St. Louis Cardinals 11 at Chicago Cubs 4",
+          "outcome_winner": "away",
+          "polymarket_ask": {
+            "away": 0.38,
+            "home": 0.625
+          },
+          "polymarket_ask_pattern": "ask_positional_dec",
+          "price_line": "DK 162/-174 -> de-vig fair away 0.375; PM ask 0.380/0.625; model 0.360/0.640; edges -0.020/+0.015 (Polymarket US quote as of 2026-08-16T16:23:11Z; ask source).",
+          "refusal_clause": "\u26a0\ufe0f pass \u2014 price/data/park/conviction gate failed; no official card DK 162/-174 -> de-vig fair away 0.375; PM ask 0.380/0.625; model 0.360/0.640; edges -0.020/+0.015 (Polymarket US quote as of 2026-08-16T16:23:11Z; ask source).",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "real_winner_conviction"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Colorado Rockies",
+          "dk_fair_prob": {
+            "away": 0.455,
+            "home": 0.5449999999999999
+          },
+          "dk_fair_prob_pattern": "fair_single_side_dec",
+          "heading": "Colorado Rockies at San Francisco Giants \u2014 3:05 PM CT",
+          "home": "San Francisco Giants",
+          "outcome_known": true,
+          "outcome_score": "Colorado Rockies 13 at San Francisco Giants 7",
+          "outcome_winner": "away",
+          "polymarket_ask": {
+            "away": 0.455,
+            "home": 0.55
+          },
+          "polymarket_ask_pattern": "ask_positional_dec",
+          "price_line": "DK 116/-124 -> de-vig fair away 0.455; PM ask 0.455/0.550; model 0.420/0.580; edges -0.035/+0.030 (Polymarket US quote as of 2026-08-16T16:23:11Z; ask source).",
+          "refusal_clause": "\u26a0\ufe0f pass \u2014 price/data/park/conviction gate failed; no official card DK 116/-124 -> de-vig fair away 0.455; PM ask 0.455/0.550; model 0.420/0.580; edges -0.035/+0.030 (Polymarket US quote as of 2026-08-16T16:23:11Z; ask source).",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "real_winner_conviction"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Texas Rangers",
+          "dk_fair_prob": {
+            "away": 0.553,
+            "home": 0.44699999999999995
+          },
+          "dk_fair_prob_pattern": "fair_single_side_dec",
+          "heading": "Texas Rangers at Athletics Athletics \u2014 3:05 PM CT",
+          "home": "Athletics Athletics",
+          "outcome_known": false,
+          "outcome_reason": "0 final games match 'Texas Rangers' at 'Athletics Athletics'; a doubleheader or a name mismatch cannot be resolved from the writeup alone",
+          "polymarket_ask": {
+            "away": 0.56,
+            "home": 0.445
+          },
+          "polymarket_ask_pattern": "ask_positional_dec",
+          "price_line": "DK -129/120 -> de-vig fair away 0.553; PM ask 0.560/0.445; model 0.440/0.560; edges -0.120/+0.115 (Polymarket US quote as of 2026-08-16T16:23:11Z; ask source).",
+          "refusal_clause": "\u26a0\ufe0f pass \u2014 price/data/park/conviction gate failed; no official card DK -129/120 -> de-vig fair away 0.553; PM ask 0.560/0.445; model 0.440/0.560; edges -0.120/+0.115 (Polymarket US quote as of 2026-08-16T16:23:11Z; ask source).",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "real_winner_conviction"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Kansas City Royals",
+          "dk_fair_prob": {
+            "away": 0.513,
+            "home": 0.487
+          },
+          "dk_fair_prob_pattern": "fair_single_side_dec",
+          "heading": "Kansas City Royals at Los Angeles Angels \u2014 3:07 PM CT",
+          "home": "Los Angeles Angels",
+          "outcome_known": true,
+          "outcome_score": "Kansas City Royals 3 at Los Angeles Angels 0",
+          "outcome_winner": "away",
+          "polymarket_ask": {
+            "away": 0.515,
+            "home": 0.49
+          },
+          "polymarket_ask_pattern": "ask_positional_dec",
+          "price_line": "DK -109/102 -> de-vig fair away 0.513; PM ask 0.515/0.490; model 0.450/0.550; edges -0.065/+0.060 (Polymarket US quote as of 2026-08-16T16:23:11Z; ask source).",
+          "refusal_clause": "\u26a0\ufe0f pass \u2014 price/data/park/conviction gate failed; no official card DK -109/102 -> de-vig fair away 0.513; PM ask 0.515/0.490; model 0.450/0.550; edges -0.065/+0.060 (Polymarket US quote as of 2026-08-16T16:23:11Z; ask source).",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "real_winner_conviction"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Milwaukee Brewers",
+          "dk_fair_prob": {
+            "away": 0.374,
+            "home": 0.626
+          },
+          "dk_fair_prob_pattern": "fair_single_side_dec",
+          "heading": "Milwaukee Brewers at Los Angeles Dodgers \u2014 3:10 PM CT",
+          "home": "Los Angeles Dodgers",
+          "outcome_known": true,
+          "outcome_score": "Milwaukee Brewers 6 at Los Angeles Dodgers 2",
+          "outcome_winner": "away",
+          "polymarket_ask": {
+            "away": 0.375,
+            "home": 0.63
+          },
+          "polymarket_ask_pattern": "ask_positional_dec",
+          "price_line": "DK 163/-175 -> de-vig fair away 0.374; PM ask 0.375/0.630; model 0.360/0.640; edges -0.015/+0.010 (Polymarket US quote as of 2026-08-16T16:23:11Z; ask source).",
+          "refusal_clause": "\u26a0\ufe0f pass \u2014 price/data/park/conviction gate failed; no official card DK 163/-175 -> de-vig fair away 0.374; PM ask 0.375/0.630; model 0.360/0.640; edges -0.015/+0.010 (Polymarket US quote as of 2026-08-16T16:23:11Z; ask source).",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "real_winner_conviction"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Seattle Mariners",
+          "dk_fair_prob": {
+            "away": 0.468,
+            "home": 0.532
+          },
+          "dk_fair_prob_pattern": "fair_single_side_dec",
+          "heading": "Seattle Mariners at Houston Astros \u2014 6:20 PM CT",
+          "home": "Houston Astros",
+          "outcome_known": true,
+          "outcome_score": "Seattle Mariners 3 at Houston Astros 2",
+          "outcome_winner": "away",
+          "polymarket_ask": {
+            "away": 0.47,
+            "home": 0.535
+          },
+          "polymarket_ask_pattern": "ask_positional_dec",
+          "price_line": "DK 110/-118 -> de-vig fair away 0.468; PM ask 0.470/0.535; model 0.430/0.570; edges -0.040/+0.035 (Polymarket US quote as of 2026-08-16T16:23:11Z; ask source).",
+          "refusal_clause": "\u26a0\ufe0f pass \u2014 price/data/park/conviction gate failed; no official card DK 110/-118 -> de-vig fair away 0.468; PM ask 0.470/0.535; model 0.430/0.570; edges -0.040/+0.035 (Polymarket US quote as of 2026-08-16T16:23:11Z; ask source).",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "real_winner_conviction"
+          ],
+          "unreadable": []
+        }
+      ]
+    },
+    {
+      "date": "2026-08-17",
+      "file": "2026-08-17.md",
+      "reads": [
+        {
+          "away": "St. Louis Cardinals",
+          "dk_fair_prob": {
+            "away": 0.511,
+            "home": 0.489
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "St. Louis Cardinals at Cincinnati Reds \u2014 12:40 PM CT / 5:40 PM CT DH1",
+          "home": "Cincinnati Reds",
+          "outcome_known": false,
+          "outcome_reason": "2 final games match 'St. Louis Cardinals' at 'Cincinnati Reds'; a doubleheader or a name mismatch cannot be resolved from the writeup alone",
+          "polymarket_ask": {
+            "away": 0.52,
+            "home": 0.485
+          },
+          "polymarket_ask_pattern": "ask_positional_dec",
+          "price_line": "DK -108/+101 -> de-vig fair STL 0.511 / CIN 0.489. Polymarket US asks 0.520 / 0.485, source timestamp 2026-08-17T15:33:43Z, slug aec-mlb-stl-cin-2026-08-17-dh1. The dog price is not enough to overcome the full handicap; the favorite is capped by the park and the PM ask.",
+          "refusal_clause": "\u26a0\ufe0f pass \u2014 park confidence cap, lineup/gamePk state, no conviction-grade 2%+ edge after haircut. DK -108/+101 -> de-vig fair STL 0.511 / CIN 0.489. Polymarket US asks 0.520 / 0.485, source timestamp 2026-08-17T15:33:43Z, slug aec-mlb-stl-cin-2026-08-17-dh1. The dog price is not enough to overcome the full handicap; the favorite is capped by the park and the PM ask.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "park_environment_cap",
+            "real_winner_conviction"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Baltimore Orioles",
+          "dk_fair_prob": {
+            "away": 0.398,
+            "home": 0.602
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "Baltimore Orioles at Tampa Bay Rays \u2014 5:05 PM CT",
+          "home": "Tampa Bay Rays",
+          "outcome_known": true,
+          "outcome_score": "Baltimore Orioles 6 at Tampa Bay Rays 7",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.4,
+            "home": 0.605
+          },
+          "polymarket_ask_pattern": "ask_positional_dec",
+          "price_line": "DK +147/-158 -> de-vig fair BAL 0.398 / TB 0.602. Polymarket US asks 0.400 / 0.605, source timestamp 2026-08-17T15:33:43Z, slug aec-mlb-bal-tb-2026-08-17. Baltimore's ask is near market fair; no clean edge. Tampa's starter/price case is offset by its 6.49 ERA/1.52 WHIP bullpen.",
+          "refusal_clause": "\u26a0\ufe0f pass \u2014 bullpen close-game survival and real-winner conviction fail. DK +147/-158 -> de-vig fair BAL 0.398 / TB 0.602. Polymarket US asks 0.400 / 0.605, source timestamp 2026-08-17T15:33:43Z, slug aec-mlb-bal-tb-2026-08-17. Baltimore's ask is near market fair; no clean edge. Tampa's starter/price case is offset by its 6.49 ERA/1.52 WHIP bullpen.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "bullpen_close_game_survival",
+            "price_discipline",
+            "real_winner_conviction"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Miami Marlins",
+          "dk_fair_prob": {
+            "away": 0.3,
+            "home": 0.7
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "Miami Marlins at Philadelphia Phillies \u2014 5:40 PM CT",
+          "home": "Philadelphia Phillies",
+          "outcome_known": true,
+          "outcome_score": "Miami Marlins 5 at Philadelphia Phillies 6",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.3,
+            "home": 0.705
+          },
+          "polymarket_ask_pattern": "ask_positional_dec",
+          "price_line": "DK +228/-247 -> de-vig fair MIA 0.300 / PHI 0.700. Polymarket US asks 0.300 / 0.705, source timestamp 2026-08-17T15:33:43Z, slug aec-mlb-mia-phi-2026-08-17. Phillies are priced to the handicap; Miami is not a real-winner conviction read.",
+          "refusal_clause": "\u26a0\ufe0f pass \u2014 price discipline and lineup state. DK +228/-247 -> de-vig fair MIA 0.300 / PHI 0.700. Polymarket US asks 0.300 / 0.705, source timestamp 2026-08-17T15:33:43Z, slug aec-mlb-mia-phi-2026-08-17. Phillies are priced to the handicap; Miami is not a real-winner conviction read.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "price_discipline",
+            "real_winner_conviction"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "St. Louis Cardinals",
+          "dk_fair_prob": {
+            "away": 0.528,
+            "home": 0.472
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "St. Louis Cardinals at Cincinnati Reds \u2014 5:40 PM CT / 10:40 PM CT DH2",
+          "home": "Cincinnati Reds",
+          "outcome_known": false,
+          "outcome_reason": "2 final games match 'St. Louis Cardinals' at 'Cincinnati Reds'; a doubleheader or a name mismatch cannot be resolved from the writeup alone",
+          "polymarket_ask": {
+            "away": 0.53,
+            "home": 0.475
+          },
+          "polymarket_ask_pattern": "ask_positional_dec",
+          "price_line": "DK -116/+108 -> de-vig fair STL 0.528 / CIN 0.472. Polymarket US asks 0.530 / 0.475, source timestamp 2026-08-17T15:33:43Z, slug aec-mlb-stl-cin-2026-08-17-dh2. Neither side clears a conservative 2% floor after the park and doubleheader haircut.",
+          "refusal_clause": "\u26a0\ufe0f pass \u2014 extreme park, doubleheader uncertainty, no conviction-grade edge. DK -116/+108 -> de-vig fair STL 0.528 / CIN 0.472. Polymarket US asks 0.530 / 0.475, source timestamp 2026-08-17T15:33:43Z, slug aec-mlb-stl-cin-2026-08-17-dh2. Neither side clears a conservative 2% floor after the park and doubleheader haircut.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "park_environment_cap",
+            "real_winner_conviction"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Detroit Tigers",
+          "dk_fair_prob": {
+            "away": 0.506,
+            "home": 0.494
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "Detroit Tigers at Pittsburgh Pirates \u2014 6:00 PM CT",
+          "home": "Pittsburgh Pirates",
+          "outcome_known": true,
+          "outcome_score": "Detroit Tigers 8 at Pittsburgh Pirates 5",
+          "outcome_winner": "away",
+          "price_line": "DK -106/-101 -> de-vig fair DET 0.506 / PIT 0.494. No exact supported Polymarket ask returned for this matchup at scan time. Price gate fails.",
+          "refusal_clause": "\u26a0\ufe0f pass \u2014 exact market/price mapping and conviction fail. DK -106/-101 -> de-vig fair DET 0.506 / PIT 0.494. No exact supported Polymarket ask returned for this matchup at scan time. Price gate fails.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "real_winner_conviction"
+          ],
+          "unreadable": [
+            "polymarket_ask: no two-sided value matched ['ask_labelled_pct', 'ask_labelled_dec', 'ask_positional_pct', 'ask_positional_dec']"
+          ]
+        },
+        {
+          "away": "Arizona Diamondbacks",
+          "dk_fair_prob": {
+            "away": 0.439,
+            "home": 0.561
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "Arizona Diamondbacks at Boston Red Sox \u2014 6:10 PM CT",
+          "home": "Boston Red Sox",
+          "outcome_known": true,
+          "outcome_score": "Arizona Diamondbacks 1 at Boston Red Sox 11",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.44,
+            "home": 0.565
+          },
+          "polymarket_ask_pattern": "ask_positional_dec",
+          "price_line": "DK +124/-133 -> de-vig fair ARI 0.439 / BOS 0.561. Polymarket US asks 0.440 / 0.565, source timestamp 2026-08-17T15:33:43Z, slug aec-mlb-az-bos-2026-08-17. Missing away offense data blocks a complete handicap.",
+          "refusal_clause": "\u26a0\ufe0f pass \u2014 missing offense input, extreme park, starter-floor concern. DK +124/-133 -> de-vig fair ARI 0.439 / BOS 0.561. Polymarket US asks 0.440 / 0.565, source timestamp 2026-08-17T15:33:43Z, slug aec-mlb-az-bos-2026-08-17. Missing away offense data blocks a complete handicap.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "incomplete_input_data",
+            "park_environment_cap"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "San Diego Padres",
+          "dk_fair_prob": {
+            "away": 0.466,
+            "home": 0.534
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "San Diego Padres at New York Mets \u2014 6:10 PM CT",
+          "home": "New York Mets",
+          "outcome_known": true,
+          "outcome_score": "San Diego Padres 1 at New York Mets 2",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.47,
+            "home": 0.535
+          },
+          "polymarket_ask_pattern": "ask_positional_dec",
+          "price_line": "DK +111/-119 -> de-vig fair SD 0.466 / NYM 0.534. Polymarket US asks 0.470 / 0.535, source timestamp 2026-08-17T15:33:43Z, slug aec-mlb-sd-nym-2026-08-17. Mets have no usable margin after lineup uncertainty; Padres are not a real-winner conviction despite the bullpen.",
+          "refusal_clause": "\u26a0\ufe0f pass \u2014 lineup/injury uncertainty and split bullpen path. DK +111/-119 -> de-vig fair SD 0.466 / NYM 0.534. Polymarket US asks 0.470 / 0.535, source timestamp 2026-08-17T15:33:43Z, slug aec-mlb-sd-nym-2026-08-17. Mets have no usable margin after lineup uncertainty; Padres are not a real-winner conviction despite the bullpen.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "bullpen_close_game_survival",
+            "real_winner_conviction"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Athletics",
+          "dk_fair_prob": {
+            "away": 0.371,
+            "home": 0.629
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "Athletics at Kansas City Royals \u2014 6:40 PM CT",
+          "home": "Kansas City Royals",
+          "outcome_known": true,
+          "outcome_score": "Athletics 5 at Kansas City Royals 9",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.37,
+            "home": 0.635
+          },
+          "polymarket_ask_pattern": "ask_positional_dec",
+          "price_line": "DK +165/-177 -> de-vig fair ATH 0.371 / KC 0.629. Polymarket US asks 0.370 / 0.635, source timestamp 2026-08-17T15:33:43Z, slug aec-mlb-ath-kc-2026-08-17. Kansas City is the likely winner but the price is efficient; the dog has no complete path.",
+          "refusal_clause": "\u26a0\ufe0f pass \u2014 price discipline and bullpen survival. DK +165/-177 -> de-vig fair ATH 0.371 / KC 0.629. Polymarket US asks 0.370 / 0.635, source timestamp 2026-08-17T15:33:43Z, slug aec-mlb-ath-kc-2026-08-17. Kansas City is the likely winner but the price is efficient; the dog has no complete path.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "bullpen_close_game_survival",
+            "price_discipline"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Atlanta Braves",
+          "dk_fair_prob": {
+            "away": 0.545,
+            "home": 0.455
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "Atlanta Braves at Minnesota Twins \u2014 6:40 PM CT",
+          "home": "Minnesota Twins",
+          "outcome_known": true,
+          "outcome_score": "Atlanta Braves 2 at Minnesota Twins 4",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.55,
+            "home": 0.455
+          },
+          "polymarket_ask_pattern": "ask_positional_dec",
+          "price_line": "DK -124/+116 -> de-vig fair ATL 0.545 / MIN 0.455. Polymarket US asks 0.550 / 0.455, source timestamp 2026-08-17T15:33:43Z, slug aec-mlb-atl-min-2026-08-17. Atlanta is priced efficiently and the offense input is incomplete.",
+          "refusal_clause": "\u26a0\ufe0f pass \u2014 FIP correction, missing offense input, price discipline. DK -124/+116 -> de-vig fair ATL 0.545 / MIN 0.455. Polymarket US asks 0.550 / 0.455, source timestamp 2026-08-17T15:33:43Z, slug aec-mlb-atl-min-2026-08-17. Atlanta is priced efficiently and the offense input is incomplete.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "incomplete_input_data",
+            "price_discipline"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Chicago White Sox",
+          "dk_fair_prob": {
+            "away": 0.393,
+            "home": 0.607
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "Chicago White Sox at Chicago Cubs \u2014 7:05 PM CT",
+          "home": "Chicago Cubs",
+          "outcome_known": true,
+          "outcome_score": "Chicago White Sox 5 at Chicago Cubs 7",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.405,
+            "home": 0.6
+          },
+          "polymarket_ask_pattern": "ask_positional_dec",
+          "price_line": "DK +150/-161 -> de-vig fair CWS 0.393 / CHC 0.607. Polymarket US asks 0.405 / 0.600, source timestamp 2026-08-17T15:33:43Z, slug aec-mlb-cws-chc-2026-08-17. Neither side clears after correcting Imanaga's FIP/ERA divergence and missing offense data.",
+          "refusal_clause": "\u26a0\ufe0f pass \u2014 price discipline and incomplete offense state. DK +150/-161 -> de-vig fair CWS 0.393 / CHC 0.607. Polymarket US asks 0.405 / 0.600, source timestamp 2026-08-17T15:33:43Z, slug aec-mlb-cws-chc-2026-08-17. Neither side clears after correcting Imanaga's FIP/ERA divergence and missing offense data.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "incomplete_input_data",
+            "price_discipline"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Los Angeles Dodgers",
+          "dk_fair_prob": {
+            "away": 0.698,
+            "home": 0.302
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "Los Angeles Dodgers at Colorado Rockies \u2014 7:40 PM CT",
+          "home": "Colorado Rockies",
+          "outcome_known": true,
+          "outcome_score": "Los Angeles Dodgers 11 at Colorado Rockies 5",
+          "outcome_winner": "away",
+          "polymarket_ask": {
+            "away": 0.71,
+            "home": 0.295
+          },
+          "polymarket_ask_pattern": "ask_positional_dec",
+          "price_line": "DK -245/+226 -> de-vig fair LAD 0.698 / COL 0.302. Polymarket US asks 0.710 / 0.295, source timestamp 2026-08-17T15:33:43Z, slug aec-mlb-lad-col-2026-08-17. Dodgers ask is above the de-vig fair baseline and the park caps confidence.",
+          "refusal_clause": "\u26a0\ufe0f pass \u2014 extreme park, price, tiny Snell sample. DK -245/+226 -> de-vig fair LAD 0.698 / COL 0.302. Polymarket US asks 0.710 / 0.295, source timestamp 2026-08-17T15:33:43Z, slug aec-mlb-lad-col-2026-08-17. Dodgers ask is above the de-vig fair baseline and the park caps confidence.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "park_environment_cap"
+          ],
+          "unreadable": []
+        }
+      ]
+    },
+    {
+      "date": "2026-08-22",
+      "file": "2026-08-22.md",
+      "reads": [
+        {
+          "away": "Toronto Blue Jays",
+          "heading": "Toronto Blue Jays at New York Yankees \u2014 underway, no action",
+          "home": "New York Yankees",
+          "outcome_known": true,
+          "outcome_score": "Toronto Blue Jays 4 at New York Yankees 3",
+          "outcome_winner": "away",
+          "price_line": "DraftKings unavailable because the game was already in progress; no usable Polymarket proposal. **Pass:** market is live and the pregame price gate is closed.",
+          "refusal_clause": "market is live and the pregame price gate is closed. DraftKings unavailable because the game was already in progress; no usable Polymarket proposal. **Pass:** market is live and the pregame price gate is closed.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "game_already_started",
+            "no_dk_price",
+            "no_polymarket_market"
+          ],
+          "unreadable": [
+            "dk_fair_prob: no two-sided value matched ['fair_labelled_pct', 'fair_labelled_dec', 'fair_positional_pct', 'fair_positional_dec', 'fair_single_side_dec', 'fair_single_side_pct', 'fair_single_label_dec', 'fair_single_label_pct']",
+            "polymarket_ask: no two-sided value matched ['ask_labelled_pct', 'ask_labelled_dec', 'ask_positional_pct', 'ask_positional_dec']"
+          ]
+        },
+        {
+          "away": "Atlanta Braves",
+          "heading": "Atlanta Braves at Milwaukee Brewers \u2014 pass",
+          "home": "Milwaukee Brewers",
+          "outcome_known": true,
+          "outcome_score": "Atlanta Braves 1 at Milwaukee Brewers 4",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.46,
+            "home": 0.545
+          },
+          "polymarket_ask_pattern": "ask_labelled_pct",
+          "price_line": "DK ATL +147 / MIL -158 \u2192 de-vigged ATL 39.8% / MIL 60.2%; Polymarket US ask ATL 46.0% / MIL 54.5% (quotes captured 2026-08-22 12:59 CT). **Pass:** Milwaukee has the read, but the ask is already below the DK fair prior and the unconfirmed lineup gate plus uncertainty haircut prevents a conservative official edge. No lineup-only near-miss.",
+          "refusal_clause": "Milwaukee has the read, but the ask is already below the DK fair prior and the unconfirmed lineup gate plus uncertainty haircut prevents a conservative official edge. No lineup-only near-miss. DK ATL +147 / MIL -158 \u2192 de-vigged ATL 39.8% / MIL 60.2%; Polymarket US ask ATL 46.0% / MIL 54.5% (quotes captured 2026-08-22 12:59 CT). **Pass:** Milwaukee has the read, but the ask is already below the DK fair prior and the unconfirmed lineup gate plus uncertainty haircut prevents a conservative official edge. No lineup-only near-miss.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "lineups_unconfirmed",
+            "price_discipline"
+          ],
+          "unreadable": [
+            "dk_fair_prob: no two-sided value matched ['fair_labelled_pct', 'fair_labelled_dec', 'fair_positional_pct', 'fair_positional_dec', 'fair_single_side_dec', 'fair_single_side_pct', 'fair_single_label_dec', 'fair_single_label_pct']"
+          ]
+        },
+        {
+          "away": "Washington Nationals",
+          "dk_fair_prob": {
+            "away": 0.36700000000000005,
+            "home": 0.633
+          },
+          "dk_fair_prob_pattern": "fair_positional_pct",
+          "heading": "Washington Nationals at Miami Marlins \u2014 pass",
+          "home": "Miami Marlins",
+          "outcome_known": true,
+          "outcome_score": "Washington Nationals 2 at Miami Marlins 4",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.425,
+            "home": 0.58
+          },
+          "polymarket_ask_pattern": "ask_labelled_pct",
+          "price_line": "DK WSH +168 / MIA -181 \u2192 fair 36.7% / 63.3%; Polymarket ask WSH 42.5% / MIA 58.0%. **Pass:** Miami is the likely winner, but its bullpen is materially worse and the price does not leave enough conservative edge to clear the rail. WSH's .331 wOBA is slightly above .329 xwOBA; do not invent a cold-offense fade.",
+          "refusal_clause": "Miami is the likely winner, but its bullpen is materially worse and the price does not leave enough conservative edge to clear the rail. WSH's .331 wOBA is slightly above .329 xwOBA; do not invent a cold-offense fade. DK WSH +168 / MIA -181 \u2192 fair 36.7% / 63.3%; Polymarket ask WSH 42.5% / MIA 58.0%. **Pass:** Miami is the likely winner, but its bullpen is materially worse and the price does not leave enough conservative edge to clear the rail. WSH's .331 wOBA is slightly above .329 xwOBA; do not invent a cold-offense fade.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "bullpen_close_game_survival",
+            "price_discipline"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "St. Louis Cardinals",
+          "dk_fair_prob": {
+            "away": 0.415,
+            "home": 0.585
+          },
+          "dk_fair_prob_pattern": "fair_positional_pct",
+          "heading": "St. Louis Cardinals at Philadelphia Phillies \u2014 pass",
+          "home": "Philadelphia Phillies",
+          "outcome_known": true,
+          "outcome_score": "St. Louis Cardinals 3 at Philadelphia Phillies 12",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.33,
+            "home": 0.675
+          },
+          "polymarket_ask_pattern": "ask_labelled_pct",
+          "price_line": "DK STL +137 / PHI -147 \u2192 fair 41.5% / 58.5%; Polymarket ask STL 33.0% / PHI 67.5%. **Pass:** missing opposing starter is a critical input, and the market is already expensive on Philadelphia. No proposal and no starter-pending watchlist entry under the disabled starter-promotion rail.",
+          "refusal_clause": "missing opposing starter is a critical input, and the market is already expensive on Philadelphia. No proposal and no starter-pending watchlist entry under the disabled starter-promotion rail. DK STL +137 / PHI -147 \u2192 fair 41.5% / 58.5%; Polymarket ask STL 33.0% / PHI 67.5%. **Pass:** missing opposing starter is a critical input, and the market is already expensive on Philadelphia. No proposal and no starter-pending watchlist entry under the disabled starter-promotion rail.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "opposing_starter_shutdown_path"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Tampa Bay Rays",
+          "dk_fair_prob": {
+            "away": 0.545,
+            "home": 0.455
+          },
+          "dk_fair_prob_pattern": "fair_positional_pct",
+          "heading": "Tampa Bay Rays at Baltimore Orioles \u2014 pass",
+          "home": "Baltimore Orioles",
+          "outcome_known": true,
+          "outcome_score": "Tampa Bay Rays 2 at Baltimore Orioles 3",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.51,
+            "home": 0.495
+          },
+          "polymarket_ask_pattern": "ask_labelled_pct",
+          "price_line": "DK TB -124 / BAL +116 \u2192 fair 54.5% / 45.5%; Polymarket ask TB 51.0% / BAL 49.5%. **Pass:** Tampa's starter edge is not enough to overcome the bullpen collapse profile and recent -18 run differential. The price does not repair that risk.",
+          "refusal_clause": "Tampa's starter edge is not enough to overcome the bullpen collapse profile and recent -18 run differential. The price does not repair that risk. DK TB -124 / BAL +116 \u2192 fair 54.5% / 45.5%; Polymarket ask TB 51.0% / BAL 49.5%. **Pass:** Tampa's starter edge is not enough to overcome the bullpen collapse profile and recent -18 run differential. The price does not repair that risk.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "bullpen_close_game_survival"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Los Angeles Angels",
+          "dk_fair_prob": {
+            "away": 0.395,
+            "home": 0.605
+          },
+          "dk_fair_prob_pattern": "fair_positional_pct",
+          "heading": "Los Angeles Angels at Texas Rangers \u2014 pass",
+          "home": "Texas Rangers",
+          "outcome_known": true,
+          "outcome_score": "Los Angeles Angels 3 at Texas Rangers 0",
+          "outcome_winner": "away",
+          "polymarket_ask": {
+            "away": 0.4,
+            "home": 0.605
+          },
+          "polymarket_ask_pattern": "ask_labelled_pct",
+          "price_line": "DK LAA +149 / TEX -160 \u2192 fair 39.5% / 60.5%; Polymarket ask LAA 40.0% / TEX 60.5%. **Pass:** the Angels have the bullpen/form support, but Johnson's floor is poor and Bradford's tiny sample blocks a clean starter read. No lineup-only near-miss.",
+          "refusal_clause": "the Angels have the bullpen/form support, but Johnson's floor is poor and Bradford's tiny sample blocks a clean starter read. No lineup-only near-miss. DK LAA +149 / TEX -160 \u2192 fair 39.5% / 60.5%; Polymarket ask LAA 40.0% / TEX 60.5%. **Pass:** the Angels have the bullpen/form support, but Johnson's floor is poor and Bradford's tiny sample blocks a clean starter read. No lineup-only near-miss.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "bullpen_close_game_survival",
+            "starter_floor"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Athletics",
+          "dk_fair_prob": {
+            "away": 0.313,
+            "home": 0.687
+          },
+          "dk_fair_prob_pattern": "fair_positional_pct",
+          "heading": "Athletics at Houston Astros \u2014 pass",
+          "home": "Houston Astros",
+          "outcome_known": true,
+          "outcome_score": "Athletics 4 at Houston Astros 3",
+          "outcome_winner": "away",
+          "polymarket_ask": {
+            "away": 0.39,
+            "home": 0.615
+          },
+          "polymarket_ask_pattern": "ask_labelled_pct",
+          "price_line": "DK ATH +214 / HOU -232 \u2192 fair 31.3% / 68.7%; Polymarket ask ATH 39.0% / HOU 61.5%. **Pass:** the dog price is tempting, but Oakland's starter/WHIP profile and 1-6 form do not support a real winner conviction; Houston's ask is not cheap enough to absorb its bullpen risk.",
+          "refusal_clause": "the dog price is tempting, but Oakland's starter/WHIP profile and 1-6 form do not support a real winner conviction; Houston's ask is not cheap enough to absorb its bullpen risk. DK ATH +214 / HOU -232 \u2192 fair 31.3% / 68.7%; Polymarket ask ATH 39.0% / HOU 61.5%. **Pass:** the dog price is tempting, but Oakland's starter/WHIP profile and 1-6 form do not support a real winner conviction; Houston's ask is not cheap enough to absorb its bullpen risk.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "bullpen_close_game_survival",
+            "real_winner_conviction"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "New York Mets",
+          "dk_fair_prob": {
+            "away": 0.489,
+            "home": 0.511
+          },
+          "dk_fair_prob_pattern": "fair_positional_pct",
+          "heading": "New York Mets at Chicago White Sox \u2014 pass",
+          "home": "Chicago White Sox",
+          "outcome_known": true,
+          "outcome_score": "New York Mets 10 at Chicago White Sox 5",
+          "outcome_winner": "away",
+          "polymarket_ask": {
+            "away": 0.53,
+            "home": 0.475
+          },
+          "polymarket_ask_pattern": "ask_labelled_pct",
+          "price_line": "DK NYM +101 / CWS -108 \u2192 fair 48.9% / 51.1%; Polymarket ask NYM 53.0% / CWS 47.5%. **Pass:** New York has the cleaner starter and recent bullpen, but its offense is underperforming contact quality (.306 wOBA vs .319 xwOBA), while the market has already charged for the pitching edge. No clean two-sided conservative edge.",
+          "refusal_clause": "New York has the cleaner starter and recent bullpen, but its offense is underperforming contact quality (.306 wOBA vs .319 xwOBA), while the market has already charged for the pitching edge. No clean two-sided conservative edge. DK NYM +101 / CWS -108 \u2192 fair 48.9% / 51.1%; Polymarket ask NYM 53.0% / CWS 47.5%. **Pass:** New York has the cleaner starter and recent bullpen, but its offense is underperforming contact quality (.306 wOBA vs .319 xwOBA), while the market has already charged for the pitching edge. No clean two-sided conservative edge.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "bullpen_close_game_survival"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "San Francisco Giants",
+          "dk_fair_prob": {
+            "away": 0.34,
+            "home": 0.66
+          },
+          "dk_fair_prob_pattern": "fair_positional_pct",
+          "heading": "San Francisco Giants at Boston Red Sox \u2014 pass",
+          "home": "Boston Red Sox",
+          "outcome_known": true,
+          "outcome_score": "San Francisco Giants 2 at Boston Red Sox 3",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.31,
+            "home": 0.695
+          },
+          "polymarket_ask_pattern": "ask_labelled_pct",
+          "price_line": "DK SF +189 / BOS -204 \u2192 fair 34.0% / 66.0%; Polymarket ask SF 31.0% / BOS 69.5%. **Pass:** Fenway's 106 run factor is an extreme hitter-park cap, and Boston's price is beyond the clean read. Environment and small-sample starter uncertainty block the card.",
+          "refusal_clause": "Fenway's 106 run factor is an extreme hitter-park cap, and Boston's price is beyond the clean read. Environment and small-sample starter uncertainty block the card. DK SF +189 / BOS -204 \u2192 fair 34.0% / 66.0%; Polymarket ask SF 31.0% / BOS 69.5%. **Pass:** Fenway's 106 run factor is an extreme hitter-park cap, and Boston's price is beyond the clean read. Environment and small-sample starter uncertainty block the card.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "park_environment_cap",
+            "starter_floor"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Detroit Tigers",
+          "dk_fair_prob": {
+            "away": 0.5,
+            "home": 0.5
+          },
+          "dk_fair_prob_pattern": "fair_positional_pct",
+          "heading": "Detroit Tigers at Kansas City Royals \u2014 pass",
+          "home": "Kansas City Royals",
+          "outcome_known": true,
+          "outcome_score": "Detroit Tigers 1 at Kansas City Royals 3",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.54,
+            "home": 0.47
+          },
+          "polymarket_ask_pattern": "ask_labelled_pct",
+          "price_line": "DK DET -104 / KC -104 \u2192 fair 50.0% / 50.0%; Polymarket ask DET 54.0% / KC 47.0%. **Pass:** Kansas City owns the form and bullpen, Detroit owns the market-side price, and neither produces conviction. This is exactly the kind of split signal that becomes a bad bet when forced.",
+          "refusal_clause": "Kansas City owns the form and bullpen, Detroit owns the market-side price, and neither produces conviction. This is exactly the kind of split signal that becomes a bad bet when forced. DK DET -104 / KC -104 \u2192 fair 50.0% / 50.0%; Polymarket ask DET 54.0% / KC 47.0%. **Pass:** Kansas City owns the form and bullpen, Detroit owns the market-side price, and neither produces conviction. This is exactly the kind of split signal that becomes a bad bet when forced.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "bullpen_close_game_survival",
+            "real_winner_conviction"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Chicago Cubs",
+          "dk_fair_prob": {
+            "away": 0.48100000000000004,
+            "home": 0.519
+          },
+          "dk_fair_prob_pattern": "fair_positional_pct",
+          "heading": "Chicago Cubs at Seattle Mariners \u2014 pass",
+          "home": "Seattle Mariners",
+          "outcome_known": true,
+          "outcome_score": "Chicago Cubs 4 at Seattle Mariners 5",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.48,
+            "home": 0.525
+          },
+          "polymarket_ask_pattern": "ask_labelled_pct",
+          "price_line": "DK CHC +104 / SEA -112 \u2192 fair 48.1% / 51.9%; Polymarket ask CHC 48.0% / SEA 52.5%. **Pass:** Seattle's bullpen is bad enough to make the dog interesting, but the unverified opposing starter is a critical missing input. T-Mobile's 95 run factor supports pitching, not an unpriced bullpen rescue. No watchlist entry.",
+          "refusal_clause": "Seattle's bullpen is bad enough to make the dog interesting, but the unverified opposing starter is a critical missing input. T-Mobile's 95 run factor supports pitching, not an unpriced bullpen rescue. No watchlist entry. DK CHC +104 / SEA -112 \u2192 fair 48.1% / 51.9%; Polymarket ask CHC 48.0% / SEA 52.5%. **Pass:** Seattle's bullpen is bad enough to make the dog interesting, but the unverified opposing starter is a critical missing input. T-Mobile's 95 run factor supports pitching, not an unpriced bullpen rescue. No watchlist entry.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "bullpen_close_game_survival",
+            "opposing_starter_shutdown_path",
+            "park_environment_cap"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Pittsburgh Pirates",
+          "dk_fair_prob": {
+            "away": 0.28800000000000003,
+            "home": 0.7120000000000001
+          },
+          "dk_fair_prob_pattern": "fair_positional_pct",
+          "heading": "Pittsburgh Pirates at Los Angeles Dodgers \u2014 pass",
+          "home": "Los Angeles Dodgers",
+          "outcome_known": true,
+          "outcome_score": "Pittsburgh Pirates 3 at Los Angeles Dodgers 4",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.285,
+            "home": 0.72
+          },
+          "polymarket_ask_pattern": "ask_labelled_pct",
+          "price_line": "DK PIT +241 / LAD -262 \u2192 fair 28.8% / 71.2%; Polymarket ask PIT 28.5% / LAD 72.0%. **Pass:** Skubal is the cleanest starter edge on the board, but Los Angeles is priced through the available fair range and Pittsburgh's .328 wOBA is running hot versus .316 xwOBA. No chase.",
+          "refusal_clause": "Skubal is the cleanest starter edge on the board, but Los Angeles is priced through the available fair range and Pittsburgh's .328 wOBA is running hot versus .316 xwOBA. No chase. DK PIT +241 / LAD -262 \u2192 fair 28.8% / 71.2%; Polymarket ask PIT 28.5% / LAD 72.0%. **Pass:** Skubal is the cleanest starter edge on the board, but Los Angeles is priced through the available fair range and Pittsburgh's .328 wOBA is running hot versus .316 xwOBA. No chase.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "price_discipline"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Cleveland Guardians",
+          "dk_fair_prob": {
+            "away": 0.5670000000000001,
+            "home": 0.433
+          },
+          "dk_fair_prob_pattern": "fair_positional_pct",
+          "heading": "Cleveland Guardians at Colorado Rockies \u2014 pass",
+          "home": "Colorado Rockies",
+          "outcome_known": true,
+          "outcome_score": "Cleveland Guardians 4 at Colorado Rockies 3",
+          "outcome_winner": "away",
+          "polymarket_ask": {
+            "away": 0.61,
+            "home": 0.395
+          },
+          "polymarket_ask_pattern": "ask_labelled_pct",
+          "price_line": "DK CLE -136 / COL +127 \u2192 fair 56.7% / 43.3%; Polymarket ask CLE 61.0% / COL 39.5%. **Pass:** Cleveland has the full-game profile, but Coors is a 112 run-factor extreme hitter park, which caps confidence and makes the apparent starter gap less reliable. No official play.",
+          "refusal_clause": "Cleveland has the full-game profile, but Coors is a 112 run-factor extreme hitter park, which caps confidence and makes the apparent starter gap less reliable. No official play. DK CLE -136 / COL +127 \u2192 fair 56.7% / 43.3%; Polymarket ask CLE 61.0% / COL 39.5%. **Pass:** Cleveland has the full-game profile, but Coors is a 112 run-factor extreme hitter park, which caps confidence and makes the apparent starter gap less reliable. No official play.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "park_environment_cap"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Cincinnati Reds",
+          "dk_fair_prob": {
+            "away": 0.381,
+            "home": 0.619
+          },
+          "dk_fair_prob_pattern": "fair_positional_pct",
+          "heading": "Cincinnati Reds at Arizona Diamondbacks \u2014 pass",
+          "home": "Arizona Diamondbacks",
+          "outcome_known": true,
+          "outcome_score": "Cincinnati Reds 11 at Arizona Diamondbacks 5",
+          "outcome_winner": "away",
+          "polymarket_ask": {
+            "away": 0.45,
+            "home": 0.555
+          },
+          "polymarket_ask_pattern": "ask_labelled_pct",
+          "price_line": "DK CIN +158 / ARI -170 \u2192 fair 38.1% / 61.9%; Polymarket ask CIN 45.0% / ARI 55.5%. **Pass:** Arizona has the starter and form edge, but its bullpen is also leaking and the market has already moved the favorite ask below the clean conservative buy zone. Cincinnati's offense is underperforming contact quality (.306 wOBA vs .314 xwOBA), which is not enough to rescue the dog.",
+          "refusal_clause": "Arizona has the starter and form edge, but its bullpen is also leaking and the market has already moved the favorite ask below the clean conservative buy zone. Cincinnati's offense is underperforming contact quality (.306 wOBA vs .314 xwOBA), which is not enough to rescue the dog. DK CIN +158 / ARI -170 \u2192 fair 38.1% / 61.9%; Polymarket ask CIN 45.0% / ARI 55.5%. **Pass:** Arizona has the starter and form edge, but its bullpen is also leaking and the market has already moved the favorite ask below the clean conservative buy zone. Cincinnati's offense is underperforming contact quality (.306 wOBA vs .314 xwOBA), which is not enough to rescue the dog.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "bullpen_close_game_survival"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Minnesota Twins",
+          "dk_fair_prob": {
+            "away": 0.435,
+            "home": 0.565
+          },
+          "dk_fair_prob_pattern": "fair_positional_pct",
+          "heading": "Minnesota Twins at San Diego Padres \u2014 pass",
+          "home": "San Diego Padres",
+          "outcome_known": true,
+          "outcome_score": "Minnesota Twins 5 at San Diego Padres 7",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.455,
+            "home": 0.55
+          },
+          "polymarket_ask_pattern": "ask_labelled_pct",
+          "price_line": "DK MIN +126 / SD -135 \u2192 fair 43.5% / 56.5%; Polymarket ask MIN 45.5% / SD 55.0%. **Pass:** San Diego owns the more stable starter and form, but Petco's 96 run factor suppresses offense and the ask leaves no durable conservative edge after uncertainty. Minnesota's .318 wOBA is running hot versus .311 xwOBA; discount the recent offense rather than chase the dog.",
+          "refusal_clause": "San Diego owns the more stable starter and form, but Petco's 96 run factor suppresses offense and the ask leaves no durable conservative edge after uncertainty. Minnesota's .318 wOBA is running hot versus .311 xwOBA; discount the recent offense rather than chase the dog. DK MIN +126 / SD -135 \u2192 fair 43.5% / 56.5%; Polymarket ask MIN 45.5% / SD 55.0%. **Pass:** San Diego owns the more stable starter and form, but Petco's 96 run factor suppresses offense and the ask leaves no durable conservative edge after uncertainty. Minnesota's .318 wOBA is running hot versus .311 xwOBA; discount the recent offense rather than chase the dog.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "park_environment_cap",
+            "price_discipline"
+          ],
+          "unreadable": []
+        }
+      ]
+    },
+    {
+      "date": "2026-08-23",
+      "file": "2026-08-23.md",
+      "reads": [
+        {
+          "away": "St. Louis Cardinals",
+          "dk_fair_prob": {
+            "away": 0.32799999999999996,
+            "home": 0.672
+          },
+          "dk_fair_prob_pattern": "fair_labelled_pct",
+          "heading": "St. Louis Cardinals at Philadelphia Phillies \u2014 pass, 12:35 PM CT",
+          "home": "Philadelphia Phillies",
+          "outcome_known": true,
+          "outcome_score": "St. Louis Cardinals 4 at Philadelphia Phillies 6",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.335,
+            "home": 0.67
+          },
+          "polymarket_ask_pattern": "ask_labelled_pct",
+          "price_line": "DK STL +200 / PHI -216 -> de-vigged fair STL 32.8% / PHI 67.2%; Polymarket asks STL 33.5% / PHI 67.0%, captured 10:30 AM CT. Handicap 30% / 70% gives net edges -3.5% / +3.0%. PHI's wOBA .314 trails xwOBA .320, so do not overstate the recent scoring; park factor 103. **Pass:** Phillies are the right side, but the ask is efficient and the conservative haircut leaves less than the authoritative 5-point rail.",
+          "refusal_clause": "Phillies are the right side, but the ask is efficient and the conservative haircut leaves less than the authoritative 5-point rail. DK STL +200 / PHI -216 -> de-vigged fair STL 32.8% / PHI 67.2%; Polymarket asks STL 33.5% / PHI 67.0%, captured 10:30 AM CT. Handicap 30% / 70% gives net edges -3.5% / +3.0%. PHI's wOBA .314 trails xwOBA .320, so do not overstate the recent scoring; park factor 103. **Pass:** Phillies are the right side, but the ask is efficient and the conservative haircut leaves less than the authoritative 5-point rail.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "park_environment_cap",
+            "price_discipline"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Tampa Bay Rays",
+          "dk_fair_prob": {
+            "away": 0.48100000000000004,
+            "home": 0.519
+          },
+          "dk_fair_prob_pattern": "fair_positional_pct",
+          "heading": "Tampa Bay Rays at Baltimore Orioles \u2014 pass, 12:35 PM CT",
+          "home": "Baltimore Orioles",
+          "outcome_known": true,
+          "outcome_score": "Tampa Bay Rays 3 at Baltimore Orioles 1",
+          "outcome_winner": "away",
+          "polymarket_ask": {
+            "away": 0.495,
+            "home": 0.51
+          },
+          "polymarket_ask_pattern": "ask_positional_pct",
+          "price_line": "DK TB +104 / BAL -112 -> fair 48.1% / 51.9%; Polymarket asks 49.5% / 51.0%. Handicap 46% / 54% gives edges -3.5% / +3.0%. TB's .323 wOBA is running hot versus .307 xwOBA; BAL's .316 trails .325 xwOBA. Park factor 100. **Pass:** Baltimore has the bullpen path, but the starter/form case is not strong enough to clear the conservative rail.",
+          "refusal_clause": "Baltimore has the bullpen path, but the starter/form case is not strong enough to clear the conservative rail. DK TB +104 / BAL -112 -> fair 48.1% / 51.9%; Polymarket asks 49.5% / 51.0%. Handicap 46% / 54% gives edges -3.5% / +3.0%. TB's .323 wOBA is running hot versus .307 xwOBA; BAL's .316 trails .325 xwOBA. Park factor 100. **Pass:** Baltimore has the bullpen path, but the starter/form case is not strong enough to clear the conservative rail.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "bullpen_close_game_survival",
+            "park_environment_cap"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Toronto Blue Jays",
+          "dk_fair_prob": {
+            "away": 0.447,
+            "home": 0.5529999999999999
+          },
+          "dk_fair_prob_pattern": "fair_positional_pct",
+          "heading": "Toronto Blue Jays at New York Yankees \u2014 pass, 12:35 PM CT",
+          "home": "New York Yankees",
+          "outcome_known": true,
+          "outcome_score": "Toronto Blue Jays 3 at New York Yankees 8",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.45,
+            "home": 0.555
+          },
+          "polymarket_ask_pattern": "ask_positional_pct",
+          "price_line": "DK TOR +120 / NYY -129 -> fair 44.7% / 55.3%; Polymarket asks 45.0% / 55.5%. Handicap 45% / 55% gives edges 0.0% / -0.5%. TOR's .303 wOBA is above .295 xwOBA; NYY's .313 trails .319 xwOBA. Park factor 103. **Pass:** no two-sided price edge and no decisive starter separation; Aaron Judge is listed on the injury report, adding lineup risk.",
+          "refusal_clause": "no two-sided price edge and no decisive starter separation; Aaron Judge is listed on the injury report, adding lineup risk. DK TOR +120 / NYY -129 -> fair 44.7% / 55.3%; Polymarket asks 45.0% / 55.5%. Handicap 45% / 55% gives edges 0.0% / -0.5%. TOR's .303 wOBA is above .295 xwOBA; NYY's .313 trails .319 xwOBA. Park factor 103. **Pass:** no two-sided price edge and no decisive starter separation; Aaron Judge is listed on the injury report, adding lineup risk.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "park_environment_cap"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Washington Nationals",
+          "dk_fair_prob": {
+            "away": 0.4,
+            "home": 0.6
+          },
+          "dk_fair_prob_pattern": "fair_positional_pct",
+          "heading": "Washington Nationals at Miami Marlins \u2014 pass, 12:40 PM CT",
+          "home": "Miami Marlins",
+          "outcome_known": true,
+          "outcome_score": "Washington Nationals 2 at Miami Marlins 6",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.405,
+            "home": 0.6
+          },
+          "polymarket_ask_pattern": "ask_positional_pct",
+          "price_line": "DK WSH +146 / MIA -157 -> fair 40.0% / 60.0%; Polymarket asks 40.5% / 60.0%. Handicap 37% / 63% gives edges -3.5% / +3.0%. Park factor 97. WSH's offense is near its contact baseline (.330 wOBA/.328 xwOBA); Miami is outperforming it (.321/.308). **Pass:** the favorite is likely right, but the ask does not compensate for bullpen and small-sample uncertainty.",
+          "refusal_clause": "the favorite is likely right, but the ask does not compensate for bullpen and small-sample uncertainty. DK WSH +146 / MIA -157 -> fair 40.0% / 60.0%; Polymarket asks 40.5% / 60.0%. Handicap 37% / 63% gives edges -3.5% / +3.0%. Park factor 97. WSH's offense is near its contact baseline (.330 wOBA/.328 xwOBA); Miami is outperforming it (.321/.308). **Pass:** the favorite is likely right, but the ask does not compensate for bullpen and small-sample uncertainty.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "bullpen_close_game_survival",
+            "park_environment_cap",
+            "starter_floor"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Athletics",
+          "dk_fair_prob": {
+            "away": 0.38,
+            "home": 0.62
+          },
+          "dk_fair_prob_pattern": "fair_positional_pct",
+          "heading": "Athletics at Houston Astros \u2014 pass, 1:10 PM CT",
+          "home": "Houston Astros",
+          "outcome_known": true,
+          "outcome_score": "Athletics 7 at Houston Astros 6",
+          "outcome_winner": "away",
+          "polymarket_ask": {
+            "away": 0.38,
+            "home": 0.625
+          },
+          "polymarket_ask_pattern": "ask_positional_pct",
+          "price_line": "DK ATH +159 / HOU -171 -> fair 38.0% / 62.0%; Polymarket asks 38.0% / 62.5%. Handicap 40% / 60% gives edges +2.0% / -2.5%. Park factor 99. **Pass:** Oakland is the only raw plus-money value-shaped side, but its 2-5 form, 1.48 WHIP bullpen, lineup losses, and short starter workload prevent conviction. Not a lineup-only watchlist.",
+          "refusal_clause": "Oakland is the only raw plus-money value-shaped side, but its 2-5 form, 1.48 WHIP bullpen, lineup losses, and short starter workload prevent conviction. Not a lineup-only watchlist. DK ATH +159 / HOU -171 -> fair 38.0% / 62.0%; Polymarket asks 38.0% / 62.5%. Handicap 40% / 60% gives edges +2.0% / -2.5%. Park factor 99. **Pass:** Oakland is the only raw plus-money value-shaped side, but its 2-5 form, 1.48 WHIP bullpen, lineup losses, and short starter workload prevent conviction. Not a lineup-only watchlist.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "bullpen_close_game_survival",
+            "park_environment_cap",
+            "real_winner_conviction"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Detroit Tigers",
+          "dk_fair_prob": {
+            "away": 0.504,
+            "home": 0.496
+          },
+          "dk_fair_prob_pattern": "fair_positional_pct",
+          "heading": "Detroit Tigers at Kansas City Royals \u2014 pass, 1:10 PM CT",
+          "home": "Kansas City Royals",
+          "outcome_known": true,
+          "outcome_score": "Detroit Tigers 7 at Kansas City Royals 11",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.51,
+            "home": 0.495
+          },
+          "polymarket_ask_pattern": "ask_labelled_pct",
+          "price_line": "DK DET -105 / KC -102 -> fair 50.4% / 49.6%; Polymarket asks DET 51.0% / KC 49.5%. Handicap 42% / 58% gives edges -9.0% / +8.5%. Park factor 101. Detroit's .318 wOBA trails .320 xwOBA; KC is exactly aligned at .312/.312. **Pass:** KC is the strongest raw market discrepancy, but the starter-role uncertainty, Waguespack FIP risk, injuries, and unconfirmed lineups mean this is not a clean six-gate pass. The apparent edge is not lineup-only.",
+          "refusal_clause": "KC is the strongest raw market discrepancy, but the starter-role uncertainty, Waguespack FIP risk, injuries, and unconfirmed lineups mean this is not a clean six-gate pass. The apparent edge is not lineup-only. DK DET -105 / KC -102 -> fair 50.4% / 49.6%; Polymarket asks DET 51.0% / KC 49.5%. Handicap 42% / 58% gives edges -9.0% / +8.5%. Park factor 101. Detroit's .318 wOBA trails .320 xwOBA; KC is exactly aligned at .312/.312. **Pass:** KC is the strongest raw market discrepancy, but the starter-role uncertainty, Waguespack FIP risk, injuries, and unconfirmed lineups mean this is not a clean six-gate pass. The apparent edge is not lineup-only.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "lineups_unconfirmed",
+            "park_environment_cap"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "New York Mets",
+          "dk_fair_prob": {
+            "away": 0.5,
+            "home": 0.5
+          },
+          "dk_fair_prob_pattern": "fair_positional_pct",
+          "heading": "New York Mets at Chicago White Sox \u2014 pass, 1:10 PM CT",
+          "home": "Chicago White Sox",
+          "outcome_known": true,
+          "outcome_score": "New York Mets 1 at Chicago White Sox 2",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.505,
+            "home": 0.5
+          },
+          "polymarket_ask_pattern": "ask_labelled_pct",
+          "price_line": "DK NYM -104 / CWS -104 -> fair 50.0% / 50.0%; Polymarket asks NYM 50.5% / CWS 50.0%. Handicap 55% / 45% gives edges +4.5% / -5.0%. Park factor 102. NYM's .308 wOBA trails .320 xwOBA; Juan Soto is listed on the IL, so the offensive case is not fully intact. **Pass:** this is the closest official conversation, but the conservative haircut and missing lineup confirmation erase the raw 4.5-point edge.",
+          "refusal_clause": "this is the closest official conversation, but the conservative haircut and missing lineup confirmation erase the raw 4.5-point edge. DK NYM -104 / CWS -104 -> fair 50.0% / 50.0%; Polymarket asks NYM 50.5% / CWS 50.0%. Handicap 55% / 45% gives edges +4.5% / -5.0%. Park factor 102. NYM's .308 wOBA trails .320 xwOBA; Juan Soto is listed on the IL, so the offensive case is not fully intact. **Pass:** this is the closest official conversation, but the conservative haircut and missing lineup confirmation erase the raw 4.5-point edge.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "park_environment_cap"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Los Angeles Angels",
+          "dk_fair_prob": {
+            "away": 0.40399999999999997,
+            "home": 0.596
+          },
+          "dk_fair_prob_pattern": "fair_positional_pct",
+          "heading": "Los Angeles Angels at Texas Rangers \u2014 pass, 1:35 PM CT",
+          "home": "Texas Rangers",
+          "outcome_known": true,
+          "outcome_score": "Los Angeles Angels 3 at Texas Rangers 5",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.405,
+            "home": 0.6
+          },
+          "polymarket_ask_pattern": "ask_positional_pct",
+          "price_line": "DK LAA +143 / TEX -154 -> fair 40.4% / 59.6%; Polymarket asks 40.5% / 60.0%. Handicap 43% / 57% gives edges +2.5% / -3.0%. Park factor 99. LAA's .304/.304 is neutral; TEX is running hot at .311 wOBA versus .305 xwOBA. **Pass:** Angels have form and bullpen support, but backing the weaker starter requires too much from a road dog. Not a lineup-only near-miss.",
+          "refusal_clause": "Angels have form and bullpen support, but backing the weaker starter requires too much from a road dog. Not a lineup-only near-miss. DK LAA +143 / TEX -154 -> fair 40.4% / 59.6%; Polymarket asks 40.5% / 60.0%. Handicap 43% / 57% gives edges +2.5% / -3.0%. Park factor 99. LAA's .304/.304 is neutral; TEX is running hot at .311 wOBA versus .305 xwOBA. **Pass:** Angels have form and bullpen support, but backing the weaker starter requires too much from a road dog. Not a lineup-only near-miss.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "bullpen_close_game_survival",
+            "park_environment_cap"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Cleveland Guardians",
+          "dk_fair_prob": {
+            "away": 0.61,
+            "home": 0.39
+          },
+          "dk_fair_prob_pattern": "fair_positional_pct",
+          "heading": "Cleveland Guardians at Colorado Rockies \u2014 pass, 2:10 PM CT",
+          "home": "Colorado Rockies",
+          "outcome_known": true,
+          "outcome_score": "Cleveland Guardians 7 at Colorado Rockies 2",
+          "outcome_winner": "away",
+          "polymarket_ask": {
+            "away": 0.615,
+            "home": 0.39
+          },
+          "polymarket_ask_pattern": "ask_labelled_pct",
+          "price_line": "DK CLE -163 / COL +152 -> fair 61.0% / 39.0%; Polymarket asks CLE 61.5% / COL 39.0%. Handicap 63% / 37% gives edges +1.5% / -2.0%. Park factor 112, extreme hitter park; confidence cap applies. Cleveland's offense is neutral to xwOBA (.304/.304), while Colorado is running hot (.324/.308). **Pass:** cleanest baseball side on the board, but Coors is a hard environment cap and the market already charges for the full profile.",
+          "refusal_clause": "cleanest baseball side on the board, but Coors is a hard environment cap and the market already charges for the full profile. DK CLE -163 / COL +152 -> fair 61.0% / 39.0%; Polymarket asks CLE 61.5% / COL 39.0%. Handicap 63% / 37% gives edges +1.5% / -2.0%. Park factor 112, extreme hitter park; confidence cap applies. Cleveland's offense is neutral to xwOBA (.304/.304), while Colorado is running hot (.324/.308). **Pass:** cleanest baseball side on the board, but Coors is a hard environment cap and the market already charges for the full profile.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "park_environment_cap"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "San Francisco Giants",
+          "dk_fair_prob": {
+            "away": 0.34,
+            "home": 0.66
+          },
+          "dk_fair_prob_pattern": "fair_positional_pct",
+          "heading": "San Francisco Giants at Boston Red Sox \u2014 pass, 2:15 PM CT",
+          "home": "Boston Red Sox",
+          "outcome_known": true,
+          "outcome_score": "San Francisco Giants 4 at Boston Red Sox 5",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.34,
+            "home": 0.665
+          },
+          "polymarket_ask_pattern": "ask_positional_pct",
+          "price_line": "DK SF +189 / BOS -204 -> fair 34.0% / 66.0%; Polymarket asks 34.0% / 66.5%. Handicap 35% / 65% gives edges +1.0% / -1.5%. Park factor 106, extreme hitter park. SF .310/.308 and BOS .321/.311 are both running slightly hot. **Pass:** Fenway environment and the uninformative road starter sample block the favorite; the dog has no real winner conviction.",
+          "refusal_clause": "Fenway environment and the uninformative road starter sample block the favorite; the dog has no real winner conviction. DK SF +189 / BOS -204 -> fair 34.0% / 66.0%; Polymarket asks 34.0% / 66.5%. Handicap 35% / 65% gives edges +1.0% / -1.5%. Park factor 106, extreme hitter park. SF .310/.308 and BOS .321/.311 are both running slightly hot. **Pass:** Fenway environment and the uninformative road starter sample block the favorite; the dog has no real winner conviction.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "park_environment_cap",
+            "real_winner_conviction"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Chicago Cubs",
+          "dk_fair_prob": {
+            "away": 0.521,
+            "home": 0.479
+          },
+          "dk_fair_prob_pattern": "fair_positional_pct",
+          "heading": "Chicago Cubs at Seattle Mariners \u2014 pass, 3:10 PM CT",
+          "home": "Seattle Mariners",
+          "outcome_known": true,
+          "outcome_score": "Chicago Cubs 19 at Seattle Mariners 2",
+          "outcome_winner": "away",
+          "polymarket_ask": {
+            "away": 0.525,
+            "home": 0.48
+          },
+          "polymarket_ask_pattern": "ask_labelled_pct",
+          "price_line": "DK CHC -113 / SEA +105 -> fair 52.1% / 47.9%; Polymarket asks CHC 52.5% / SEA 48.0%. Handicap 53% / 47% gives edges +0.5% / -1.0%. Park factor 95, strong pitcher park. CHC is running hot versus contact quality (.333/.320); SEA is underperforming (.304/.316). **Pass:** Seattle's bullpen is bad, but the Cubs' form and recent offense are not clean enough to overcome the market and pitcher-park setting.",
+          "refusal_clause": "Seattle's bullpen is bad, but the Cubs' form and recent offense are not clean enough to overcome the market and pitcher-park setting. DK CHC -113 / SEA +105 -> fair 52.1% / 47.9%; Polymarket asks CHC 52.5% / SEA 48.0%. Handicap 53% / 47% gives edges +0.5% / -1.0%. Park factor 95, strong pitcher park. CHC is running hot versus contact quality (.333/.320); SEA is underperforming (.304/.316). **Pass:** Seattle's bullpen is bad, but the Cubs' form and recent offense are not clean enough to overcome the market and pitcher-park setting.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "bullpen_close_game_survival",
+            "park_environment_cap"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Minnesota Twins",
+          "dk_fair_prob": {
+            "away": 0.434,
+            "home": 0.5660000000000001
+          },
+          "dk_fair_prob_pattern": "fair_positional_pct",
+          "heading": "Minnesota Twins at San Diego Padres \u2014 pass, 3:10 PM CT",
+          "home": "San Diego Padres",
+          "outcome_known": true,
+          "outcome_score": "Minnesota Twins 1 at San Diego Padres 8",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.44,
+            "home": 0.565
+          },
+          "polymarket_ask_pattern": "ask_labelled_pct",
+          "price_line": "DK MIN +126 / SD -136 -> fair 43.4% / 56.6%; Polymarket asks MIN 44.0% / SD 56.5%. Handicap 44% / 56% gives edges 0.0% / -0.5%. Park factor 96, strong pitcher park. MIN is running hot (.319/.312); SD is underperforming (.311/.318). **Pass:** San Diego is the better full-game side, but not at a price that clears the rail.",
+          "refusal_clause": "San Diego is the better full-game side, but not at a price that clears the rail. DK MIN +126 / SD -136 -> fair 43.4% / 56.6%; Polymarket asks MIN 44.0% / SD 56.5%. Handicap 44% / 56% gives edges 0.0% / -0.5%. Park factor 96, strong pitcher park. MIN is running hot (.319/.312); SD is underperforming (.311/.318). **Pass:** San Diego is the better full-game side, but not at a price that clears the rail.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "park_environment_cap"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Pittsburgh Pirates",
+          "dk_fair_prob": {
+            "away": 0.282,
+            "home": 0.718
+          },
+          "dk_fair_prob_pattern": "fair_positional_pct",
+          "heading": "Pittsburgh Pirates at Los Angeles Dodgers \u2014 pass, 3:10 PM CT",
+          "home": "Los Angeles Dodgers",
+          "outcome_known": true,
+          "outcome_score": "Pittsburgh Pirates 0 at Los Angeles Dodgers 4",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.29,
+            "home": 0.715
+          },
+          "polymarket_ask_pattern": "ask_labelled_pct",
+          "price_line": "DK PIT +249 / LAD -271 -> fair 28.2% / 71.8%; Polymarket asks PIT 29.0% / LAD 71.5%. Handicap 27% / 73% gives edges -2.0% / +1.5%. Park factor unavailable in the scanner for UNIQLO Field at Dodger Stadium; missing environment input is itself a gate failure. **Pass:** Dodgers are the likely winner, but the price, small Snell sample, injuries, and missing park factor prohibit a card.",
+          "refusal_clause": "Dodgers are the likely winner, but the price, small Snell sample, injuries, and missing park factor prohibit a card. DK PIT +249 / LAD -271 -> fair 28.2% / 71.8%; Polymarket asks PIT 29.0% / LAD 71.5%. Handicap 27% / 73% gives edges -2.0% / +1.5%. Park factor unavailable in the scanner for UNIQLO Field at Dodger Stadium; missing environment input is itself a gate failure. **Pass:** Dodgers are the likely winner, but the price, small Snell sample, injuries, and missing park factor prohibit a card.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "park_environment_cap"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Cincinnati Reds",
+          "dk_fair_prob": {
+            "away": 0.447,
+            "home": 0.5529999999999999
+          },
+          "dk_fair_prob_pattern": "fair_positional_pct",
+          "heading": "Cincinnati Reds at Arizona Diamondbacks \u2014 pass, 3:15 PM CT",
+          "home": "Arizona Diamondbacks",
+          "outcome_known": true,
+          "outcome_score": "Cincinnati Reds 3 at Arizona Diamondbacks 5",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.45,
+            "home": 0.555
+          },
+          "polymarket_ask_pattern": "ask_labelled_pct",
+          "price_line": "DK CIN +120 / ARI -129 -> fair 44.7% / 55.3%; Polymarket asks CIN 45.0% / ARI 55.5%. Handicap 46% / 54% gives edges +1.0% / -1.5%. Park factor 102. Cincinnati .308/.316 is underperforming contact quality; Arizona offense data was unavailable, another non-lineup input gap. **Pass:** Cincinnati's bullpen/starter path is interesting, but missing home offense data and weak overall form make this analysis-only.",
+          "refusal_clause": "Cincinnati's bullpen/starter path is interesting, but missing home offense data and weak overall form make this analysis-only. DK CIN +120 / ARI -129 -> fair 44.7% / 55.3%; Polymarket asks CIN 45.0% / ARI 55.5%. Handicap 46% / 54% gives edges +1.0% / -1.5%. Park factor 102. Cincinnati .308/.316 is underperforming contact quality; Arizona offense data was unavailable, another non-lineup input gap. **Pass:** Cincinnati's bullpen/starter path is interesting, but missing home offense data and weak overall form make this analysis-only.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "bullpen_close_game_survival",
+            "park_environment_cap"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Atlanta Braves",
+          "dk_fair_prob": {
+            "away": 0.45899999999999996,
+            "home": 0.541
+          },
+          "dk_fair_prob_pattern": "fair_positional_pct",
+          "heading": "Atlanta Braves at Milwaukee Brewers \u2014 pass, 6:00 PM CT",
+          "home": "Milwaukee Brewers",
+          "outcome_known": true,
+          "outcome_score": "Atlanta Braves 4 at Milwaukee Brewers 2",
+          "outcome_winner": "away",
+          "polymarket_ask": {
+            "away": 0.465,
+            "home": 0.54
+          },
+          "polymarket_ask_pattern": "ask_labelled_pct",
+          "price_line": "DK ATL +114 / MIL -123 -> fair 45.9% / 54.1%; Polymarket asks ATL 46.5% / MIL 54.0%. The Polymarket market was returned with a 10-minute start-time mismatch versus the scanner (scanner 23:00Z; market 23:10Z), so exact mapping is not clean. Handicap 43% / 57% gives edges -3.5% / +3.0%. Park factor was unavailable for Journey Bank Ballpark. **Pass:** Milwaukee has the strongest form/bullpen case, but exact market-time mapping and environment data fail the gate.",
+          "refusal_clause": "Milwaukee has the strongest form/bullpen case, but exact market-time mapping and environment data fail the gate. DK ATL +114 / MIL -123 -> fair 45.9% / 54.1%; Polymarket asks ATL 46.5% / MIL 54.0%. The Polymarket market was returned with a 10-minute start-time mismatch versus the scanner (scanner 23:00Z; market 23:10Z), so exact mapping is not clean. Handicap 43% / 57% gives edges -3.5% / +3.0%. Park factor was unavailable for Journey Bank Ballpark. **Pass:** Milwaukee has the strongest form/bullpen case, but exact market-time mapping and environment data fail the gate.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "bullpen_close_game_survival",
+            "park_environment_cap"
+          ],
+          "unreadable": []
+        }
+      ]
+    },
+    {
+      "date": "2026-08-24",
+      "file": "2026-08-24.md",
+      "reads": [
+        {
+          "away": "Tampa Bay Rays",
+          "dk_fair_prob": {
+            "away": 0.543,
+            "home": 0.45699999999999996
+          },
+          "dk_fair_prob_pattern": "fair_single_label_dec",
+          "heading": "Tampa Bay Rays at Detroit Tigers \u2014 22:40Z / 5:40 PM CT",
+          "home": "Detroit Tigers",
+          "outcome_known": true,
+          "outcome_score": "Tampa Bay Rays 4 at Detroit Tigers 1",
+          "outcome_winner": "away",
+          "price_line": "DK -124/+115 -> de-vigged TB fair 0.543. Polymarket ask TB 0.555 (source timestamp 2026-08-24T15:32:47Z); handicap TB 0.570, net edge +0.015. Opponent check: DET 0.430 minus 0.450 ask = -0.020. **Pass:** edge below 0.02 and not enough conviction.",
+          "refusal_clause": "edge below 0.02 and not enough conviction. DK -124/+115 -> de-vigged TB fair 0.543. Polymarket ask TB 0.555 (source timestamp 2026-08-24T15:32:47Z); handicap TB 0.570, net edge +0.015. Opponent check: DET 0.430 minus 0.450 ask = -0.020. **Pass:** edge below 0.02 and not enough conviction.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "price_discipline",
+            "real_winner_conviction"
+          ],
+          "unreadable": [
+            "polymarket_ask: no two-sided value matched ['ask_labelled_pct', 'ask_labelled_dec', 'ask_positional_pct', 'ask_positional_dec']"
+          ]
+        },
+        {
+          "away": "Boston Red Sox",
+          "dk_fair_prob": {
+            "away": 0.536,
+            "home": 0.46399999999999997
+          },
+          "dk_fair_prob_pattern": "fair_single_label_dec",
+          "heading": "Boston Red Sox at Miami Marlins \u2014 22:40Z / 5:40 PM CT",
+          "home": "Miami Marlins",
+          "outcome_known": true,
+          "outcome_score": "Boston Red Sox 4 at Miami Marlins 2",
+          "outcome_winner": "away",
+          "price_line": "DK -120/+112 -> de-vigged BOS fair 0.536. Polymarket ask BOS 0.545 (source timestamp 2026-08-24T15:32:46Z); handicap BOS 0.550, net edge +0.005. Opponent check: MIA 0.450 minus 0.460 ask = -0.010. **Pass:** no real edge.",
+          "refusal_clause": "no real edge. DK -120/+112 -> de-vigged BOS fair 0.536. Polymarket ask BOS 0.545 (source timestamp 2026-08-24T15:32:46Z); handicap BOS 0.550, net edge +0.005. Opponent check: MIA 0.450 minus 0.460 ask = -0.010. **Pass:** no real edge.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "price_discipline"
+          ],
+          "unreadable": [
+            "polymarket_ask: no two-sided value matched ['ask_labelled_pct', 'ask_labelled_dec', 'ask_positional_pct', 'ask_positional_dec']"
+          ]
+        },
+        {
+          "away": "Colorado Rockies",
+          "dk_fair_prob": {
+            "away": 0.365,
+            "home": 0.635
+          },
+          "dk_fair_prob_pattern": "fair_single_label_dec",
+          "heading": "Colorado Rockies at Washington Nationals \u2014 22:45Z / 5:45 PM CT",
+          "home": "Washington Nationals",
+          "outcome_known": true,
+          "outcome_score": "Colorado Rockies 3 at Washington Nationals 13",
+          "outcome_winner": "home",
+          "price_line": "DK -182/+169 -> de-vigged WSH fair 0.635. Polymarket ask WSH 0.640 (source timestamp 2026-08-24T15:32:46Z); handicap WSH 0.660, net edge +0.020. Opponent check: COL 0.340 minus 0.365 ask = -0.025. **Pass:** exactly at the nominal edge floor, but the authoritative conservative-edge rail is 0.05 and the slate does not justify forcing a heavy favorite.",
+          "refusal_clause": "exactly at the nominal edge floor, but the authoritative conservative-edge rail is 0.05 and the slate does not justify forcing a heavy favorite. DK -182/+169 -> de-vigged WSH fair 0.635. Polymarket ask WSH 0.640 (source timestamp 2026-08-24T15:32:46Z); handicap WSH 0.660, net edge +0.020. Opponent check: COL 0.340 minus 0.365 ask = -0.025. **Pass:** exactly at the nominal edge floor, but the authoritative conservative-edge rail is 0.05 and the slate does not justify forcing a heavy favorite.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "price_discipline"
+          ],
+          "unreadable": [
+            "polymarket_ask: no two-sided value matched ['ask_labelled_pct', 'ask_labelled_dec', 'ask_positional_pct', 'ask_positional_dec']"
+          ]
+        },
+        {
+          "away": "Texas Rangers",
+          "dk_fair_prob": {
+            "away": 0.44699999999999995,
+            "home": 0.553
+          },
+          "dk_fair_prob_pattern": "fair_single_label_dec",
+          "heading": "Texas Rangers at Chicago White Sox \u2014 23:40Z / 6:40 PM CT",
+          "home": "Chicago White Sox",
+          "outcome_known": true,
+          "outcome_score": "Texas Rangers 11 at Chicago White Sox 2",
+          "outcome_winner": "away",
+          "price_line": "DK -129/+120 -> de-vigged CWS fair 0.553. Polymarket ask CWS 0.550 (source timestamp 2026-08-24T15:32:47Z); handicap CWS 0.550, net edge 0.000. Opponent check is also 0.000. **Pass:** no price edge; starter uncertainty blocks conviction.",
+          "refusal_clause": "no price edge; starter uncertainty blocks conviction. DK -129/+120 -> de-vigged CWS fair 0.553. Polymarket ask CWS 0.550 (source timestamp 2026-08-24T15:32:47Z); handicap CWS 0.550, net edge 0.000. Opponent check is also 0.000. **Pass:** no price edge; starter uncertainty blocks conviction.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "real_winner_conviction"
+          ],
+          "unreadable": [
+            "polymarket_ask: no two-sided value matched ['ask_labelled_pct', 'ask_labelled_dec', 'ask_positional_pct', 'ask_positional_dec']"
+          ]
+        },
+        {
+          "away": "Cleveland Guardians",
+          "dk_fair_prob": {
+            "away": 0.602,
+            "home": 0.398
+          },
+          "dk_fair_prob_pattern": "fair_single_label_dec",
+          "heading": "Cleveland Guardians at Los Angeles Angels \u2014 01:38Z / 8:38 PM CT",
+          "home": "Los Angeles Angels",
+          "outcome_known": true,
+          "outcome_score": "Cleveland Guardians 4 at Los Angeles Angels 2",
+          "outcome_winner": "away",
+          "price_line": "DK -158/+147 -> de-vigged CLE fair 0.602. Polymarket ask CLE 0.610 (source timestamp 2026-08-24T15:32:46Z); handicap CLE 0.640, net edge +0.030. Opponent check: LAA 0.360 minus 0.395 ask = -0.035. **Pass:** price edge is real but below the authoritative 0.05 conservative rail; not enough to issue a card.",
+          "refusal_clause": "price edge is real but below the authoritative 0.05 conservative rail; not enough to issue a card. DK -158/+147 -> de-vigged CLE fair 0.602. Polymarket ask CLE 0.610 (source timestamp 2026-08-24T15:32:46Z); handicap CLE 0.640, net edge +0.030. Opponent check: LAA 0.360 minus 0.395 ask = -0.035. **Pass:** price edge is real but below the authoritative 0.05 conservative rail; not enough to issue a card.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "price_discipline"
+          ],
+          "unreadable": [
+            "polymarket_ask: no two-sided value matched ['ask_labelled_pct', 'ask_labelled_dec', 'ask_positional_pct', 'ask_positional_dec']"
+          ]
+        },
+        {
+          "away": "Chicago Cubs",
+          "dk_fair_prob": {
+            "away": 0.572,
+            "home": 0.42800000000000005
+          },
+          "dk_fair_prob_pattern": "fair_single_label_dec",
+          "heading": "Chicago Cubs at Arizona Diamondbacks \u2014 01:40Z / 8:40 PM CT",
+          "home": "Arizona Diamondbacks",
+          "outcome_known": true,
+          "outcome_score": "Chicago Cubs 7 at Arizona Diamondbacks 0",
+          "outcome_winner": "away",
+          "price_line": "DK -139/+130 -> de-vigged CHC fair 0.572. Polymarket ask CHC 0.570 (source timestamp 2026-08-24T15:32:46Z); handicap CHC 0.600, net edge +0.030. Opponent check: AZ 0.400 minus 0.435 ask = -0.035. **Pass:** real but sub-rail edge plus missing Arizona offense quality.",
+          "refusal_clause": "real but sub-rail edge plus missing Arizona offense quality. DK -139/+130 -> de-vigged CHC fair 0.572. Polymarket ask CHC 0.570 (source timestamp 2026-08-24T15:32:46Z); handicap CHC 0.600, net edge +0.030. Opponent check: AZ 0.400 minus 0.435 ask = -0.035. **Pass:** real but sub-rail edge plus missing Arizona offense quality.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "incomplete_input_data",
+            "price_discipline"
+          ],
+          "unreadable": [
+            "polymarket_ask: no two-sided value matched ['ask_labelled_pct', 'ask_labelled_dec', 'ask_positional_pct', 'ask_positional_dec']"
+          ]
+        },
+        {
+          "away": "Pittsburgh Pirates",
+          "dk_fair_prob": {
+            "away": 0.504,
+            "home": 0.496
+          },
+          "dk_fair_prob_pattern": "fair_single_label_dec",
+          "heading": "Pittsburgh Pirates at San Diego Padres \u2014 01:40Z / 8:40 PM CT",
+          "home": "San Diego Padres",
+          "outcome_known": true,
+          "outcome_score": "Pittsburgh Pirates 3 at San Diego Padres 2",
+          "outcome_winner": "away",
+          "price_line": "DK -102/-105 -> de-vigged SD fair 0.496. Polymarket ask SD 0.505 (source timestamp 2026-08-24T15:32:47Z); handicap SD 0.500, net edge -0.005. Opponent check: PIT 0.500 minus 0.500 ask = 0.000. **Pass:** no edge.",
+          "refusal_clause": "no edge. DK -102/-105 -> de-vigged SD fair 0.496. Polymarket ask SD 0.505 (source timestamp 2026-08-24T15:32:47Z); handicap SD 0.500, net edge -0.005. Opponent check: PIT 0.500 minus 0.500 ask = 0.000. **Pass:** no edge.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "price_discipline"
+          ],
+          "unreadable": [
+            "polymarket_ask: no two-sided value matched ['ask_labelled_pct', 'ask_labelled_dec', 'ask_positional_pct', 'ask_positional_dec']"
+          ]
+        },
+        {
+          "away": "Minnesota Twins",
+          "dk_fair_prob": {
+            "away": 0.594,
+            "home": 0.406
+          },
+          "dk_fair_prob_pattern": "fair_single_label_dec",
+          "heading": "Minnesota Twins at Athletics \u2014 01:40Z / 8:40 PM CT",
+          "home": "Athletics",
+          "outcome_known": true,
+          "outcome_score": "Minnesota Twins 9 at Athletics 6",
+          "outcome_winner": "away",
+          "price_line": "DK -153/+142 -> de-vigged MIN fair 0.594. Polymarket ask MIN 0.595 (source timestamp 2026-08-24T15:32:47Z); handicap MIN 0.550, net edge -0.045. Opponent check: ATH 0.450 minus 0.410 ask = +0.040, but the dog is not cardable because the starter and park path are weak. **Pass:** favorite has no edge; dog fails starter/conviction gate.",
+          "refusal_clause": "favorite has no edge; dog fails starter/conviction gate. DK -153/+142 -> de-vigged MIN fair 0.594. Polymarket ask MIN 0.595 (source timestamp 2026-08-24T15:32:47Z); handicap MIN 0.550, net edge -0.045. Opponent check: ATH 0.450 minus 0.410 ask = +0.040, but the dog is not cardable because the starter and park path are weak. **Pass:** favorite has no edge; dog fails starter/conviction gate.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "price_discipline",
+            "real_winner_conviction"
+          ],
+          "unreadable": [
+            "polymarket_ask: no two-sided value matched ['ask_labelled_pct', 'ask_labelled_dec', 'ask_positional_pct', 'ask_positional_dec']"
+          ]
+        },
+        {
+          "away": "Philadelphia Phillies",
+          "dk_fair_prob": {
+            "away": 0.511,
+            "home": 0.489
+          },
+          "dk_fair_prob_pattern": "fair_single_label_dec",
+          "heading": "Philadelphia Phillies at Seattle Mariners \u2014 01:40Z / 8:40 PM CT",
+          "home": "Seattle Mariners",
+          "outcome_known": true,
+          "outcome_score": "Philadelphia Phillies 2 at Seattle Mariners 9",
+          "outcome_winner": "home",
+          "price_line": "DK -108/+101 -> de-vigged PHI fair 0.511. Polymarket ask PHI 0.515 (source timestamp 2026-08-24T15:32:47Z); provisional handicap PHI 0.550, net edge +0.035. Opponent check: SEA 0.450 minus 0.490 ask = -0.040. **Watchlist, not a pick:** lineup confirmation is the sole open blocker; recheck all inputs at 00:25Z and reject if the ask moves or the orders break the thesis.",
+          "refusal_clause": "DK -108/+101 -> de-vigged PHI fair 0.511. Polymarket ask PHI 0.515 (source timestamp 2026-08-24T15:32:47Z); provisional handicap PHI 0.550, net edge +0.035. Opponent check: SEA 0.450 minus 0.490 ask = -0.040. **Watchlist, not a pick:** lineup confirmation is the sole open blocker; recheck all inputs at 00:25Z and reject if the ask moves or the orders break the thesis.",
+          "refusal_clause_source": "price_line",
+          "refusing_rails": [],
+          "unclassified_text": "DK -108/+101 -> de-vigged PHI fair 0.511. Polymarket ask PHI 0.515 (source timestamp 2026-08-24T15:32:47Z); provisional handicap PHI 0.550, net edge +0.035. Opponent check: SEA 0.450 minus 0.490 ask = -0.040. **Watchlist, not a pick:** lineup confirmation is the sole open blocker; recheck all inputs at 00:25Z and reject if the ask moves or the orders break the thesis.",
+          "unreadable": [
+            "polymarket_ask: no two-sided value matched ['ask_labelled_pct', 'ask_labelled_dec', 'ask_positional_pct', 'ask_positional_dec']",
+            "refusing_rails: no phrase in the table matched"
+          ]
+        },
+        {
+          "away": "Cincinnati Reds",
+          "dk_fair_prob": {
+            "away": 0.596,
+            "home": 0.404
+          },
+          "dk_fair_prob_pattern": "fair_single_label_dec",
+          "heading": "Cincinnati Reds at San Francisco Giants \u2014 01:45Z / 8:45 PM CT",
+          "home": "San Francisco Giants",
+          "outcome_known": true,
+          "outcome_score": "Cincinnati Reds 0 at San Francisco Giants 5",
+          "outcome_winner": "home",
+          "price_line": "DK -154/+143 -> de-vigged CIN fair 0.596. Polymarket ask CIN 0.605 (source timestamp 2026-08-24T15:32:46Z); no reliable full handicap can be issued, so no valid win probability or edge is carded. **Pass:** starter unannounced plus bullpen risk; not a watchlist promotion because the provisional price case is not strong enough.",
+          "refusal_clause": "starter unannounced plus bullpen risk; not a watchlist promotion because the provisional price case is not strong enough. DK -154/+143 -> de-vigged CIN fair 0.596. Polymarket ask CIN 0.605 (source timestamp 2026-08-24T15:32:46Z); no reliable full handicap can be issued, so no valid win probability or edge is carded. **Pass:** starter unannounced plus bullpen risk; not a watchlist promotion because the provisional price case is not strong enough.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "bullpen_close_game_survival",
+            "starter_unannounced"
+          ],
+          "unreadable": [
+            "polymarket_ask: no two-sided value matched ['ask_labelled_pct', 'ask_labelled_dec', 'ask_positional_pct', 'ask_positional_dec']"
+          ]
+        }
+      ]
+    },
+    {
+      "date": "2026-08-25",
+      "file": "2026-08-25-evening.md",
+      "reads": [
+        {
+          "away": "Tampa Bay Rays",
+          "dk_fair_prob": {
+            "away": 0.545,
+            "home": 0.455
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "Tampa Bay Rays at Detroit Tigers \u2014 5:40 PM CT",
+          "home": "Detroit Tigers",
+          "outcome_known": true,
+          "outcome_score": "Tampa Bay Rays 1 at Detroit Tigers 4",
+          "outcome_winner": "home",
+          "price_line": "DK TB -124 / DET +116 -> de-vig fair TB 0.545 / DET 0.455. Exact Polymarket slug `aec-mlb-tb-det-2026-08-25` returned no market data; no executable ask to price.",
+          "refusal_clause": "Tampa is the better paper side, not a conviction card. Detroit's bullpen is the liability, but the starter sample and unavailable exchange price fail price discipline. DK TB -124 / DET +116 -> de-vig fair TB 0.545 / DET 0.455. Exact Polymarket slug `aec-mlb-tb-det-2026-08-25` returned no market data; no executable ask to price.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "bullpen_close_game_survival",
+            "no_polymarket_market",
+            "price_discipline",
+            "real_winner_conviction"
+          ],
+          "unreadable": [
+            "polymarket_ask: no two-sided value matched ['ask_labelled_pct', 'ask_labelled_dec', 'ask_positional_pct', 'ask_positional_dec']"
+          ]
+        },
+        {
+          "away": "Boston Red Sox",
+          "dk_fair_prob": {
+            "away": 0.574,
+            "home": 0.426
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "Boston Red Sox at Miami Marlins \u2014 5:40 PM CT",
+          "home": "Miami Marlins",
+          "outcome_known": true,
+          "outcome_score": "Boston Red Sox 7 at Miami Marlins 3",
+          "outcome_winner": "away",
+          "price_line": "DK BOS -140 / MIA +131 -> de-vig fair BOS 0.574 / MIA 0.426. Exact Polymarket slug returned no market data; price gate cannot pass.",
+          "refusal_clause": "Boston has the cleanest baseball case, but the missing exchange ask prevents a current edge claim. No stale price gets promoted. DK BOS -140 / MIA +131 -> de-vig fair BOS 0.574 / MIA 0.426. Exact Polymarket slug returned no market data; price gate cannot pass.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "no_polymarket_market"
+          ],
+          "unreadable": [
+            "polymarket_ask: no two-sided value matched ['ask_labelled_pct', 'ask_labelled_dec', 'ask_positional_pct', 'ask_positional_dec']"
+          ]
+        },
+        {
+          "away": "Colorado Rockies",
+          "dk_fair_prob": {
+            "away": 0.415,
+            "home": 0.585
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "Colorado Rockies at Washington Nationals \u2014 5:45 PM CT",
+          "home": "Washington Nationals",
+          "outcome_known": true,
+          "outcome_score": "Colorado Rockies 3 at Washington Nationals 1",
+          "outcome_winner": "away",
+          "price_line": "DK COL +137 / WSH -147 -> de-vig fair COL 0.415 / WSH 0.585. Exact Polymarket slug returned no market data.",
+          "refusal_clause": "Colorado's starter data is incomplete. Washington's form and bullpen edge cannot carry an unpriced, incomplete handicap. DK COL +137 / WSH -147 -> de-vig fair COL 0.415 / WSH 0.585. Exact Polymarket slug returned no market data.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "bullpen_close_game_survival",
+            "incomplete_input_data",
+            "no_polymarket_market"
+          ],
+          "unreadable": [
+            "polymarket_ask: no two-sided value matched ['ask_labelled_pct', 'ask_labelled_dec', 'ask_positional_pct', 'ask_positional_dec']"
+          ]
+        },
+        {
+          "away": "Houston Astros",
+          "dk_fair_prob": {
+            "away": 0.426,
+            "home": 0.574
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "Houston Astros at New York Yankees \u2014 6:05 PM CT",
+          "home": "New York Yankees",
+          "outcome_known": true,
+          "outcome_score": "Houston Astros 9 at New York Yankees 7",
+          "outcome_winner": "away",
+          "price_line": "DK HOU +131 / NYY -140 -> de-vig fair HOU 0.426 / NYY 0.574. Exact Polymarket slug returned no market data.",
+          "refusal_clause": "New York is the likely winner, but Pecko uncertainty and hitter-park variance make this a no-bet without a verified ask and stronger conviction. DK HOU +131 / NYY -140 -> de-vig fair HOU 0.426 / NYY 0.574. Exact Polymarket slug returned no market data.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "no_polymarket_market",
+            "real_winner_conviction"
+          ],
+          "unreadable": [
+            "polymarket_ask: no two-sided value matched ['ask_labelled_pct', 'ask_labelled_dec', 'ask_positional_pct', 'ask_positional_dec']"
+          ]
+        },
+        {
+          "away": "Kansas City Royals",
+          "dk_fair_prob": {
+            "away": 0.447,
+            "home": 0.553
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "Kansas City Royals at Toronto Blue Jays \u2014 6:07 PM CT",
+          "home": "Toronto Blue Jays",
+          "outcome_known": true,
+          "outcome_score": "Kansas City Royals 5 at Toronto Blue Jays 3",
+          "outcome_winner": "away",
+          "price_line": "DK KC +120 / TOR -129 -> de-vig fair KC 0.447 / TOR 0.553. Exact Polymarket slug returned no market data.",
+          "refusal_clause": "Kansas City's seven-game run is real but the market and bullpen do not give a clean full-game edge. DK KC +120 / TOR -129 -> de-vig fair KC 0.447 / TOR 0.553. Exact Polymarket slug returned no market data.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "bullpen_close_game_survival",
+            "no_polymarket_market"
+          ],
+          "unreadable": [
+            "polymarket_ask: no two-sided value matched ['ask_labelled_pct', 'ask_labelled_dec', 'ask_positional_pct', 'ask_positional_dec']"
+          ]
+        },
+        {
+          "away": "Milwaukee Brewers",
+          "dk_fair_prob": {
+            "away": 0.604,
+            "home": 0.396
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "Milwaukee Brewers at New York Mets \u2014 6:10 PM CT",
+          "home": "New York Mets",
+          "outcome_known": true,
+          "outcome_score": "Milwaukee Brewers 2 at New York Mets 3",
+          "outcome_winner": "home",
+          "price_line": "DK MIL -159 / NYM +148 -> de-vig fair MIL 0.604 / NYM 0.396. Exact Polymarket slug returned no market data.",
+          "refusal_clause": "Best underlying side on the board, but no verified exchange ask means no edge math and no official bet. Do not pay full retail on the morning number. DK MIL -159 / NYM +148 -> de-vig fair MIL 0.604 / NYM 0.396. Exact Polymarket slug returned no market data.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "no_polymarket_market",
+            "price_discipline"
+          ],
+          "unreadable": [
+            "polymarket_ask: no two-sided value matched ['ask_labelled_pct', 'ask_labelled_dec', 'ask_positional_pct', 'ask_positional_dec']"
+          ]
+        },
+        {
+          "away": "Los Angeles Dodgers",
+          "dk_fair_prob": {
+            "away": 0.587,
+            "home": 0.413
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "Los Angeles Dodgers at Atlanta Braves \u2014 6:15 PM CT",
+          "home": "Atlanta Braves",
+          "outcome_known": true,
+          "outcome_score": "Los Angeles Dodgers 3 at Atlanta Braves 4",
+          "outcome_winner": "home",
+          "price_line": "DK LAD -148 / ATL +138 -> de-vig fair LAD 0.587 / ATL 0.413. Exact Polymarket slug returned no market data.",
+          "refusal_clause": "Dodgers are the likely winner, but mixed bullpen signals, Glasnow workload, and no live ask keep this below conviction. DK LAD -148 / ATL +138 -> de-vig fair LAD 0.587 / ATL 0.413. Exact Polymarket slug returned no market data.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "bullpen_close_game_survival",
+            "no_polymarket_market",
+            "real_winner_conviction"
+          ],
+          "unreadable": [
+            "polymarket_ask: no two-sided value matched ['ask_labelled_pct', 'ask_labelled_dec', 'ask_positional_pct', 'ask_positional_dec']"
+          ]
+        },
+        {
+          "away": "Texas Rangers",
+          "dk_fair_prob": {
+            "away": 0.516,
+            "home": 0.484
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "Texas Rangers at Chicago White Sox \u2014 6:40 PM CT",
+          "home": "Chicago White Sox",
+          "outcome_known": true,
+          "outcome_score": "Texas Rangers 7 at Chicago White Sox 11",
+          "outcome_winner": "home",
+          "price_line": "DK TEX -111 / CWS +103 -> de-vig fair TEX 0.516 / CWS 0.484. Exact Polymarket slug returned no market data.",
+          "refusal_clause": "Texas has the better read, but the price is near fair and the park adds variance. No clean market error. DK TEX -111 / CWS +103 -> de-vig fair TEX 0.516 / CWS 0.484. Exact Polymarket slug returned no market data.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "no_polymarket_market"
+          ],
+          "unreadable": [
+            "polymarket_ask: no two-sided value matched ['ask_labelled_pct', 'ask_labelled_dec', 'ask_positional_pct', 'ask_positional_dec']"
+          ]
+        },
+        {
+          "away": "Baltimore Orioles",
+          "dk_fair_prob": {
+            "away": 0.455,
+            "home": 0.545
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "Baltimore Orioles at St. Louis Cardinals \u2014 6:45 PM CT",
+          "home": "St. Louis Cardinals",
+          "outcome_known": true,
+          "outcome_score": "Baltimore Orioles 13 at St. Louis Cardinals 1",
+          "outcome_winner": "away",
+          "price_line": "DK BAL +116 / STL -124 -> de-vig fair BAL 0.455 / STL 0.545. Exact Polymarket slug returned no market data.",
+          "refusal_clause": "Strong Baltimore bullpen angle, but Liberatore's starter skill edge and missing market ask prevent a clean dog conviction. DK BAL +116 / STL -124 -> de-vig fair BAL 0.455 / STL 0.545. Exact Polymarket slug returned no market data.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "bullpen_close_game_survival",
+            "no_polymarket_market",
+            "real_winner_conviction"
+          ],
+          "unreadable": [
+            "polymarket_ask: no two-sided value matched ['ask_labelled_pct', 'ask_labelled_dec', 'ask_positional_pct', 'ask_positional_dec']"
+          ]
+        },
+        {
+          "away": "Cleveland Guardians",
+          "dk_fair_prob": {
+            "away": 0.574,
+            "home": 0.426
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "Cleveland Guardians at Los Angeles Angels \u2014 8:38 PM CT",
+          "home": "Los Angeles Angels",
+          "outcome_known": true,
+          "outcome_score": "Cleveland Guardians 8 at Los Angeles Angels 6",
+          "outcome_winner": "away",
+          "price_line": "DK CLE -140 / LAA +131 -> de-vig fair CLE 0.574 / LAA 0.426. Exact Polymarket slug returned no market data.",
+          "refusal_clause": "Cleveland is a sound baseball side, but the likely price is efficient and no supported ask was available to establish real edge. DK CLE -140 / LAA +131 -> de-vig fair CLE 0.574 / LAA 0.426. Exact Polymarket slug returned no market data.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "no_polymarket_market",
+            "price_discipline"
+          ],
+          "unreadable": [
+            "polymarket_ask: no two-sided value matched ['ask_labelled_pct', 'ask_labelled_dec', 'ask_positional_pct', 'ask_positional_dec']"
+          ]
+        },
+        {
+          "away": "Chicago Cubs",
+          "dk_fair_prob": {
+            "away": 0.511,
+            "home": 0.489
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "Chicago Cubs at Arizona Diamondbacks \u2014 8:40 PM CT",
+          "home": "Arizona Diamondbacks",
+          "outcome_known": true,
+          "outcome_score": "Chicago Cubs 4 at Arizona Diamondbacks 5",
+          "outcome_winner": "home",
+          "price_line": "DK CHC -108 / ARI +101 -> de-vig fair CHC 0.511 / ARI 0.489. Exact Polymarket slug returned no market data.",
+          "refusal_clause": "Chicago has the better supporting profile, but missing Arizona offense quality and a thin starter edge block conviction. DK CHC -108 / ARI +101 -> de-vig fair CHC 0.511 / ARI 0.489. Exact Polymarket slug returned no market data.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "incomplete_input_data",
+            "no_polymarket_market",
+            "real_winner_conviction"
+          ],
+          "unreadable": [
+            "polymarket_ask: no two-sided value matched ['ask_labelled_pct', 'ask_labelled_dec', 'ask_positional_pct', 'ask_positional_dec']"
+          ]
+        },
+        {
+          "away": "Minnesota Twins",
+          "dk_fair_prob": {
+            "away": 0.587,
+            "home": 0.413
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "Minnesota Twins at Athletics \u2014 8:40 PM CT",
+          "home": "Athletics",
+          "outcome_known": true,
+          "outcome_score": "Minnesota Twins 2 at Athletics 4",
+          "outcome_winner": "home",
+          "price_line": "DK MIN -148 / ATH +138 -> de-vig fair MIN 0.587 / ATH 0.413. Exact Polymarket slug returned no market data.",
+          "refusal_clause": "Minnesota's bullpen fails the close-game survival test, and the hitter-friendly environment adds variance. DK MIN -148 / ATH +138 -> de-vig fair MIN 0.587 / ATH 0.413. Exact Polymarket slug returned no market data.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "bullpen_close_game_survival",
+            "no_polymarket_market"
+          ],
+          "unreadable": [
+            "polymarket_ask: no two-sided value matched ['ask_labelled_pct', 'ask_labelled_dec', 'ask_positional_pct', 'ask_positional_dec']"
+          ]
+        },
+        {
+          "away": "Philadelphia Phillies",
+          "dk_fair_prob": {
+            "away": 0.504,
+            "home": 0.496
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "Philadelphia Phillies at Seattle Mariners \u2014 8:40 PM CT",
+          "home": "Seattle Mariners",
+          "outcome_known": true,
+          "outcome_score": "Philadelphia Phillies 1 at Seattle Mariners 4",
+          "outcome_winner": "home",
+          "price_line": "DK PHI -105 / SEA -102 -> de-vig fair PHI 0.504 / SEA 0.496. Exact Polymarket slug returned no market data.",
+          "refusal_clause": "Mixed starter and bullpen pillars in a strong pitcher park. No side has real winner conviction at a verified price. DK PHI -105 / SEA -102 -> de-vig fair PHI 0.504 / SEA 0.496. Exact Polymarket slug returned no market data.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "bullpen_close_game_survival",
+            "no_polymarket_market",
+            "real_winner_conviction"
+          ],
+          "unreadable": [
+            "polymarket_ask: no two-sided value matched ['ask_labelled_pct', 'ask_labelled_dec', 'ask_positional_pct', 'ask_positional_dec']"
+          ]
+        },
+        {
+          "away": "Pittsburgh Pirates",
+          "dk_fair_prob": {
+            "away": 0.466,
+            "home": 0.534
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "Pittsburgh Pirates at San Diego Padres \u2014 8:40 PM CT",
+          "home": "San Diego Padres",
+          "outcome_known": true,
+          "outcome_score": "Pittsburgh Pirates 1 at San Diego Padres 0",
+          "outcome_winner": "away",
+          "price_line": "DK PIT +111 / SD -119 -> de-vig fair PIT 0.466 / SD 0.534. Exact Polymarket slug returned no market data.",
+          "refusal_clause": "Skenes creates a real dog argument, but San Diego's bullpen, home context, and missing ask prevent a card. DK PIT +111 / SD -119 -> de-vig fair PIT 0.466 / SD 0.534. Exact Polymarket slug returned no market data.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "bullpen_close_game_survival",
+            "no_polymarket_market"
+          ],
+          "unreadable": [
+            "polymarket_ask: no two-sided value matched ['ask_labelled_pct', 'ask_labelled_dec', 'ask_positional_pct', 'ask_positional_dec']"
+          ]
+        },
+        {
+          "away": "Cincinnati Reds",
+          "dk_fair_prob": {
+            "away": 0.496,
+            "home": 0.504
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "Cincinnati Reds at San Francisco Giants \u2014 8:45 PM CT",
+          "home": "San Francisco Giants",
+          "outcome_known": true,
+          "outcome_score": "Cincinnati Reds 1 at San Francisco Giants 3",
+          "outcome_winner": "home",
+          "price_line": "DK CIN -102 / SF -105 -> de-vig fair CIN 0.496 / SF 0.504. Exact Polymarket slug returned no market data.",
+          "refusal_clause": "Giants are the cleaner late-game side, but the starter matchup and low-scoring park do not supply enough conviction. DK CIN -102 / SF -105 -> de-vig fair CIN 0.496 / SF 0.504. Exact Polymarket slug returned no market data.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "no_polymarket_market",
+            "real_winner_conviction"
+          ],
+          "unreadable": [
+            "polymarket_ask: no two-sided value matched ['ask_labelled_pct', 'ask_labelled_dec', 'ask_positional_pct', 'ask_positional_dec']"
+          ]
+        }
+      ]
+    },
+    {
+      "date": "2026-08-25",
+      "file": "2026-08-25.md",
+      "reads": [
+        {
+          "away": "Boston Red Sox",
+          "dk_fair_prob": {
+            "away": 0.585,
+            "home": 0.415
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "Boston Red Sox at Miami Marlins \u2014 5:40 PM CT",
+          "home": "Miami Marlins",
+          "outcome_known": true,
+          "outcome_score": "Boston Red Sox 7 at Miami Marlins 3",
+          "outcome_winner": "away",
+          "polymarket_ask": {
+            "away": 0.585,
+            "home": 0.42
+          },
+          "polymarket_ask_pattern": "ask_labelled_dec",
+          "price_line": "DK BOS -147 / MIA +137 -> de-vig fair BOS 0.585 / MIA 0.415. Polymarket asks BOS 0.585 / MIA 0.420; market is efficient on BOS and the game is not fully handicappable.",
+          "refusal_clause": "Missing Miami starter, no confirmed lineups, and hot wOBA-versus-xwOBA readings on both sides. No bet. DK BOS -147 / MIA +137 -> de-vig fair BOS 0.585 / MIA 0.415. Polymarket asks BOS 0.585 / MIA 0.420; market is efficient on BOS and the game is not fully handicappable.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "price_discipline"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Tampa Bay Rays",
+          "dk_fair_prob": {
+            "away": 0.545,
+            "home": 0.455
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "Tampa Bay Rays at Detroit Tigers \u2014 5:40 PM CT",
+          "home": "Detroit Tigers",
+          "outcome_known": true,
+          "outcome_score": "Tampa Bay Rays 1 at Detroit Tigers 4",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.555,
+            "home": 0.45
+          },
+          "polymarket_ask_pattern": "ask_labelled_dec",
+          "price_line": "DK TB -125 / DET +116 -> fair TB 0.545 / DET 0.455. Polymarket asks TB 0.555 / DET 0.450. No side clears the raw 0.02 edge floor with a conviction estimate that survives Jobe sample risk; TB is expensive and DET's dog price is not enough.",
+          "refusal_clause": "Detroit's starter is a shutdown-path uncertainty and Tampa's market price already charges for the bullpen gap. DK TB -125 / DET +116 -> fair TB 0.545 / DET 0.455. Polymarket asks TB 0.555 / DET 0.450. No side clears the raw 0.02 edge floor with a conviction estimate that survives Jobe sample risk; TB is expensive and DET's dog price is not enough.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "bullpen_close_game_survival",
+            "price_discipline",
+            "real_winner_conviction",
+            "starter_floor"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Colorado Rockies",
+          "dk_fair_prob": {
+            "away": 0.415,
+            "home": 0.585
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "Colorado Rockies at Washington Nationals \u2014 5:45 PM CT",
+          "home": "Washington Nationals",
+          "outcome_known": true,
+          "outcome_score": "Colorado Rockies 3 at Washington Nationals 1",
+          "outcome_winner": "away",
+          "polymarket_ask": {
+            "away": 0.42,
+            "home": 0.585
+          },
+          "polymarket_ask_pattern": "ask_labelled_dec",
+          "price_line": "DK COL +137 / WSH -147 -> fair COL 0.415 / WSH 0.585. Polymarket asks COL 0.420 / WSH 0.585. No reliable Colorado starter means no full handicap; Washington is priced at the DK fair prior.",
+          "refusal_clause": "Starter missing for Colorado. A bad Rockies form line is not enough to manufacture a bet. DK COL +137 / WSH -147 -> fair COL 0.415 / WSH 0.585. Polymarket asks COL 0.420 / WSH 0.585. No reliable Colorado starter means no full handicap; Washington is priced at the DK fair prior.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "starter_unannounced"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Houston Astros",
+          "dk_fair_prob": {
+            "away": 0.426,
+            "home": 0.574
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "Houston Astros at New York Yankees \u2014 6:05 PM CT",
+          "home": "New York Yankees",
+          "outcome_known": true,
+          "outcome_score": "Houston Astros 9 at New York Yankees 7",
+          "outcome_winner": "away",
+          "polymarket_ask": {
+            "away": 0.43,
+            "home": 0.575
+          },
+          "polymarket_ask_pattern": "ask_labelled_dec",
+          "price_line": "DK HOU +131 / NYY -140 -> fair HOU 0.426 / NYY 0.574. Polymarket asks HOU 0.430 / NYY 0.575. Pecko creates uncertainty; neither side clears the conviction gate.",
+          "refusal_clause": "The Yankees are the most likely winner, not a bet at this price. Houston's only argument is a volatile starter mismatch, not a clean dog thesis. DK HOU +131 / NYY -140 -> fair HOU 0.426 / NYY 0.574. Polymarket asks HOU 0.430 / NYY 0.575. Pecko creates uncertainty; neither side clears the conviction gate.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "real_winner_conviction"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Kansas City Royals",
+          "dk_fair_prob": {
+            "away": 0.455,
+            "home": 0.545
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "Kansas City Royals at Toronto Blue Jays \u2014 6:07 PM CT",
+          "home": "Toronto Blue Jays",
+          "outcome_known": true,
+          "outcome_score": "Kansas City Royals 5 at Toronto Blue Jays 3",
+          "outcome_winner": "away",
+          "polymarket_ask": {
+            "away": 0.455,
+            "home": 0.55
+          },
+          "polymarket_ask_pattern": "ask_labelled_dec",
+          "price_line": "DK KC +116 / TOR -124 -> fair KC 0.455 / TOR 0.545. Polymarket asks KC 0.455 / TOR 0.550. Kansas City has no price edge at the exchange ask, and Toronto's fair price is too expensive.",
+          "refusal_clause": "Strong Kansas City form, but the market has already corrected the apparent dog value. No edge. DK KC +116 / TOR -124 -> fair KC 0.455 / TOR 0.545. Polymarket asks KC 0.455 / TOR 0.550. Kansas City has no price edge at the exchange ask, and Toronto's fair price is too expensive.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "price_discipline"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Milwaukee Brewers",
+          "dk_fair_prob": {
+            "away": 0.604,
+            "home": 0.396
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "Milwaukee Brewers at New York Mets \u2014 6:10 PM CT",
+          "home": "New York Mets",
+          "outcome_known": true,
+          "outcome_score": "Milwaukee Brewers 2 at New York Mets 3",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.605,
+            "home": 0.4
+          },
+          "polymarket_ask_pattern": "ask_labelled_dec",
+          "price_line": "DK MIL -159 / NYM +148 -> fair MIL 0.604 / NYM 0.396. Polymarket asks MIL 0.605 / NYM 0.400. Milwaukee is the cleanest baseball side on the board, but the ask is efficient and the authoritative 0.05 conservative floor is not met after lineup/environment uncertainty.",
+          "refusal_clause": "Best side, bad price. Do not pay full retail because the form and bullpen look good. DK MIL -159 / NYM +148 -> fair MIL 0.604 / NYM 0.396. Polymarket asks MIL 0.605 / NYM 0.400. Milwaukee is the cleanest baseball side on the board, but the ask is efficient and the authoritative 0.05 conservative floor is not met after lineup/environment uncertainty.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "bullpen_close_game_survival",
+            "price_discipline"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Los Angeles Dodgers",
+          "dk_fair_prob": {
+            "away": 0.587,
+            "home": 0.413
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "Los Angeles Dodgers at Atlanta Braves \u2014 6:15 PM CT",
+          "home": "Atlanta Braves",
+          "outcome_known": true,
+          "outcome_score": "Los Angeles Dodgers 3 at Atlanta Braves 4",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.595,
+            "home": 0.41
+          },
+          "polymarket_ask_pattern": "ask_labelled_dec",
+          "price_line": "DK LAD -148 / ATL +138 -> fair LAD 0.587 / ATL 0.413. Polymarket asks LAD 0.595 / ATL 0.410. Atlanta's dog price is cheap but the full win probability is not high enough to call it the better side; LAD is above fair.",
+          "refusal_clause": "Dodgers are the likely winner, but not at a 59.5% ask with bullpen signals mixed. DK LAD -148 / ATL +138 -> fair LAD 0.587 / ATL 0.413. Polymarket asks LAD 0.595 / ATL 0.410. Atlanta's dog price is cheap but the full win probability is not high enough to call it the better side; LAD is above fair.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "bullpen_close_game_survival"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Texas Rangers",
+          "dk_fair_prob": {
+            "away": 0.506,
+            "home": 0.494
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "Texas Rangers at Chicago White Sox \u2014 6:40 PM CT",
+          "home": "Chicago White Sox",
+          "outcome_known": true,
+          "outcome_score": "Texas Rangers 7 at Chicago White Sox 11",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.515,
+            "home": 0.49
+          },
+          "polymarket_ask_pattern": "ask_labelled_dec",
+          "price_line": "DK TEX -106 / CHW -101 -> fair TEX 0.506 / CHW 0.494. Polymarket asks TEX 0.515 / CHW 0.490. The Texas starter edge is real but the price is already beyond the raw fair prior; Chicago does not have enough win probability to clear the dog side.",
+          "refusal_clause": "Side is plausible, price is not. No clean market error. DK TEX -106 / CHW -101 -> fair TEX 0.506 / CHW 0.494. Polymarket asks TEX 0.515 / CHW 0.490. The Texas starter edge is real but the price is already beyond the raw fair prior; Chicago does not have enough win probability to clear the dog side.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "price_discipline"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Baltimore Orioles",
+          "dk_fair_prob": {
+            "away": 0.455,
+            "home": 0.545
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "Baltimore Orioles at St. Louis Cardinals \u2014 6:45 PM CT",
+          "home": "St. Louis Cardinals",
+          "outcome_known": true,
+          "outcome_score": "Baltimore Orioles 13 at St. Louis Cardinals 1",
+          "outcome_winner": "away",
+          "polymarket_ask": {
+            "away": 0.46,
+            "home": 0.545
+          },
+          "polymarket_ask_pattern": "ask_labelled_dec",
+          "price_line": "DK BAL +116 / STL -124 -> fair BAL 0.455 / STL 0.545. Polymarket asks BAL 0.460 / STL 0.545. Missing Cardinals starter prevents a real full-game read.",
+          "refusal_clause": "Baltimore's cheap price is not enough without the opposing starter and lineup context. DK BAL +116 / STL -124 -> fair BAL 0.455 / STL 0.545. Polymarket asks BAL 0.460 / STL 0.545. Missing Cardinals starter prevents a real full-game read.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "lineups_unconfirmed",
+            "opposing_starter_shutdown_path"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Cleveland Guardians",
+          "dk_fair_prob": {
+            "away": 0.574,
+            "home": 0.426
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "Cleveland Guardians at Los Angeles Angels \u2014 8:38 PM CT",
+          "home": "Los Angeles Angels",
+          "outcome_known": true,
+          "outcome_score": "Cleveland Guardians 8 at Los Angeles Angels 6",
+          "outcome_winner": "away",
+          "polymarket_ask": {
+            "away": 0.58,
+            "home": 0.425
+          },
+          "polymarket_ask_pattern": "ask_labelled_dec",
+          "price_line": "DK CLE -140 / LAA +131 -> fair CLE 0.574 / LAA 0.426. Polymarket asks CLE 0.580 / LAA 0.425. The Angels have a starter-quality argument but not enough full-game conviction; Cleveland's price is efficient.",
+          "refusal_clause": "Close read, no 5-point conservative edge. Do not force the favorite. DK CLE -140 / LAA +131 -> fair CLE 0.574 / LAA 0.426. Polymarket asks CLE 0.580 / LAA 0.425. The Angels have a starter-quality argument but not enough full-game conviction; Cleveland's price is efficient.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "price_discipline",
+            "real_winner_conviction"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Chicago Cubs",
+          "dk_fair_prob": {
+            "away": 0.511,
+            "home": 0.489
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "Chicago Cubs at Arizona Diamondbacks \u2014 8:40 PM CT",
+          "home": "Arizona Diamondbacks",
+          "outcome_known": true,
+          "outcome_score": "Chicago Cubs 4 at Arizona Diamondbacks 5",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.515,
+            "home": 0.49
+          },
+          "polymarket_ask_pattern": "ask_labelled_dec",
+          "price_line": "DK CHC -108 / ARI +101 -> fair CHC 0.511 / ARI 0.489. Polymarket asks CHC 0.515 / ARI 0.490. Chicago is the better side on paper, but missing Arizona offense quality plus a 102 run-factor park blocks conviction.",
+          "refusal_clause": "The favorite side is thinly priced and carries a hot-offense discount. No bet. DK CHC -108 / ARI +101 -> fair CHC 0.511 / ARI 0.489. Polymarket asks CHC 0.515 / ARI 0.490. Chicago is the better side on paper, but missing Arizona offense quality plus a 102 run-factor park blocks conviction.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "incomplete_input_data",
+            "real_winner_conviction"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Minnesota Twins",
+          "dk_fair_prob": {
+            "away": 0.585,
+            "home": 0.415
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "Minnesota Twins at Athletics \u2014 8:40 PM CT",
+          "home": "Athletics",
+          "outcome_known": true,
+          "outcome_score": "Minnesota Twins 2 at Athletics 4",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.59,
+            "home": 0.415
+          },
+          "polymarket_ask_pattern": "ask_labelled_dec",
+          "price_line": "DK MIN -147 / ATH +137 -> fair MIN 0.585 / ATH 0.415. Polymarket asks MIN 0.590 / ATH 0.415. No side clears after the bullpen penalty; park run factor 104 adds hitter variance and caps confidence.",
+          "refusal_clause": "Minnesota has the better roster read but a bad late-inning path. Athletics dog price is not a conviction play. DK MIN -147 / ATH +137 -> fair MIN 0.585 / ATH 0.415. Polymarket asks MIN 0.590 / ATH 0.415. No side clears after the bullpen penalty; park run factor 104 adds hitter variance and caps confidence.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "bullpen_close_game_survival",
+            "park_environment_cap",
+            "real_winner_conviction"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Philadelphia Phillies",
+          "dk_fair_prob": {
+            "away": 0.5,
+            "home": 0.5
+          },
+          "dk_fair_prob_pattern": "fair_positional_dec",
+          "heading": "Philadelphia Phillies at Seattle Mariners \u2014 8:40 PM CT",
+          "home": "Seattle Mariners",
+          "outcome_known": true,
+          "outcome_score": "Philadelphia Phillies 1 at Seattle Mariners 4",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.5,
+            "home": 0.505
+          },
+          "polymarket_ask_pattern": "ask_labelled_dec",
+          "price_line": "DK PHI -104 / SEA -104 -> fair 0.500 / 0.500. Polymarket asks PHI 0.500 / SEA 0.505. Philadelphia has the bullpen/form case, but Seattle has the better starter and T-Mobile Park is a strong pitcher park (run factor 95). Mixed pillars, no conviction.",
+          "refusal_clause": "The Phillies are not a free square against Kirby in a pitcher park. No bet. DK PHI -104 / SEA -104 -> fair 0.500 / 0.500. Polymarket asks PHI 0.500 / SEA 0.505. Philadelphia has the bullpen/form case, but Seattle has the better starter and T-Mobile Park is a strong pitcher park (run factor 95). Mixed pillars, no conviction.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "bullpen_close_game_survival",
+            "park_environment_cap",
+            "real_winner_conviction"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Pittsburgh Pirates",
+          "dk_fair_prob": {
+            "away": 0.466,
+            "home": 0.534
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "Pittsburgh Pirates at San Diego Padres \u2014 8:40 PM CT",
+          "home": "San Diego Padres",
+          "outcome_known": true,
+          "outcome_score": "Pittsburgh Pirates 1 at San Diego Padres 0",
+          "outcome_winner": "away",
+          "polymarket_ask": {
+            "away": 0.465,
+            "home": 0.54
+          },
+          "polymarket_ask_pattern": "ask_labelled_dec",
+          "price_line": "DK PIT +111 / SD -119 -> fair PIT 0.466 / SD 0.534. Polymarket asks PIT 0.465 / SD 0.540. The Skenes side is cheap enough to examine, but San Diego's bullpen and home environment offset it; neither side clears the conviction gate.",
+          "refusal_clause": "Real dog argument, but not enough full-game edge after the Padres' late-inning and park support. DK PIT +111 / SD -119 -> fair PIT 0.466 / SD 0.534. Polymarket asks PIT 0.465 / SD 0.540. The Skenes side is cheap enough to examine, but San Diego's bullpen and home environment offset it; neither side clears the conviction gate.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "bullpen_close_game_survival",
+            "real_winner_conviction"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Cincinnati Reds",
+          "dk_fair_prob": {
+            "away": 0.499,
+            "home": 0.501
+          },
+          "dk_fair_prob_pattern": "fair_labelled_dec",
+          "heading": "Cincinnati Reds at San Francisco Giants \u2014 8:45 PM CT",
+          "home": "San Francisco Giants",
+          "outcome_known": true,
+          "outcome_score": "Cincinnati Reds 1 at San Francisco Giants 3",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.495,
+            "home": 0.51
+          },
+          "polymarket_ask_pattern": "ask_labelled_dec",
+          "price_line": "DK CIN -103 / SF -104 -> fair CIN 0.499 / SF 0.501. Polymarket asks CIN 0.495 / SF 0.510. San Francisco's late edge is real but the market is charging for it, and Oracle is a strong pitcher park (run factor 96).",
+          "refusal_clause": "Close to a Giants lean, not a clean bet. No price cushion for a weak-offense game. DK CIN -103 / SF -104 -> fair CIN 0.499 / SF 0.501. Polymarket asks CIN 0.495 / SF 0.510. San Francisco's late edge is real but the market is charging for it, and Oracle is a strong pitcher park (run factor 96).",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "park_environment_cap"
+          ],
+          "unreadable": []
+        }
+      ]
+    },
+    {
+      "date": "2026-08-27",
+      "file": "2026-08-27-evening.md",
+      "reads": [
+        {
+          "away": "Houston Astros",
+          "dk_fair_prob": {
+            "away": 0.406,
+            "home": 0.594
+          },
+          "dk_fair_prob_pattern": "fair_labelled_pct",
+          "heading": "Houston Astros at New York Yankees \u2014 6:05 PM CT",
+          "home": "New York Yankees",
+          "outcome_known": true,
+          "outcome_score": "Houston Astros 5 at New York Yankees 1",
+          "outcome_winner": "away",
+          "polymarket_ask": {
+            "away": 0.41,
+            "home": 0.595
+          },
+          "polymarket_ask_pattern": "ask_labelled_pct",
+          "price_line": "DraftKings HOU +142 / NYY -153 -> DK de-vigged fair HOU 40.6% / NYY 59.4%. Polymarket asks HOU 41.0% / NYY 59.5% (US SDK search, observed 2026-08-27 16:33 CT). Win probabilities HOU 40.6% / NYY 59.4%; net edges -0.4% / -0.1%.",
+          "refusal_clause": "5/6 structural gates for NYY before price; price discipline fails. Pass. DraftKings HOU +142 / NYY -153 -> DK de-vigged fair HOU 40.6% / NYY 59.4%. Polymarket asks HOU 41.0% / NYY 59.5% (US SDK search, observed 2026-08-27 16:33 CT). Win probabilities HOU 40.6% / NYY 59.4%; net edges -0.4% / -0.1%.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "price_discipline"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Kansas City Royals",
+          "dk_fair_prob": {
+            "away": 0.504,
+            "home": 0.496
+          },
+          "dk_fair_prob_pattern": "fair_labelled_pct",
+          "heading": "Kansas City Royals at Toronto Blue Jays \u2014 6:07 PM CT",
+          "home": "Toronto Blue Jays",
+          "outcome_known": true,
+          "outcome_score": "Kansas City Royals 13 at Toronto Blue Jays 2",
+          "outcome_winner": "away",
+          "polymarket_ask": {
+            "away": 0.505,
+            "home": 0.5
+          },
+          "polymarket_ask_pattern": "ask_labelled_pct",
+          "price_line": "DraftKings KC -105 / TOR -102 -> DK de-vigged fair KC 50.4% / TOR 49.6%. Polymarket asks KC 50.5% / TOR 50.0% (US SDK search, observed 2026-08-27 16:33 CT). Win probabilities KC 50.4% / TOR 49.6%; net edges -0.1% / -0.4%.",
+          "refusal_clause": "Starter/form support for KC, but Toronto's bullpen and an efficient market block price discipline. Pass. DraftKings KC -105 / TOR -102 -> DK de-vigged fair KC 50.4% / TOR 49.6%. Polymarket asks KC 50.5% / TOR 50.0% (US SDK search, observed 2026-08-27 16:33 CT). Win probabilities KC 50.4% / TOR 49.6%; net edges -0.1% / -0.4%.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "bullpen_close_game_survival",
+            "price_discipline"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Milwaukee Brewers",
+          "dk_fair_prob": {
+            "away": 0.654,
+            "home": 0.34600000000000003
+          },
+          "dk_fair_prob_pattern": "fair_labelled_pct",
+          "heading": "Milwaukee Brewers at New York Mets \u2014 6:10 PM CT",
+          "home": "New York Mets",
+          "outcome_known": true,
+          "outcome_score": "Milwaukee Brewers 8 at New York Mets 2",
+          "outcome_winner": "away",
+          "polymarket_ask": {
+            "away": 0.65,
+            "home": 0.355
+          },
+          "polymarket_ask_pattern": "ask_labelled_pct",
+          "price_line": "DraftKings MIL -198 / NYM +184 -> DK de-vigged fair MIL 65.4% / NYM 34.6%. Polymarket asks MIL 65.0% / NYM 35.5% (US SDK search, observed 2026-08-27 16:33 CT). Win probabilities MIL 65.4% / NYM 34.6%; net edges +0.4% / -0.9%.",
+          "refusal_clause": "5/6 baseball gates read positive for Milwaukee, but price discipline fails by a wide margin relative to the required floor. Best side on the slate is still not a bet. Pass. DraftKings MIL -198 / NYM +184 -> DK de-vigged fair MIL 65.4% / NYM 34.6%. Polymarket asks MIL 65.0% / NYM 35.5% (US SDK search, observed 2026-08-27 16:33 CT). Win probabilities MIL 65.4% / NYM 34.6%; net edges +0.4% / -0.9%.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "price_discipline"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Los Angeles Dodgers",
+          "dk_fair_prob": {
+            "away": 0.475,
+            "home": 0.525
+          },
+          "dk_fair_prob_pattern": "fair_labelled_pct",
+          "heading": "Los Angeles Dodgers at Atlanta Braves \u2014 6:15 PM CT",
+          "home": "Atlanta Braves",
+          "outcome_known": true,
+          "outcome_score": "Los Angeles Dodgers 0 at Atlanta Braves 1",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.465,
+            "home": 0.54
+          },
+          "polymarket_ask_pattern": "ask_labelled_pct",
+          "price_line": "DraftKings LAD +107 / ATL -115 -> DK de-vigged fair LAD 47.5% / ATL 52.5%. Polymarket asks LAD 46.5% / ATL 54.0% (US SDK search, observed 2026-08-27 16:33 CT). Win probabilities LAD 47.5% / ATL 52.5%; net edges +1.0% / -1.5%.",
+          "refusal_clause": "The Dodgers are the only side with a positive market gap, but it is below 2% and the starter/bullpen matchup is close. Pass; no watchlist because the lineups are already confirmed. DraftKings LAD +107 / ATL -115 -> DK de-vigged fair LAD 47.5% / ATL 52.5%. Polymarket asks LAD 46.5% / ATL 54.0% (US SDK search, observed 2026-08-27 16:33 CT). Win probabilities LAD 47.5% / ATL 52.5%; net edges +1.0% / -1.5%.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "bullpen_close_game_survival"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Arizona Diamondbacks",
+          "dk_fair_prob": {
+            "away": 0.502,
+            "home": 0.498
+          },
+          "dk_fair_prob_pattern": "fair_labelled_pct",
+          "heading": "Arizona Diamondbacks at San Francisco Giants \u2014 8:45 PM CT",
+          "home": "San Francisco Giants",
+          "outcome_known": true,
+          "outcome_score": "Arizona Diamondbacks 1 at San Francisco Giants 6",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.505,
+            "home": 0.5
+          },
+          "polymarket_ask_pattern": "ask_labelled_pct",
+          "price_line": "DraftKings ARI -105 / SF -103 -> DK de-vigged fair ARI 50.2% / SF 49.8%. Polymarket asks ARI 50.5% / SF 50.0% (US SDK search, exact game slug observed 2026-08-27 16:33 CT). Win probabilities ARI 50.2% / SF 49.8%; net edges -0.3% / -0.2%.",
+          "refusal_clause": "Missing Arizona offense, unconfirmed lineups, and the Oracle Park confidence cap are hard blockers. No provisional 2% edge, so this is a pass rather than a watchlist entry. DraftKings ARI -105 / SF -103 -> DK de-vigged fair ARI 50.2% / SF 49.8%. Polymarket asks ARI 50.5% / SF 50.0% (US SDK search, exact game slug observed 2026-08-27 16:33 CT). Win probabilities ARI 50.2% / SF 49.8%; net edges -0.3% / -0.2%.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "lineups_unconfirmed",
+            "park_environment_cap",
+            "price_discipline"
+          ],
+          "unreadable": []
+        }
+      ]
+    },
+    {
+      "date": "2026-08-27",
+      "file": "2026-08-27.md",
+      "reads": [
+        {
+          "away": "Colorado Rockies",
+          "dk_fair_prob": {
+            "away": 0.435,
+            "home": 0.565
+          },
+          "dk_fair_prob_pattern": "fair_labelled_pct",
+          "heading": "Colorado Rockies at Washington Nationals \u2014 12:05 PM CT",
+          "home": "Washington Nationals",
+          "outcome_known": true,
+          "outcome_score": "Colorado Rockies 1 at Washington Nationals 7",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.435,
+            "home": 0.57
+          },
+          "polymarket_ask_pattern": "ask_labelled_pct",
+          "price_line": "DraftKings COL +126 / WSH -135 -> DK de-vigged fair COL 43.5% / WSH 56.5%. Polymarket asks COL 43.5% / WSH 57.0% (source timestamp: 2026-08-27 10:29 CT). Win probabilities 43.5% / 56.5%; net edges 0.0% / -0.5%.",
+          "refusal_clause": "0/6 card sides clear price discipline; pass. The bullpen points to WSH, but the market already charges for it. DraftKings COL +126 / WSH -135 -> DK de-vigged fair COL 43.5% / WSH 56.5%. Polymarket asks COL 43.5% / WSH 57.0% (source timestamp: 2026-08-27 10:29 CT). Win probabilities 43.5% / 56.5%; net edges 0.0% / -0.5%.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "bullpen_close_game_survival",
+            "price_discipline"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Baltimore Orioles",
+          "dk_fair_prob": {
+            "away": 0.534,
+            "home": 0.466
+          },
+          "dk_fair_prob_pattern": "fair_labelled_pct",
+          "heading": "Baltimore Orioles at St. Louis Cardinals \u2014 1:15 PM CT",
+          "home": "St. Louis Cardinals",
+          "outcome_known": true,
+          "outcome_score": "Baltimore Orioles 5 at St. Louis Cardinals 7",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.53,
+            "home": 0.475
+          },
+          "polymarket_ask_pattern": "ask_labelled_pct",
+          "price_line": "DraftKings BAL -119 / STL +111 -> DK de-vigged fair BAL 53.4% / STL 46.6%. Polymarket asks BAL 53.0% / STL 47.5% (source timestamp: 2026-08-27 10:29 CT). Win probabilities 53.4% / 46.6%; net edges +0.4% / -0.9%.",
+          "refusal_clause": "5/6 structural gates read positive for BAL, but price discipline fails and the lineup is unpublished. No provisional 2% edge; no watchlist entry. DraftKings BAL -119 / STL +111 -> DK de-vigged fair BAL 53.4% / STL 46.6%. Polymarket asks BAL 53.0% / STL 47.5% (source timestamp: 2026-08-27 10:29 CT). Win probabilities 53.4% / 46.6%; net edges +0.4% / -0.9%.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "lineups_unconfirmed",
+            "price_discipline"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Houston Astros",
+          "dk_fair_prob": {
+            "away": 0.40399999999999997,
+            "home": 0.596
+          },
+          "dk_fair_prob_pattern": "fair_labelled_pct",
+          "heading": "Houston Astros at New York Yankees \u2014 6:05 PM CT",
+          "home": "New York Yankees",
+          "outcome_known": true,
+          "outcome_score": "Houston Astros 5 at New York Yankees 1",
+          "outcome_winner": "away",
+          "polymarket_ask": {
+            "away": 0.41,
+            "home": 0.595
+          },
+          "polymarket_ask_pattern": "ask_labelled_pct",
+          "price_line": "DraftKings HOU +143 / NYY -154 -> DK de-vigged fair HOU 40.4% / NYY 59.6%. Polymarket asks HOU 41.0% / NYY 59.5% (source timestamp: 2026-08-27 10:29 CT). Win probabilities 40.4% / 59.6%; net edges -0.6% / +0.1%.",
+          "refusal_clause": "5/6 for NYY before price; price is efficient. Pass. No 2% provisional edge, so waiting on lineups does not create a watchlist item. DraftKings HOU +143 / NYY -154 -> DK de-vigged fair HOU 40.4% / NYY 59.6%. Polymarket asks HOU 41.0% / NYY 59.5% (source timestamp: 2026-08-27 10:29 CT). Win probabilities 40.4% / 59.6%; net edges -0.6% / +0.1%.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "lineups_unconfirmed",
+            "price_discipline"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Kansas City Royals",
+          "dk_fair_prob": {
+            "away": 0.504,
+            "home": 0.496
+          },
+          "dk_fair_prob_pattern": "fair_labelled_pct",
+          "heading": "Kansas City Royals at Toronto Blue Jays \u2014 6:07 PM CT",
+          "home": "Toronto Blue Jays",
+          "outcome_known": true,
+          "outcome_score": "Kansas City Royals 13 at Toronto Blue Jays 2",
+          "outcome_winner": "away",
+          "polymarket_ask": {
+            "away": 0.515,
+            "home": 0.49
+          },
+          "polymarket_ask_pattern": "ask_labelled_pct",
+          "price_line": "DraftKings KC -105 / TOR -102 -> DK de-vigged fair KC 50.4% / TOR 49.6%. Polymarket asks KC 51.5% / TOR 49.0% (source timestamp: 2026-08-27 10:29 CT). Win probabilities 50.4% / 49.6%; net edges -1.1% / +0.6%.",
+          "refusal_clause": "Starter/form case for KC is not enough against Toronto's bullpen and price. Pass; no 2% edge, no lineup watch. DraftKings KC -105 / TOR -102 -> DK de-vigged fair KC 50.4% / TOR 49.6%. Polymarket asks KC 51.5% / TOR 49.0% (source timestamp: 2026-08-27 10:29 CT). Win probabilities 50.4% / 49.6%; net edges -1.1% / +0.6%.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "bullpen_close_game_survival",
+            "price_discipline"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Milwaukee Brewers",
+          "dk_fair_prob": {
+            "away": 0.6459999999999999,
+            "home": 0.354
+          },
+          "dk_fair_prob_pattern": "fair_labelled_pct",
+          "heading": "Milwaukee Brewers at New York Mets \u2014 6:10 PM CT",
+          "home": "New York Mets",
+          "outcome_known": true,
+          "outcome_score": "Milwaukee Brewers 8 at New York Mets 2",
+          "outcome_winner": "away",
+          "polymarket_ask": {
+            "away": 0.655,
+            "home": 0.35
+          },
+          "polymarket_ask_pattern": "ask_labelled_pct",
+          "price_line": "DraftKings MIL -192 / NYM +178 -> DK de-vigged fair MIL 64.6% / NYM 35.4%. Polymarket asks MIL 65.5% / NYM 35.0% (source timestamp: 2026-08-27 10:29 CT). Win probabilities 64.6% / 35.4%; net edges -0.9% / +0.4%.",
+          "refusal_clause": "The handicap is strong, but the price is past the edge. This is the best side on the slate, not a bet. No 2% provisional edge; no watchlist entry. DraftKings MIL -192 / NYM +178 -> DK de-vigged fair MIL 64.6% / NYM 35.4%. Polymarket asks MIL 65.5% / NYM 35.0% (source timestamp: 2026-08-27 10:29 CT). Win probabilities 64.6% / 35.4%; net edges -0.9% / +0.4%.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "price_discipline"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Los Angeles Dodgers",
+          "dk_fair_prob": {
+            "away": 0.466,
+            "home": 0.534
+          },
+          "dk_fair_prob_pattern": "fair_labelled_pct",
+          "heading": "Los Angeles Dodgers at Atlanta Braves \u2014 6:15 PM CT",
+          "home": "Atlanta Braves",
+          "outcome_known": true,
+          "outcome_score": "Los Angeles Dodgers 0 at Atlanta Braves 1",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.475,
+            "home": 0.53
+          },
+          "polymarket_ask_pattern": "ask_labelled_pct",
+          "price_line": "DraftKings LAD +111 / ATL -119 -> DK de-vigged fair LAD 46.6% / ATL 53.4%. Polymarket asks LAD 47.5% / ATL 53.0% (source timestamp: 2026-08-27 10:29 CT). Win probabilities 46.6% / 53.4%; net edges -0.9% / +0.4%.",
+          "refusal_clause": "Close game, no real winner conviction at this price. Pass; no provisional 2% edge and no watchlist. DraftKings LAD +111 / ATL -119 -> DK de-vigged fair LAD 46.6% / ATL 53.4%. Polymarket asks LAD 47.5% / ATL 53.0% (source timestamp: 2026-08-27 10:29 CT). Win probabilities 46.6% / 53.4%; net edges -0.9% / +0.4%.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "price_discipline",
+            "real_winner_conviction"
+          ],
+          "unreadable": []
+        },
+        {
+          "away": "Arizona Diamondbacks",
+          "dk_fair_prob": {
+            "away": 0.502,
+            "home": 0.498
+          },
+          "dk_fair_prob_pattern": "fair_labelled_pct",
+          "heading": "Arizona Diamondbacks at San Francisco Giants \u2014 8:45 PM CT",
+          "home": "San Francisco Giants",
+          "outcome_known": true,
+          "outcome_score": "Arizona Diamondbacks 1 at San Francisco Giants 6",
+          "outcome_winner": "home",
+          "polymarket_ask": {
+            "away": 0.505,
+            "home": 0.5
+          },
+          "polymarket_ask_pattern": "ask_labelled_pct",
+          "price_line": "DraftKings ARI -105 / SF -103 -> DK de-vigged fair ARI 50.2% / SF 49.8%. Polymarket asks ARI 50.5% / SF 50.0% (source timestamp: 2026-08-27 10:29 CT). Win probabilities 50.2% / 49.8%; net edges -0.3% / -0.2%.",
+          "refusal_clause": "Missing away-offense data and the extreme-pitcher-park confidence cap make this a hard pass. No 2% edge and no watchlist. DraftKings ARI -105 / SF -103 -> DK de-vigged fair ARI 50.2% / SF 49.8%. Polymarket asks ARI 50.5% / SF 50.0% (source timestamp: 2026-08-27 10:29 CT). Win probabilities 50.2% / 49.8%; net edges -0.3% / -0.2%.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "incomplete_input_data",
+            "park_environment_cap",
+            "price_discipline"
+          ],
+          "unreadable": []
+        }
+      ]
+    },
+    {
+      "date": "2026-08-30",
+      "file": "2026-08-30.md",
+      "reads": [
+        {
+          "away": null,
+          "heading": "Atlanta Braves ML -235 (12:35 PM CT)",
+          "home": null,
+          "outcome_known": false,
+          "outcome_reason": "the section's teams could not be read",
+          "price_line": "DK -235 -> 0.6898 de-vigged fair probability | Polymarket ask 0.685 | win probability 0.740 | net edge 0.055.",
+          "refusal_clause": "\u2705 starter floor, opposing-starter shutdown path, bullpen close-game survival, cold-fade reset, price discipline, real-winner conviction, lineups confirmed. DK -235 -> 0.6898 de-vigged fair probability | Polymarket ask 0.685 | win probability 0.740 | net edge 0.055.",
+          "refusal_clause_source": "verdict_field+price_line",
+          "refusing_rails": [
+            "bullpen_close_game_survival",
+            "price_discipline",
+            "real_winner_conviction"
+          ],
+          "unreadable": [
+            "teams: heading is not '<away> at <home>'",
+            "dk_fair_prob: no two-sided value matched ['fair_labelled_pct', 'fair_labelled_dec', 'fair_positional_pct', 'fair_positional_dec', 'fair_single_side_dec', 'fair_single_side_pct', 'fair_single_label_dec', 'fair_single_label_pct']",
+            "polymarket_ask: no two-sided value matched ['ask_labelled_pct', 'ask_labelled_dec', 'ask_positional_pct', 'ask_positional_dec']"
+          ]
+        }
+      ]
+    }
+  ],
+  "enumeration": {
+    "files": [
+      {
+        "date": "2026-08-11",
+        "eligible": false,
+        "nested": false,
+        "path": "2026-08-11.md",
+        "price_lines": 0,
+        "reason": "0 game section(s) and 0 price line(s): the day was narrated, not read out per game",
+        "sections": 0
+      },
+      {
+        "date": "2026-08-15",
+        "eligible": false,
+        "nested": false,
+        "path": "2026-08-15.md",
+        "price_lines": 0,
+        "reason": "0 game section(s) and 0 price line(s): the day was narrated, not read out per game",
+        "sections": 0
+      },
+      {
+        "date": "2026-08-16",
+        "eligible": true,
+        "nested": false,
+        "path": "2026-08-16.md",
+        "price_lines": 15,
+        "sections": 15
+      },
+      {
+        "date": "2026-08-17",
+        "eligible": true,
+        "nested": false,
+        "path": "2026-08-17.md",
+        "price_lines": 11,
+        "sections": 11
+      },
+      {
+        "date": "2026-08-18",
+        "eligible": false,
+        "nested": false,
+        "path": "2026-08-18.md",
+        "price_lines": 0,
+        "reason": "0 game section(s) and 0 price line(s): the day was narrated, not read out per game",
+        "sections": 0
+      },
+      {
+        "date": "2026-08-21",
+        "eligible": false,
+        "nested": false,
+        "path": "2026-08-21.md",
+        "price_lines": 0,
+        "reason": "0 game section(s) and 0 price line(s): the day was narrated, not read out per game",
+        "sections": 0
+      },
+      {
+        "date": "2026-08-22",
+        "eligible": true,
+        "nested": false,
+        "path": "2026-08-22.md",
+        "price_lines": 15,
+        "sections": 15
+      },
+      {
+        "date": "2026-08-23",
+        "eligible": false,
+        "nested": false,
+        "path": "2026-08-23-evening.md",
+        "price_lines": 0,
+        "reason": "0 game section(s) and 0 price line(s): the day was narrated, not read out per game",
+        "sections": 0
+      },
+      {
+        "date": "2026-08-23",
+        "eligible": true,
+        "nested": false,
+        "path": "2026-08-23.md",
+        "price_lines": 15,
+        "sections": 15
+      },
+      {
+        "date": "2026-08-24",
+        "eligible": true,
+        "nested": false,
+        "path": "2026-08-24.md",
+        "price_lines": 10,
+        "sections": 10
+      },
+      {
+        "date": "2026-08-25",
+        "eligible": true,
+        "nested": false,
+        "path": "2026-08-25-evening.md",
+        "price_lines": 15,
+        "sections": 15
+      },
+      {
+        "date": "2026-08-25",
+        "eligible": true,
+        "nested": false,
+        "path": "2026-08-25.md",
+        "price_lines": 15,
+        "sections": 15
+      },
+      {
+        "date": "2026-08-26",
+        "eligible": false,
+        "nested": false,
+        "path": "2026-08-26-evening.md",
+        "price_lines": 0,
+        "reason": "0 game section(s) and 0 price line(s): the day was narrated, not read out per game",
+        "sections": 0
+      },
+      {
+        "date": "2026-08-26",
+        "eligible": false,
+        "nested": false,
+        "path": "2026-08-26.md",
+        "price_lines": 0,
+        "reason": "0 game section(s) and 0 price line(s): the day was narrated, not read out per game",
+        "sections": 0
+      },
+      {
+        "date": "2026-08-27",
+        "eligible": true,
+        "nested": false,
+        "path": "2026-08-27-evening.md",
+        "price_lines": 5,
+        "sections": 5
+      },
+      {
+        "date": "2026-08-27",
+        "eligible": true,
+        "nested": false,
+        "path": "2026-08-27.md",
+        "price_lines": 7,
+        "sections": 7
+      },
+      {
+        "date": "2026-08-28",
+        "eligible": false,
+        "nested": false,
+        "path": "2026-08-28-evening.md",
+        "price_lines": 0,
+        "reason": "0 game section(s) and 0 price line(s): the day was narrated, not read out per game",
+        "sections": 0
+      },
+      {
+        "date": "2026-08-28",
+        "eligible": false,
+        "nested": false,
+        "path": "2026-08-28.md",
+        "price_lines": 0,
+        "reason": "0 game section(s) and 0 price line(s): the day was narrated, not read out per game",
+        "sections": 0
+      },
+      {
+        "date": "2026-08-29",
+        "eligible": false,
+        "nested": false,
+        "path": "2026-08-29-evening.md",
+        "price_lines": 0,
+        "reason": "0 game section(s) and 0 price line(s): the day was narrated, not read out per game",
+        "sections": 0
+      },
+      {
+        "date": "2026-08-29",
+        "eligible": false,
+        "nested": false,
+        "path": "2026-08-29.md",
+        "price_lines": 0,
+        "reason": "0 game section(s) and 0 price line(s): the day was narrated, not read out per game",
+        "sections": 0
+      },
+      {
+        "date": "2026-08-30",
+        "eligible": false,
+        "nested": false,
+        "path": "2026-08-30-evening.md",
+        "price_lines": 0,
+        "reason": "0 game section(s) and 0 price line(s): the day was narrated, not read out per game",
+        "sections": 0
+      },
+      {
+        "date": "2026-08-30",
+        "eligible": true,
+        "nested": false,
+        "path": "2026-08-30.md",
+        "price_lines": 1,
+        "sections": 1
+      },
+      {
+        "date": "2026-08-31",
+        "eligible": false,
+        "nested": false,
+        "path": "2026-08-31.md",
+        "price_lines": 0,
+        "reason": "0 game section(s) and 0 price line(s): the day was narrated, not read out per game",
+        "sections": 0
+      }
+    ],
+    "scope": "~/.buzz/.scratch/claude-freshcorpus-20260831/slate walked recursively for <date>*.md; only files at the top level are treated as the MLB slate lane. Paths are rendered with the running account's home directory replaced by ~.",
+    "window": {
+      "end": "2026-08-31",
+      "start": "2026-08-11"
+    }
+  },
+  "extraction_failures_by_field": {
+    "dk_fair_prob": 4,
+    "polymarket_ask": 28,
+    "refusing_rails": 1,
+    "teams": 1
+  },
+  "overall": {
+    "reads_with_value_side_and_outcome": 76,
+    "value_side_won": 37
+  },
+  "rails_are_not_mutually_exclusive": "A read may name more than one rail, so the per-rail counts sum to more than the number of reads. They are not a partition.",
+  "selection_bias": "10 of 23 slate files in the window carry per-game price lines. The population is days that were WRITTEN a certain way, not a sample of slates, so every rate below is confounded with how tersely a given run wrote. This is the blind spot the game_reads recording change exists to close, and it cannot be corrected for here.",
+  "unclassified_refusals": [
+    {
+      "date": "2026-08-24",
+      "heading": "Philadelphia Phillies at Seattle Mariners \u2014 01:40Z / 8:40 PM CT",
+      "text": "DK -108/+101 -> de-vigged PHI fair 0.511. Polymarket ask PHI 0.515 (source timestamp 2026-08-24T15:32:47Z); provisional handicap PHI 0.550, net edge +0.035. Opponent check: SEA 0.450 minus 0.490 ask = -0.040. **Watchlist, not a pick:** lineup confirmation is the sole open blocker; recheck all inputs at 00:25Z and reject if the ask moves or the orders break the thesis."
+    }
+  ],
+  "what_this_is": "A hypothesis generator over the days whose slate prose happened to be verbose enough to parse. It decides nothing: no rule it suggests may change a gate, a threshold or a policy, and any candidate rule would still have to survive leave-one-month-out."
+}

@@ -206,6 +206,25 @@ def outs_from_ip(ip: str | None) -> int:
     return int(float(s)) * 3
 
 
+def start_time_gap(left: Any, right: Any) -> float:
+    """Seconds between two ISO timestamps, or ``inf`` if either is unreadable.
+
+    ``inf`` rather than ``0`` on purpose. This is the tiebreak that separates
+    the two games of a doubleheader, and a timestamp nobody could parse must
+    never win that tiebreak by looking like a perfect match.
+    """
+    parsed = []
+    for value in (left, right):
+        if not isinstance(value, str):
+            return float("inf")
+        try:
+            parsed.append(dt.datetime.fromisoformat(value.replace("Z", "+00:00")))
+        except ValueError:
+            return float("inf")
+    delta = parsed[0] - parsed[1]
+    return abs(delta.total_seconds())
+
+
 class MlbSlateCollector:
     def __init__(self, date: str, season: int):
         self.date = date
@@ -357,20 +376,59 @@ class MlbSlateCollector:
         except Exception:
             return []
 
+    def match_stats_game(
+        self,
+        event: dict[str, Any],
+        stats_by_pair: dict[tuple[str | None, str | None], list[dict[str, Any]]],
+        used: set[Any],
+    ) -> dict[str, Any] | None:
+        """The StatsAPI game this ESPN event is, or None.
+
+        The team pair alone does NOT identify a game: a doubleheader plays the
+        same pair twice on one date. Keying a dict on the pair kept only the
+        last game, so both ESPN events resolved to the same StatsAPI record and
+        one game of every doubleheader was handicapped with the OTHER game's
+        probable starters, form and venue. Measured on the 2026 corpus before
+        this was written: 6 of 52 dates with a stage2 output, 12 rows, and in
+        every one of them the two rows carry identical starters.
+
+        So the pair narrows and the first pitch decides, and a game already
+        claimed by an earlier event is never handed out twice.
+        """
+        competition = event["competitions"][0]
+        competitors = {c["homeAway"]: c for c in competition["competitors"]}
+        away_abbr = competitors["away"]["team"]["abbreviation"]
+        home_abbr = competitors["home"]["team"]["abbreviation"]
+
+        candidates: list[dict[str, Any]] = []
+        for key in (
+            (away_abbr, home_abbr),
+            (ALIASES.get(away_abbr, away_abbr), ALIASES.get(home_abbr, home_abbr)),
+        ):
+            for game in stats_by_pair.get(key, []):
+                if game.get("gamePk") in used:
+                    continue
+                if not any(game is seen for seen in candidates):
+                    candidates.append(game)
+        if not candidates:
+            return None
+        if len(candidates) == 1:
+            return candidates[0]
+        return min(candidates, key=lambda game: start_time_gap(game.get("gameDate"), event.get("date")))
+
     def build_row(
         self,
         event: dict[str, Any],
-        stats_by_pair: dict[tuple[str | None, str | None], dict[str, Any]],
+        stats_game: dict[str, Any] | None,
     ) -> dict[str, Any] | None:
+        if not stats_game:
+            return None
         competition = event["competitions"][0]
         competitors = {c["homeAway"]: c for c in competition["competitors"]}
         away = competitors["away"]
         home = competitors["home"]
         away_abbr = away["team"]["abbreviation"]
         home_abbr = home["team"]["abbreviation"]
-        stats_game = stats_by_pair.get((ALIASES.get(away_abbr, away_abbr), ALIASES.get(home_abbr, home_abbr)))
-        if not stats_game:
-            return None
 
         moneyline = ((competition.get("odds") or [{}])[0].get("moneyline") or {})
         away_ml = moneyline.get("away", {}).get("close", {}).get("odds")
@@ -384,6 +442,12 @@ class MlbSlateCollector:
         home_sp = home_team.get("probablePitcher", {})
 
         return {
+            # BOTH id spaces, always. ``event_id`` is ESPN's and ``game_pk`` is
+            # MLB's, and they are not interchangeable — 2026-08-30 carries
+            # event 401816733 for the game MLB calls 824876. They are joined
+            # right here and only one used to be emitted, which is why anything
+            # downstream that tried to join on an id got silence.
+            "game_pk": stats_game.get("gamePk"),
             "event_id": event["id"],
             "event": event["name"],
             "time": event["date"],
@@ -423,20 +487,26 @@ class MlbSlateCollector:
         schedule = get(
             f"https://statsapi.mlb.com/api/v1/schedule?sportId=1&date={self.date}&hydrate=probablePitcher,team,venue,linescore",
         )
-        stats_by_pair: dict[tuple[str | None, str | None], dict[str, Any]] = {}
+        stats_by_pair: dict[tuple[str | None, str | None], list[dict[str, Any]]] = {}
+        scheduled: list[dict[str, Any]] = []
         for day in schedule.get("dates", []):
             for game in day.get("games", []):
+                scheduled.append(game)
                 away = game["teams"]["away"]["team"].get("abbreviation")
                 home = game["teams"]["home"]["team"].get("abbreviation")
-                stats_by_pair[(away, home)] = game
-                stats_by_pair[(ALIASES.get(away, away), ALIASES.get(home, home))] = game
+                for key in {(away, home), (ALIASES.get(away, away), ALIASES.get(home, home))}:
+                    stats_by_pair.setdefault(key, []).append(game)
+        for games in stats_by_pair.values():
+            games.sort(key=lambda game: str(game.get("gameDate") or ""))
 
         rows = []
+        used: set[Any] = set()
         for event in espn.get("events", []):
             # A single broken game must not kill the whole slate: emit a
             # partial row with an "error" field and keep scanning.
             try:
-                row = self.build_row(event, stats_by_pair)
+                stats_game = self.match_stats_game(event, stats_by_pair, used)
+                row = self.build_row(event, stats_game)
             except Exception as exc:
                 rows.append(
                     {
@@ -447,8 +517,47 @@ class MlbSlateCollector:
                     }
                 )
                 continue
-            if row is not None:
-                rows.append(row)
+            if row is None:
+                # An event we could not resolve to a StatsAPI game used to be
+                # DROPPED, silently, and a dropped row is a game that never
+                # existed as far as any later count is concerned. The slate's
+                # denominator has to be able to say "this game was scanned and
+                # could not be identified"; it must never say nothing.
+                rows.append(
+                    {
+                        "game_pk": None,
+                        "event_id": event.get("id") if isinstance(event, dict) else None,
+                        "event": event.get("name") if isinstance(event, dict) else None,
+                        "time": event.get("date") if isinstance(event, dict) else None,
+                        "error": "unmatched: no MLB StatsAPI game for this ESPN event",
+                    }
+                )
+                continue
+            used.add(row.get("game_pk"))
+            rows.append(row)
+
+        # The other direction, and it is a different failure: ESPN is the
+        # enumerator, so a game on MLB's schedule that ESPN never listed would
+        # not appear at all. Neither direction has fired on the 2026 corpus —
+        # 53 dates, stage2 row count equal to StatsAPI totalGames on every one
+        # — but a denominator that can shrink without saying so is not a
+        # denominator, and this is the whole point of recording one.
+        for game in scheduled:
+            if game.get("gamePk") in used:
+                continue
+            teams = game.get("teams") or {}
+            rows.append(
+                {
+                    "game_pk": game.get("gamePk"),
+                    "event_id": None,
+                    "event": " at ".join(
+                        str(((teams.get(side) or {}).get("team") or {}).get("name"))
+                        for side in ("away", "home")
+                    ),
+                    "time": game.get("gameDate"),
+                    "error": "unmatched: no ESPN scoreboard event for this MLB game",
+                }
+            )
         return rows
 
 

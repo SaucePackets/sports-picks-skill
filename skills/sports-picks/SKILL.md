@@ -60,6 +60,63 @@ Add `vig_review_needed` and `vig_approved` fields to each schedule candidate:
 - `vig_review_needed: true` + `vig_approved: null` — Not yet reviewed; remain pending.
 - No reviewer-unreachable safety valve exists. Missing review always means no bet.
 
+### Per-game refusal record (`game_reads`)
+
+Every MLB slate records what it decided about **every scheduled game**, not just
+the ones it took. A day that prices nothing contributes zero rows to the replay,
+the attribution and the loss-evidence reports, so a refused game leaves no trace
+anywhere except the prose — and prose coverage is decided by how tersely a run
+happened to write that day.
+
+The denominator comes from code, not from the writeup. `scripts/mlb_stage2_scan.py`
+emits one row per scheduled game with both `game_pk` (MLB) and `event_id` (ESPN);
+copy that roster into schedule-level `slate_denominator`:
+
+```json
+"slate_denominator": {
+  "source": "mlb_stage2_scan",
+  "fetched_at_utc": "2026-08-22T15:30:00+00:00",
+  "games": [{"game_pk": 823509, "event_id": "401816115",
+             "away": "Toronto Blue Jays", "home": "New York Yankees"}]
+}
+```
+
+Then write one `game_reads` entry per game in that roster:
+
+```json
+"game_reads": [{
+  "game_pk": 823509, "event_id": "401816115",
+  "away": "Atlanta Braves", "home": "Milwaukee Brewers",
+  "disposition": "pass",
+  "dk_fair_prob": {"away": 0.398, "home": 0.602},
+  "polymarket_ask": {"away": 0.460, "home": 0.545},
+  "conservative_probability": {"away": 0.380, "home": 0.580},
+  "net_edge": {"away": -0.080, "home": 0.035},
+  "refusing_rails": ["price_discipline"]
+}]
+```
+
+- `disposition` is `candidate`, `lineup_watchlist`, `pass`, or `not_priced`.
+  `not_priced` means the game could never be handicapped (for example no DK
+  line, no Polymarket market, already underway, or a required input that never
+  arrived); it is deliberately not the same fact as a `pass`. The full rail
+  vocabulary is enumerated in `references/mlb.md`.
+- `pass` and `not_priced` must name at least one `refusing_rails` entry;
+  `candidate` and `lineup_watchlist` must name none. The vocabulary is closed —
+  a refusal that fits nothing in it is an error, not an `other` bucket.
+- **A number you do not have must say why.** Omit the field and put a reason in
+  `unavailable`, e.g. `"unavailable": {"polymarket_ask": "exact slug returned no
+  market data"}`. A missing field with no reason is invalid, because "no price"
+  and "a price nobody recorded" are different facts.
+- The count of `candidate` and `lineup_watchlist` reads must equal the number of
+  `candidates` and `lineup_watchlist` entries on the schedule.
+
+Before completing a slate, run
+`python3 scripts/mlb_game_reads.py <schedule> --validate --denominator <stage2-output.json>`;
+a nonzero exit means the slate is invalid and must be reported as an error
+rather than handed to the reviewer. The `--denominator` cross-check is what
+stops a run from trimming its own roster to match a short read set.
+
 ### Lineup-dependent MLB watchlist
 
 A strong MLB near-miss may be persisted under schedule-level
