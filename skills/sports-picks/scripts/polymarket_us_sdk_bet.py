@@ -361,6 +361,172 @@ def side_cost(price: Decimal, quantity: Decimal, intent: str) -> Decimal:
     return price * quantity
 
 
+# One deterministic follow-up per approved pick, then stop. The 2026-06-20
+# CLE@HOU miss was a cancelled GTC order followed by an IOC replacement that
+# expired unfilled with nothing recording what should happen next; unbounded
+# re-entry is the "chase" the ask-ceiling policy forbids, so the bound is 1.
+MAX_UNFILLED_FOLLOWUPS = 1
+
+
+def parse_utc_timestamp(value: str | None, name: str) -> dt.datetime | None:
+    if value is None:
+        return None
+    try:
+        parsed = dt.datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        die(f"invalid UTC timestamp for {name}: {value!r}")
+    if parsed.tzinfo is None:
+        die(f"{name} must carry an explicit UTC offset, got naive {value!r}")
+    return parsed.astimezone(dt.timezone.utc)
+
+
+def prior_unfilled_order_count(market_slug: str, outcome: str | None) -> int:
+    """Count earlier live-order receipts for this market+outcome that went unfilled.
+
+    Read from the receipts on disk so the bound holds across separate CLI
+    invocations — the 06-20 pattern was two orders in two processes. Receipts
+    predating the fill_status field carry no signal and are not counted;
+    unreadable receipt files are skipped rather than guessed at.
+    """
+    count = 0
+    if not RECEIPT_ROOT.is_dir():
+        return 0
+    for path in sorted(RECEIPT_ROOT.glob("*.json")):
+        try:
+            payload = json.loads(path.read_text())
+        except (OSError, ValueError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        if payload.get("mode") != "live_sdk":
+            continue
+        if payload.get("market_slug") != market_slug:
+            continue
+        if outcome is not None and payload.get("preview_outcome") != outcome:
+            continue
+        if payload.get("fill_status") == "unfilled":
+            count += 1
+    return count
+
+
+def decide_unfilled_followup(
+    *,
+    original_outcome_price: Decimal | None,
+    approved_max_price: Decimal | None,
+    current_ask: Decimal | None,
+    ask_source: str,
+    ask_observed_at_utc: str | None,
+    first_pitch_utc: dt.datetime | None,
+    now_utc: dt.datetime,
+    prior_unfilled: int,
+) -> dict[str, Any]:
+    """Deterministic retry/reprice/stop decision for an order that did not fill.
+
+    This function only decides — it never places an order. A retry/reprice
+    recommendation means one manual re-entry through the full
+    propose -> fresh approval token -> order path; the expired order's
+    approval token is dead. Rules, in order:
+      1. stop  prior_unfilled >= MAX_UNFILLED_FOLLOWUPS (the follow-up already ran)
+      2. stop  first pitch has started (never chase live; unknown first pitch
+               cannot fire this rule and is recorded as such)
+      3. stop  no fresh executable quote to decide on
+      4. retry current ask at or below the original order price
+      5. stop  ask moved up and no approved ceiling exists to bound a chase
+      6. stop  ask above the approved ceiling (no chase — same rule that
+               stopped 2026-08-08 HOU@SD)
+      7. reprice  ask above original price but within the approved ceiling
+    """
+    provenance = {
+        "original_outcome_price": str(original_outcome_price) if original_outcome_price is not None else None,
+        "approved_max_price": str(approved_max_price) if approved_max_price is not None else None,
+        "current_ask": str(current_ask) if current_ask is not None else None,
+        "ask_source": ask_source,
+        "ask_observed_at_utc": ask_observed_at_utc,
+        "first_pitch_utc": first_pitch_utc.isoformat().replace("+00:00", "Z") if first_pitch_utc else None,
+        "now_utc": now_utc.isoformat().replace("+00:00", "Z"),
+        "prior_unfilled": prior_unfilled,
+        "max_unfilled_followups": MAX_UNFILLED_FOLLOWUPS,
+    }
+
+    def decision(action: str, reason_code: str, reason: str) -> dict[str, Any]:
+        recommendation = None
+        if action in ("retry", "reprice"):
+            recommendation = (
+                f"manual re-entry only: propose-moneyline -> fresh approval token -> "
+                f"order-moneyline at limit <= {current_ask}; this policy places no order"
+            )
+        return {
+            "action": action,
+            "reason_code": reason_code,
+            "reason": reason,
+            "recommendation": recommendation,
+            "provenance": provenance,
+        }
+
+    if prior_unfilled >= MAX_UNFILLED_FOLLOWUPS:
+        return decision(
+            "stop", "prior_unfilled_followup_exhausted",
+            f"{prior_unfilled} earlier unfilled order(s) already recorded for this market/outcome; "
+            f"the single allowed follow-up has been used",
+        )
+    if first_pitch_utc is not None and now_utc >= first_pitch_utc:
+        return decision(
+            "stop", "first_pitch_started",
+            "first pitch has started; never chase a live game",
+        )
+    if current_ask is None:
+        return decision(
+            "stop", "no_fresh_quote",
+            f"no fresh executable quote available ({ask_source}); refusing to recommend a blind re-entry",
+        )
+    if original_outcome_price is not None and current_ask <= original_outcome_price:
+        return decision(
+            "retry", "ask_at_or_below_original_price",
+            f"current ask {current_ask} is at or below the original order price {original_outcome_price}",
+        )
+    if approved_max_price is None:
+        return decision(
+            "stop", "no_approved_ceiling",
+            f"ask moved to {current_ask} above the original order price and no approved "
+            f"--max-price ceiling exists to bound a chase",
+        )
+    if current_ask > approved_max_price:
+        return decision(
+            "stop", "ask_above_approved_ceiling",
+            f"current ask {current_ask} exceeds the approved ceiling {approved_max_price}; no chase",
+        )
+    return decision(
+        "reprice", "ask_within_approved_ceiling",
+        f"current ask {current_ask} is above the original order price but within the "
+        f"approved ceiling {approved_max_price}",
+    )
+
+
+def fresh_outcome_ask(args: argparse.Namespace, request: dict[str, Any]) -> tuple[Decimal | None, str, str]:
+    """Read-only re-quote for the unfilled follow-up decision.
+
+    Reuses the SDK order preview — the same parser make_proposal trusts — so
+    the quote is the executable price for OUR side, not a raw book level. Any
+    failure degrades to (None, reason, now): the policy then stops rather than
+    recommending a re-entry on a stale or guessed price.
+    """
+    observed_at = utc_now()
+    try:
+        client = sdk_client(require_auth=True)
+        try:
+            preview = client.orders.preview({"request": request})
+        finally:
+            client.close()
+    except SystemExit:
+        raise
+    except Exception as exc:
+        return None, f"sdk_order_preview_unavailable: {exc!r}", observed_at
+    price = extract_order_price(preview)
+    if price is None:
+        return None, "sdk_order_preview_returned_no_price", observed_at
+    return outcome_price_from_orderbook(price, args.intent), "sdk_order_preview", observed_at
+
+
 def build_order_request(args: argparse.Namespace) -> dict[str, Any]:
     if args.intent not in INTENTS:
         die(f"bad intent: {args.intent}")
@@ -727,6 +893,9 @@ def _find_existing_order(market_slug: str, proposal: dict[str, Any]) -> Any | No
 
 
 def cmd_order(args: argparse.Namespace) -> dict[str, Any]:
+    # Parse before any network call so a malformed timestamp fails the command
+    # here, not after a live order has already been placed.
+    first_pitch = parse_utc_timestamp(getattr(args, "first_pitch_utc", None), "--first-pitch-utc")
     proposal = make_proposal(args)
     if not args.execute:
         proposal["warning"] = "dry run only; add --execute --approval-token <token> --i-accept-live-trading for live order"
@@ -779,9 +948,52 @@ def cmd_order(args: argparse.Namespace) -> dict[str, Any]:
 
     receipt = {**proposal, "mode": "live_sdk", "executed_at": utc_now(), "response": response,
                "order_attempts": order_attempts, "ok": True}
+
+    # Fill accounting happens on every live order, not only under
+    # --write-watchlist: an accepted-but-unfilled IOC used to leave a receipt
+    # indistinguishable from a fill (ok: true and nothing else), which is how
+    # 2026-06-20 CLE@HOU died with no recorded next step.
+    resolved_via_lookup = any(
+        attempt.get("resolved_via") == "existing_order_lookup" for attempt in order_attempts
+    )
+    filled_quantity = extract_filled_quantity(response)
+    requested_quantity = dec(proposal.get("request", {}).get("quantity"), "quantity")
+    receipt["filled_quantity"] = str(filled_quantity)
+    if resolved_via_lookup:
+        # orders.list rows carry no execution reports, so zero here means
+        # "unknown", not "no position" — never run the unfilled policy on it.
+        receipt["fill_status"] = "unknown_existing_order"
+        receipt["fill_status_note"] = (
+            "order matched via existing-order lookup after a create error; "
+            "verify the order's fill state manually before any follow-up"
+        )
+    elif filled_quantity <= 0:
+        receipt["fill_status"] = "unfilled"
+        current_ask, ask_source, ask_observed_at = fresh_outcome_ask(args, proposal["request"])
+        original_orderbook_price = dec(proposal.get("request", {}).get("price"), "price")
+        original_outcome_price = (
+            outcome_price_from_orderbook(original_orderbook_price, args.intent)
+            if original_orderbook_price is not None else None
+        )
+        receipt["unfilled_followup"] = decide_unfilled_followup(
+            original_outcome_price=original_outcome_price,
+            approved_max_price=dec(args.max_price, "max_price"),
+            current_ask=current_ask,
+            ask_source=ask_source,
+            ask_observed_at_utc=ask_observed_at,
+            first_pitch_utc=first_pitch,
+            now_utc=dt.datetime.now(dt.timezone.utc),
+            prior_unfilled=prior_unfilled_order_count(
+                args.market_slug, proposal.get("preview_outcome")
+            ),
+        )
+    elif requested_quantity is not None and filled_quantity < requested_quantity:
+        receipt["fill_status"] = "partial"
+    else:
+        receipt["fill_status"] = "filled"
+
     receipt["receipt_path"] = save_receipt("sdk-order", args.market_slug, receipt)
     if args.write_watchlist:
-        filled_quantity = extract_filled_quantity(response)
         if filled_quantity > 0:
             orderbook_entry = extract_order_price(response) or extract_order_price(proposal.get("preview", {}))
             entry_price = extract_fill_price(response, args.intent) or (
@@ -857,6 +1069,9 @@ def main() -> None:
     order.add_argument("--write-watchlist", action="store_true", help="Write heartbeat watchlist only after live order response")
     order.add_argument("--profit-cents", default="0.08")
     order.add_argument("--loss-cents", default="0.10")
+    order.add_argument("--first-pitch-utc", default=None,
+                       help="Game first pitch as UTC ISO timestamp; lets the unfilled follow-up "
+                            "policy refuse to recommend a re-entry once the game has started")
     order.set_defaults(func=cmd_order)
 
     args = parser.parse_args()
