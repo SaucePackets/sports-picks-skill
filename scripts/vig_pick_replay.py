@@ -55,10 +55,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from vig_calibration_report import wilson_ci  # noqa: E402
 from vig_historical_audit import (  # noqa: E402
     DEFAULT_MIN_CONSERVATIVE_EDGE,
+    MARKET_SUFFIX_RE,
     build_report,
     effective_price,
     fetch_missing_results,
     schedule_paths,
+    team_token_matches,
 )
 
 DEFAULT_MIN_SAMPLE = 20
@@ -246,6 +248,296 @@ def profile(records: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Side-selection attribution
+# ---------------------------------------------------------------------------
+#
+# Everything in this section reads RECORDED pregame fields — the card's thesis,
+# review notes, model numbers, gate reasons, and (on Phase 2 cards) the
+# structured opponent case — plus the official row's team NAMES to identify the
+# opponent. It never reads the official outcome to construct a rationale:
+# outcome fields appear only as labels (`side_outcome`) and to select which
+# games belong in the opposing-winners enumeration. Legacy or malformed records
+# missing `recorded_rationale` (or any field) degrade to explicit
+# `not_recorded` labels, never to a crash or an invented reason.
+
+# Kinds of recorded evidence a card can carry FOR its selected side.
+SELECTION_EVIDENCE_KINDS = (
+    "recorded_thesis", "recorded_model_probability", "review_notes",
+)
+
+# Why the opponent was not selected — a closed set, so a typo becomes a test
+# failure rather than a silent new bucket.
+OPPONENT_CATEGORIES = (
+    "opponent_case_recorded",
+    "recorded_case_backed_selected_side",
+    "not_recorded",
+)
+
+# Classification of a miss where the OPPOSING side won, keyed on recorded
+# STATE — disposition and `vig_approved` — never on what a reason's prose
+# says. `risk_gate_declined` means a recorded gate declined the (losing)
+# selected side before approval — the gate was not the miss, and the winning
+# opponent was never itself proposed. `approved_not_executed` is the state
+# those claims cannot cover: the review APPROVED the side and no order was
+# ever placed (manual routing, pipeline failure, or a post-approval
+# execution-time stop). Post-approval reasons are heterogeneous — genuine
+# price/weather re-checks sit next to SDK failures — and telling them apart
+# takes reading prose, so the label states only the machine-readable fact
+# and the recorded reason travels verbatim.
+MISS_CLASSIFICATIONS = (
+    "evidence_process_miss",
+    "executed_without_recorded_evidence",
+    "approved_not_executed",
+    "risk_gate_declined",
+    "no_recorded_reason",
+)
+
+EVIDENCE_STATUSES = ("recorded", "not_recorded")
+
+
+def _rationale(record: dict[str, Any]) -> dict[str, Any]:
+    rationale = record.get("recorded_rationale")
+    return rationale if isinstance(rationale, dict) else {}
+
+
+def selection_evidence_kinds(record: dict[str, Any]) -> list[str]:
+    """Which recorded pregame evidence kinds back the selected side."""
+    rationale = _rationale(record)
+    kinds = []
+    if rationale.get("thesis"):
+        kinds.append("recorded_thesis")
+    if (record.get("stated_probability") is not None
+            or record.get("conservative_probability") is not None):
+        kinds.append("recorded_model_probability")
+    if rationale.get("vig_notes"):
+        kinds.append("review_notes")
+    return kinds
+
+
+def opponent_side_of(record: dict[str, Any]) -> tuple[str | None, str | None]:
+    """The team the card did NOT pick, and where that name came from.
+
+    The official row is preferred because its names are canonical, and using it
+    is identity only — WHICH team is the opponent, never how the game ended.
+    Unreconciled records fall back to the card's own matchup when the picked
+    side matches exactly one of its teams; anything else is None, labelled.
+    """
+    resolved = record.get("resolved_side")
+    official = record.get("official")
+    if isinstance(resolved, str) and isinstance(official, dict):
+        away, home = official.get("away"), official.get("home")
+        if isinstance(away, str) and away.casefold() == resolved.casefold():
+            return home, "official_row"
+        if isinstance(home, str) and home.casefold() == resolved.casefold():
+            return away, "official_row"
+    side = resolved or record.get("side_raw")
+    away, home = record.get("away_team"), record.get("home_team")
+    if isinstance(side, str) and isinstance(away, str) and isinstance(home, str):
+        token = MARKET_SUFFIX_RE.sub("", side).strip()
+        away_match = team_token_matches(token, away)
+        home_match = team_token_matches(token, home)
+        if away_match != home_match:
+            return (home if away_match else away), "card_matchup"
+    return None, None
+
+
+def why_opponent_not_selected(record: dict[str, Any]) -> dict[str, str]:
+    """Built ONLY from recorded pregame fields; unknown is said out loud."""
+    rationale = _rationale(record)
+    opponent_case = rationale.get("opponent_shutdown_path")
+    kinds = selection_evidence_kinds(record)
+    if opponent_case:
+        return {
+            "category": "opponent_case_recorded",
+            "explanation": (
+                "the card records an explicit opponent case: " + opponent_case
+            ),
+        }
+    if kinds:
+        return {
+            "category": "recorded_case_backed_selected_side",
+            "explanation": (
+                "the recorded pregame case (" + ", ".join(kinds) + ") backs the "
+                "selected side; no separate opponent-side case was recorded"
+            ),
+        }
+    return {
+        "category": "not_recorded",
+        "explanation": (
+            "no pregame rationale was recorded on the card; why the opponent "
+            "was not selected is unknown"
+        ),
+    }
+
+
+def attribution_record(record: dict[str, Any]) -> dict[str, Any]:
+    """One candidate's structured, auditable side-selection attribution.
+
+    `side_outcome` and `synthetic_units` are outcome LABELS placed alongside
+    the rationale; every field under `selected_evidence` and
+    `opponent_evidence` is recorded pregame data, so the rationale half of
+    this record is invariant to how the game ended.
+    """
+    rationale = _rationale(record)
+    kinds = selection_evidence_kinds(record)
+    opponent, opponent_basis = opponent_side_of(record)
+    price, price_basis = effective_price(record)
+    opponent_case = rationale.get("opponent_shutdown_path")
+    return {
+        "date": record.get("date"),
+        "game": record.get("game"),
+        "selected_side": record.get("resolved_side") or record.get("side_raw"),
+        "selected_side_resolution": (
+            "official" if record.get("resolved_side") else "card_only"
+        ),
+        "opponent_side": opponent,
+        "opponent_side_basis": opponent_basis,
+        "disposition": record.get("disposition"),
+        "side_outcome": record.get("side_outcome"),
+        "reconciled": record.get("side_outcome") in ("win", "loss", "push"),
+        "selected_evidence": {
+            "status": "recorded" if kinds else "not_recorded",
+            "kinds": kinds,
+            "thesis": rationale.get("thesis"),
+            "vig_notes": rationale.get("vig_notes"),
+            "skip_reason": record.get("skip_reason"),
+            "candidate_failure_path": rationale.get("candidate_failure_path"),
+            "named_risks": rationale.get("named_risks"),
+            "confidence": record.get("confidence"),
+            "stated_probability": record.get("stated_probability"),
+            "dk_fair_prob": record.get("dk_fair_prob"),
+            "conservative_probability": record.get("conservative_probability"),
+            "current_ask": record.get("current_ask"),
+            "stored_net_edge": record.get("stored_net_edge"),
+            "stored_projected_edge": record.get("stored_projected_edge"),
+            "price": price,
+            "price_basis": price_basis,
+        },
+        "opponent_evidence": {
+            "recorded": bool(opponent_case),
+            "opponent_shutdown_path": opponent_case,
+            "opponent_field": record.get("opponent_raw"),
+            "note": None if opponent_case else (
+                "no opposing-side evidence recorded on the card"
+            ),
+        },
+        "why_opponent_not_selected": why_opponent_not_selected(record),
+    }
+
+
+def classify_opposing_winner_miss(record: dict[str, Any]) -> str:
+    """Why the winning opponent was missed — from recorded STATE only.
+
+    The approval check comes first: an approved side that never reached the
+    market is not a gate save whatever its skip_reason says, and `vig_notes`
+    is no signal at all — it is present on approved-and-executed cards too,
+    so its mere existence carries no polarity. `vig_approved` carries
+    polarity in BOTH directions: True is an approval, and an explicit False
+    is a review decline — a gate save — whether or not `vig_review_needed`
+    also flags it (the flagged shape already lands here as the
+    `review_rejected` disposition; the bare-False clause covers the
+    concluded decline that shape misses). A card predating the field has
+    `vig_approved` None and can claim neither state — it falls through to
+    the disposition/skip_reason clauses, which is the best the record
+    supports.
+    """
+    kinds = selection_evidence_kinds(record)
+    if record.get("disposition") == "executed":
+        return "evidence_process_miss" if kinds else "executed_without_recorded_evidence"
+    if record.get("vig_approved") is True:
+        return "approved_not_executed"
+    if (record.get("vig_approved") is False
+            or record.get("disposition") == "review_rejected"
+            or record.get("skip_reason")):
+        return "risk_gate_declined"
+    return "no_recorded_reason"
+
+
+def opposing_winner_cases(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Every reconciled candidate whose selected side lost — the opponent won.
+
+    Enumerated separately from the per-candidate comparison records: this list
+    answers "which opposing winners did we miss and why", not "how does every
+    opponent compare".
+    """
+    cases = []
+    for record in records:
+        if record.get("side_outcome") != "loss":
+            continue
+        opponent, opponent_basis = opponent_side_of(record)
+        line = _entry_line(record)
+        line["opposing_winner"] = opponent
+        line["opposing_winner_basis"] = opponent_basis
+        line["miss_classification"] = classify_opposing_winner_miss(record)
+        line["recorded_reason"] = (
+            record.get("skip_reason") or _rationale(record).get("vig_notes")
+        )
+        # The state the classification read, surfaced so it can be audited.
+        line["vig_approved"] = record.get("vig_approved")
+        line["execution_mode"] = record.get("execution_mode")
+        line["manual_bet_status"] = record.get("manual_bet_status")
+        cases.append(line)
+    return cases
+
+
+def _closed_counts(names: tuple[str, ...], values: list[str]) -> dict[str, int]:
+    """Counts over a closed category set, zero-filled.
+
+    Zero-filling is disclosure: a category that has never occurred on this
+    corpus prints as 0 instead of vanishing, so a reader can tell an axis
+    that never varied from one that was never possible. It also makes the
+    category tuples load-bearing — an emitted value outside its set is a
+    hard error, not a silent new bucket.
+    """
+    counts = dict.fromkeys(names, 0)
+    for value in values:
+        if value not in counts:
+            raise ValueError(f"{value!r} is not in the closed set {names}")
+        counts[value] += 1
+    return counts
+
+
+def side_selection_attribution(records: list[dict[str, Any]]) -> dict[str, Any]:
+    rows = [attribution_record(r) for r in records]
+    cases = opposing_winner_cases(records)
+    return {
+        "note": (
+            "The slate proposes ONE side per game, so the opponent's "
+            "non-selection is structural; these records state what the card "
+            "RECORDED about that choice. Rationale fields are pregame data "
+            "verbatim — the official outcome is never used to construct a "
+            "reason, only to label results and select the opposing-winner "
+            "cases. Games the slate never proposed are out of scope entirely."
+        ),
+        "records": rows,
+        "evidence_status_counts": _closed_counts(
+            EVIDENCE_STATUSES,
+            [row["selected_evidence"]["status"] for row in rows],
+        ),
+        "why_opponent_counts": _closed_counts(
+            OPPONENT_CATEGORIES,
+            [row["why_opponent_not_selected"]["category"] for row in rows],
+        ),
+        "opposing_winners": {
+            "note": (
+                "reconciled candidates whose selected side lost — the opposing "
+                "side won these games; enumerated separately from the "
+                "per-candidate records above. risk_gate_declined counts only "
+                "PRE-approval declines: approved_not_executed mixes "
+                "post-approval gate stops with execution failures, so neither "
+                "count alone is a gate-save total — read the recorded reasons "
+                "individually before tallying saves."
+            ),
+            "cases": cases,
+            "classification_counts": _closed_counts(
+                MISS_CLASSIFICATIONS,
+                [case["miss_classification"] for case in cases],
+            ),
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
 # Bounded rule candidates, graded leave-one-period-out
 # ---------------------------------------------------------------------------
 
@@ -409,6 +701,7 @@ def replay_report(
             ),
         },
         "attribution_matrix": attribution_matrix(records),
+        "side_selection_attribution": side_selection_attribution(records),
         "cohorts": {
             "executed": cohort_summary(executed, min_sample),
             "passed": cohort_summary(passed, min_sample),
@@ -488,6 +781,32 @@ def render(report: dict[str, Any]) -> str:
             )
         else:
             out.append(f"- {name}: no decided candidates{pushes}")
+    out.append("")
+
+    ssa = report["side_selection_attribution"]
+    out.append("## Side-selection attribution")
+    out.append(f"- {ssa['note']}")
+    out.append("- selected-side evidence: " + ", ".join(
+        f"{k}={v}" for k, v in sorted(ssa["evidence_status_counts"].items())
+    ))
+    out.append("- why the opponent was not selected: " + ", ".join(
+        f"{k}={v}" for k, v in sorted(ssa["why_opponent_counts"].items())
+    ))
+    ow = ssa["opposing_winners"]
+    out.append(f"### Opposing winners we missed ({len(ow['cases'])})")
+    out.append(f"- {ow['note']}")
+    if ow["classification_counts"]:
+        out.append("- classifications: " + ", ".join(
+            f"{k}={v}" for k, v in sorted(ow["classification_counts"].items())
+        ))
+    for case in ow["cases"]:
+        winner = case["opposing_winner"] or "(opponent unresolvable)"
+        reason = f" — recorded reason: {case['recorded_reason']}" if case["recorded_reason"] else ""
+        out.append(
+            f"- {case['date']} {case['game']}: {winner} won; picked side "
+            f"{case['side']} ({case['disposition']}) — "
+            f"{case['miss_classification']}{reason}"
+        )
     out.append("")
 
     out.append(f"## Winners we passed on ({len(report['missed_winners'])})")

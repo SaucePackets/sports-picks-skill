@@ -385,6 +385,384 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(report["missed_winners"][0]["synthetic_units"], 1.0)
 
 
+class SideSelectionAttributionTests(unittest.TestCase):
+    """Attribution states what was RECORDED; unknown is said out loud, and the
+    official outcome never constructs a rationale."""
+
+    @staticmethod
+    def rationale(**overrides):
+        base = {
+            "thesis": None, "vig_notes": None, "execution_note": None,
+            "opponent_shutdown_path": None, "candidate_failure_path": None,
+            "named_risks": None, "has_structured_evidence": False,
+        }
+        base.update(overrides)
+        return base
+
+    def _audit_report(self, winner_home=True):
+        """Two candidates over one game plus a thesis-free legacy loser.
+
+        `winner_home` flips ONLY the official score, so a pair of reports
+        built at both values proves outcome-invariance of the rationale.
+        """
+        root = Path(tempfile.mkdtemp())
+        away_score, home_score = (1, 6) if winner_home else (6, 1)
+        write_results(root, "2026-06-10", [
+            {"away": "Athletics", "home": "Detroit Tigers",
+             "away_score": away_score, "home_score": home_score},
+            {"away": "Boston Red Sox", "home": "New York Yankees",
+             "away_score": 2, "home_score": 4},
+        ])
+        write_day(root, "2026-06-10", {
+            "date": "2026-06-10",
+            "candidates": [
+                {"game": "Athletics at Detroit Tigers", "side": "Detroit Tigers",
+                 "executed": True, "polymarket_ask": 0.55,
+                 "thesis": "Tigers rotation edge", "vig_notes": "approved at ask"},
+                {"game": "Athletics at Detroit Tigers", "side": "Athletics",
+                 "skipped": True, "skip_reason": "liquidity", "polymarket_ask": 0.45,
+                 "thesis": "contrarian value on the road"},
+                # Legacy shape: no thesis, no notes, no reason.
+                {"game": "Boston Red Sox at New York Yankees", "side": "Boston Red Sox",
+                 "executed": True, "polymarket_ask": 0.5},
+                # A passed WINNER with a thesis, so the missed-winners section
+                # is non-empty and the invariance test can see a rationale
+                # dependency leaking into a headline section.
+                {"game": "Boston Red Sox at New York Yankees",
+                 "side": "New York Yankees", "skipped": True,
+                 "skip_reason": "price", "polymarket_ask": 0.6,
+                 "thesis": "Bombers homestand edge"},
+            ],
+        })
+        return audit.build_report(
+            root / "execute", root / "results", 0.05, None, None, 0.05, 20
+        )
+
+    def _attribution(self, winner_home=True):
+        report = replay.replay_report(self._audit_report(winner_home), 20, 1)
+        return report, report["side_selection_attribution"]
+
+    def test_every_reconciled_candidate_has_a_structured_record(self):
+        _, ssa = self._attribution()
+        self.assertEqual(len(ssa["records"]), 4)
+        for row in ssa["records"]:
+            self.assertTrue(row["reconciled"])
+            self.assertIn(row["selected_evidence"]["status"], ("recorded", "not_recorded"))
+            self.assertIn(
+                row["why_opponent_not_selected"]["category"], replay.OPPONENT_CATEGORIES
+            )
+
+    def test_selected_and_opponent_sides_are_canonical(self):
+        _, ssa = self._attribution()
+        executed = ssa["records"][0]
+        self.assertEqual(executed["selected_side"], "Detroit Tigers")
+        self.assertEqual(executed["selected_side_resolution"], "official")
+        self.assertEqual(executed["opponent_side"], "Athletics")
+        self.assertEqual(executed["opponent_side_basis"], "official_row")
+
+    def test_recorded_thesis_and_notes_surface_verbatim(self):
+        _, ssa = self._attribution()
+        evidence = ssa["records"][0]["selected_evidence"]
+        self.assertEqual(evidence["status"], "recorded")
+        self.assertEqual(evidence["thesis"], "Tigers rotation edge")
+        self.assertEqual(evidence["vig_notes"], "approved at ask")
+        self.assertIn("recorded_thesis", evidence["kinds"])
+        self.assertIn("review_notes", evidence["kinds"])
+
+    def test_a_legacy_record_gets_an_explicit_missing_evidence_label(self):
+        _, ssa = self._attribution()
+        legacy = ssa["records"][2]
+        self.assertEqual(legacy["selected_evidence"]["status"], "not_recorded")
+        self.assertEqual(
+            legacy["why_opponent_not_selected"]["category"], "not_recorded"
+        )
+        self.assertIn("unknown", legacy["why_opponent_not_selected"]["explanation"])
+        self.assertEqual(ssa["evidence_status_counts"]["not_recorded"], 1)
+
+    def test_the_rationale_half_is_invariant_to_the_official_outcome(self):
+        # THE no-hindsight property: flip the winner and nothing about the
+        # recorded rationale, evidence, or opponent reasoning may move.
+        _, home_wins = self._attribution(winner_home=True)
+        _, away_wins = self._attribution(winner_home=False)
+        # zip truncates silently; unequal lists would gut the check below.
+        self.assertEqual(len(home_wins["records"]), len(away_wins["records"]))
+        for before, after in zip(home_wins["records"], away_wins["records"]):
+            self.assertEqual(before["selected_evidence"], after["selected_evidence"])
+            self.assertEqual(before["opponent_evidence"], after["opponent_evidence"])
+            self.assertEqual(
+                before["why_opponent_not_selected"], after["why_opponent_not_selected"]
+            )
+        # Only the outcome labels and the opposing-winner membership change.
+        self.assertNotEqual(
+            [r["side_outcome"] for r in home_wins["records"]],
+            [r["side_outcome"] for r in away_wins["records"]],
+        )
+
+    def test_opposing_winners_are_losses_only_and_classified(self):
+        _, ssa = self._attribution()
+        cases = ssa["opposing_winners"]["cases"]
+        # Athletics (skipped, lost) and Boston (executed, lost, no evidence).
+        self.assertEqual(len(cases), 2)
+        by_side = {case["side"]: case for case in cases}
+        self.assertEqual(
+            by_side["Athletics"]["miss_classification"], "risk_gate_declined"
+        )
+        self.assertEqual(by_side["Athletics"]["recorded_reason"], "liquidity")
+        self.assertEqual(by_side["Athletics"]["opposing_winner"], "Detroit Tigers")
+        self.assertEqual(
+            by_side["Boston Red Sox"]["miss_classification"],
+            "executed_without_recorded_evidence",
+        )
+        # Zero-filled over the closed set: categories that never occurred
+        # print as 0 instead of vanishing.
+        self.assertEqual(
+            ssa["opposing_winners"]["classification_counts"],
+            {"evidence_process_miss": 0, "executed_without_recorded_evidence": 1,
+             "approved_not_executed": 0, "risk_gate_declined": 1,
+             "no_recorded_reason": 0},
+        )
+
+    def test_an_executed_loss_with_recorded_evidence_is_an_evidence_miss(self):
+        record_ = record(
+            side_outcome="loss",
+            recorded_rationale=self.rationale(thesis="rotation edge"),
+        )
+        self.assertEqual(
+            replay.classify_opposing_winner_miss(record_), "evidence_process_miss"
+        )
+
+    def test_a_pass_with_no_recorded_reason_is_labelled_unknown(self):
+        record_ = record(disposition="proposed_no_bet", side_outcome="loss")
+        self.assertEqual(
+            replay.classify_opposing_winner_miss(record_), "no_recorded_reason"
+        )
+
+    def test_an_approved_pick_that_never_reached_the_market_is_not_a_gate_save(self):
+        # The polarity case from the live corpus: an APPROVED pick lost to a
+        # pipeline regression, with an approval-shaped skip_reason. Presence
+        # of a reason must not read as "a gate declined this side".
+        record_ = record(
+            disposition="skipped", side_outcome="loss", vig_approved=True,
+            skip_reason=(
+                "Pipeline regression routed approved MLB pick to manual-only; "
+                "no order was submitted before first pitch."
+            ),
+        )
+        self.assertEqual(
+            replay.classify_opposing_winner_miss(record_), "approved_not_executed"
+        )
+        # And the manual-routing shape: approved, awaiting manual action,
+        # nothing skipped, nothing declined.
+        record_ = record(
+            disposition="proposed_no_bet", side_outcome="loss", vig_approved=True,
+            execution_mode="manual", manual_bet_status="awaiting_jerry",
+        )
+        self.assertEqual(
+            replay.classify_opposing_winner_miss(record_), "approved_not_executed"
+        )
+
+    def test_vig_notes_presence_is_not_a_gate_signal(self):
+        # vig_notes exists on approved-and-executed cards too; its mere
+        # presence carries no polarity and must not claim a gate save.
+        record_ = record(
+            disposition="proposed_no_bet", side_outcome="loss",
+            recorded_rationale=self.rationale(vig_notes="promoted from watchlist"),
+        )
+        self.assertEqual(
+            replay.classify_opposing_winner_miss(record_), "no_recorded_reason"
+        )
+
+    def test_a_pre_approval_gate_decline_is_still_a_gate_save(self):
+        for state in (
+            record(disposition="review_rejected", side_outcome="loss"),
+            record(disposition="skipped", side_outcome="loss",
+                   skip_reason="weather gate"),
+        ):
+            self.assertEqual(
+                replay.classify_opposing_winner_miss(state), "risk_gate_declined"
+            )
+
+    def test_an_explicit_review_decline_is_a_gate_save_not_unknown(self):
+        # The round-2 case from the live corpus: review ran, declined, and
+        # wrote why — vig_approved False with vig_review_needed False, so no
+        # review_rejected disposition and no skip_reason. The explicit False
+        # is the decline state and must not fall through to
+        # no_recorded_reason next to its own recorded reason.
+        record_ = record(
+            disposition="proposed_no_bet", side_outcome="loss",
+            vig_approved=False,
+            recorded_rationale=self.rationale(
+                vig_notes="FLAGGED: starter returning from IL — too much uncertainty",
+            ),
+        )
+        self.assertEqual(
+            replay.classify_opposing_winner_miss(record_), "risk_gate_declined"
+        )
+
+    def test_an_approved_manual_loss_classifies_through_the_full_pipeline(self):
+        # Proves the audit CARRIES the approval state, not just that the
+        # classifier would use it if it were there.
+        root = Path(tempfile.mkdtemp())
+        write_results(root, "2026-07-18", [
+            {"away": "Minnesota Twins", "home": "Chicago Cubs",
+             "away_score": 1, "home_score": 5},
+        ])
+        write_day(root, "2026-07-18", {
+            "date": "2026-07-18",
+            "candidates": [{
+                "game": "Minnesota Twins at Chicago Cubs", "side": "MIN",
+                "executed": False, "vig_review_needed": False, "vig_approved": True,
+                "execution_mode": "manual", "manual_bet_status": "awaiting_jerry",
+                "polymarket_ask": 0.45, "thesis": "lineup-gate promotion",
+                "vig_notes": "Manual reminder only; no automatic execution.",
+            }],
+        })
+        audit_report = audit.build_report(
+            root / "execute", root / "results", 0.05, None, None, 0.05, 20
+        )
+        report = replay.replay_report(audit_report, 20, 1)
+        cases = report["side_selection_attribution"]["opposing_winners"]["cases"]
+        self.assertEqual(len(cases), 1)
+        self.assertEqual(cases[0]["miss_classification"], "approved_not_executed")
+        self.assertTrue(cases[0]["vig_approved"])
+        self.assertEqual(cases[0]["execution_mode"], "manual")
+        self.assertEqual(cases[0]["manual_bet_status"], "awaiting_jerry")
+
+    def test_model_probability_alone_is_a_recorded_kind(self):
+        record_ = record(stated_probability=0.6)
+        self.assertEqual(
+            replay.selection_evidence_kinds(record_), ["recorded_model_probability"]
+        )
+        row = replay.attribution_record(record_)
+        self.assertEqual(row["selected_evidence"]["status"], "recorded")
+
+    def test_the_closed_sets_are_exactly_what_the_code_can_emit(self):
+        # Membership both ways: every category tuple entry is reachable, and
+        # everything emitted is in its tuple — a typo on either side reds.
+        emitted_kinds = set(replay.selection_evidence_kinds(record(
+            stated_probability=0.6,
+            recorded_rationale=self.rationale(thesis="t", vig_notes="n"),
+        )))
+        self.assertEqual(emitted_kinds, set(replay.SELECTION_EVIDENCE_KINDS))
+        emitted_classes = {
+            replay.classify_opposing_winner_miss(r) for r in (
+                record(side_outcome="loss",
+                       recorded_rationale=self.rationale(thesis="t")),
+                record(side_outcome="loss"),
+                record(disposition="skipped", side_outcome="loss",
+                       vig_approved=True, skip_reason="approved; unfilled"),
+                record(disposition="skipped", side_outcome="loss",
+                       skip_reason="weather gate"),
+                record(disposition="proposed_no_bet", side_outcome="loss"),
+            )
+        }
+        self.assertEqual(emitted_classes, set(replay.MISS_CLASSIFICATIONS))
+        emitted_statuses = {
+            replay.attribution_record(r)["selected_evidence"]["status"]
+            for r in (
+                record(recorded_rationale=self.rationale(thesis="t")),
+                record(),
+            )
+        }
+        self.assertEqual(emitted_statuses, set(replay.EVIDENCE_STATUSES))
+
+    def test_counts_are_zero_filled_and_reject_unknown_categories(self):
+        counts = replay._closed_counts(("a", "b"), ["a"])
+        self.assertEqual(counts, {"a": 1, "b": 0})
+        with self.assertRaises(ValueError):
+            replay._closed_counts(("a", "b"), ["c"])
+
+    def test_a_recorded_opponent_case_beats_the_structural_answer(self):
+        record_ = record(recorded_rationale=self.rationale(
+            thesis="starter edge",
+            opponent_shutdown_path="their power can suppress the edge",
+        ))
+        why = replay.why_opponent_not_selected(record_)
+        self.assertEqual(why["category"], "opponent_case_recorded")
+        self.assertIn("their power can suppress the edge", why["explanation"])
+        row = replay.attribution_record(record_)
+        self.assertTrue(row["opponent_evidence"]["recorded"])
+        self.assertEqual(
+            row["opponent_evidence"]["opponent_shutdown_path"],
+            "their power can suppress the edge",
+        )
+
+    def test_records_without_the_rationale_key_are_tolerated(self):
+        # The minimal legacy record has no `recorded_rationale` at all —
+        # attribution must degrade to explicit labels, never crash.
+        row = replay.attribution_record(record())
+        self.assertEqual(row["selected_evidence"]["status"], "not_recorded")
+        self.assertIsNone(row["selected_evidence"]["thesis"])
+        self.assertFalse(row["opponent_evidence"]["recorded"])
+
+    def test_opponent_falls_back_to_the_card_matchup_when_unreconciled(self):
+        record_ = record(
+            resolved_side=None, official=None, side_outcome="unreconciled",
+            side_raw="Detroit Tigers ML", away_team="Athletics",
+            home_team="Detroit Tigers",
+        )
+        opponent, basis = replay.opponent_side_of(record_)
+        self.assertEqual(opponent, "Athletics")
+        self.assertEqual(basis, "card_matchup")
+        ambiguous, basis = replay.opponent_side_of(record(
+            resolved_side=None, official=None, side_raw="Tigers",
+            away_team=None, home_team=None,
+        ))
+        self.assertIsNone(ambiguous)
+        self.assertIsNone(basis)
+
+    def test_headline_totals_are_unchanged_by_the_attribution_inputs(self):
+        # Aggregate invariance: strip every rationale the attribution layer
+        # feeds on and rebuild — every pre-existing section must be identical.
+        audit_report = self._audit_report()
+        with_rationale = replay.replay_report(audit_report, 20, 1)
+        for day in audit_report["days"]:
+            for candidate in day["candidates"]:
+                candidate.pop("recorded_rationale", None)
+        without_rationale = replay.replay_report(audit_report, 20, 1)
+        for key in with_rationale:
+            if key == "side_selection_attribution":
+                continue
+            self.assertEqual(
+                with_rationale[key], without_rationale[key],
+                f"attribution inputs changed pre-existing section {key!r}",
+            )
+
+    def test_the_render_carries_the_attribution_sections(self):
+        report, _ = self._attribution()
+        rendered = replay.render(report)
+        self.assertIn("Side-selection attribution", rendered)
+        self.assertIn("Opposing winners we missed (2)", rendered)
+        self.assertIn("risk_gate_declined", rendered)
+        self.assertIn("recorded reason: liquidity", rendered)
+        json.dumps(report)
+
+    def test_postgame_prose_never_reaches_the_attribution_output(self):
+        root = Path(tempfile.mkdtemp())
+        write_results(root, "2026-06-10", [
+            {"away": "Athletics", "home": "Detroit Tigers",
+             "away_score": 6, "home_score": 1},
+        ])
+        write_day(root, "2026-06-10", {
+            "date": "2026-06-10",
+            "candidates": [{
+                "game": "Athletics at Detroit Tigers", "side": "Detroit Tigers",
+                "executed": True, "polymarket_ask": 0.55,
+                "thesis": "Tigers rotation edge",
+                "postgame_reflection": "we misread the bullpen entirely",
+                "scoring_summary": "five unanswered runs",
+            }],
+        })
+        audit_report = audit.build_report(
+            root / "execute", root / "results", 0.05, None, None, 0.05, 20
+        )
+        report = replay.replay_report(audit_report, 20, 1)
+        dumped = json.dumps(report["side_selection_attribution"])
+        self.assertNotIn("misread the bullpen", dumped)
+        self.assertNotIn("five unanswered runs", dumped)
+        self.assertIn("Tigers rotation edge", dumped)
+
+
 class ReadOnlyGuardTests(unittest.TestCase):
     """Same contract as the audit's guards, scoped to this module."""
 

@@ -372,6 +372,42 @@ def team_token_match_kind(token: str, full_name: str) -> str | None:
     return "abbreviation" if mapped and mapped.casefold() == target else None
 
 
+# Pregame free-text rationale fields, carried verbatim for attribution. The
+# postgame vocabulary (`postgame_reflection`, `postgame_note`, `scoring_summary`,
+# `result`, `settlement_*`) is deliberately NOT here: rationale reconstructed
+# from a field written after the game is hindsight, and the attribution layer
+# must never see it.
+PREGAME_RATIONALE_FIELDS = ("thesis", "vig_notes", "execution_note")
+
+# Subset of `baseball_evidence` (Phase 2 cards) carried for attribution: the
+# recorded opponent case, the recorded failure scenario, and the named risks.
+STRUCTURED_EVIDENCE_TEXT_FIELDS = ("opponent_shutdown_path", "candidate_failure_path")
+
+
+def _clean_text(value: Any) -> str | None:
+    return value.strip() if isinstance(value, str) and value.strip() else None
+
+
+def recorded_rationale(raw: dict[str, Any]) -> dict[str, Any]:
+    """The card's pregame rationale, verbatim — never derived, never postgame.
+
+    Absence is recorded as None so the attribution layer can label
+    missing evidence explicitly instead of inventing a reason.
+    """
+    evidence = raw.get("baseball_evidence")
+    structured = evidence if isinstance(evidence, dict) else {}
+    named_risks = structured.get("named_risks")
+    rationale: dict[str, Any] = {
+        field: _clean_text(raw.get(field)) for field in PREGAME_RATIONALE_FIELDS
+    }
+    rationale.update({
+        field: _clean_text(structured.get(field)) for field in STRUCTURED_EVIDENCE_TEXT_FIELDS
+    })
+    rationale["named_risks"] = named_risks if isinstance(named_risks, list) else None
+    rationale["has_structured_evidence"] = bool(structured)
+    return rationale
+
+
 def normalize_candidate(raw: dict[str, Any], date: str | None) -> dict[str, Any]:
     """Flatten one candidate into the audit's explicit schema.
 
@@ -451,6 +487,12 @@ def normalize_candidate(raw: dict[str, Any], date: str | None) -> dict[str, Any]
         "contract_fields_missing": contract_missing,
         "disposition": disposition,
         "skip_reason": raw.get("skip_reason"),
+        # Recorded review/routing STATE, carried so downstream classification
+        # can read what the pipeline decided instead of parsing reason prose.
+        "vig_approved": raw.get("vig_approved") if isinstance(raw.get("vig_approved"), bool) else None,
+        "execution_mode": _clean_text(raw.get("execution_mode")),
+        "manual_bet_status": _clean_text(raw.get("manual_bet_status")),
+        "recorded_rationale": recorded_rationale(raw),
         "stake_usd": stake,
         "commission_usd": _number(raw.get("commission")),
         "pnl_usd": pnl,

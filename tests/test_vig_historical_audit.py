@@ -167,6 +167,77 @@ class SchemaNormalizationTests(unittest.TestCase):
         return write_day(root, date, document)
 
 
+class RecordedRationaleTests(unittest.TestCase):
+    """Pregame rationale is carried verbatim; postgame vocabulary never is."""
+
+    def test_pregame_text_fields_are_carried_verbatim(self):
+        rationale = audit.recorded_rationale({
+            "thesis": "  Mets form and bullpen gap  ",
+            "vig_notes": "approved at 0.55",
+            "execution_note": "filled in two clips",
+        })
+        self.assertEqual(rationale["thesis"], "Mets form and bullpen gap")
+        self.assertEqual(rationale["vig_notes"], "approved at 0.55")
+        self.assertEqual(rationale["execution_note"], "filled in two clips")
+        self.assertFalse(rationale["has_structured_evidence"])
+
+    def test_absence_and_malformed_values_become_none_never_invented(self):
+        rationale = audit.recorded_rationale({
+            "thesis": 123, "vig_notes": "   ", "baseball_evidence": "not a dict",
+        })
+        self.assertIsNone(rationale["thesis"])
+        self.assertIsNone(rationale["vig_notes"])
+        self.assertIsNone(rationale["opponent_shutdown_path"])
+        self.assertIsNone(rationale["named_risks"])
+        self.assertFalse(rationale["has_structured_evidence"])
+
+    def test_structured_evidence_subset_is_carried(self):
+        rationale = audit.recorded_rationale({
+            "baseball_evidence": {
+                "opponent_shutdown_path": "their power can suppress the edge",
+                "candidate_failure_path": "early contact converts",
+                "named_risks": [{"name": "order power", "status": "resolved"}],
+                "starter_role": "starter",
+            },
+        })
+        self.assertEqual(
+            rationale["opponent_shutdown_path"], "their power can suppress the edge"
+        )
+        self.assertEqual(rationale["candidate_failure_path"], "early contact converts")
+        self.assertEqual(len(rationale["named_risks"]), 1)
+        self.assertTrue(rationale["has_structured_evidence"])
+
+    def test_postgame_fields_are_never_carried(self):
+        # A rationale reconstructed from postgame prose is hindsight; the
+        # carrier must not even offer those fields to the attribution layer.
+        rationale = audit.recorded_rationale({
+            "postgame_reflection": "we misread the bullpen",
+            "postgame_note": "bad beat",
+            "scoring_summary": "5 runs in the 8th",
+            "result": "loss",
+            "settlement_result": "loss",
+        })
+        dumped = json.dumps(rationale)
+        for leaked in ("misread", "bad beat", "5 runs", "loss"):
+            self.assertNotIn(leaked, dumped)
+
+    def test_the_carried_field_sets_are_pinned(self):
+        # A postgame field added to either tuple must fail here by name.
+        self.assertEqual(
+            audit.PREGAME_RATIONALE_FIELDS, ("thesis", "vig_notes", "execution_note")
+        )
+        self.assertEqual(
+            audit.STRUCTURED_EVIDENCE_TEXT_FIELDS,
+            ("opponent_shutdown_path", "candidate_failure_path"),
+        )
+
+    def test_normalize_candidate_carries_the_rationale(self):
+        record = audit.normalize_candidate(
+            {"game": "A at B", "side": "A", "thesis": "form edge"}, "2026-06-10"
+        )
+        self.assertEqual(record["recorded_rationale"]["thesis"], "form edge")
+
+
 class PriceParsingTests(unittest.TestCase):
     def test_american_odds_parse_is_strict(self):
         cases = [

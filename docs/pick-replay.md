@@ -96,6 +96,68 @@ chooses `keep_all`, and tuning on the held-out month chooses
 any tie) and then asserts both the fold's chosen rule and its selection-set
 units, so a leak in either direction changes the answer and reds the test.
 
+## Side-selection attribution
+
+Every candidate gets a structured `side_selection_attribution` record stating
+what the card RECORDED about the side choice — never a reconstructed reason:
+
+- **Selected side** (canonical from the official row when reconciled, the
+  card's own value otherwise) and its recorded evidence: `thesis`,
+  `vig_notes`, model probabilities, prices, gate reasons, and on Phase 2
+  cards the structured `candidate_failure_path` and `named_risks`. A card
+  with none of these is labelled `not_recorded` explicitly.
+- **Opponent side**, named from the official row (identity only — which team,
+  never how the game ended), falling back to the card's own matchup when
+  unreconciled; unresolvable stays `None`, labelled.
+- **Why the opponent was not selected**, a closed category set:
+  `opponent_case_recorded` (the card carries an explicit
+  `opponent_shutdown_path`), `recorded_case_backed_selected_side` (a recorded
+  pregame case backs the chosen side and no separate opponent case exists),
+  or `not_recorded`.
+- **Opposing winners** — reconciled candidates whose selected side lost — are
+  enumerated separately from the per-candidate records and classified from
+  recorded STATE (disposition and `vig_approved`), never from what a
+  reason's prose says: `evidence_process_miss` (executed on recorded
+  evidence that pointed the wrong way), `executed_without_recorded_evidence`,
+  `approved_not_executed` (the review approved the side and no order was
+  ever placed — manual routing, pipeline failure, or a post-approval
+  execution-time stop; these are neither gate saves nor evidence misses,
+  and the recorded reason travels verbatim because post-approval reasons
+  are too heterogeneous to grade mechanically), `risk_gate_declined`
+  (a recorded gate declined the losing side before approval, so the gate
+  was not the miss; the winning opponent was never itself proposed), or
+  `no_recorded_reason`. `vig_notes` is not a gate signal: it is present on
+  approved-and-executed cards too, so its existence carries no polarity.
+  `vig_approved` carries polarity both ways — an explicit `False` is a
+  review decline and classifies `risk_gate_declined`; a card predating the
+  field (absent/None on the older executed shapes) can claim neither state
+  and falls through to the disposition/`skip_reason` clauses.
+  Two caveats on reading the buckets: neither `risk_gate_declined` nor
+  `approved_not_executed` alone is a gate-save total (post-approval gate
+  stops sit inside `approved_not_executed` next to execution failures), and
+  the no-prose-grading rule cuts both ways — a pre-approval skip whose
+  recorded reason describes a FALSE-positive gate still counts as
+  `risk_gate_declined`, because the classifier reads state, not what the
+  prose admits. The recorded reason travels verbatim on every case line so
+  a reader can make those judgments themselves.
+- **Category counts are zero-filled** over each closed set, so a category
+  that has never occurred prints as 0 instead of vanishing. On the corpus
+  to date every card records a thesis and none records an opponent case, so
+  several categories (`opponent_case_recorded`, `not_recorded`,
+  `card_matchup`/`card_only` resolutions, and some miss classes) have only
+  ever varied in synthetic tests — the zeros in the report are how a reader
+  can tell.
+
+**No hindsight leakage.** The rationale inputs are the audit's
+`recorded_rationale`, which carries only pregame fields (`thesis`,
+`vig_notes`, `execution_note`, and the `baseball_evidence` subset) verbatim;
+the postgame vocabulary (`postgame_reflection`, `scoring_summary`,
+settlement fields) is excluded at the carrier, and a test proves the
+rationale half of every record is byte-identical when the official winner is
+flipped. Outcome fields appear only as labels and to select the
+opposing-winner cases. Headline replay totals are unchanged: a test strips
+every rationale input and asserts every pre-existing section is identical.
+
 ## What this report refuses to do
 
 - Execute, size, or route anything; import anything on the execution path.
