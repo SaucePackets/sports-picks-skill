@@ -1,0 +1,1914 @@
+{
+  "aggregates": {
+    "candidate_stops": {
+      "approved_not_executed": 0,
+      "executed": 0,
+      "review_gate_rejected": 2,
+      "unknown": 0
+    },
+    "day_classes": {
+      "candidates_executed": 0,
+      "candidates_rejected": 1,
+      "job_never_fired": 1,
+      "no_slate_artifact": 0,
+      "scan_ran_artifact_unwritten": 3,
+      "slate_empty": 11,
+      "watchlist_only": 5
+    },
+    "total_candidates": 2,
+    "total_executed": 0,
+    "total_watchlist_entries": 12
+  },
+  "data_gaps": [
+    {
+      "dates": [
+        "2026-08-12",
+        "2026-08-13",
+        "2026-08-14",
+        "2026-08-19",
+        "2026-08-20",
+        "2026-08-31"
+      ],
+      "detail": "no denominator for these days: the scan's output cannot be read against the slate that was actually available",
+      "kind": "no_cached_mlb_schedule"
+    },
+    {
+      "detail": "the set of .picks roots searched is an input to this report, supplied on the command line, and their labels are the parent directory names of those paths. Nothing here measures whether the list is complete: a root nobody named cannot be reported missing. This is the residual of the 2026-08-20 miss itself",
+      "kind": "root_list_provenance",
+      "roots": [
+        "sports-picks-runtime",
+        "sports-picks-skill"
+      ]
+    },
+    {
+      "dates": [
+        "2026-08-19"
+      ],
+      "detail": "Why did no vig cron job fire on 2026-08-19? The profile log shows the scheduler silent for the whole day while hermes itself kept logging, and none of the sources above records a reason.",
+      "kind": "run_evidence_open_question",
+      "why_unanswerable": "The durable execution DB is a 1000-row ring that no longer reaches the date, cron_incidents is empty, and the run journal was deployed after the fact. Answering it needs scheduler-side state that no longer exists."
+    },
+    {
+      "dates": [
+        "2026-08-20"
+      ],
+      "detail": "Why did the 2026-08-20 slate run write into the sports-picks-skill checkout when the scheduler recorded `using workdir /home/<account>/projects/sports-picks-runtime`? The run's own workdir line and the artifact's location disagree. See controls.workdir_lines for the quoted lines.",
+      "kind": "run_evidence_open_question",
+      "why_unanswerable": "The logs record the workdir the job was launched with, never the path the write resolved to. This is not a workdir-follows-write story in general: 08-11 through 08-15 ran with a workdir under an account home that does not exist on the host at all, and 08-11 and 08-15 still produced artifacts. Whatever resolves the write root is not the cron workdir, and this report does not guess at it."
+    },
+    {
+      "detail": "status is outside the validator's accepted set, so no transition can act on the entry again",
+      "entries": [
+        {
+          "date": "2026-08-11",
+          "id": "LW-20260811-MIL-SD",
+          "status": "recheck_complete"
+        },
+        {
+          "date": "2026-08-11",
+          "id": "LW-20260811-HOU-SF",
+          "status": "recheck_complete"
+        }
+      ],
+      "kind": "invalid_watchlist_status"
+    }
+  ],
+  "days": [
+    {
+      "artifact_present": true,
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 2
+      },
+      "date": "2026-08-11",
+      "day_class": "watchlist_only",
+      "day_class_source": "corpus",
+      "files_by_root": {
+        "sports-picks-runtime": [
+          "execute/2026-08-11-schedule.json",
+          "slate/2026-08-11.md",
+          "audit-results/2026-08-11.json"
+        ],
+        "sports-picks-skill": [
+          "execute/2026-08-11-schedule.json",
+          "slate/2026-08-11.md"
+        ]
+      },
+      "games_scheduled": 15,
+      "mlb_lane_files_by_root": {
+        "sports-picks-runtime": [
+          "execute/2026-08-11-schedule.json",
+          "slate/2026-08-11.md",
+          "audit-results/2026-08-11.json"
+        ],
+        "sports-picks-skill": [
+          "execute/2026-08-11-schedule.json",
+          "slate/2026-08-11.md"
+        ]
+      },
+      "other_lane_files_by_root": {
+        "sports-picks-runtime": [],
+        "sports-picks-skill": []
+      },
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "roots_with_files": [
+        "sports-picks-runtime",
+        "sports-picks-skill"
+      ],
+      "roots_with_mlb_lane_files": [
+        "sports-picks-runtime",
+        "sports-picks-skill"
+      ],
+      "run_evidence": null,
+      "schedule_cache_corrupt": [],
+      "schedule_cache_root": "sports-picks-runtime",
+      "slate_json_corrupt": [],
+      "slate_json_present": true,
+      "slate_json_root": "sports-picks-runtime",
+      "watchlist": [
+        {
+          "game": "Milwaukee Brewers at San Diego Padres",
+          "id": "LW-20260811-MIL-SD",
+          "status": "recheck_complete",
+          "status_is_valid": false,
+          "validator_errors": [
+            "blocked_only_by must be a non-empty list drawn only from ['lineups_unconfirmed', 'starter_unannounced'] with no duplicates",
+            "status must be one of ['expired', 'filled_manual', 'passed', 'pending_lineup_recheck', 'promoted']"
+          ]
+        },
+        {
+          "game": "Houston Astros at San Francisco Giants",
+          "id": "LW-20260811-HOU-SF",
+          "status": "recheck_complete",
+          "status_is_valid": false,
+          "validator_errors": [
+            "blocked_only_by must be a non-empty list drawn only from ['lineups_unconfirmed', 'starter_unannounced'] with no duplicates",
+            "status must be one of ['expired', 'filled_manual', 'passed', 'pending_lineup_recheck', 'promoted']"
+          ]
+        }
+      ],
+      "writeups": [
+        {
+          "name": "2026-08-11.md",
+          "root": "sports-picks-runtime"
+        },
+        {
+          "name": "2026-08-11.md",
+          "root": "sports-picks-skill"
+        }
+      ]
+    },
+    {
+      "artifact_present": false,
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 0
+      },
+      "date": "2026-08-12",
+      "day_class": "scan_ran_artifact_unwritten",
+      "day_class_source": "run_evidence",
+      "files_by_root": {
+        "sports-picks-runtime": [],
+        "sports-picks-skill": []
+      },
+      "games_scheduled": null,
+      "mlb_lane_files_by_root": {
+        "sports-picks-runtime": [],
+        "sports-picks-skill": []
+      },
+      "other_lane_files_by_root": {
+        "sports-picks-runtime": [],
+        "sports-picks-skill": []
+      },
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "roots_with_files": [],
+      "roots_with_mlb_lane_files": [],
+      "run_evidence": {
+        "applied": true,
+        "basis": "The job fired on schedule, ran for nine minutes, exhausted its tool-iteration budget, and delivered its analysis 0.19s after the turn ended. The delivered report says in its own words that it never reached the write. Nothing about the market or the slate is implicated.",
+        "not_applied_reason": null,
+        "receipts": [
+          {
+            "kind": "verbatim",
+            "quote": "2026-08-12 15:30:57,475 INFO cron.scheduler: Running job 'Vig \u2014 MLB Daily Slate (10:30am CT)' (ID: c9452052719c)",
+            "roles": [
+              "firing_signature"
+            ],
+            "source": "~/.hermes/profiles/vig/logs/agent.log.3"
+          },
+          {
+            "kind": "verbatim",
+            "quote": "2026-08-12 15:39:55,705 INFO [cron_c9452052719c_20260812_103057] agent.conversation_loop: Turn ended: reason=max_iterations_reached(30/30) model=deepseek-v4-flash api_calls=30/30 budget=30/30 tool_turns=30 last_msg_role=assistant response_len=8365 session=cron_c9452052719c_20260812_103057",
+            "roles": [
+              "turn_budget_exhausted"
+            ],
+            "source": "~/.hermes/profiles/vig/logs/agent.log.3"
+          },
+          {
+            "kind": "verbatim",
+            "quote": "2026-08-12 15:39:55,895 INFO cron.scheduler: Job 'c9452052719c': delivered to buzz:72db9b5f-3e70-4add-978d-5caaeab48a82 via live adapter",
+            "roles": [
+              "delivery"
+            ],
+            "source": "~/.hermes/profiles/vig/logs/agent.log.3"
+          },
+          {
+            "kind": "verbatim",
+            "quote": "One honesty flag: this cron hit its tool-iteration cap before I could persist the schedule JSON / slate file to `.picks/`, so this report is the record; nothing was executed and nothing is pending execution, so the operational risk from the missing artifacts is nil",
+            "roles": [
+              "run_self_report"
+            ],
+            "source": "buzz message 7b589043d76dd10c, delivered 2026-08-12T15:39:55Z"
+          }
+        ],
+        "verdict": "scan_ran_artifact_unwritten"
+      },
+      "schedule_cache_corrupt": [],
+      "schedule_cache_root": null,
+      "slate_json_corrupt": [],
+      "slate_json_present": false,
+      "slate_json_root": null,
+      "watchlist": [],
+      "writeups": []
+    },
+    {
+      "artifact_present": false,
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 0
+      },
+      "date": "2026-08-13",
+      "day_class": "scan_ran_artifact_unwritten",
+      "day_class_source": "run_evidence",
+      "files_by_root": {
+        "sports-picks-runtime": [],
+        "sports-picks-skill": []
+      },
+      "games_scheduled": null,
+      "mlb_lane_files_by_root": {
+        "sports-picks-runtime": [],
+        "sports-picks-skill": []
+      },
+      "other_lane_files_by_root": {
+        "sports-picks-runtime": [],
+        "sports-picks-skill": []
+      },
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "roots_with_files": [],
+      "roots_with_mlb_lane_files": [],
+      "run_evidence": {
+        "applied": true,
+        "basis": "Same shape as 08-12: fired on schedule, hit the 30/30 iteration cap, delivered 0.4s later, and the delivered report names the unwritten files and the skipped validator explicitly.",
+        "not_applied_reason": null,
+        "receipts": [
+          {
+            "kind": "verbatim",
+            "quote": "2026-08-13 15:30:17,991 INFO cron.scheduler: Running job 'Vig \u2014 MLB Daily Slate (10:30am CT)' (ID: c9452052719c)",
+            "roles": [
+              "firing_signature"
+            ],
+            "source": "~/.hermes/profiles/vig/logs/agent.log.3"
+          },
+          {
+            "kind": "verbatim",
+            "quote": "2026-08-13 15:44:06,551 INFO [20260813_153938_fc3ecb] agent.conversation_loop: Turn ended: reason=max_iterations_reached(30/30) model=deepseek-v4-pro api_calls=30/30 budget=30/30 tool_turns=13 last_msg_role=assistant response_len=3117 session=20260813_153938_fc3ecb",
+            "roles": [
+              "turn_budget_exhausted"
+            ],
+            "source": "~/.hermes/profiles/vig/logs/agent.log.3"
+          },
+          {
+            "kind": "verbatim",
+            "quote": "2026-08-13 15:44:06,958 INFO cron.scheduler: Job 'c9452052719c': delivered to buzz:72db9b5f-3e70-4add-978d-5caaeab48a82 via live adapter",
+            "roles": [
+              "delivery"
+            ],
+            "source": "~/.hermes/profiles/vig/logs/agent.log.3"
+          },
+          {
+            "kind": "verbatim",
+            "quote": "the full slate scan and per-game analysis are complete, but the tool loop hit its iteration cap before the `schedule.json` write and `mlb_lineup_watchlist.py --validate` step could run. Files for today's slate are **not** written to disk; validator was not run.",
+            "roles": [
+              "run_self_report"
+            ],
+            "source": "buzz message d08a6a73f89fe2b9, delivered 2026-08-13T15:44:06Z"
+          }
+        ],
+        "verdict": "scan_ran_artifact_unwritten"
+      },
+      "schedule_cache_corrupt": [],
+      "schedule_cache_root": null,
+      "slate_json_corrupt": [],
+      "slate_json_present": false,
+      "slate_json_root": null,
+      "watchlist": [],
+      "writeups": []
+    },
+    {
+      "artifact_present": false,
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 0
+      },
+      "date": "2026-08-14",
+      "day_class": "scan_ran_artifact_unwritten",
+      "day_class_source": "run_evidence",
+      "files_by_root": {
+        "sports-picks-runtime": [],
+        "sports-picks-skill": []
+      },
+      "games_scheduled": null,
+      "mlb_lane_files_by_root": {
+        "sports-picks-runtime": [],
+        "sports-picks-skill": []
+      },
+      "other_lane_files_by_root": {
+        "sports-picks-runtime": [],
+        "sports-picks-skill": []
+      },
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "roots_with_files": [],
+      "roots_with_mlb_lane_files": [],
+      "run_evidence": {
+        "applied": true,
+        "basis": "Third instance of the same failure on three consecutive days. Fired, capped at 30/30, delivered 0.39s later, and the report names both artifact paths it could not persist.",
+        "not_applied_reason": null,
+        "receipts": [
+          {
+            "kind": "verbatim",
+            "quote": "2026-08-14 15:30:41,308 INFO cron.scheduler: Running job 'Vig \u2014 MLB Daily Slate (10:30am CT)' (ID: c9452052719c)",
+            "roles": [
+              "firing_signature"
+            ],
+            "source": "~/.hermes/profiles/vig/logs/agent.log.3"
+          },
+          {
+            "kind": "verbatim",
+            "quote": "2026-08-14 15:46:50,129 INFO [20260814_153938_b42762] agent.conversation_loop: Turn ended: reason=max_iterations_reached(30/30) model=deepseek-v4-pro api_calls=30/30 budget=30/30 tool_turns=15 last_msg_role=assistant response_len=6431 session=20260814_153938_b42762",
+            "roles": [
+              "turn_budget_exhausted"
+            ],
+            "source": "~/.hermes/profiles/vig/logs/agent.log.3"
+          },
+          {
+            "kind": "verbatim",
+            "quote": "2026-08-14 15:46:50,519 INFO cron.scheduler: Job 'c9452052719c': delivered to buzz:72db9b5f-3e70-4add-978d-5caaeab48a82 via live adapter",
+            "roles": [
+              "delivery"
+            ],
+            "source": "~/.hermes/profiles/vig/logs/agent.log.3"
+          },
+          {
+            "kind": "verbatim",
+            "quote": "this run reached its execution budget before I could persist `.picks/slate/2026-08-14.md`, `.picks/execute/2026-08-14-schedule.json`, and run the `mlb_lineup_watchlist.py --validate` step. The read below is complete and honest, but the slate artifacts are **NOT saved and NOT validated this cycle**",
+            "roles": [
+              "run_self_report"
+            ],
+            "source": "buzz message 0c724662dce8ae3c, delivered 2026-08-14T15:46:50Z"
+          }
+        ],
+        "verdict": "scan_ran_artifact_unwritten"
+      },
+      "schedule_cache_corrupt": [],
+      "schedule_cache_root": null,
+      "slate_json_corrupt": [],
+      "slate_json_present": false,
+      "slate_json_root": null,
+      "watchlist": [],
+      "writeups": []
+    },
+    {
+      "artifact_present": true,
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 0
+      },
+      "date": "2026-08-15",
+      "day_class": "slate_empty",
+      "day_class_source": "corpus",
+      "files_by_root": {
+        "sports-picks-runtime": [
+          "execute/2026-08-15-schedule.json",
+          "slate/2026-08-15.md",
+          "audit-results/2026-08-15.json"
+        ],
+        "sports-picks-skill": [
+          "execute/2026-08-15-schedule.json",
+          "slate/2026-08-15.md"
+        ]
+      },
+      "games_scheduled": 15,
+      "mlb_lane_files_by_root": {
+        "sports-picks-runtime": [
+          "execute/2026-08-15-schedule.json",
+          "slate/2026-08-15.md",
+          "audit-results/2026-08-15.json"
+        ],
+        "sports-picks-skill": [
+          "execute/2026-08-15-schedule.json",
+          "slate/2026-08-15.md"
+        ]
+      },
+      "other_lane_files_by_root": {
+        "sports-picks-runtime": [],
+        "sports-picks-skill": []
+      },
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "roots_with_files": [
+        "sports-picks-runtime",
+        "sports-picks-skill"
+      ],
+      "roots_with_mlb_lane_files": [
+        "sports-picks-runtime",
+        "sports-picks-skill"
+      ],
+      "run_evidence": null,
+      "schedule_cache_corrupt": [],
+      "schedule_cache_root": "sports-picks-runtime",
+      "slate_json_corrupt": [],
+      "slate_json_present": true,
+      "slate_json_root": "sports-picks-runtime",
+      "watchlist": [],
+      "writeups": [
+        {
+          "name": "2026-08-15.md",
+          "root": "sports-picks-runtime"
+        },
+        {
+          "name": "2026-08-15.md",
+          "root": "sports-picks-skill"
+        }
+      ]
+    },
+    {
+      "artifact_present": true,
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 3
+      },
+      "date": "2026-08-16",
+      "day_class": "watchlist_only",
+      "day_class_source": "corpus",
+      "files_by_root": {
+        "sports-picks-runtime": [
+          "execute/2026-08-16-schedule.json",
+          "slate/2026-08-16.md",
+          "audit-results/2026-08-16.json"
+        ],
+        "sports-picks-skill": [
+          "execute/2026-08-16-schedule.json",
+          "slate/2026-08-16.md"
+        ]
+      },
+      "games_scheduled": 15,
+      "mlb_lane_files_by_root": {
+        "sports-picks-runtime": [
+          "execute/2026-08-16-schedule.json",
+          "slate/2026-08-16.md",
+          "audit-results/2026-08-16.json"
+        ],
+        "sports-picks-skill": [
+          "execute/2026-08-16-schedule.json",
+          "slate/2026-08-16.md"
+        ]
+      },
+      "other_lane_files_by_root": {
+        "sports-picks-runtime": [],
+        "sports-picks-skill": []
+      },
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "roots_with_files": [
+        "sports-picks-runtime",
+        "sports-picks-skill"
+      ],
+      "roots_with_mlb_lane_files": [
+        "sports-picks-runtime",
+        "sports-picks-skill"
+      ],
+      "run_evidence": null,
+      "schedule_cache_corrupt": [],
+      "schedule_cache_root": "sports-picks-runtime",
+      "slate_json_corrupt": [],
+      "slate_json_present": true,
+      "slate_json_root": "sports-picks-runtime",
+      "watchlist": [
+        {
+          "game": "New York Yankees at Toronto Blue Jays",
+          "id": "LW-20260816-NYY-TOR",
+          "status": "pending_lineup_recheck",
+          "status_is_valid": true,
+          "validator_errors": []
+        },
+        {
+          "game": "San Diego Padres at Cleveland Guardians",
+          "id": "LW-20260816-SD-CLE",
+          "status": "pending_lineup_recheck",
+          "status_is_valid": true,
+          "validator_errors": []
+        },
+        {
+          "game": "Washington Nationals at New York Mets",
+          "id": "LW-20260816-WSH-NYM",
+          "status": "pending_lineup_recheck",
+          "status_is_valid": true,
+          "validator_errors": []
+        }
+      ],
+      "writeups": [
+        {
+          "name": "2026-08-16.md",
+          "root": "sports-picks-runtime"
+        },
+        {
+          "name": "2026-08-16.md",
+          "root": "sports-picks-skill"
+        }
+      ]
+    },
+    {
+      "artifact_present": true,
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 0
+      },
+      "date": "2026-08-17",
+      "day_class": "slate_empty",
+      "day_class_source": "corpus",
+      "files_by_root": {
+        "sports-picks-runtime": [
+          "execute/2026-08-17-schedule.json",
+          "slate/2026-08-17.md",
+          "audit-results/2026-08-17.json"
+        ],
+        "sports-picks-skill": [
+          "execute/2026-08-17-schedule.json",
+          "slate/2026-08-17.md"
+        ]
+      },
+      "games_scheduled": 11,
+      "mlb_lane_files_by_root": {
+        "sports-picks-runtime": [
+          "execute/2026-08-17-schedule.json",
+          "slate/2026-08-17.md",
+          "audit-results/2026-08-17.json"
+        ],
+        "sports-picks-skill": [
+          "execute/2026-08-17-schedule.json",
+          "slate/2026-08-17.md"
+        ]
+      },
+      "other_lane_files_by_root": {
+        "sports-picks-runtime": [],
+        "sports-picks-skill": []
+      },
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "roots_with_files": [
+        "sports-picks-runtime",
+        "sports-picks-skill"
+      ],
+      "roots_with_mlb_lane_files": [
+        "sports-picks-runtime",
+        "sports-picks-skill"
+      ],
+      "run_evidence": null,
+      "schedule_cache_corrupt": [],
+      "schedule_cache_root": "sports-picks-runtime",
+      "slate_json_corrupt": [],
+      "slate_json_present": true,
+      "slate_json_root": "sports-picks-runtime",
+      "watchlist": [],
+      "writeups": [
+        {
+          "name": "2026-08-17.md",
+          "root": "sports-picks-runtime"
+        },
+        {
+          "name": "2026-08-17.md",
+          "root": "sports-picks-skill"
+        }
+      ]
+    },
+    {
+      "artifact_present": true,
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 2
+      },
+      "date": "2026-08-18",
+      "day_class": "watchlist_only",
+      "day_class_source": "corpus",
+      "files_by_root": {
+        "sports-picks-runtime": [
+          "execute/2026-08-18-schedule.json",
+          "slate/2026-08-18.md",
+          "audit-results/2026-08-18.json"
+        ],
+        "sports-picks-skill": [
+          "execute/2026-08-18-schedule.json",
+          "slate/2026-08-18.md"
+        ]
+      },
+      "games_scheduled": 15,
+      "mlb_lane_files_by_root": {
+        "sports-picks-runtime": [
+          "execute/2026-08-18-schedule.json",
+          "slate/2026-08-18.md",
+          "audit-results/2026-08-18.json"
+        ],
+        "sports-picks-skill": [
+          "execute/2026-08-18-schedule.json",
+          "slate/2026-08-18.md"
+        ]
+      },
+      "other_lane_files_by_root": {
+        "sports-picks-runtime": [],
+        "sports-picks-skill": []
+      },
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "roots_with_files": [
+        "sports-picks-runtime",
+        "sports-picks-skill"
+      ],
+      "roots_with_mlb_lane_files": [
+        "sports-picks-runtime",
+        "sports-picks-skill"
+      ],
+      "run_evidence": null,
+      "schedule_cache_corrupt": [],
+      "schedule_cache_root": "sports-picks-runtime",
+      "slate_json_corrupt": [],
+      "slate_json_present": true,
+      "slate_json_root": "sports-picks-runtime",
+      "watchlist": [
+        {
+          "game": "Miami Marlins at Philadelphia Phillies",
+          "id": "LW-20260818-MIA-PHI",
+          "status": "pending_lineup_recheck",
+          "status_is_valid": true,
+          "validator_errors": []
+        },
+        {
+          "game": "San Diego Padres at New York Mets",
+          "id": "LW-20260818-SD-NYM",
+          "status": "pending_lineup_recheck",
+          "status_is_valid": true,
+          "validator_errors": []
+        }
+      ],
+      "writeups": [
+        {
+          "name": "2026-08-18.md",
+          "root": "sports-picks-runtime"
+        },
+        {
+          "name": "2026-08-18.md",
+          "root": "sports-picks-skill"
+        }
+      ]
+    },
+    {
+      "artifact_present": false,
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 0
+      },
+      "date": "2026-08-19",
+      "day_class": "job_never_fired",
+      "day_class_source": "run_evidence",
+      "files_by_root": {
+        "sports-picks-runtime": [],
+        "sports-picks-skill": []
+      },
+      "games_scheduled": null,
+      "mlb_lane_files_by_root": {
+        "sports-picks-runtime": [],
+        "sports-picks-skill": []
+      },
+      "other_lane_files_by_root": {
+        "sports-picks-runtime": [],
+        "sports-picks-skill": []
+      },
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "roots_with_files": [],
+      "roots_with_mlb_lane_files": [],
+      "run_evidence": {
+        "applied": true,
+        "basis": "An ABSENCE argument, so it is stated with its denominator. The claim is that no vig cron job of any kind started on 2026-08-19. Three things make that absence meaningful rather than a gap in the record: the log is continuous across the day (the rotation boundaries are 08-12 17:05 and 08-20 02:16, both outside it); the logger was demonstrably writing throughout, at 1727 mem_trim heartbeat lines \u2014 MORE than 08-18's 1698 and 08-20's 1726; and the neighbouring dates both show the firing signature, 2 running_job lines each. An independent source outside the host agrees: the delivery channel has zero messages on 08-19 and at least one on every other date in the window. WHY it did not fire is NOT answerable from any of these sources and is left open.",
+        "not_applied_reason": null,
+        "receipts": [
+          {
+            "kind": "derived",
+            "quote": "grep -c \"^2026-08-19 .*Running job\" over agent.log{,.1,.2,.3} => 0; the same grep for 2026-08-18 => 2 and for 2026-08-20 => 2",
+            "roles": [
+              "firing_signature_absence",
+              "neighbour_comparison"
+            ],
+            "source": "~/.hermes/profiles/vig/logs/agent.log.2"
+          },
+          {
+            "kind": "derived",
+            "quote": "grep -c \"^2026-08-19 .*mem_trim\" over agent.log{,.1,.2,.3} => 1727 (2026-08-18 => 1698, 2026-08-20 => 1726): the profile logger wrote continuously through the day with no job line in it",
+            "roles": [
+              "liveness_control"
+            ],
+            "source": "~/.hermes/profiles/vig/logs/agent.log.2"
+          },
+          {
+            "kind": "verbatim",
+            "quote": "2026-08-20 02:16:55,517 INFO cron.scheduler: Job 'Vig \u2014 MLB Standing-Authorized Execution Poller': script produced no output, skipping AI",
+            "roles": [
+              "log_continuity"
+            ],
+            "source": "~/.hermes/profiles/vig/logs/agent.log.2"
+          },
+          {
+            "kind": "derived",
+            "quote": "150 messages 2026-08-11..2026-08-31; per-date counts show 2026-08-19 = 0 and every other date >= 1. Independent of the VPS host.",
+            "roles": [
+              "independent_source"
+            ],
+            "source": "buzz channel 72db9b5f-3e70-4add-978d-5caaeab48a82"
+          }
+        ],
+        "verdict": "job_never_fired"
+      },
+      "schedule_cache_corrupt": [],
+      "schedule_cache_root": null,
+      "slate_json_corrupt": [],
+      "slate_json_present": false,
+      "slate_json_root": null,
+      "watchlist": [],
+      "writeups": []
+    },
+    {
+      "artifact_present": true,
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 0
+      },
+      "date": "2026-08-20",
+      "day_class": "slate_empty",
+      "day_class_source": "corpus",
+      "files_by_root": {
+        "sports-picks-runtime": [],
+        "sports-picks-skill": [
+          "execute/2026-08-20-schedule.json",
+          "slate/2026-08-20.md"
+        ]
+      },
+      "games_scheduled": null,
+      "mlb_lane_files_by_root": {
+        "sports-picks-runtime": [],
+        "sports-picks-skill": [
+          "execute/2026-08-20-schedule.json",
+          "slate/2026-08-20.md"
+        ]
+      },
+      "other_lane_files_by_root": {
+        "sports-picks-runtime": [],
+        "sports-picks-skill": []
+      },
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "roots_with_files": [
+        "sports-picks-skill"
+      ],
+      "roots_with_mlb_lane_files": [
+        "sports-picks-skill"
+      ],
+      "run_evidence": null,
+      "schedule_cache_corrupt": [],
+      "schedule_cache_root": null,
+      "slate_json_corrupt": [],
+      "slate_json_present": true,
+      "slate_json_root": "sports-picks-skill",
+      "watchlist": [],
+      "writeups": [
+        {
+          "name": "2026-08-20.md",
+          "root": "sports-picks-skill"
+        }
+      ]
+    },
+    {
+      "artifact_present": true,
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 1
+      },
+      "date": "2026-08-21",
+      "day_class": "watchlist_only",
+      "day_class_source": "corpus",
+      "files_by_root": {
+        "sports-picks-runtime": [
+          "execute/2026-08-21-schedule.json",
+          "slate/2026-08-21.md",
+          "audit-results/2026-08-21.json"
+        ],
+        "sports-picks-skill": []
+      },
+      "games_scheduled": 15,
+      "mlb_lane_files_by_root": {
+        "sports-picks-runtime": [
+          "execute/2026-08-21-schedule.json",
+          "slate/2026-08-21.md",
+          "audit-results/2026-08-21.json"
+        ],
+        "sports-picks-skill": []
+      },
+      "other_lane_files_by_root": {
+        "sports-picks-runtime": [],
+        "sports-picks-skill": []
+      },
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "roots_with_files": [
+        "sports-picks-runtime"
+      ],
+      "roots_with_mlb_lane_files": [
+        "sports-picks-runtime"
+      ],
+      "run_evidence": null,
+      "schedule_cache_corrupt": [],
+      "schedule_cache_root": "sports-picks-runtime",
+      "slate_json_corrupt": [],
+      "slate_json_present": true,
+      "slate_json_root": "sports-picks-runtime",
+      "watchlist": [
+        {
+          "game": "Los Angeles Angels at Texas Rangers",
+          "id": "WL-20260821-LAA-TEX-001",
+          "status": "passed",
+          "status_is_valid": true,
+          "validator_errors": []
+        }
+      ],
+      "writeups": [
+        {
+          "name": "2026-08-21.md",
+          "root": "sports-picks-runtime"
+        }
+      ]
+    },
+    {
+      "artifact_present": true,
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 0
+      },
+      "date": "2026-08-22",
+      "day_class": "slate_empty",
+      "day_class_source": "corpus",
+      "files_by_root": {
+        "sports-picks-runtime": [
+          "execute/2026-08-22-schedule.json",
+          "slate/2026-08-22.md",
+          "audit-results/2026-08-22.json"
+        ],
+        "sports-picks-skill": [
+          "execute/2026-08-22-schedule.json",
+          "slate/2026-08-22.md"
+        ]
+      },
+      "games_scheduled": 15,
+      "mlb_lane_files_by_root": {
+        "sports-picks-runtime": [
+          "execute/2026-08-22-schedule.json",
+          "slate/2026-08-22.md",
+          "audit-results/2026-08-22.json"
+        ],
+        "sports-picks-skill": [
+          "execute/2026-08-22-schedule.json",
+          "slate/2026-08-22.md"
+        ]
+      },
+      "other_lane_files_by_root": {
+        "sports-picks-runtime": [],
+        "sports-picks-skill": []
+      },
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "roots_with_files": [
+        "sports-picks-runtime",
+        "sports-picks-skill"
+      ],
+      "roots_with_mlb_lane_files": [
+        "sports-picks-runtime",
+        "sports-picks-skill"
+      ],
+      "run_evidence": null,
+      "schedule_cache_corrupt": [],
+      "schedule_cache_root": "sports-picks-runtime",
+      "slate_json_corrupt": [],
+      "slate_json_present": true,
+      "slate_json_root": "sports-picks-runtime",
+      "watchlist": [],
+      "writeups": [
+        {
+          "name": "2026-08-22.md",
+          "root": "sports-picks-runtime"
+        },
+        {
+          "name": "2026-08-22.md",
+          "root": "sports-picks-skill"
+        }
+      ]
+    },
+    {
+      "artifact_present": true,
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 0
+      },
+      "date": "2026-08-23",
+      "day_class": "slate_empty",
+      "day_class_source": "corpus",
+      "files_by_root": {
+        "sports-picks-runtime": [
+          "execute/2026-08-23-schedule.json",
+          "slate/2026-08-23-evening.md",
+          "slate/2026-08-23.md",
+          "audit-results/2026-08-23.json"
+        ],
+        "sports-picks-skill": []
+      },
+      "games_scheduled": 15,
+      "mlb_lane_files_by_root": {
+        "sports-picks-runtime": [
+          "execute/2026-08-23-schedule.json",
+          "slate/2026-08-23-evening.md",
+          "slate/2026-08-23.md",
+          "audit-results/2026-08-23.json"
+        ],
+        "sports-picks-skill": []
+      },
+      "other_lane_files_by_root": {
+        "sports-picks-runtime": [],
+        "sports-picks-skill": []
+      },
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "roots_with_files": [
+        "sports-picks-runtime"
+      ],
+      "roots_with_mlb_lane_files": [
+        "sports-picks-runtime"
+      ],
+      "run_evidence": null,
+      "schedule_cache_corrupt": [],
+      "schedule_cache_root": "sports-picks-runtime",
+      "slate_json_corrupt": [],
+      "slate_json_present": true,
+      "slate_json_root": "sports-picks-runtime",
+      "watchlist": [],
+      "writeups": [
+        {
+          "name": "2026-08-23-evening.md",
+          "root": "sports-picks-runtime"
+        },
+        {
+          "name": "2026-08-23.md",
+          "root": "sports-picks-runtime"
+        }
+      ]
+    },
+    {
+      "artifact_present": true,
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 1
+      },
+      "date": "2026-08-24",
+      "day_class": "watchlist_only",
+      "day_class_source": "corpus",
+      "files_by_root": {
+        "sports-picks-runtime": [
+          "execute/2026-08-24-schedule.json",
+          "slate/2026-08-24.md",
+          "audit-results/2026-08-24.json"
+        ],
+        "sports-picks-skill": []
+      },
+      "games_scheduled": 10,
+      "mlb_lane_files_by_root": {
+        "sports-picks-runtime": [
+          "execute/2026-08-24-schedule.json",
+          "slate/2026-08-24.md",
+          "audit-results/2026-08-24.json"
+        ],
+        "sports-picks-skill": []
+      },
+      "other_lane_files_by_root": {
+        "sports-picks-runtime": [],
+        "sports-picks-skill": []
+      },
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "roots_with_files": [
+        "sports-picks-runtime"
+      ],
+      "roots_with_mlb_lane_files": [
+        "sports-picks-runtime"
+      ],
+      "run_evidence": null,
+      "schedule_cache_corrupt": [],
+      "schedule_cache_root": "sports-picks-runtime",
+      "slate_json_corrupt": [],
+      "slate_json_present": true,
+      "slate_json_root": "sports-picks-runtime",
+      "watchlist": [
+        {
+          "game": "Philadelphia Phillies at Seattle Mariners",
+          "id": "LW20260824-PHI-001",
+          "status": "passed",
+          "status_is_valid": true,
+          "validator_errors": []
+        }
+      ],
+      "writeups": [
+        {
+          "name": "2026-08-24.md",
+          "root": "sports-picks-runtime"
+        }
+      ]
+    },
+    {
+      "artifact_present": true,
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 0
+      },
+      "date": "2026-08-25",
+      "day_class": "slate_empty",
+      "day_class_source": "corpus",
+      "files_by_root": {
+        "sports-picks-runtime": [
+          "execute/2026-08-25-schedule.json",
+          "slate/2026-08-25-evening.md",
+          "slate/2026-08-25.md",
+          "audit-results/2026-08-25.json"
+        ],
+        "sports-picks-skill": []
+      },
+      "games_scheduled": 15,
+      "mlb_lane_files_by_root": {
+        "sports-picks-runtime": [
+          "execute/2026-08-25-schedule.json",
+          "slate/2026-08-25-evening.md",
+          "slate/2026-08-25.md",
+          "audit-results/2026-08-25.json"
+        ],
+        "sports-picks-skill": []
+      },
+      "other_lane_files_by_root": {
+        "sports-picks-runtime": [],
+        "sports-picks-skill": []
+      },
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "roots_with_files": [
+        "sports-picks-runtime"
+      ],
+      "roots_with_mlb_lane_files": [
+        "sports-picks-runtime"
+      ],
+      "run_evidence": null,
+      "schedule_cache_corrupt": [],
+      "schedule_cache_root": "sports-picks-runtime",
+      "slate_json_corrupt": [],
+      "slate_json_present": true,
+      "slate_json_root": "sports-picks-runtime",
+      "watchlist": [],
+      "writeups": [
+        {
+          "name": "2026-08-25-evening.md",
+          "root": "sports-picks-runtime"
+        },
+        {
+          "name": "2026-08-25.md",
+          "root": "sports-picks-runtime"
+        }
+      ]
+    },
+    {
+      "artifact_present": true,
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 0
+      },
+      "date": "2026-08-26",
+      "day_class": "slate_empty",
+      "day_class_source": "corpus",
+      "files_by_root": {
+        "sports-picks-runtime": [
+          "execute/2026-08-26-schedule.json",
+          "slate/2026-08-26-evening.md",
+          "slate/2026-08-26.md",
+          "audit-results/2026-08-26.json"
+        ],
+        "sports-picks-skill": [
+          "execute/nfl/2026-08-26-schedule.json",
+          "slate/nfl/2026-08-26.md"
+        ]
+      },
+      "games_scheduled": 15,
+      "mlb_lane_files_by_root": {
+        "sports-picks-runtime": [
+          "execute/2026-08-26-schedule.json",
+          "slate/2026-08-26-evening.md",
+          "slate/2026-08-26.md",
+          "audit-results/2026-08-26.json"
+        ],
+        "sports-picks-skill": []
+      },
+      "other_lane_files_by_root": {
+        "sports-picks-runtime": [],
+        "sports-picks-skill": [
+          "execute/nfl/2026-08-26-schedule.json",
+          "slate/nfl/2026-08-26.md"
+        ]
+      },
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "roots_with_files": [
+        "sports-picks-runtime",
+        "sports-picks-skill"
+      ],
+      "roots_with_mlb_lane_files": [
+        "sports-picks-runtime"
+      ],
+      "run_evidence": null,
+      "schedule_cache_corrupt": [],
+      "schedule_cache_root": "sports-picks-runtime",
+      "slate_json_corrupt": [],
+      "slate_json_present": true,
+      "slate_json_root": "sports-picks-runtime",
+      "watchlist": [],
+      "writeups": [
+        {
+          "name": "2026-08-26-evening.md",
+          "root": "sports-picks-runtime"
+        },
+        {
+          "name": "2026-08-26.md",
+          "root": "sports-picks-runtime"
+        }
+      ]
+    },
+    {
+      "artifact_present": true,
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 0
+      },
+      "date": "2026-08-27",
+      "day_class": "slate_empty",
+      "day_class_source": "corpus",
+      "files_by_root": {
+        "sports-picks-runtime": [
+          "execute/2026-08-27-schedule.json",
+          "slate/2026-08-27-evening.md",
+          "slate/2026-08-27.md",
+          "audit-results/2026-08-27.json"
+        ],
+        "sports-picks-skill": []
+      },
+      "games_scheduled": 7,
+      "mlb_lane_files_by_root": {
+        "sports-picks-runtime": [
+          "execute/2026-08-27-schedule.json",
+          "slate/2026-08-27-evening.md",
+          "slate/2026-08-27.md",
+          "audit-results/2026-08-27.json"
+        ],
+        "sports-picks-skill": []
+      },
+      "other_lane_files_by_root": {
+        "sports-picks-runtime": [],
+        "sports-picks-skill": []
+      },
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "roots_with_files": [
+        "sports-picks-runtime"
+      ],
+      "roots_with_mlb_lane_files": [
+        "sports-picks-runtime"
+      ],
+      "run_evidence": null,
+      "schedule_cache_corrupt": [],
+      "schedule_cache_root": "sports-picks-runtime",
+      "slate_json_corrupt": [],
+      "slate_json_present": true,
+      "slate_json_root": "sports-picks-runtime",
+      "watchlist": [],
+      "writeups": [
+        {
+          "name": "2026-08-27-evening.md",
+          "root": "sports-picks-runtime"
+        },
+        {
+          "name": "2026-08-27.md",
+          "root": "sports-picks-runtime"
+        }
+      ]
+    },
+    {
+      "artifact_present": true,
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 0
+      },
+      "date": "2026-08-28",
+      "day_class": "slate_empty",
+      "day_class_source": "corpus",
+      "files_by_root": {
+        "sports-picks-runtime": [
+          "execute/2026-08-28-schedule.json",
+          "slate/2026-08-28-evening.md",
+          "slate/2026-08-28.md",
+          "audit-results/2026-08-28.json"
+        ],
+        "sports-picks-skill": []
+      },
+      "games_scheduled": 15,
+      "mlb_lane_files_by_root": {
+        "sports-picks-runtime": [
+          "execute/2026-08-28-schedule.json",
+          "slate/2026-08-28-evening.md",
+          "slate/2026-08-28.md",
+          "audit-results/2026-08-28.json"
+        ],
+        "sports-picks-skill": []
+      },
+      "other_lane_files_by_root": {
+        "sports-picks-runtime": [],
+        "sports-picks-skill": []
+      },
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "roots_with_files": [
+        "sports-picks-runtime"
+      ],
+      "roots_with_mlb_lane_files": [
+        "sports-picks-runtime"
+      ],
+      "run_evidence": null,
+      "schedule_cache_corrupt": [],
+      "schedule_cache_root": "sports-picks-runtime",
+      "slate_json_corrupt": [],
+      "slate_json_present": true,
+      "slate_json_root": "sports-picks-runtime",
+      "watchlist": [],
+      "writeups": [
+        {
+          "name": "2026-08-28-evening.md",
+          "root": "sports-picks-runtime"
+        },
+        {
+          "name": "2026-08-28.md",
+          "root": "sports-picks-runtime"
+        }
+      ]
+    },
+    {
+      "artifact_present": true,
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 0
+      },
+      "date": "2026-08-29",
+      "day_class": "slate_empty",
+      "day_class_source": "corpus",
+      "files_by_root": {
+        "sports-picks-runtime": [
+          "execute/2026-08-29-schedule.json",
+          "slate/2026-08-29-evening.md",
+          "slate/2026-08-29.md",
+          "audit-results/2026-08-29.json"
+        ],
+        "sports-picks-skill": []
+      },
+      "games_scheduled": 17,
+      "mlb_lane_files_by_root": {
+        "sports-picks-runtime": [
+          "execute/2026-08-29-schedule.json",
+          "slate/2026-08-29-evening.md",
+          "slate/2026-08-29.md",
+          "audit-results/2026-08-29.json"
+        ],
+        "sports-picks-skill": []
+      },
+      "other_lane_files_by_root": {
+        "sports-picks-runtime": [],
+        "sports-picks-skill": []
+      },
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "roots_with_files": [
+        "sports-picks-runtime"
+      ],
+      "roots_with_mlb_lane_files": [
+        "sports-picks-runtime"
+      ],
+      "run_evidence": null,
+      "schedule_cache_corrupt": [],
+      "schedule_cache_root": "sports-picks-runtime",
+      "slate_json_corrupt": [],
+      "slate_json_present": true,
+      "slate_json_root": "sports-picks-runtime",
+      "watchlist": [],
+      "writeups": [
+        {
+          "name": "2026-08-29-evening.md",
+          "root": "sports-picks-runtime"
+        },
+        {
+          "name": "2026-08-29.md",
+          "root": "sports-picks-runtime"
+        }
+      ]
+    },
+    {
+      "artifact_present": true,
+      "candidates": [
+        {
+          "event_id": "401816733",
+          "executed": false,
+          "execution_mode": "standing_authorized",
+          "game": "Colorado Rockies at Atlanta Braves",
+          "net_edge": 0.055,
+          "outcome_known": true,
+          "outcome_score": "Colorado Rockies 2 at Atlanta Braves 3",
+          "outcome_side_won": true,
+          "outcome_winner": "Atlanta Braves",
+          "polymarket_ask": 0.685,
+          "side": "Atlanta Braves",
+          "stop": "review_gate_rejected",
+          "stop_reason": "review gate rejected the candidate: Rejected. Refreshed: Mahle 4.41 ERA/4.16 FIP, 14.1% K-BB, 118.1 IP/22 GS; Adams 2.25 ERA/6.15 FIP, 4.0 IP/1 GS; ATL 6-1/+5 RD, COL 2-5/-10 RD; both lineups confirmed; Truist run factor 101; current Polymarket page shows ATL 0.68. Model-gated fallback only: dk_fair_prob 0.6898, raw/conservative 0.6898, haircut 0.000; refreshed edge 0.0098, below the required 0.05 floor. No bet; exposure $0.",
+          "trace_id": "2026-08-30-cand-00",
+          "vig_approved": false,
+          "vig_review_needed": true
+        },
+        {
+          "event_id": "401816734",
+          "executed": false,
+          "execution_mode": "standing_authorized",
+          "game": "Houston Astros at New York Mets",
+          "net_edge": 0.04,
+          "outcome_known": true,
+          "outcome_score": "Houston Astros 6 at New York Mets 3",
+          "outcome_side_won": false,
+          "outcome_winner": "Houston Astros",
+          "polymarket_ask": 0.535,
+          "side": "New York Mets",
+          "stop": "review_gate_rejected",
+          "stop_reason": "review gate rejected the candidate",
+          "trace_id": "2026-08-30-cand-01",
+          "vig_approved": false,
+          "vig_review_needed": true
+        }
+      ],
+      "counts": {
+        "candidates": 2,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 3
+      },
+      "date": "2026-08-30",
+      "day_class": "candidates_rejected",
+      "day_class_source": "corpus",
+      "files_by_root": {
+        "sports-picks-runtime": [
+          "execute/2026-08-30-schedule.json",
+          "slate/2026-08-30-evening.md",
+          "slate/2026-08-30.md",
+          "audit-results/2026-08-30.json"
+        ],
+        "sports-picks-skill": []
+      },
+      "games_scheduled": 14,
+      "mlb_lane_files_by_root": {
+        "sports-picks-runtime": [
+          "execute/2026-08-30-schedule.json",
+          "slate/2026-08-30-evening.md",
+          "slate/2026-08-30.md",
+          "audit-results/2026-08-30.json"
+        ],
+        "sports-picks-skill": []
+      },
+      "other_lane_files_by_root": {
+        "sports-picks-runtime": [],
+        "sports-picks-skill": []
+      },
+      "outcome_refetch_error": null,
+      "outcome_source": "live-refetch",
+      "roots_with_files": [
+        "sports-picks-runtime"
+      ],
+      "roots_with_mlb_lane_files": [
+        "sports-picks-runtime"
+      ],
+      "run_evidence": null,
+      "schedule_cache_corrupt": [],
+      "schedule_cache_root": "sports-picks-runtime",
+      "slate_json_corrupt": [],
+      "slate_json_present": true,
+      "slate_json_root": "sports-picks-runtime",
+      "watchlist": [
+        {
+          "game": "Philadelphia Phillies at Los Angeles Angels",
+          "id": "LW-20260830-PHI-001",
+          "status": "passed",
+          "status_is_valid": true,
+          "validator_errors": []
+        },
+        {
+          "game": "Pittsburgh Pirates at St. Louis Cardinals",
+          "id": "LW-20260830-PIT-001",
+          "status": "expired",
+          "status_is_valid": true,
+          "validator_errors": []
+        },
+        {
+          "game": "Houston Astros at New York Mets",
+          "id": "LW-20260830-NYM-001",
+          "status": "passed",
+          "status_is_valid": true,
+          "validator_errors": []
+        }
+      ],
+      "writeups": [
+        {
+          "name": "2026-08-30-evening.md",
+          "root": "sports-picks-runtime"
+        },
+        {
+          "name": "2026-08-30.md",
+          "root": "sports-picks-runtime"
+        }
+      ]
+    },
+    {
+      "artifact_present": true,
+      "candidates": [],
+      "counts": {
+        "candidates": 0,
+        "executed_in_ledger": 0,
+        "watchlist_entries": 0
+      },
+      "date": "2026-08-31",
+      "day_class": "slate_empty",
+      "day_class_source": "corpus",
+      "files_by_root": {
+        "sports-picks-runtime": [
+          "execute/2026-08-31-schedule.json",
+          "slate/2026-08-31.md"
+        ],
+        "sports-picks-skill": []
+      },
+      "games_scheduled": null,
+      "mlb_lane_files_by_root": {
+        "sports-picks-runtime": [
+          "execute/2026-08-31-schedule.json",
+          "slate/2026-08-31.md"
+        ],
+        "sports-picks-skill": []
+      },
+      "other_lane_files_by_root": {
+        "sports-picks-runtime": [],
+        "sports-picks-skill": []
+      },
+      "outcome_refetch_error": null,
+      "outcome_source": "cache",
+      "roots_with_files": [
+        "sports-picks-runtime"
+      ],
+      "roots_with_mlb_lane_files": [
+        "sports-picks-runtime"
+      ],
+      "run_evidence": null,
+      "schedule_cache_corrupt": [],
+      "schedule_cache_root": null,
+      "slate_json_corrupt": [],
+      "slate_json_present": true,
+      "slate_json_root": "sports-picks-runtime",
+      "watchlist": [],
+      "writeups": [
+        {
+          "name": "2026-08-31.md",
+          "root": "sports-picks-runtime"
+        }
+      ]
+    }
+  ],
+  "enumeration": {
+    "dates_in_one_root_only": [
+      {
+        "absent_from": [
+          "sports-picks-runtime"
+        ],
+        "date": "2026-08-20",
+        "files": [
+          "execute/2026-08-20-schedule.json",
+          "slate/2026-08-20.md"
+        ],
+        "present_in": "sports-picks-skill"
+      },
+      {
+        "absent_from": [
+          "sports-picks-skill"
+        ],
+        "date": "2026-08-21",
+        "files": [
+          "execute/2026-08-21-schedule.json",
+          "slate/2026-08-21.md",
+          "audit-results/2026-08-21.json"
+        ],
+        "present_in": "sports-picks-runtime"
+      },
+      {
+        "absent_from": [
+          "sports-picks-skill"
+        ],
+        "date": "2026-08-23",
+        "files": [
+          "execute/2026-08-23-schedule.json",
+          "slate/2026-08-23-evening.md",
+          "slate/2026-08-23.md",
+          "audit-results/2026-08-23.json"
+        ],
+        "present_in": "sports-picks-runtime"
+      },
+      {
+        "absent_from": [
+          "sports-picks-skill"
+        ],
+        "date": "2026-08-24",
+        "files": [
+          "execute/2026-08-24-schedule.json",
+          "slate/2026-08-24.md",
+          "audit-results/2026-08-24.json"
+        ],
+        "present_in": "sports-picks-runtime"
+      },
+      {
+        "absent_from": [
+          "sports-picks-skill"
+        ],
+        "date": "2026-08-25",
+        "files": [
+          "execute/2026-08-25-schedule.json",
+          "slate/2026-08-25-evening.md",
+          "slate/2026-08-25.md",
+          "audit-results/2026-08-25.json"
+        ],
+        "present_in": "sports-picks-runtime"
+      },
+      {
+        "absent_from": [
+          "sports-picks-skill"
+        ],
+        "date": "2026-08-27",
+        "files": [
+          "execute/2026-08-27-schedule.json",
+          "slate/2026-08-27-evening.md",
+          "slate/2026-08-27.md",
+          "audit-results/2026-08-27.json"
+        ],
+        "present_in": "sports-picks-runtime"
+      },
+      {
+        "absent_from": [
+          "sports-picks-skill"
+        ],
+        "date": "2026-08-28",
+        "files": [
+          "execute/2026-08-28-schedule.json",
+          "slate/2026-08-28-evening.md",
+          "slate/2026-08-28.md",
+          "audit-results/2026-08-28.json"
+        ],
+        "present_in": "sports-picks-runtime"
+      },
+      {
+        "absent_from": [
+          "sports-picks-skill"
+        ],
+        "date": "2026-08-29",
+        "files": [
+          "execute/2026-08-29-schedule.json",
+          "slate/2026-08-29-evening.md",
+          "slate/2026-08-29.md",
+          "audit-results/2026-08-29.json"
+        ],
+        "present_in": "sports-picks-runtime"
+      },
+      {
+        "absent_from": [
+          "sports-picks-skill"
+        ],
+        "date": "2026-08-30",
+        "files": [
+          "execute/2026-08-30-schedule.json",
+          "slate/2026-08-30-evening.md",
+          "slate/2026-08-30.md",
+          "audit-results/2026-08-30.json"
+        ],
+        "present_in": "sports-picks-runtime"
+      },
+      {
+        "absent_from": [
+          "sports-picks-skill"
+        ],
+        "date": "2026-08-31",
+        "files": [
+          "execute/2026-08-31-schedule.json",
+          "slate/2026-08-31.md"
+        ],
+        "present_in": "sports-picks-runtime"
+      }
+    ],
+    "dates_missing_from_primary": [
+      {
+        "date": "2026-08-20",
+        "files": {
+          "sports-picks-skill": [
+            "execute/2026-08-20-schedule.json",
+            "slate/2026-08-20.md"
+          ]
+        },
+        "present_in": [
+          "sports-picks-skill"
+        ]
+      }
+    ],
+    "dates_with_files_per_root": {
+      "sports-picks-runtime": 16,
+      "sports-picks-skill": 8
+    },
+    "dates_with_mlb_lane_files_per_root": {
+      "sports-picks-runtime": 16,
+      "sports-picks-skill": 7
+    },
+    "dates_with_no_files_in_any_root": [
+      "2026-08-12",
+      "2026-08-13",
+      "2026-08-14",
+      "2026-08-19"
+    ],
+    "dates_with_no_mlb_lane_files_in_any_root": [
+      "2026-08-12",
+      "2026-08-13",
+      "2026-08-14",
+      "2026-08-19"
+    ],
+    "dates_with_other_lane_files": [
+      {
+        "date": "2026-08-26",
+        "files": {
+          "sports-picks-skill": [
+            "execute/nfl/2026-08-26-schedule.json",
+            "slate/nfl/2026-08-26.md"
+          ]
+        }
+      }
+    ],
+    "enumeration_is_recursive": true,
+    "lane_scope_note": "Every file for a date is listed, at any depth under ['execute', 'slate', 'audit-results']. Only a file at the TOP level of one of those directories is an MLB-lane file; a nested directory is another sport's lane or the rerun archive. Day classes are decided from MLB-lane files only, and both listings are carried per date.",
+    "last_date_with_files_per_root": {
+      "sports-picks-runtime": "2026-08-31",
+      "sports-picks-skill": "2026-08-26"
+    },
+    "last_date_with_mlb_lane_files_per_root": {
+      "sports-picks-runtime": "2026-08-31",
+      "sports-picks-skill": "2026-08-22"
+    },
+    "primary_root": "sports-picks-runtime",
+    "root_list_provenance": "The roots searched are the ones supplied on the command line, and their labels are the parent directory names of those paths. Completeness of this list is an INPUT to the report, not something the report measured \u2014 a root nobody named cannot be found missing. That residual is the 2026-08-20 miss itself, one level up.",
+    "roots_searched": [
+      "sports-picks-runtime",
+      "sports-picks-skill"
+    ]
+  },
+  "findings": [
+    {
+      "detail": "a lookup against the wrong namespace returns silence, and silence reads as absence. It never raises and never logs, so the wrong answer arrives looking like a finding",
+      "instances": [
+        {
+          "detail": "the slate's event_id is a different id space from the MLB gamePk \u2014 2026-08-30 records event_id 401816733 for the game the schedule calls gamePk 824876. Joining outcomes on the id matches nothing and reads as 'no outcome data'",
+          "instance": "event_id joined against gamePk",
+          "mitigation": "the outcome join is keyed on the matchup, never on an id"
+        },
+        {
+          "dates": [
+            {
+              "date": "2026-08-20",
+              "present_in": [
+                "sports-picks-skill"
+              ]
+            }
+          ],
+          "detail": "the daily slate wrote into more than one checkout across this window, so a report built from the primary root alone reported an existing artifact as absent",
+          "instance": "corpus enumerated from one .picks root",
+          "mitigation": "every date is enumerated across every known root"
+        },
+        {
+          "dates": [
+            {
+              "date": "2026-08-26",
+              "other_lane_files": {
+                "sports-picks-skill": [
+                  "execute/nfl/2026-08-26-schedule.json",
+                  "slate/nfl/2026-08-26.md"
+                ]
+              }
+            }
+          ],
+          "detail": "the first version of this report globbed only the top level of each .picks subdirectory, so date-named files in a nested lane directory were listed as nothing at all and rendered as absence. The walk is now recursive and the lane of each file is recorded rather than inferred from whether it was seen",
+          "instance": "enumeration scoped one directory level too shallow",
+          "mitigation": "the walk is recursive; MLB-lane and other-lane files are listed separately and only the MLB lane decides a day class"
+        }
+      ],
+      "pattern": "namespace_silence"
+    }
+  ],
+  "reconciliation": {
+    "checks": [
+      {
+        "actual": 21,
+        "check": "every day is classified exactly once",
+        "expected": 21,
+        "ok": true
+      },
+      {
+        "actual": 2,
+        "check": "every candidate has exactly one stop",
+        "expected": 2,
+        "ok": true
+      },
+      {
+        "actual": 1,
+        "check": "days with candidates are classed rejected or executed",
+        "expected": 1,
+        "ok": true
+      },
+      {
+        "actual": 4,
+        "check": "days with no scan artifact are exactly the no-artifact split",
+        "expected": 4,
+        "ok": true
+      },
+      {
+        "actual": 0,
+        "check": "applied run evidence only ever explains a day with no MLB-lane file",
+        "expected": 0,
+        "ok": true
+      },
+      {
+        "actual": 4,
+        "check": "every run_evidence-sourced class was actually applied evidence",
+        "expected": 4,
+        "ok": true
+      }
+    ],
+    "ok": true
+  },
+  "schema": "vig-mlb-drought-diagnostic-v2",
+  "sources": {
+    "ledger": "~/.buzz/.scratch/claude-drought-roots/sports-picks-runtime/.picks/picks.json",
+    "picks_dir": "~/.buzz/.scratch/claude-drought-roots/sports-picks-runtime/.picks",
+    "picks_roots": [
+      {
+        "label": "sports-picks-runtime",
+        "path": "~/.buzz/.scratch/claude-drought-roots/sports-picks-runtime/.picks",
+        "role": "primary"
+      },
+      {
+        "label": "sports-picks-skill",
+        "path": "~/.buzz/.scratch/claude-drought-roots/sports-picks-skill/.picks",
+        "role": "secondary"
+      }
+    ],
+    "repo_revision": "39f54e1b24b35f838239d84c9b55f06204e09712",
+    "run_evidence": {
+      "artifact_receipts": [
+        {
+          "date": "2026-08-20",
+          "file": ".picks/slate/2026-08-20.md",
+          "mtime_utc": "2026-08-20T15:36:33Z",
+          "note": "Its opening lines are word-for-word the report delivered to the Buzz channel at 2026-08-20T15:36:56Z, 23 seconds after the mtime. This is the file a single-root enumeration missed.",
+          "root": "sports-picks-skill",
+          "sha256": "8ce32a91d1773475500695b129fa9ea9bfbe569c5dad0c17ef953be91f74be9d",
+          "size": 9017
+        },
+        {
+          "date": "2026-08-20",
+          "file": ".picks/execute/2026-08-20-schedule.json",
+          "mtime_utc": "2026-08-20T15:36:33Z",
+          "note": "candidates: [] and lineup_watchlist: []. The day is a genuine empty slate, classified from the corpus and not from run evidence.",
+          "root": "sports-picks-skill",
+          "sha256": "1e005ab696d25e5df5e60a22eef4a2ffe9c1f29f9d3b019ddaac7a2eb5ac06ea",
+          "size": 121
+        }
+      ],
+      "collected_at_utc": "2026-08-31T20:00:00Z",
+      "collected_by": "read-only collection on the VPS host `saucepackets`; nothing on that host was modified",
+      "schema": "vig-drought-run-evidence-v1",
+      "sources": [
+        {
+          "continuity_control": "the four files butt end to end with no gap: agent.log.3 ends 2026-08-12 17:05:53,829 and agent.log.2 opens 2026-08-12 17:05:53,832; agent.log.2 ends 2026-08-20 02:16:55,517 and agent.log.1 opens 2026-08-20 02:16:55,528; agent.log.1 ends 2026-08-29 22:34:48,988 and agent.log opens 2026-08-29 22:34:49,094",
+          "coverage": "continuous 2026-08-02T22:06:45 through collection time",
+          "name": "vig profile agent logs",
+          "path": "~/.hermes/profiles/vig/logs/agent.log{,.1,.2,.3}",
+          "reproducible_by_reviewer": false,
+          "retention_limit": "size-rotated at ~5 MB with four files kept; agent.log.3 will be discarded on the next two rotations and these lines become unrecoverable"
+        },
+        {
+          "coverage": "2026-08-29T21:00:03-05:00 through 2026-08-31T14:54:03-05:00",
+          "name": "durable cron execution DB",
+          "path": "~/.hermes/profiles/vig/cron/executions.db",
+          "reproducible_by_reviewer": false,
+          "retention_limit": "a 1000-row ring buffer. The two-minute execution poller alone consumes it in about two days, so it did not reach any date in this window even at collection time",
+          "verdict": "unusable for 2026-08-11..2026-08-28 \u2014 named, not worked around"
+        },
+        {
+          "coverage": "2026-08-30-runs.jsonl and 2026-08-31-runs.jsonl only",
+          "name": "run journal (PR #60)",
+          "path": "<runtime>/.picks/journal/",
+          "reproducible_by_reviewer": false,
+          "retention_limit": "the journal was deployed after this window opened; it has no entry for any silent day",
+          "verdict": "unusable for the silent days \u2014 named, not worked around"
+        },
+        {
+          "coverage": "0 rows",
+          "name": "cron incident table",
+          "path": "cron_incidents in ~/.hermes/profiles/vig/cron/executions.db",
+          "reproducible_by_reviewer": false,
+          "retention_limit": "shares the executions.db lifecycle",
+          "verdict": "no cron failure incidents recorded; an empty table over an out-of-range window is not evidence of success"
+        },
+        {
+          "coverage": "150 messages 2026-08-11 through 2026-08-31, fetched complete under a 1000 limit",
+          "name": "Buzz delivery channel",
+          "note": "this is the one source a reviewer can re-derive without the host, which is why the absence argument leans on it",
+          "path": "buzz channel 72db9b5f-3e70-4add-978d-5caaeab48a82 (the channel every slate run delivers to)",
+          "reproducible_by_reviewer": true,
+          "retention_limit": "none known; held on the relay, independent of the VPS host entirely"
+        }
+      ]
+    },
+    "runtime_revision": "03d201c86cea3f5643b3fdee59b9df1be35551a5"
+  },
+  "window": {
+    "days": 21,
+    "since": "2026-08-11",
+    "until": "2026-08-31"
+  }
+}

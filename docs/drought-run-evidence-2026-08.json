@@ -1,0 +1,269 @@
+{
+  "schema": "vig-drought-run-evidence-v1",
+  "collected_at_utc": "2026-08-31T20:00:00Z",
+  "collected_by": "read-only collection on the VPS host `saucepackets`; nothing on that host was modified",
+  "why_this_file_exists": "The .picks corpus cannot distinguish 'the job never fired' from 'the job ran and never reached the write'. Both leave an empty directory. Separating them takes scheduler state, which lives outside the corpus and behind sources that rotate. This file carries that state with its receipts quoted verbatim, so a reviewer who can no longer reach the logs can still check the claim.",
+  "sources": [
+    {
+      "name": "vig profile agent logs",
+      "path": "~/.hermes/profiles/vig/logs/agent.log{,.1,.2,.3}",
+      "coverage": "continuous 2026-08-02T22:06:45 through collection time",
+      "continuity_control": "the four files butt end to end with no gap: agent.log.3 ends 2026-08-12 17:05:53,829 and agent.log.2 opens 2026-08-12 17:05:53,832; agent.log.2 ends 2026-08-20 02:16:55,517 and agent.log.1 opens 2026-08-20 02:16:55,528; agent.log.1 ends 2026-08-29 22:34:48,988 and agent.log opens 2026-08-29 22:34:49,094",
+      "retention_limit": "size-rotated at ~5 MB with four files kept; agent.log.3 will be discarded on the next two rotations and these lines become unrecoverable",
+      "reproducible_by_reviewer": false
+    },
+    {
+      "name": "durable cron execution DB",
+      "path": "~/.hermes/profiles/vig/cron/executions.db",
+      "coverage": "2026-08-29T21:00:03-05:00 through 2026-08-31T14:54:03-05:00",
+      "retention_limit": "a 1000-row ring buffer. The two-minute execution poller alone consumes it in about two days, so it did not reach any date in this window even at collection time",
+      "reproducible_by_reviewer": false,
+      "verdict": "unusable for 2026-08-11..2026-08-28 — named, not worked around"
+    },
+    {
+      "name": "run journal (PR #60)",
+      "path": "<runtime>/.picks/journal/",
+      "coverage": "2026-08-30-runs.jsonl and 2026-08-31-runs.jsonl only",
+      "retention_limit": "the journal was deployed after this window opened; it has no entry for any silent day",
+      "reproducible_by_reviewer": false,
+      "verdict": "unusable for the silent days — named, not worked around"
+    },
+    {
+      "name": "cron incident table",
+      "path": "cron_incidents in ~/.hermes/profiles/vig/cron/executions.db",
+      "coverage": "0 rows",
+      "retention_limit": "shares the executions.db lifecycle",
+      "reproducible_by_reviewer": false,
+      "verdict": "no cron failure incidents recorded; an empty table over an out-of-range window is not evidence of success"
+    },
+    {
+      "name": "Buzz delivery channel",
+      "path": "buzz channel 72db9b5f-3e70-4add-978d-5caaeab48a82 (the channel every slate run delivers to)",
+      "coverage": "150 messages 2026-08-11 through 2026-08-31, fetched complete under a 1000 limit",
+      "retention_limit": "none known; held on the relay, independent of the VPS host entirely",
+      "reproducible_by_reviewer": true,
+      "note": "this is the one source a reviewer can re-derive without the host, which is why the absence argument leans on it"
+    }
+  ],
+  "firing_signature": {
+    "description": "What a slate run looks like in the profile log. The MLB daily slate is cron job c9452052719c and emits one 'Running job' line per fire.",
+    "example": "2026-08-13 15:30:17,991 INFO cron.scheduler: Running job 'Vig — MLB Daily Slate (10:30am CT)' (ID: c9452052719c)"
+  },
+  "per_date_counts": {
+    "description": "Counts over the whole window, so the 08-19 zero is read against a denominator rather than on its own. running_job counts EVERY vig cron job, not just the slate. mem_trim is the profile's memory-trim heartbeat and is the liveness control: it proves the logger was writing on a day with no job lines.",
+    "columns": ["running_job", "slate_job", "mem_trim"],
+    "rows": {
+      "2026-08-11": [3, 1, 1437],
+      "2026-08-12": [4, 1, 1437],
+      "2026-08-13": [2, 1, 1437],
+      "2026-08-14": [2, 1, 1405],
+      "2026-08-15": [2, 1, 1368],
+      "2026-08-16": [19, 2, 1441],
+      "2026-08-17": [2, 1, 1438],
+      "2026-08-18": [2, 1, 1698],
+      "2026-08-19": [0, 0, 1727],
+      "2026-08-20": [2, 1, 1726],
+      "2026-08-21": [2, 1, 1726],
+      "2026-08-22": [3, 2, 1727],
+      "2026-08-23": [3, 1, 1724],
+      "2026-08-24": [3, 1, 1729],
+      "2026-08-25": [3, 1, 1729],
+      "2026-08-26": [4, 1, 1725],
+      "2026-08-27": [3, 1, 1724],
+      "2026-08-28": [3, 1, 1726],
+      "2026-08-29": [3, 1, 1727],
+      "2026-08-30": [4, 1, 1727],
+      "2026-08-31": [2, 1, 1429]
+    }
+  },
+  "delivery_channel_messages_per_date": {
+    "description": "Messages in the slate delivery channel per UTC date. 2026-08-19 is the only date in the window with none, and this count comes from the relay rather than from the host whose log is making the claim.",
+    "rows": {
+      "2026-08-11": 20,
+      "2026-08-12": 67,
+      "2026-08-13": 1,
+      "2026-08-14": 1,
+      "2026-08-15": 1,
+      "2026-08-16": 4,
+      "2026-08-17": 1,
+      "2026-08-18": 6,
+      "2026-08-19": 0,
+      "2026-08-20": 1,
+      "2026-08-21": 2,
+      "2026-08-22": 2,
+      "2026-08-23": 3,
+      "2026-08-24": 2,
+      "2026-08-25": 4,
+      "2026-08-26": 12,
+      "2026-08-27": 2,
+      "2026-08-28": 2,
+      "2026-08-29": 2,
+      "2026-08-30": 16,
+      "2026-08-31": 1
+    }
+  },
+  "dates": {
+    "2026-08-12": {
+      "verdict": "scan_ran_artifact_unwritten",
+      "basis": "The job fired on schedule, ran for nine minutes, exhausted its tool-iteration budget, and delivered its analysis 0.19s after the turn ended. The delivered report says in its own words that it never reached the write. Nothing about the market or the slate is implicated.",
+      "receipts": [
+        {
+          "kind": "verbatim",
+          "roles": ["firing_signature"],
+          "source": "~/.hermes/profiles/vig/logs/agent.log.3",
+          "quote": "2026-08-12 15:30:57,475 INFO cron.scheduler: Running job 'Vig — MLB Daily Slate (10:30am CT)' (ID: c9452052719c)"
+        },
+        {
+          "kind": "verbatim",
+          "roles": ["turn_budget_exhausted"],
+          "source": "~/.hermes/profiles/vig/logs/agent.log.3",
+          "quote": "2026-08-12 15:39:55,705 INFO [cron_c9452052719c_20260812_103057] agent.conversation_loop: Turn ended: reason=max_iterations_reached(30/30) model=deepseek-v4-flash api_calls=30/30 budget=30/30 tool_turns=30 last_msg_role=assistant response_len=8365 session=cron_c9452052719c_20260812_103057"
+        },
+        {
+          "kind": "verbatim",
+          "roles": ["delivery"],
+          "source": "~/.hermes/profiles/vig/logs/agent.log.3",
+          "quote": "2026-08-12 15:39:55,895 INFO cron.scheduler: Job 'c9452052719c': delivered to buzz:72db9b5f-3e70-4add-978d-5caaeab48a82 via live adapter"
+        },
+        {
+          "kind": "verbatim",
+          "roles": ["run_self_report"],
+          "source": "buzz message 7b589043d76dd10c, delivered 2026-08-12T15:39:55Z",
+          "quote": "One honesty flag: this cron hit its tool-iteration cap before I could persist the schedule JSON / slate file to `.picks/`, so this report is the record; nothing was executed and nothing is pending execution, so the operational risk from the missing artifacts is nil"
+        }
+      ]
+    },
+    "2026-08-13": {
+      "verdict": "scan_ran_artifact_unwritten",
+      "basis": "Same shape as 08-12: fired on schedule, hit the 30/30 iteration cap, delivered 0.4s later, and the delivered report names the unwritten files and the skipped validator explicitly.",
+      "receipts": [
+        {
+          "kind": "verbatim",
+          "roles": ["firing_signature"],
+          "source": "~/.hermes/profiles/vig/logs/agent.log.3",
+          "quote": "2026-08-13 15:30:17,991 INFO cron.scheduler: Running job 'Vig — MLB Daily Slate (10:30am CT)' (ID: c9452052719c)"
+        },
+        {
+          "kind": "verbatim",
+          "roles": ["turn_budget_exhausted"],
+          "source": "~/.hermes/profiles/vig/logs/agent.log.3",
+          "quote": "2026-08-13 15:44:06,551 INFO [20260813_153938_fc3ecb] agent.conversation_loop: Turn ended: reason=max_iterations_reached(30/30) model=deepseek-v4-pro api_calls=30/30 budget=30/30 tool_turns=13 last_msg_role=assistant response_len=3117 session=20260813_153938_fc3ecb"
+        },
+        {
+          "kind": "verbatim",
+          "roles": ["delivery"],
+          "source": "~/.hermes/profiles/vig/logs/agent.log.3",
+          "quote": "2026-08-13 15:44:06,958 INFO cron.scheduler: Job 'c9452052719c': delivered to buzz:72db9b5f-3e70-4add-978d-5caaeab48a82 via live adapter"
+        },
+        {
+          "kind": "verbatim",
+          "roles": ["run_self_report"],
+          "source": "buzz message d08a6a73f89fe2b9, delivered 2026-08-13T15:44:06Z",
+          "quote": "the full slate scan and per-game analysis are complete, but the tool loop hit its iteration cap before the `schedule.json` write and `mlb_lineup_watchlist.py --validate` step could run. Files for today's slate are **not** written to disk; validator was not run."
+        }
+      ]
+    },
+    "2026-08-14": {
+      "verdict": "scan_ran_artifact_unwritten",
+      "basis": "Third instance of the same failure on three consecutive days. Fired, capped at 30/30, delivered 0.39s later, and the report names both artifact paths it could not persist.",
+      "receipts": [
+        {
+          "kind": "verbatim",
+          "roles": ["firing_signature"],
+          "source": "~/.hermes/profiles/vig/logs/agent.log.3",
+          "quote": "2026-08-14 15:30:41,308 INFO cron.scheduler: Running job 'Vig — MLB Daily Slate (10:30am CT)' (ID: c9452052719c)"
+        },
+        {
+          "kind": "verbatim",
+          "roles": ["turn_budget_exhausted"],
+          "source": "~/.hermes/profiles/vig/logs/agent.log.3",
+          "quote": "2026-08-14 15:46:50,129 INFO [20260814_153938_b42762] agent.conversation_loop: Turn ended: reason=max_iterations_reached(30/30) model=deepseek-v4-pro api_calls=30/30 budget=30/30 tool_turns=15 last_msg_role=assistant response_len=6431 session=20260814_153938_b42762"
+        },
+        {
+          "kind": "verbatim",
+          "roles": ["delivery"],
+          "source": "~/.hermes/profiles/vig/logs/agent.log.3",
+          "quote": "2026-08-14 15:46:50,519 INFO cron.scheduler: Job 'c9452052719c': delivered to buzz:72db9b5f-3e70-4add-978d-5caaeab48a82 via live adapter"
+        },
+        {
+          "kind": "verbatim",
+          "roles": ["run_self_report"],
+          "source": "buzz message 0c724662dce8ae3c, delivered 2026-08-14T15:46:50Z",
+          "quote": "this run reached its execution budget before I could persist `.picks/slate/2026-08-14.md`, `.picks/execute/2026-08-14-schedule.json`, and run the `mlb_lineup_watchlist.py --validate` step. The read below is complete and honest, but the slate artifacts are **NOT saved and NOT validated this cycle**"
+        }
+      ]
+    },
+    "2026-08-19": {
+      "verdict": "job_never_fired",
+      "basis": "An ABSENCE argument, so it is stated with its denominator. The claim is that no vig cron job of any kind started on 2026-08-19. Three things make that absence meaningful rather than a gap in the record: the log is continuous across the day (the rotation boundaries are 08-12 17:05 and 08-20 02:16, both outside it); the logger was demonstrably writing throughout, at 1727 mem_trim heartbeat lines — MORE than 08-18's 1698 and 08-20's 1726; and the neighbouring dates both show the firing signature, 2 running_job lines each. An independent source outside the host agrees: the delivery channel has zero messages on 08-19 and at least one on every other date in the window. WHY it did not fire is NOT answerable from any of these sources and is left open.",
+      "receipts": [
+        {
+          "kind": "derived",
+          "roles": ["firing_signature_absence", "neighbour_comparison"],
+          "source": "~/.hermes/profiles/vig/logs/agent.log.2",
+          "quote": "grep -c \"^2026-08-19 .*Running job\" over agent.log{,.1,.2,.3} => 0; the same grep for 2026-08-18 => 2 and for 2026-08-20 => 2"
+        },
+        {
+          "kind": "derived",
+          "roles": ["liveness_control"],
+          "source": "~/.hermes/profiles/vig/logs/agent.log.2",
+          "quote": "grep -c \"^2026-08-19 .*mem_trim\" over agent.log{,.1,.2,.3} => 1727 (2026-08-18 => 1698, 2026-08-20 => 1726): the profile logger wrote continuously through the day with no job line in it"
+        },
+        {
+          "kind": "verbatim",
+          "roles": ["log_continuity"],
+          "source": "~/.hermes/profiles/vig/logs/agent.log.2",
+          "quote": "2026-08-20 02:16:55,517 INFO cron.scheduler: Job 'Vig — MLB Standing-Authorized Execution Poller': script produced no output, skipping AI"
+        },
+        {
+          "kind": "derived",
+          "roles": ["independent_source"],
+          "source": "buzz channel 72db9b5f-3e70-4add-978d-5caaeab48a82",
+          "quote": "150 messages 2026-08-11..2026-08-31; per-date counts show 2026-08-19 = 0 and every other date >= 1. Independent of the VPS host."
+        }
+      ]
+    }
+  },
+  "artifact_receipts": [
+    {
+      "date": "2026-08-20",
+      "root": "sports-picks-skill",
+      "file": ".picks/slate/2026-08-20.md",
+      "size": 9017,
+      "mtime_utc": "2026-08-20T15:36:33Z",
+      "sha256": "8ce32a91d1773475500695b129fa9ea9bfbe569c5dad0c17ef953be91f74be9d",
+      "note": "Its opening lines are word-for-word the report delivered to the Buzz channel at 2026-08-20T15:36:56Z, 23 seconds after the mtime. This is the file a single-root enumeration missed."
+    },
+    {
+      "date": "2026-08-20",
+      "root": "sports-picks-skill",
+      "file": ".picks/execute/2026-08-20-schedule.json",
+      "size": 121,
+      "mtime_utc": "2026-08-20T15:36:33Z",
+      "sha256": "1e005ab696d25e5df5e60a22eef4a2ffe9c1f29f9d3b019ddaac7a2eb5ac06ea",
+      "note": "candidates: [] and lineup_watchlist: []. The day is a genuine empty slate, classified from the corpus and not from run evidence."
+    }
+  ],
+  "controls": {
+    "quoting_convention": "Every quote below is verbatim EXCEPT that an absolute home prefix is rendered as /home/<account>/. The repo's own test_deployed_scripts_and_docs_have_no_baked_in_home refuses a literal /home/<name> in a committed doc, and that guard has caught two real defects — including the first draft of this report's sibling artifact — so it is honoured rather than widened. The accounts are named in the surrounding text and the substitution is mechanical.",
+    "the_08_20_contrast": "2026-08-20's slate run ended reason=text_response(finish_reason=stop) at 15:36:56,455 — a normal completion — while 08-12, 08-13 and 08-14 all ended max_iterations_reached(30/30). The cap is what distinguishes the unwritten days from the ones that wrote, and the contrast is visible in the same field of the same log line.",
+    "root_only_dates": "Across all 21 dates, 2026-08-20 is the only date the primary (runtime) root lacks and another root has. Ten further dates sit in exactly one root in the OTHER direction — the developer checkout stopped being written to after 2026-08-22 — and those are not misses. The enumeration blind side was one day wide, and that is a measured result over both trees, not an assumption.",
+    "workdir_lines": [
+      "2026-08-12 15:30:57,475 INFO cron.scheduler: Job 'c9452052719c': using workdir /home/<account:clawdbot>/projects/sports-picks-skill",
+      "2026-08-20 15:30:30,373 INFO cron.scheduler: Job 'c9452052719c': using workdir /home/<account:sauce_packets>/projects/sports-picks-runtime",
+      "The slate job's recorded workdir moves twice across the window: clawdbot/sports-picks-skill on 08-11..08-15, sauce_packets/sports-picks-skill on 08-16..08-18, sauce_packets/sports-picks-runtime from 08-20 on. The clawdbot home does not exist on the host (ls: cannot access: No such file or directory), yet 08-11 and 08-15 both produced artifacts — so the recorded workdir is NOT the path the writes resolved to, and no claim in this file depends on it being so."
+    ]
+  },
+  "open_questions": [
+    {
+      "question": "Why did no vig cron job fire on 2026-08-19? The profile log shows the scheduler silent for the whole day while hermes itself kept logging, and none of the sources above records a reason.",
+      "dates": ["2026-08-19"],
+      "why_unanswerable": "The durable execution DB is a 1000-row ring that no longer reaches the date, cron_incidents is empty, and the run journal was deployed after the fact. Answering it needs scheduler-side state that no longer exists."
+    },
+    {
+      "question": "Why did the 2026-08-20 slate run write into the sports-picks-skill checkout when the scheduler recorded `using workdir /home/<account>/projects/sports-picks-runtime`? The run's own workdir line and the artifact's location disagree. See controls.workdir_lines for the quoted lines.",
+      "dates": ["2026-08-20"],
+      "why_unanswerable": "The logs record the workdir the job was launched with, never the path the write resolved to. This is not a workdir-follows-write story in general: 08-11 through 08-15 ran with a workdir under an account home that does not exist on the host at all, and 08-11 and 08-15 still produced artifacts. Whatever resolves the write root is not the cron workdir, and this report does not guess at it."
+    }
+  ]
+}
