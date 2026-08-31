@@ -100,6 +100,23 @@ def _is_int(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
 
 
+# The expected roles `auto_pillar_grades` can grade `starter_role` against.
+# Anything else is a role the grader does not know and grades `unknown`.
+EXPECTED_STARTER_ROLES = frozenset({"starter", "opener", "bulk", "piggyback"})
+
+
+def usable_expected_ip(value: Any) -> bool:
+    """Whether `expected_ip` is a value the grader can grade against.
+
+    Exported because two callers need this predicate and a second copy of it
+    would agree with the grader exactly until the day one of them moved: the
+    grader gates `starter_quality` on it, and the analysis layer's coverage
+    counts must not call an input `recorded` in the same breath the grader
+    calls the pillar it feeds `unknown`.
+    """
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0
+
+
 def ip_to_outs(innings_pitched: Any) -> int | None:
     """Convert an ``inningsPitched`` string like ``"5.2"`` to outs (17)."""
     if not isinstance(innings_pitched, str):
@@ -355,12 +372,7 @@ def auto_pillar_grades(
         f"expected {expected_role!r}; actual first pitcher recorded "
         f"{starter.get('outs')} outs, classified {actual_role!r}"
     )
-    if actual_role == "unknown" or expected_role not in {
-        "starter",
-        "opener",
-        "bulk",
-        "piggyback",
-    }:
+    if actual_role == "unknown" or expected_role not in EXPECTED_STARTER_ROLES:
         grades["starter_role"] = _grade("unknown", role_detail)
     elif expected_role == "starter":
         if actual_role == "starter":
@@ -382,9 +394,7 @@ def auto_pillar_grades(
     outs = starter.get("outs")
     earned_runs = starter.get("earned_runs")
     if (
-        not isinstance(expected_ip, (int, float))
-        or isinstance(expected_ip, bool)
-        or expected_ip <= 0
+        not usable_expected_ip(expected_ip)
         or not _is_int(outs)
         or not _is_int(earned_runs)
     ):

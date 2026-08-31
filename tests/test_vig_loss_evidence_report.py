@@ -27,7 +27,11 @@ MODULE = "vig_loss_evidence_report.py"
 
 import import_closure  # noqa: E402
 import vig_loss_evidence_report as loss_report  # noqa: E402
-from mlb_postgame_evidence import PILLARS  # noqa: E402
+from mlb_postgame_evidence import (  # noqa: E402
+    EXPECTED_STARTER_ROLES,
+    PILLARS,
+    usable_expected_ip,
+)
 from test_vig_historical_audit import statsapi_payload, write_day  # noqa: E402
 
 
@@ -204,6 +208,31 @@ class BetTimeEvidenceTests(unittest.TestCase):
     def test_missing_rationale_degrades_to_empty_not_a_crash(self):
         self.assertEqual(loss_report.bet_time_evidence(record(recorded_rationale=None)), {})
 
+    def test_gradeability_is_asked_of_the_grader_not_restated_here(self):
+        # A second copy of the grader's rule would agree with it exactly until
+        # the day one of them moved, and the disagreement would be a coverage
+        # number claiming an input for a pillar reading `unknown`.
+        self.assertIs(
+            loss_report.GRADEABLE_EVIDENCE_PREDICATES["expected_ip"],
+            usable_expected_ip,
+        )
+        self.assertIs(loss_report.EXPECTED_STARTER_ROLES, EXPECTED_STARTER_ROLES)
+
+    def test_an_unlisted_field_is_gradeable_whenever_it_is_recorded(self):
+        # `named_risks` has no predicate: the grader takes any list, including
+        # an empty one. Absence of a rule must mean "no rule", not "fails".
+        self.assertEqual(
+            loss_report.gradeable_evidence_fields({"named_risks": []}), ["named_risks"]
+        )
+
+    def test_the_grader_input_is_everything_recorded_not_only_the_gradeable(self):
+        # The grader decides what it can use; the report must still be able to
+        # say "recorded but ungradeable", which needs the raw value to survive.
+        rec = record(recorded_rationale={"starter_role": "SP", "expected_ip": 0})
+        evidence = loss_report.bet_time_evidence(rec)
+        self.assertEqual(evidence, {"starter_role": "SP", "expected_ip": 0})
+        self.assertEqual(loss_report.gradeable_evidence_fields(evidence), [])
+
 
 class EvidenceCacheTests(unittest.TestCase):
     def _load(self, payload_text, game_pk=700001):
@@ -357,8 +386,10 @@ class AggregationTests(unittest.TestCase):
         # in the report at all".
         self.assertEqual(
             cov["bet_time_evidence"]["records_by_field"],
-            {field: 0 for field in loss_report.PREGAME_EVIDENCE_FIELDS},
+            {field: {"recorded": 0, "gradeable": 0}
+             for field in loss_report.PREGAME_EVIDENCE_FIELDS},
         )
+        self.assertEqual(cov["bet_time_evidence"]["recorded_but_ungradeable"], [])
 
 
 class NoHindsightLeakageTests(unittest.TestCase):
@@ -479,6 +510,12 @@ class EndToEndTests(unittest.TestCase):
         rationale dict: the hand-built shape is the one the audit never
         produces, and it is exactly where a field the carrier drops goes
         unnoticed. Both starter pillars are exercised from card state alone.
+
+        Coverage is deliberately MIXED across the four cards — full, full,
+        `named_risks` only, and a recorded-but-ungradeable `expected_ip: 0`.
+        A fixture where every card carries every field cannot tell a per-field
+        counter from an any-field roll-up (both read 4/4/4), which is how the
+        first version of this test passed while proving nothing.
         """
         root = Path(root)
         write_day(root, "2026-06-10", {
@@ -498,6 +535,21 @@ class EndToEndTests(unittest.TestCase):
                      "starter_role": "starter", "expected_ip": 9.0,
                      "named_risks": [],
                  }},
+                # Records ONE of the three fields — the subset that makes the
+                # per-field counts differ from each other.
+                {"game": "Epsilon at Zeta", "side": "Epsilon", "executed": True,
+                 "polymarket_ask": 0.5, "thesis": "recorded thesis",
+                 "baseball_evidence": {
+                     "named_risks": [{"name": "travel day", "status": "open"}],
+                 }},
+                # Records `expected_ip: 0` — a value the card holds and the
+                # grader cannot grade against. Recorded, not gradeable.
+                {"game": "Eta at Theta", "side": "Eta", "executed": True,
+                 "polymarket_ask": 0.5, "thesis": "recorded thesis",
+                 "baseball_evidence": {
+                     "starter_role": "starter", "expected_ip": 0,
+                     "named_risks": [],
+                 }},
             ],
         })
         results = root / "audit-results"
@@ -507,6 +559,10 @@ class EndToEndTests(unittest.TestCase):
              "away_score": 5, "home_score": 2},
             {"gamePk": 700002, "away": "Gamma", "home": "Delta",
              "away_score": 1, "home_score": 6},
+            {"gamePk": 700003, "away": "Epsilon", "home": "Zeta",
+             "away_score": 4, "home_score": 3},
+            {"gamePk": 700004, "away": "Eta", "home": "Theta",
+             "away_score": 2, "home_score": 7},
         ])), encoding="utf-8")
         evidence_dir = root / "postgame-evidence"
         write_evidence(evidence_dir, postgame_evidence(
@@ -515,6 +571,12 @@ class EndToEndTests(unittest.TestCase):
         write_evidence(evidence_dir, postgame_evidence(
             game_pk=700002, away="Gamma", home="Delta", away_runs=1, home_runs=6,
             away_starter_outs=12, away_reliever_runs=(4,)))
+        write_evidence(evidence_dir, postgame_evidence(
+            game_pk=700003, away="Epsilon", home="Zeta", away_runs=4, home_runs=3,
+            away_starter_outs=18))
+        write_evidence(evidence_dir, postgame_evidence(
+            game_pk=700004, away="Eta", home="Theta", away_runs=2, home_runs=7,
+            away_starter_outs=18))
         return root
 
     def test_a_card_recording_bet_time_evidence_grades_the_starter_pillars(self):
@@ -538,13 +600,18 @@ class EndToEndTests(unittest.TestCase):
         self.assertEqual(rows[700002]["pillars"]["starter_role"]["grade"], "held")
         self.assertEqual(rows[700002]["pillars"]["starter_quality"]["grade"], "failed")
         # Coverage counts every field it names, not just the one that happens
-        # to survive the carrier.
+        # to survive the carrier — and the three counts DIFFER, so a per-field
+        # counter and an any-field roll-up cannot both satisfy this.
         bet_time = report["coverage"]["bet_time_evidence"]
         self.assertEqual(
             bet_time["records_by_field"],
-            {"starter_role": 2, "expected_ip": 2, "named_risks": 2},
+            {
+                "starter_role": {"recorded": 3, "gradeable": 3},
+                "expected_ip": {"recorded": 3, "gradeable": 2},
+                "named_risks": {"recorded": 4, "gradeable": 4},
+            },
         )
-        self.assertEqual(bet_time["records_with_any_field"], 2)
+        self.assertEqual(bet_time["records_with_any_field"], 4)
         # And the aggregate denominators move with them: two decided starter
         # pillars across the cohorts, not two unknowns.
         aggregates = report["aggregates"]
@@ -554,6 +621,60 @@ class EndToEndTests(unittest.TestCase):
         self.assertEqual(
             aggregates["loss"]["pillars"]["starter_quality"]["counts"]["failed"], 1
         )
+
+    def test_a_recorded_but_ungradeable_value_is_named_not_counted_as_coverage(self):
+        # `expected_ip: 0` is a value the card holds and the grader refuses.
+        # Counting it as coverage would claim an input while the pillar it
+        # feeds reads `unknown`; dropping it silently would hide a recording
+        # defect somebody can go fix. It is counted as recorded, excluded from
+        # gradeable, and named.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._evidence_corpus(tmp)
+            _, out, _ = self.run_cli(["--picks-dir", str(root), "--json"])
+            _, rendered, _ = self.run_cli(["--picks-dir", str(root)])
+        report = json.loads(out)
+        row = {r["game_pk"]: r for r in report["games"]}[700004]
+        self.assertIn("expected_ip", row["bet_time_evidence_fields"])
+        self.assertNotIn("expected_ip", row["gradeable_bet_time_evidence_fields"])
+        self.assertEqual(row["pillars"]["starter_quality"]["grade"], "unknown")
+        # ...while the pillars its OTHER recorded fields feed still grade.
+        self.assertEqual(row["pillars"]["starter_role"]["grade"], "held")
+        ungradeable = report["coverage"]["bet_time_evidence"]["recorded_but_ungradeable"]
+        self.assertEqual(
+            ungradeable,
+            [{"date": "2026-06-10", "game": "Eta at Theta", "fields": ["expected_ip"]}],
+        )
+        self.assertIn("recorded but ungradeable on 1 cards", rendered)
+
+    def test_a_starter_role_outside_the_graders_vocabulary_is_not_coverage(self):
+        # Same seam on the other value field, and the predicate comes from the
+        # grader's own EXPECTED_STARTER_ROLES rather than a second copy of it.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_day(root, "2026-06-10", {
+                "date": "2026-06-10", "sport": "mlb", "market_type": "moneyline",
+                "candidates": [
+                    {"game": "Alpha at Beta", "side": "Alpha", "executed": True,
+                     "polymarket_ask": 0.5, "thesis": "recorded thesis",
+                     "baseball_evidence": {"starter_role": "SP", "expected_ip": 5.5}},
+                ],
+            })
+            (root / "audit-results").mkdir()
+            (root / "audit-results" / "2026-06-10.json").write_text(
+                json.dumps(statsapi_payload([
+                    {"gamePk": 700001, "away": "Alpha", "home": "Beta",
+                     "away_score": 5, "home_score": 2},
+                ])), encoding="utf-8")
+            write_evidence(root / "postgame-evidence", postgame_evidence())
+            _, out, _ = self.run_cli(["--picks-dir", str(root), "--json"])
+        report = json.loads(out)
+        row = report["games"][0]
+        self.assertIn("starter_role", row["bet_time_evidence_fields"])
+        self.assertNotIn("starter_role", row["gradeable_bet_time_evidence_fields"])
+        self.assertEqual(row["pillars"]["starter_role"]["grade"], "unknown")
+        by_field = report["coverage"]["bet_time_evidence"]["records_by_field"]
+        self.assertEqual(by_field["starter_role"], {"recorded": 1, "gradeable": 0})
+        self.assertEqual(by_field["expected_ip"], {"recorded": 1, "gradeable": 1})
 
     def test_an_empty_named_risks_list_is_recorded_evidence_not_absence(self):
         # `named_risks: []` is a card saying it named no risks, which the

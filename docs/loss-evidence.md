@@ -59,6 +59,15 @@ holes named); 2 on configuration errors.
   absent from the cards is distinguishable from one the audit layer does not
   carry. The sibling-import closure is pinned too — the read-only claim is a
   property of what this module reaches, not of its own source.
+- **Recorded and gradeable are counted separately.** Each field reports
+  `{recorded, gradeable}`: `expected_ip: 0`, or a `starter_role` outside the
+  grader's vocabulary, is a value the card holds and the grader refuses. It
+  counts as recorded, is excluded from gradeable, and is named individually in
+  `recorded_but_ungradeable` — a coverage number that claimed an input while
+  the pillar it feeds reads `unknown` would be the same defect as measuring
+  the carrier instead of the cards. The gradeability rules are imported from
+  `mlb_postgame_evidence` (`usable_expected_ip`, `EXPECTED_STARTER_ROLES`),
+  not restated here; two copies agree only until one moves.
 
 ## Findings over the 2026-05-19 → 2026-08-30 corpus (89 games)
 
@@ -94,7 +103,8 @@ outright (and in the remaining 13 at least one graded `mixed`).
 
 0 of the 89 cohort cards carry a `baseball_evidence` block at all, so all three
 allowlisted bet-time fields are absent — `records_by_field` in the report reads
-`starter_role=0, expected_ip=0, named_risks=0`. `starter_role`,
+`{recorded: 0, gradeable: 0}` for `starter_role`, `expected_ip`, and
+`named_risks` alike, with `recorded_but_ungradeable` empty. `starter_role`,
 `starter_quality`, and `named_risk` therefore grade `unknown` across the entire
 corpus by contract — the deterministic grader refuses to invent an expectation
 it was never given. This is the same shape the attribution slice found on the
