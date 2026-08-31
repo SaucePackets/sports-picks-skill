@@ -425,6 +425,13 @@ class SideSelectionAttributionTests(unittest.TestCase):
                 # Legacy shape: no thesis, no notes, no reason.
                 {"game": "Boston Red Sox at New York Yankees", "side": "Boston Red Sox",
                  "executed": True, "polymarket_ask": 0.5},
+                # A passed WINNER with a thesis, so the missed-winners section
+                # is non-empty and the invariance test can see a rationale
+                # dependency leaking into a headline section.
+                {"game": "Boston Red Sox at New York Yankees",
+                 "side": "New York Yankees", "skipped": True,
+                 "skip_reason": "price", "polymarket_ask": 0.6,
+                 "thesis": "Bombers homestand edge"},
             ],
         })
         return audit.build_report(
@@ -437,7 +444,7 @@ class SideSelectionAttributionTests(unittest.TestCase):
 
     def test_every_reconciled_candidate_has_a_structured_record(self):
         _, ssa = self._attribution()
-        self.assertEqual(len(ssa["records"]), 3)
+        self.assertEqual(len(ssa["records"]), 4)
         for row in ssa["records"]:
             self.assertTrue(row["reconciled"])
             self.assertIn(row["selected_evidence"]["status"], ("recorded", "not_recorded"))
