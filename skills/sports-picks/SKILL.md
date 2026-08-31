@@ -90,7 +90,10 @@ Then write one `game_reads` entry per game in that roster:
   "disposition": "pass",
   "dk_fair_prob": {"away": 0.398, "home": 0.602},
   "polymarket_ask": {"away": 0.460, "home": 0.545},
-  "conservative_probability": {"away": 0.380, "home": 0.580},
+  "raw_probability": {"away": 0.400, "home": 0.610},
+  "uncertainty_haircut": 0.02,
+  "conservative_probability": {"away": 0.380, "home": 0.590},
+  "model_version": "vig-mlb-market-v1",
   "net_edge": {"away": -0.080, "home": 0.035},
   "refusing_rails": ["price_discipline"]
 }]
@@ -104,10 +107,27 @@ Then write one `game_reads` entry per game in that roster:
 - `pass` and `not_priced` must name at least one `refusing_rails` entry;
   `candidate` and `lineup_watchlist` must name none. The vocabulary is closed —
   a refusal that fits nothing in it is an error, not an `other` bucket.
+- **Record the handicap on every game, not just the ones you take.**
+  `raw_probability` (before the buffer), `uncertainty_haircut` (a single
+  non-negative number for the read — **zero is legal and is the market-only
+  fallback's own value**), `conservative_probability`, and `model_version`.
+  These are the same four numbers an approved candidate already carries; on a
+  refused game they are discarded today, and they are the only record that can
+  ever tell us whether our handicap beats the market. `conservative_probability`
+  must equal `raw_probability - uncertainty_haircut` on **both** sides.
+- **The model trail is all four fields or none of them.** Recording some and
+  excusing the rest is rejected: each field is what makes another checkable, so
+  an excused `uncertainty_haircut` would let `conservative_probability`
+  disagree with `raw_probability` by any amount and still validate, and a
+  `raw_probability` with no `model_version` can be counted but never
+  evaluated. If the game was handicapped, record all four; if it was not,
+  excuse all four.
 - **A number you do not have must say why.** Omit the field and put a reason in
   `unavailable`, e.g. `"unavailable": {"polymarket_ask": "exact slug returned no
   market data"}`. A missing field with no reason is invalid, because "no price"
-  and "a price nobody recorded" are different facts.
+  and "a price nobody recorded" are different facts. A `not_priced` game was
+  never handicapped at all: say so in `unavailable` for the model fields rather
+  than inventing a probability to fill them.
 - The count of `candidate` and `lineup_watchlist` reads must equal the number of
   `candidates` and `lineup_watchlist` entries on the schedule.
 

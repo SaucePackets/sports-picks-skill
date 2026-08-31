@@ -1,0 +1,13 @@
+{
+  "schema": "vig-mlb-model-deployment-policy-v1",
+  "_declared_at_utc": "2026-08-31T22:50:00Z",
+  "_declared_before_any_evaluation": "These margins were written and committed before a single game_reads evaluation row existed. The gate is designed around PREDECLARED margins; choosing them after seeing the curve is the curve-fitting this repo has refused twice already. If they need to change, change them in a separate commit that does not also carry an evaluation result.",
+  "_install": "Merge this object into ~/.hermes/vig/state/risk_limits.json under the key mlb_model_deployment_policy. Until it is installed, load_model_deployment_policy returns None and the gate fails closed to the market-only fallback. Installing it does NOT deploy a model and does not change betting behaviour; it only makes the gate answerable.",
+  "min_evaluation_picks": 300,
+  "_min_evaluation_picks_why": "The default 40 was sized for executed picks, which arrive at roughly half a row a day. game_reads produces about fourteen rows a night, so 300 is roughly three weeks and is the first point at which a per-row measurement on this population is worth reading: the measured per-bet P/L standard deviation on the 2026-08 refusal sample was 0.485, which needs about 361 rows for a five-point confidence interval.",
+  "min_brier_improvement": 0.005,
+  "min_log_loss_improvement": 0.01,
+  "max_calibration_regression": 0.0,
+  "_max_calibration_regression_why": "Zero: out-of-sample calibration may not be worse than the DK-fair baseline at all. A model that is sharper but less calibrated is a model that will size bets wrongly.",
+  "max_score_regression": 0.0
+}

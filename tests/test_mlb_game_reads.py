@@ -10,6 +10,7 @@ from unittest import mock
 from scripts import mlb_game_reads
 from scripts import mlb_lineup_watchlist
 from scripts import mlb_postgame_evidence
+from scripts import mlb_probability_model
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 NUMBER_WORDS = {
@@ -27,7 +28,13 @@ def read(game_pk=823509, **overrides):
         "disposition": "pass",
         "dk_fair_prob": {"away": 0.398, "home": 0.602},
         "polymarket_ask": {"away": 0.460, "home": 0.545},
-        "conservative_probability": {"away": 0.380, "home": 0.580},
+        # conservative == raw - haircut on BOTH sides, which the validator now
+        # checks. The fixture has to hold together or it stops being a fixture
+        # for anything.
+        "raw_probability": {"away": 0.400, "home": 0.610},
+        "uncertainty_haircut": 0.02,
+        "conservative_probability": {"away": 0.380, "home": 0.590},
+        "model_version": "vig-mlb-market-v1",
         "net_edge": {"away": -0.080, "home": 0.035},
         "refusing_rails": ["price_discipline"],
     }
@@ -195,6 +202,165 @@ class DispositionTests(unittest.TestCase):
                 read(refusing_rails=["price_discipline", "price_discipline"]), 0
             ),
         )
+
+    def test_a_zero_haircut_is_legal_and_is_not_checked_as_a_probability(self):
+        # The market-only fallback's OWN contract is raw == dk_fair with
+        # uncertainty_haircut == 0, and it is the state the live runtime is in.
+        # Checking this field with the probability rule (0 < x < 1) would
+        # reject every read the fallback produces — the field would be
+        # unwritable in exactly the configuration we are trying to measure.
+        entry = read(
+            raw_probability={"away": 0.398, "home": 0.602},
+            uncertainty_haircut=0,
+            conservative_probability={"away": 0.398, "home": 0.602},
+        )
+        self.assertEqual(mlb_game_reads.validate_read(entry, 0), [])
+        self.assertFalse(mlb_game_reads._is_probability(0))
+
+    def test_a_negative_haircut_is_refused(self):
+        errors = mlb_game_reads.validate_read(read(uncertainty_haircut=-0.01), 0)
+        self.assertTrue(
+            any("uncertainty_haircut must be a usable number" in e for e in errors), errors
+        )
+
+    def test_coherence_holds_at_every_legal_haircut_not_just_the_fixture_one(self):
+        # The original coherence tests all inherited uncertainty_haircut 0.02
+        # from the fixture, which is how the excused-haircut hole survived
+        # them. Vary the haircut across its legal range, including zero.
+        for haircut in (0, 0.0, 0.005, 0.05):
+            with self.subTest(haircut=haircut):
+                coherent = read(
+                    raw_probability={"away": 0.400, "home": 0.610},
+                    uncertainty_haircut=haircut,
+                    conservative_probability={
+                        "away": 0.400 - haircut,
+                        "home": 0.610 - haircut,
+                    },
+                )
+                self.assertEqual(mlb_game_reads.validate_read(coherent, 0), [])
+                broken = dict(coherent)
+                broken["conservative_probability"] = {
+                    "away": 0.400 - haircut + 0.05,
+                    "home": 0.610 - haircut,
+                }
+                self.assertTrue(
+                    any(
+                        "conservative_probability.away is" in e
+                        for e in mlb_game_reads.validate_read(broken, 0)
+                    )
+                )
+
+    def test_the_three_model_numbers_must_reconcile_on_both_sides(self):
+        # conservative == raw - haircut is the contract in mlb_probability_model.
+        # A row that disagrees with itself is worse than a missing row, because
+        # the evaluator counts it.
+        for side in ("away", "home"):
+            with self.subTest(side=side):
+                conservative = dict(read()["conservative_probability"])
+                conservative[side] = conservative[side] + 0.05
+                errors = mlb_game_reads.validate_read(
+                    read(conservative_probability=conservative), 0
+                )
+                self.assertTrue(
+                    any(f"conservative_probability.{side} is" in e for e in errors), errors
+                )
+
+    def test_the_model_trail_is_recorded_whole_or_not_at_all(self):
+        # Every field of the trail, excused one at a time. Each excuse removes
+        # the evidence some OTHER check needs, so "explained away" must not
+        # read as "nothing to check here".
+        for field in mlb_game_reads.MODEL_TRAIL_FIELDS:
+            with self.subTest(field=field):
+                entry = read()
+                entry[field] = None
+                entry["unavailable"] = {field: "not recorded by this run"}
+                errors = mlb_game_reads.validate_read(entry, 0)
+                self.assertTrue(
+                    any("records part of the model trail" in e for e in errors), errors
+                )
+
+    def test_an_excused_haircut_cannot_launder_an_incoherent_handicap(self):
+        # The concrete escape hatch: with the haircut merely excused, the
+        # coherence loop had nothing to subtract and a fifty-point disagreement
+        # between raw and conservative validated clean, reached the dataset,
+        # and got scored.
+        entry = read(
+            raw_probability={"away": 0.400, "home": 0.610},
+            conservative_probability={"away": 0.900, "home": 0.100},
+            uncertainty_haircut=None,
+            unavailable={"uncertainty_haircut": "not recorded by this run"},
+        )
+        self.assertNotEqual(mlb_game_reads.validate_read(entry, 0), [])
+
+    def test_a_game_that_was_never_handicapped_may_say_so(self):
+        # not_priced games — no DK line, no market — were never handicapped at
+        # all. Requiring a probability there would force the run to invent one,
+        # which is the opposite of what this record is for.
+        entry = read(
+            disposition="not_priced",
+            refusing_rails=["no_dk_price"],
+            dk_fair_prob=None,
+            polymarket_ask=None,
+            raw_probability=None,
+            conservative_probability=None,
+            net_edge=None,
+            uncertainty_haircut=None,
+            model_version=None,
+            unavailable={
+                "dk_fair_prob": "DK line unavailable",
+                "polymarket_ask": "no Polymarket market for this game",
+                "raw_probability": "never handicapped; no DK prior to anchor",
+                "conservative_probability": "never handicapped",
+                "net_edge": "no price to compute an edge against",
+                "uncertainty_haircut": "never handicapped",
+                "model_version": "never handicapped",
+            },
+        )
+        self.assertEqual(mlb_game_reads.validate_read(entry, 0), [])
+
+    def test_an_absent_model_number_still_has_to_say_why(self):
+        for field in ("raw_probability", "uncertainty_haircut", "model_version"):
+            with self.subTest(field=field):
+                entry = read()
+                entry[field] = None
+                errors = mlb_game_reads.validate_read(entry, 0)
+                self.assertIn(
+                    f"game_reads[0].{field} is absent and game_reads[0].unavailable does not say why",
+                    errors,
+                )
+
+    def test_the_coherence_tolerance_matches_the_probability_contract(self):
+        # Defined independently so a recording check does not drag the
+        # execution-path model module into its import closure — and pinned
+        # here, because two copies of one number agree only until one changes.
+        self.assertEqual(
+            mlb_game_reads.COHERENCE_TOLERANCE,
+            mlb_probability_model.COMPONENT_SUM_TOLERANCE,
+        )
+
+    def test_the_committed_deployment_margins_load_through_the_real_loader(self):
+        # The margins are predeclared in the repo BEFORE any evaluation row
+        # exists. A committed block that the real loader rejects would be a
+        # declaration in name only — the gate would still fail closed and
+        # nobody would find out until they tried to run it.
+        block = json.loads(
+            (
+                REPO_ROOT
+                / "skills"
+                / "sports-picks"
+                / "references"
+                / "mlb_model_deployment_policy.json"
+            ).read_text(encoding="utf-8")
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            state = Path(tmp)
+            (state / "risk_limits.json").write_text(
+                json.dumps({"mlb_model_deployment_policy": block}), encoding="utf-8"
+            )
+            policy = mlb_probability_model.load_model_deployment_policy(state)
+        self.assertIsNotNone(policy, "the committed margins do not load; the gate would fail closed")
+        self.assertEqual(policy["min_evaluation_picks"], 300)
+        self.assertEqual(policy["max_calibration_regression"], 0.0)
 
     def test_the_prompt_enumerates_exactly_the_vocabulary_the_validator_accepts(self):
         # The validator is fail-closed and the run only knows the rails the

@@ -290,6 +290,38 @@ comes straight from `mlb_stage2_scan`'s `away_fair` / `home_fair`,
 `polymarket_ask` and `net_edge` from the price discipline step, and
 `refusing_rails` from the gate that actually stopped it.
 
+It also wants the handicap itself on every game: `raw_probability`,
+`uncertainty_haircut`, `conservative_probability` and `model_version` — the
+same trail an approved candidate carries, recorded for the games you refuse as
+well as the one or two you take. `conservative_probability` must equal
+`raw_probability - uncertainty_haircut` on both sides, exactly as it does for a
+candidate, and the haircut is one non-negative number for the read; **zero is
+legal**, because a market-only read charges no buffer.
+
+**Record all four or excuse all four.** A partial trail is refused, because
+every field is what makes another one checkable: an excused
+`uncertainty_haircut` leaves nothing to subtract, so `conservative_probability`
+could disagree with `raw_probability` by any amount and still validate, and a
+`raw_probability` with no `model_version` can be counted but never evaluated —
+the deployment gate segments rows by that string. A game that was never
+handicapped excuses the whole trail in `unavailable`; a game that was
+handicapped owes the whole trail.
+
+**Get the sides the right way round.** The reads carry `away` and `home` from
+the scan, and the outcome is joined from the MLB StatsAPI final. A transposed
+read produces a row that scores one club's handicap against the other club's
+result — clean-looking, counted, and invisible afterwards — so the dataset
+builder refuses a read whose sides are crossed relative to the final.
+
+This is what makes the model gate answerable. `mlb_probability_model.py
+dataset` has only ever been able to read `picks.json` — settled, executed
+picks — so a model could not deploy without out-of-sample evidence, evidence
+came only from bets, and bets required a deployed model. A handicap on a game
+we passed is still a testable pre-pitch prediction, and it is the less biased
+one: a pick exists only where the model liked itself enough to clear the edge
+floor. `scripts/mlb_model_eval_dataset.py` turns these reads plus finals into
+the rows the existing evaluator already consumes.
+
 The rail vocabulary is the six handicapping gates
 (`starter_floor`, `opposing_starter_shutdown_path`,
 `bullpen_close_game_survival`, `cold_fade_reset`, `price_discipline`,
