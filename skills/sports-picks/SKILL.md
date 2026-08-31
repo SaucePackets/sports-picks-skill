@@ -97,9 +97,10 @@ Then write one `game_reads` entry per game in that roster:
 ```
 
 - `disposition` is `candidate`, `lineup_watchlist`, `pass`, or `not_priced`.
-  `not_priced` means the game could never be handicapped (no DK line, no
-  Polymarket market, already underway); it is deliberately not the same fact as
-  a `pass`.
+  `not_priced` means the game could never be handicapped (for example no DK
+  line, no Polymarket market, already underway, or a required input that never
+  arrived); it is deliberately not the same fact as a `pass`. The full rail
+  vocabulary is enumerated in `references/mlb.md`.
 - `pass` and `not_priced` must name at least one `refusing_rails` entry;
   `candidate` and `lineup_watchlist` must name none. The vocabulary is closed —
   a refusal that fits nothing in it is an error, not an `other` bucket.

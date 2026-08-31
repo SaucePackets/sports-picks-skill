@@ -1,5 +1,6 @@
 import importlib
 import json
+import re
 import sys
 import tempfile
 import unittest
@@ -9,6 +10,12 @@ from unittest import mock
 from scripts import mlb_game_reads
 from scripts import mlb_lineup_watchlist
 from scripts import mlb_postgame_evidence
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+NUMBER_WORDS = {
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+    "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12,
+}
 
 
 def read(game_pk=823509, **overrides):
@@ -188,6 +195,52 @@ class DispositionTests(unittest.TestCase):
                 read(refusing_rails=["price_discipline", "price_discipline"]), 0
             ),
         )
+
+    def test_the_prompt_enumerates_exactly_the_vocabulary_the_validator_accepts(self):
+        # The validator is fail-closed and the run only knows the rails the
+        # prompt names, so a rail in code but not in mlb.md has no legal way to
+        # be recorded: naming nothing hard-fails the slate, and naming the
+        # nearest listed rail writes a judgement that was never made. That is
+        # how `incomplete_input_data` — 8 of 109 parsed reads — shipped
+        # invisible to the run. Pin the doc against the source so the next rail
+        # cannot drift the same way.
+        text = " ".join(
+            (REPO_ROOT / "skills" / "sports-picks" / "references" / "mlb.md")
+            .read_text()
+            .split()
+        )
+        paragraph = text.split("The rail vocabulary is", 1)[1].split(
+            "Name every rail", 1
+        )[0]
+        groups = (
+            ("handicapping gates", set(mlb_lineup_watchlist.REQUIRED_ORIGINAL_GATES)),
+            ("deferrable blockers", set(mlb_lineup_watchlist.ALLOWED_BLOCKERS)),
+            ("structural rails", set(mlb_game_reads.STRUCTURAL_RAILS)),
+        )
+        documented = set()
+        for label, expected in groups:
+            with self.subTest(group=label):
+                match = re.search(
+                    rf"(\w+) {label}[^(]*\(([^)]*)\)", paragraph
+                )
+                self.assertIsNotNone(match, f"mlb.md no longer enumerates the {label}")
+                # The COUNT WORD is checked too: "five structural rails" was
+                # the whole of the defect, and a reader trusts the count.
+                self.assertEqual(
+                    NUMBER_WORDS.get(match.group(1)),
+                    len(expected),
+                    f"mlb.md says '{match.group(1)} {label}', code has {len(expected)}",
+                )
+                named = set(re.findall(r"`([a-z_]+)`", match.group(2)))
+                self.assertEqual(named, expected)
+                documented |= named
+        # And the three groups together are the closed vocabulary, so a rail
+        # added to REFUSAL_RAILS outside them cannot slip past either.
+        self.assertEqual(documented, set(mlb_game_reads.REFUSAL_RAILS))
+        # Every rail is a token the run can be told to write; the newest one
+        # carries its meaning, because a name with no gloss is not guidance.
+        self.assertIn("incomplete_input_data", documented)
+        self.assertIn("a required input never arrived", text)
 
     def test_the_vocabulary_is_the_watchlist_gates_not_a_restatement(self):
         # Three review rounds in this repo have gone to copies of one rule

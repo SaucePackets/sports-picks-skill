@@ -294,10 +294,18 @@ The rail vocabulary is the six handicapping gates
 (`starter_floor`, `opposing_starter_shutdown_path`,
 `bullpen_close_game_survival`, `cold_fade_reset`, `price_discipline`,
 `real_winner_conviction`), the two deferrable blockers (`lineups_unconfirmed`,
-`starter_unannounced`), and five structural rails for a game that could not be
-priced or was closed out by a volume rail (`no_dk_price`,
-`no_polymarket_market`, `game_already_started`, `park_environment_cap`,
-`daily_volume_cap`). Name every rail that refused the game, not just the first.
+`starter_unannounced`), and six structural rails for a game that could not be
+priced, was closed out by a volume rail, or whose required inputs never
+arrived (`no_dk_price`, `no_polymarket_market`, `game_already_started`,
+`park_environment_cap`, `daily_volume_cap`, `incomplete_input_data`). Name
+every rail that refused the game, not just the first.
+
+`incomplete_input_data` means a required input never arrived — a missing
+offense row, an absent probable starter, a stat lookup that returned nothing —
+so the game could not be handicapped on its merits. It is the rail to name
+when the refusal is about the inputs rather than about the game: do not reach
+for the nearest handicapping gate, which records a judgement that was never
+made.
 
 Recording is not a gate change. A read never causes a bet and never blocks one;
 it records the decision the existing gates already made.
