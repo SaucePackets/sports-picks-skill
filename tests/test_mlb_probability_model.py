@@ -655,64 +655,169 @@ class SharedNumberPredicateTests(unittest.TestCase):
         self.assertTrue(real(Probe(0.03)), "the real rule must accept the probe")
 
         # --- site 1: the `uncertainty_haircut` numeric check ---
-        message = "uncertainty_haircut must be a non-negative number"
-        probed = candidate_trail(uncertainty_haircut=Probe(0.03))
-        self.assertNotIn(
-            message,
-            probability_component_errors(probed),
-            "positive control: the probe validates cleanly when unstubbed, so a "
-            "failure below is the stub being consulted and not the probe itself",
-        )
-        with unittest.mock.patch.object(
-            mlb_probability_model,
-            "_is_number",
-            lambda v: real(v) and not isinstance(v, Probe),
-        ):
-            # The shared rule now refuses this haircut, so the ANSWER must
-            # follow. An inline copy keeps accepting it and stays silent.
-            self.assertIn(message, probability_component_errors(probed))
-        with unittest.mock.patch.object(
-            mlb_probability_model,
-            "_is_number",
-            lambda v: real(v) or v == float("inf"),
-        ):
-            # And the other direction — a one-directional check is satisfied by
-            # a stub that returns False for any reason at all.
+        # subTest so a failure names WHICH of the two sites regressed; the
+        # test covers both by design, and the name says so, but on the day it
+        # fires the label is what saves a bisect.
+        with self.subTest(site="uncertainty_haircut numeric check"):
+            message = "uncertainty_haircut must be a non-negative number"
+            probed = candidate_trail(uncertainty_haircut=Probe(0.03))
             self.assertNotIn(
                 message,
-                probability_component_errors(
-                    candidate_trail(uncertainty_haircut=float("inf"))
-                ),
+                probability_component_errors(probed),
+                "positive control: the probe validates cleanly when unstubbed, "
+                "so a failure below is the stub being consulted and not the "
+                "probe itself",
             )
+            with unittest.mock.patch.object(
+                mlb_probability_model,
+                "_is_number",
+                lambda v: real(v) and not isinstance(v, Probe),
+            ):
+                # The shared rule now refuses this haircut, so the ANSWER must
+                # follow. An inline copy keeps accepting it and stays silent.
+                self.assertIn(message, probability_component_errors(probed))
+            with unittest.mock.patch.object(
+                mlb_probability_model,
+                "_is_number",
+                lambda v: real(v) or v == float("inf"),
+            ):
+                # And the other direction — a one-directional check is
+                # satisfied by a stub that returns False for any reason at all.
+                self.assertNotIn(
+                    message,
+                    probability_component_errors(
+                        candidate_trail(uncertainty_haircut=float("inf"))
+                    ),
+                )
 
         # --- site 2: the `conservative_probability` consistency check ---
-        prefix = "conservative_probability must equal raw_probability - "
-        reported = lambda trail: any(  # noqa: E731
-            e.startswith(prefix) for e in probability_component_errors(trail)
-        )
-        # raw 0.57 - haircut 0.03 is 0.54, so 0.10 is inconsistent and reported.
-        inconsistent = candidate_trail(conservative_probability=Probe(0.10))
-        self.assertTrue(
-            reported(inconsistent),
-            "positive control: an inconsistent conservative_probability is "
-            "reported when the shared rule is not stubbed",
-        )
-        with unittest.mock.patch.object(
-            mlb_probability_model,
-            "_is_number",
-            lambda v: real(v) and not isinstance(v, Probe),
-        ):
-            # The check is GUARDED by the predicate, so refusing the value must
-            # skip it. An inline copy keeps accepting and keeps reporting.
-            self.assertFalse(reported(inconsistent))
-        with unittest.mock.patch.object(
-            mlb_probability_model,
-            "_is_number",
-            lambda v: real(v) or v == float("inf"),
-        ):
+        with self.subTest(site="conservative_probability consistency check"):
+            prefix = "conservative_probability must equal raw_probability - "
+
+            def reported(trail):
+                return any(
+                    e.startswith(prefix)
+                    for e in probability_component_errors(trail)
+                )
+
+            # raw 0.57 - haircut 0.03 is 0.54, so 0.10 is inconsistent and
+            # reported.
+            inconsistent = candidate_trail(conservative_probability=Probe(0.10))
             self.assertTrue(
-                reported(candidate_trail(conservative_probability=float("inf")))
+                reported(inconsistent),
+                "positive control: an inconsistent conservative_probability is "
+                "reported when the shared rule is not stubbed",
             )
+            with unittest.mock.patch.object(
+                mlb_probability_model,
+                "_is_number",
+                lambda v: real(v) and not isinstance(v, Probe),
+            ):
+                # The check is GUARDED by the predicate, so refusing the value
+                # must skip it. An inline copy keeps accepting and reporting.
+                self.assertFalse(reported(inconsistent))
+            with unittest.mock.patch.object(
+                mlb_probability_model,
+                "_is_number",
+                lambda v: real(v) or v == float("inf"),
+            ):
+                self.assertTrue(
+                    reported(
+                        candidate_trail(conservative_probability=float("inf"))
+                    )
+                )
+
+    def test__is_probability_CALLS_the_shared_rule_at_the_dk_fair_and_raw_gate(self):
+        # The last unpinned site on the defect path (Reviewer, PR #70).
+        # `_is_probability` is `_is_number(value) and 0 < value < 1`, and it is
+        # where `dk_fair_prob` and `raw_probability` reach the rule —
+        # `raw_probability = 10 ** 400` was one of the four fields that raised
+        # `OverflowError` at 4a6f66e. Identity was shared, consultation was not
+        # pinned: re-deriving the rule inline INSIDE `_is_probability` left the
+        # full suite green at 763.
+        #
+        # The "shared rule REFUSES" direction is straightforward. The "shared
+        # rule ACCEPTS" direction is not, and the reason is worth stating
+        # because it constrains what this test can be: no plain value the
+        # shared rule refuses is also inside `0 < v < 1`. `nan`, `inf`, `-inf`,
+        # `10 ** 400` and both bools all fail the range clause too, so
+        # loosening `_is_number` alone can never change the answer for any of
+        # them — the range clause dominates. A probe that isolates the
+        # predicate therefore has to be an object the range clause accepts and
+        # the numeric rule does not, which is what `AcceptedByStub` is. It is
+        # not a card shape and does not claim to be; it exists only to make the
+        # predicate the single thing the answer depends on.
+        real = mlb_probability_model._is_number
+        message = (
+            "dk_fair_prob and raw_probability must be numbers between 0 and 1 "
+            "before components can be validated"
+        )
+
+        class Probe(float):
+            """A float the stub can recognise; the real rule accepts it."""
+
+        class AcceptedByStub:
+            """In range, and not a number the real rule will ever accept."""
+
+            def __gt__(self, other):
+                return 0.57 > other
+
+            def __lt__(self, other):
+                return 0.57 < other
+
+            def __float__(self):
+                return 0.57
+
+        self.assertTrue(real(Probe(0.57)), "the real rule must accept the probe")
+        self.assertFalse(
+            real(AcceptedByStub()),
+            "the real rule must refuse the object the stub will accept",
+        )
+        self.assertTrue(0 < AcceptedByStub() < 1, "the probe must pass the range clause")
+
+        for field in ("raw_probability", "dk_fair_prob"):
+            with self.subTest(field=field, direction="shared rule refuses"):
+                probed = candidate_trail(**{field: Probe(0.57 if field == "raw_probability" else 0.55)})
+                self.assertNotIn(
+                    message,
+                    probability_component_errors(probed),
+                    "positive control: the probe validates cleanly when unstubbed",
+                )
+                with unittest.mock.patch.object(
+                    mlb_probability_model,
+                    "_is_number",
+                    lambda v: real(v) and not isinstance(v, Probe),
+                ):
+                    # An inline copy keeps accepting the probe and stays silent.
+                    self.assertIn(message, probability_component_errors(probed))
+
+            with self.subTest(field=field, direction="shared rule accepts"):
+                accepted = candidate_trail(**{field: AcceptedByStub()})
+                self.assertIn(
+                    message,
+                    probability_component_errors(accepted),
+                    "positive control: the real rule refuses this object",
+                )
+                with unittest.mock.patch.object(
+                    mlb_probability_model,
+                    "_is_number",
+                    lambda v: real(v) or isinstance(v, AcceptedByStub),
+                ):
+                    # The other direction — a one-directional check is satisfied
+                    # by a stub that returns False for any reason at all.
+                    self.assertNotIn(message, probability_component_errors(accepted))
+
+    def test_the_huge_raw_probability_is_reported_at_the_gate_not_raised(self):
+        # The specific defect-path field this pin covers, kept as its own
+        # named assertion so a regression says which field.
+        errors = probability_component_errors(
+            candidate_trail(raw_probability=self.HUGE_INT)
+        )
+        self.assertIn(
+            "dk_fair_prob and raw_probability must be numbers between 0 and 1 "
+            "before components can be validated",
+            errors,
+        )
 
     def test_the_validator_RETURNS_A_LIST_for_the_huge_integer_instead_of_raising(self):
         # The defect, at each field that reaches the predicate. Every one of

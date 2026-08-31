@@ -17,7 +17,7 @@ re-derive it.
 pinned for all three importers: each holds THIS function object, so a change to
 the rule cannot reach one and miss another. Consultation — that a validator
 CALLS the shared rule rather than re-deriving it inline while leaving the
-import untouched — is pinned PER CALL SITE, at exactly five named sites:
+import untouched — is pinned PER CALL SITE, at exactly six named sites:
 
 - ``mlb_postgame_evidence.usable_expected_ip``
 - ``mlb_baseball_evidence.validate_baseball_evidence``'s ``expected_ip`` check
@@ -26,6 +26,8 @@ import untouched — is pinned PER CALL SITE, at exactly five named sites:
 - ``mlb_probability_model.validate_probability_components``' two own sites: the
   ``uncertainty_haircut`` numeric check and the ``conservative_probability``
   consistency check
+- ``mlb_probability_model._is_probability``, which is where ``dk_fair_prob``
+  and ``raw_probability`` reach the rule
 
 Every other call site rests on identity alone, and identity does not catch a
 re-derived copy at a call site. ``mlb_baseball_evidence`` has six ``_is_number``
@@ -35,9 +37,12 @@ version of this list said "``validate_probability_components`` here", which was
 wrong twice over — the pinned site was in ``_component_entries``, and that
 function's own two sites were unpinned, so re-deriving the rule at the haircut
 check left the full suite green (Reviewer, PR #70). Naming a function when the
-pin is on one call site inside it is the same overclaim in miniature. So: no
-module-wide enforcement is claimed anywhere. Identity everywhere, consultation
-at the five sites listed above.
+pin is on one call site inside it is the same overclaim in miniature.
+``_is_probability`` joined the list in PR #71: it was the last unpinned site on
+the defect path — ``raw_probability = 10 ** 400`` was one of the fields that
+raised — and re-deriving the rule inside it left the suite green at 763
+(Reviewer, PR #70). So: no module-wide enforcement is claimed anywhere.
+Identity everywhere, consultation at the six sites listed above.
 
 **Three of five, not three of three.** The same rule is still written out
 separately in ``vig_review_gate_common.py`` and ``mlb_runtime_policy.py``.
