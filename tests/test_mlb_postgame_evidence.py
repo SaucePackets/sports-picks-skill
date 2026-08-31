@@ -11,6 +11,7 @@ from scripts.mlb_postgame_evidence import (
     ip_to_outs,
     postgame_prompt_section,
     side_for_team,
+    usable_expected_ip,
     validate_process_grade,
 )
 
@@ -154,6 +155,89 @@ class AutoPillarGradesTests(unittest.TestCase):
         grades = auto_pillar_grades(fixture["baseball_evidence"], evidence, fixture["team"])
         self.assertEqual(grades["named_risk"]["grade"], "unknown")
         self.assertIn("HR risk", grades["named_risk"]["evidence"])
+
+
+class NonFiniteExpectedIpTests(unittest.TestCase):
+    """A non-finite `expected_ip` grades unknown; it never raises.
+
+    Both settlement-grade entry points are covered, because they fail
+    differently: `auto_pillar_grades` raised `OverflowError` out of
+    `round(inf * 3)`, and `validate_process_grade` catches only `ValueError`,
+    so the same input took down a reviewer's settlement grade rather than
+    returning an error list it could report.
+    """
+
+    NON_FINITE = (("nan", float("nan")), ("inf", float("inf")), ("-inf", float("-inf")))
+
+    def setUp(self):
+        self.fixture = load_fixture("sd_arizona_starter_thesis_reversal.json")
+        self.evidence = collect_postgame_evidence(self.fixture["feed"])
+
+    def _evidence_with(self, expected_ip):
+        evidence = dict(self.fixture["baseball_evidence"])
+        evidence["expected_ip"] = expected_ip
+        return evidence
+
+    def test_the_predicate_rejects_every_non_finite_value(self):
+        for label, value in self.NON_FINITE:
+            with self.subTest(value=label):
+                self.assertFalse(usable_expected_ip(value))
+        # ...and still accepts the finite values it always did.
+        for value in (5.5, 6, 0.1):
+            with self.subTest(value=value):
+                self.assertTrue(usable_expected_ip(value))
+        for value in (0, -1, True, None, "5.5", [5.5]):
+            with self.subTest(value=value):
+                self.assertFalse(usable_expected_ip(value))
+
+    def test_auto_pillar_grades_returns_unknown_instead_of_raising(self):
+        for label, value in self.NON_FINITE:
+            with self.subTest(value=label):
+                grades = auto_pillar_grades(
+                    self._evidence_with(value), self.evidence, self.fixture["team"]
+                )
+                self.assertEqual(grades["starter_quality"]["grade"], "unknown")
+                # The other pillars are unaffected — a bad `expected_ip`
+                # disables one pillar, it does not blank the grade.
+                self.assertNotEqual(grades["starter_role"]["grade"], "unknown")
+
+    def test_validate_process_grade_reports_instead_of_crashing(self):
+        # `validate_process_grade` catches ValueError only, so an OverflowError
+        # here escaped the settlement gate entirely.
+        for label, value in self.NON_FINITE:
+            with self.subTest(value=label):
+                errors = validate_process_grade(
+                    grade_obj(self.fixture),
+                    result=self.fixture["result"],
+                    baseball_evidence=self._evidence_with(value),
+                    postgame_evidence=self.evidence,
+                    team=self.fixture["team"],
+                )
+                self.assertIsInstance(errors, list)
+
+    def test_the_bare_json_literals_are_what_make_this_reachable(self):
+        # `json.loads` accepts bare `NaN`/`Infinity` by default, so a card on
+        # disk can carry either without any hand-editing of a Python object.
+        # Without this, the fix above reads as defending against nothing.
+        loaded = json.loads('{"expected_ip": Infinity, "other": NaN}')
+        self.assertTrue(loaded["expected_ip"] == float("inf"))
+        self.assertNotEqual(loaded["other"], loaded["other"])  # NaN
+        grades = auto_pillar_grades(
+            self._evidence_with(loaded["expected_ip"]),
+            self.evidence,
+            self.fixture["team"],
+        )
+        self.assertEqual(grades["starter_quality"]["grade"], "unknown")
+
+    def test_a_finite_expected_ip_grades_exactly_as_before(self):
+        # The regression rail: finiteness must not move any finite verdict.
+        graded = {
+            value: auto_pillar_grades(
+                self._evidence_with(value), self.evidence, self.fixture["team"]
+            )["starter_quality"]["grade"]
+            for value in (1.0, 5.5, 9.0, 20.0)
+        }
+        self.assertNotIn("unknown", graded.values())
 
 
 class DeriveProcessGradeTests(unittest.TestCase):

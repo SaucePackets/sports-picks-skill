@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import re
 import sys
 from pathlib import Path
@@ -113,8 +114,19 @@ def usable_expected_ip(value: Any) -> bool:
     grader gates `starter_quality` on it, and the analysis layer's coverage
     counts must not call an input `recorded` in the same breath the grader
     calls the pillar it feeds `unknown`.
+
+    Finiteness is part of usable, not a nicety. `json.loads` accepts the bare
+    `NaN` and `Infinity` literals by default, so a card can carry either. The
+    `> 0` test alone rejects `NaN` and `-Infinity` by accident — a comparison
+    with `NaN` is false — but passes `Infinity` straight into
+    `round(expected_ip * 3)`, which raises `OverflowError`. That escapes
+    `validate_process_grade`, which only catches `ValueError`, so a settlement
+    grade crashes rather than reporting. A value the grader cannot use is
+    `unknown`; it is never an exception.
     """
-    return isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    return math.isfinite(value) and value > 0
 
 
 def ip_to_outs(innings_pitched: Any) -> int | None:
