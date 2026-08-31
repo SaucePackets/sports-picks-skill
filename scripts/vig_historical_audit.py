@@ -397,6 +397,24 @@ def _clean_text(value: Any) -> str | None:
     return value.strip() if isinstance(value, str) and value.strip() else None
 
 
+def _clean_number(value: Any) -> int | float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return value
+
+
+# The carried TYPE of every structured value field, declared per field rather
+# than dispatched on a field name. A name dispatch falls through to the text
+# check for anything it does not recognise, so a numeric field added to
+# STRUCTURED_EVIDENCE_VALUE_FIELDS would be silently text-checked and dropped —
+# the exact shape of the bug the value tuple exists to fix. An unmapped field
+# raises instead: an unusable carrier is better than a silent one.
+STRUCTURED_EVIDENCE_VALUE_TYPES = {
+    "starter_role": _clean_text,
+    "expected_ip": _clean_number,
+}
+
+
 def _structured_value(field: str, value: Any) -> Any:
     """One non-text structured value, carried in its recorded type or not at all.
 
@@ -405,9 +423,13 @@ def _structured_value(field: str, value: Any) -> Any:
     `expected_ip` is usable, belongs to the grader, and a carrier that quietly
     repaired either would hide what the card actually recorded.
     """
-    if field == "expected_ip":
-        return value if isinstance(value, (int, float)) and not isinstance(value, bool) else None
-    return _clean_text(value)
+    cleaner = STRUCTURED_EVIDENCE_VALUE_TYPES.get(field)
+    if cleaner is None:
+        raise KeyError(
+            f"{field!r} is in STRUCTURED_EVIDENCE_VALUE_FIELDS but declares no "
+            f"carried type in STRUCTURED_EVIDENCE_VALUE_TYPES"
+        )
+    return cleaner(value)
 
 
 def recorded_rationale(raw: dict[str, Any]) -> dict[str, Any]:

@@ -63,10 +63,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from http_util import fetch_json  # noqa: E402
 from mlb_postgame_evidence import (  # noqa: E402
+    EXPECTED_STARTER_ROLES,
     FEED_URL,
     PILLARS,
     auto_pillar_grades,
     collect_postgame_evidence,
+    usable_expected_ip,
 )
 from vig_historical_audit import (  # noqa: E402
     DEFAULT_MIN_CONSERVATIVE_EDGE,
@@ -175,7 +177,14 @@ def corpus_selection(records: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def bet_time_evidence(record: dict[str, Any]) -> dict[str, Any]:
-    """Pregame inputs for the grader, built ONLY from the allowlist."""
+    """Pregame inputs for the grader, built ONLY from the allowlist.
+
+    Everything the card recorded is passed through unjudged — the grader
+    decides what it can use, and a value it refuses is still a value the card
+    recorded. `gradeable_evidence_fields` is what separates the two for
+    coverage; this function must not, or the report would lose the ability to
+    say "recorded but ungradeable" at all.
+    """
     rationale = record.get("recorded_rationale")
     rationale = rationale if isinstance(rationale, dict) else {}
     return {
@@ -183,6 +192,28 @@ def bet_time_evidence(record: dict[str, Any]) -> dict[str, Any]:
         for field in PREGAME_EVIDENCE_FIELDS
         if rationale.get(field) is not None
     }
+
+
+# Per-field pregame gradeability, asked of the GRADER rather than restated
+# here. A field with no entry is gradeable whenever it is recorded (that is
+# `named_risks`: the grader takes any list, including an empty one).
+GRADEABLE_EVIDENCE_PREDICATES = {
+    "starter_role": lambda value: value in EXPECTED_STARTER_ROLES,
+    "expected_ip": usable_expected_ip,
+}
+
+
+def gradeable_evidence_fields(evidence: dict[str, Any]) -> list[str]:
+    """Recorded fields the grader can actually grade against.
+
+    `expected_ip: 0` and a `starter_role` outside the grader's vocabulary are
+    recorded values that produce `unknown` pillars. Counting them as coverage
+    would let the report claim an input the grade it feeds does not have.
+    """
+    return sorted(
+        field for field, value in evidence.items()
+        if GRADEABLE_EVIDENCE_PREDICATES.get(field, lambda _v: True)(value)
+    )
 
 
 def evidence_path(evidence_dir: Path, game_pk: int) -> Path:
@@ -285,6 +316,7 @@ def grade_record(
     game_pk = _game_pk(record)
     team = record.get("resolved_side")
     price, price_basis = effective_price(record)
+    evidence = bet_time_evidence(record)
     row: dict[str, Any] = {
         "date": record.get("date"),
         "game": record.get("game"),
@@ -293,7 +325,8 @@ def grade_record(
         "side_outcome": record.get("side_outcome"),
         "price": price,
         "price_basis": price_basis,
-        "bet_time_evidence_fields": sorted(bet_time_evidence(record)),
+        "bet_time_evidence_fields": sorted(evidence),
+        "gradeable_bet_time_evidence_fields": gradeable_evidence_fields(evidence),
         "evidence_file_status": None,
         "pillars": None,
         "descriptive": None,
@@ -308,7 +341,7 @@ def grade_record(
     if postgame is None:
         return row
     try:
-        grades = auto_pillar_grades(bet_time_evidence(record), postgame, team)
+        grades = auto_pillar_grades(evidence, postgame, team)
     except ValueError as exc:
         row["evidence_file_status"] = "invalid"
         row["note"] = str(exc)
@@ -407,16 +440,47 @@ def coverage(rows: list[dict[str, Any]]) -> dict[str, Any]:
             # not carry this", and the second reads as the first. Zero-filled
             # over the allowlist so a field the carrier drops shows up as an
             # explicit 0 next to its siblings.
+            #
+            # Two counts per field, because they answer different questions and
+            # collapsing them would hide one of the two mistakes this block
+            # exists to catch. `recorded` is what the cards hold; `gradeable`
+            # is what the grader can use. A card recording `expected_ip: 0`
+            # counts as recorded and NOT gradeable — the grader marks
+            # starter_quality unknown for it, and a coverage number that
+            # claimed the input while the pillar reads unknown would be the
+            # round-1 blocker pointing the other way.
             "records_by_field": {
-                field: sum(
-                    1 for r in rows if field in r["bet_time_evidence_fields"]
-                )
+                field: {
+                    "recorded": sum(
+                        1 for r in rows if field in r["bet_time_evidence_fields"]
+                    ),
+                    "gradeable": sum(
+                        1 for r in rows
+                        if field in r["gradeable_bet_time_evidence_fields"]
+                    ),
+                }
                 for field in PREGAME_EVIDENCE_FIELDS
             },
             "records_with_any_field": sum(
                 1 for r in rows if r["bet_time_evidence_fields"]
             ),
             "records_total": len(rows),
+            # Named, never merely counted: a recorded-but-ungradeable value is
+            # a recording defect somebody can go fix, and it is invisible in
+            # both counts above once they disagree by more than one.
+            "recorded_but_ungradeable": [
+                {
+                    "date": r["date"],
+                    "game": r["game"],
+                    "fields": [
+                        field for field in r["bet_time_evidence_fields"]
+                        if field not in r["gradeable_bet_time_evidence_fields"]
+                    ],
+                }
+                for r in rows
+                if set(r["bet_time_evidence_fields"])
+                - set(r["gradeable_bet_time_evidence_fields"])
+            ],
         },
     }
 
@@ -474,13 +538,23 @@ def render(report: dict[str, Any]) -> str:
     bt = report["coverage"]["bet_time_evidence"]
     lines.append(
         f"- bet-time evidence recorded: {bt['records_with_any_field']}"
-        f"/{bt['records_total']} records (by field: "
+        f"/{bt['records_total']} records (by field, recorded/gradeable: "
         + ", ".join(
-            f"{field}={bt['records_by_field'][field]}"
+            f"{field}={bt['records_by_field'][field]['recorded']}"
+            f"/{bt['records_by_field'][field]['gradeable']}"
             for field in PREGAME_EVIDENCE_FIELDS
         )
         + ")"
     )
+    if bt["recorded_but_ungradeable"]:
+        lines.append(
+            f"  recorded but ungradeable on {len(bt['recorded_but_ungradeable'])} "
+            "cards: "
+            + ", ".join(
+                f"{e['date']} {e['game']} ({'/'.join(e['fields'])})"
+                for e in bt["recorded_but_ungradeable"]
+            )
+        )
     for cohort in COHORTS:
         block = report["aggregates"][cohort]
         lines.append(

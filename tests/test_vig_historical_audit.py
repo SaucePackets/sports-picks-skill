@@ -19,6 +19,7 @@ import ast
 import json
 import sys
 import unittest
+import unittest.mock
 from pathlib import Path
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
@@ -227,6 +228,26 @@ class RecordedRationaleTests(unittest.TestCase):
                 rationale = audit.recorded_rationale({"baseball_evidence": evidence})
                 self.assertIsNone(rationale["starter_role"])
                 self.assertIsNone(rationale["expected_ip"])
+
+    def test_every_value_field_declares_a_carried_type(self):
+        # The failure this prevents: a numeric field added to the tuple with no
+        # type entry would fall through a name dispatch to the text check and
+        # be silently dropped — the same shape as the bug the tuple exists to
+        # fix, and invisible until a coverage number reads 0 for no reason.
+        self.assertEqual(
+            set(audit.STRUCTURED_EVIDENCE_VALUE_FIELDS),
+            set(audit.STRUCTURED_EVIDENCE_VALUE_TYPES),
+        )
+
+    def test_an_undeclared_value_field_fails_loud_rather_than_text_checking(self):
+        with unittest.mock.patch.object(
+            audit, "STRUCTURED_EVIDENCE_VALUE_FIELDS", ("starter_role", "expected_pitches")
+        ):
+            with self.assertRaises(KeyError) as ctx:
+                audit.recorded_rationale({
+                    "baseball_evidence": {"expected_pitches": 95},
+                })
+        self.assertIn("expected_pitches", str(ctx.exception))
 
     def test_postgame_fields_are_never_carried(self):
         # A rationale reconstructed from postgame prose is hindsight; the
