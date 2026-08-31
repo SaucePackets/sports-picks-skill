@@ -8,9 +8,12 @@ from scripts import vig_drought_diagnostic as diag
 from scripts.vig_drought_diagnostic import (
     CANDIDATE_STOPS,
     DAY_CLASSES,
+    EVIDENCE_ASSIGNABLE_CLASSES,
+    RUN_EVIDENCE_SCHEMA,
     DiagnosticError,
     build_report,
     date_range,
+    load_run_evidence,
     parse_date,
 )
 
@@ -384,13 +387,500 @@ class ReconciliationTests(unittest.TestCase):
     def test_reconciliation_reports_a_mismatch_instead_of_hiding_it(self):
         # The checks exist to catch a defect in THIS script. Proving they can
         # go red is what separates them from decoration.
-        days = [{"date": "2026-08-11", "counts": {"candidates": 2}, "candidates": []}]
+        days = [
+            {
+                "date": "2026-08-11",
+                "counts": {"candidates": 2},
+                "candidates": [],
+                "roots_with_files": [],
+                "run_evidence": None,
+            }
+        ]
         recon = diag.reconcile(days, {name: 0 for name in DAY_CLASSES},
                                {name: 0 for name in CANDIDATE_STOPS})
         self.assertFalse(recon["ok"])
         failed = [check["check"] for check in recon["checks"] if not check["ok"]]
         self.assertIn("every day is classified exactly once", failed)
         self.assertIn("every candidate has exactly one stop", failed)
+        self.assertIn(
+            "days with no file in any root are classed by the no-artifact split", failed
+        )
+
+    def test_reconciliation_catches_evidence_applied_over_an_artifact(self):
+        # The precedence check must be able to go red, or it is a decoration
+        # that reads as a guarantee. A day with files AND an applied verdict is
+        # exactly the state the classifier is forbidden to produce.
+        days = [
+            {
+                "date": "2026-08-20",
+                "counts": {"candidates": 0},
+                "candidates": [],
+                "roots_with_files": ["sports-picks-skill"],
+                "run_evidence": {"verdict": "job_never_fired", "applied": True},
+            }
+        ]
+        recon = diag.reconcile(
+            days,
+            {**{name: 0 for name in DAY_CLASSES}, "slate_empty": 1},
+            {name: 0 for name in CANDIDATE_STOPS},
+        )
+        self.assertFalse(recon["ok"])
+        self.assertIn(
+            "applied run evidence only ever explains a day with no files",
+            [check["check"] for check in recon["checks"] if not check["ok"]],
+        )
+
+
+def run_evidence(dates, **extra):
+    payload = {"schema": RUN_EVIDENCE_SCHEMA, "dates": dates}
+    payload.update(extra)
+    return payload
+
+
+def evidence_entry(verdict, quote="a verbatim log line"):
+    return {
+        "verdict": verdict,
+        "basis": "why this verdict follows",
+        "receipts": [{"source": "~/.hermes/profiles/vig/logs/agent.log.3", "quote": quote}],
+    }
+
+
+class NoArtifactSplitTests(unittest.TestCase):
+    """The three-way split of what used to be one `no_slate_artifact` bucket.
+
+    A day with no files looks identical from a directory listing whether the job
+    never fired or ran and never reached the write. They have entirely different
+    fixes, so the split has to be driven by evidence and has to refuse to guess
+    when there is none.
+    """
+
+    def _report(self, evidence=None, corpus_days=()):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            corpus = Corpus(root)
+            for date in corpus_days:
+                corpus.day(date, candidates=[], watchlist=[], games=[])
+            report = build_report(
+                picks_dir=root,
+                since=parse_date("2026-08-12"),
+                until=parse_date("2026-08-14"),
+                run_evidence=evidence,
+            )
+        return {day["date"]: day for day in report["days"]}, report
+
+    def test_each_evidence_verdict_lands_in_its_own_class(self):
+        # One arm per value, not one test for the arm that happened to be first.
+        # PR #64 regressed on exactly that: a tri-state was read for its polarity
+        # and only one value was ever exercised.
+        for verdict in EVIDENCE_ASSIGNABLE_CLASSES:
+            with self.subTest(verdict=verdict):
+                by_date, _ = self._report(
+                    run_evidence({"2026-08-13": evidence_entry(verdict)})
+                )
+                self.assertEqual(by_date["2026-08-13"]["day_class"], verdict)
+
+    def test_a_day_with_no_evidence_stays_unexplained_rather_than_guessed(self):
+        # `no_slate_artifact` now means "we do not know", and that is the point
+        # of keeping it. A split that silently defaulted to one of its explained
+        # values would turn an open question into a finding.
+        by_date, report = self._report(
+            run_evidence({"2026-08-13": evidence_entry("job_never_fired")})
+        )
+        self.assertEqual(by_date["2026-08-12"]["day_class"], "no_slate_artifact")
+        self.assertEqual(by_date["2026-08-14"]["day_class"], "no_slate_artifact")
+        gap = next(g for g in report["data_gaps"] if g["kind"] == "no_slate_artifact")
+        self.assertEqual(gap["dates"], ["2026-08-12", "2026-08-14"])
+
+    def test_with_no_evidence_file_at_all_every_silent_day_is_unexplained(self):
+        by_date, _ = self._report(None)
+        self.assertEqual(
+            [d["day_class"] for d in by_date.values()], ["no_slate_artifact"] * 3
+        )
+
+    def test_evidence_cannot_overrule_an_artifact_the_corpus_holds(self):
+        # The precedence that keeps this from laundering a log line over a file.
+        # The corpus has an empty slate for 08-13; evidence claims the job never
+        # fired. The file wins, the verdict is recorded, and `applied` says so.
+        by_date, _ = self._report(
+            run_evidence({"2026-08-13": evidence_entry("job_never_fired")}),
+            corpus_days=("2026-08-13",),
+        )
+        day = by_date["2026-08-13"]
+        self.assertEqual(day["day_class"], "slate_empty")
+        self.assertEqual(day["run_evidence"]["verdict"], "job_never_fired")
+        self.assertFalse(day["run_evidence"]["applied"])
+        self.assertIn("outranks run evidence", day["run_evidence"]["not_applied_reason"])
+
+    def test_the_split_stays_exhaustive_over_the_days_it_replaced(self):
+        by_date, report = self._report(
+            run_evidence(
+                {
+                    "2026-08-12": evidence_entry("scan_ran_artifact_unwritten"),
+                    "2026-08-13": evidence_entry("job_never_fired"),
+                }
+            )
+        )
+        counts = report["aggregates"]["day_classes"]
+        self.assertEqual(counts["scan_ran_artifact_unwritten"], 1)
+        self.assertEqual(counts["job_never_fired"], 1)
+        self.assertEqual(counts["no_slate_artifact"], 1)
+        self.assertTrue(report["reconciliation"]["ok"], report["reconciliation"])
+
+    def test_every_evidence_assignable_class_is_a_real_day_class(self):
+        # A verdict the aggregate cannot count would raise a KeyError on the
+        # first real corpus that carried it.
+        for verdict in EVIDENCE_ASSIGNABLE_CLASSES:
+            self.assertIn(verdict, DAY_CLASSES)
+
+    def test_evidence_may_not_assign_a_class_the_corpus_is_responsible_for(self):
+        # Widening the assignable set has to be a deliberate edit. `slate_empty`
+        # is a claim about the games and only a file can support it.
+        self.assertNotIn("slate_empty", EVIDENCE_ASSIGNABLE_CLASSES)
+        self.assertNotIn("candidates_rejected", EVIDENCE_ASSIGNABLE_CLASSES)
+
+
+class RunEvidenceLoaderTests(unittest.TestCase):
+    """The loader is the only path by which a claim about the scheduler enters
+    the headline table, so each of its refusals is tested for going red."""
+
+    def _load(self, payload):
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "evidence.json"
+            path.write_text(json.dumps(payload))
+            return load_run_evidence(path)
+
+    def test_a_well_formed_file_loads(self):
+        loaded = self._load(run_evidence({"2026-08-19": evidence_entry("job_never_fired")}))
+        self.assertEqual(loaded["dates"]["2026-08-19"]["verdict"], "job_never_fired")
+
+    def test_a_foreign_schema_is_refused(self):
+        payload = run_evidence({})
+        payload["schema"] = "something-else-v1"
+        with self.assertRaises(DiagnosticError):
+            self._load(payload)
+
+    def test_a_verdict_outside_the_assignable_set_is_refused(self):
+        for verdict in ("slate_empty", "candidates_executed", "made_up", None):
+            with self.subTest(verdict=verdict):
+                entry = evidence_entry("job_never_fired")
+                entry["verdict"] = verdict
+                with self.assertRaises(DiagnosticError):
+                    self._load(run_evidence({"2026-08-19": entry}))
+
+    def test_a_verdict_with_no_receipt_is_refused(self):
+        # The sources behind this file rotate; a claim with nothing quoted is
+        # unfalsifiable by the time anyone reads the report.
+        entry = evidence_entry("job_never_fired")
+        entry["receipts"] = []
+        with self.assertRaises(DiagnosticError):
+            self._load(run_evidence({"2026-08-19": entry}))
+
+    def test_a_receipt_missing_its_source_or_its_quote_is_refused(self):
+        for receipt in ({"source": "agent.log"}, {"quote": "a line"}, {}):
+            with self.subTest(receipt=receipt):
+                entry = evidence_entry("job_never_fired")
+                entry["receipts"] = [receipt]
+                with self.assertRaises(DiagnosticError):
+                    self._load(run_evidence({"2026-08-19": entry}))
+
+
+class MultiRootEnumerationTests(unittest.TestCase):
+    """The 2026-08-20 miss: the window spans a deploy cutover and the slate
+    wrote into more than one checkout, so a single-root enumeration reported an
+    existing artifact as absent."""
+
+    def _two_roots(self, tmp, *, in_primary=(), in_secondary=()):
+        primary, secondary = Path(tmp) / "runtime" / ".picks", Path(tmp) / "dev" / ".picks"
+        for root, dates in ((primary, in_primary), (secondary, in_secondary)):
+            corpus = Corpus(root)
+            for date in dates:
+                corpus.day(date, candidates=[], watchlist=[], games=[])
+        return primary, secondary
+
+    def test_a_file_only_the_secondary_root_holds_is_found_and_classified(self):
+        with TemporaryDirectory() as tmp:
+            primary, secondary = self._two_roots(
+                tmp, in_primary=("2026-08-21",), in_secondary=("2026-08-20",)
+            )
+            report = build_report(
+                picks_dir=primary,
+                extra_picks_dirs=[secondary],
+                since=parse_date("2026-08-20"),
+                until=parse_date("2026-08-21"),
+            )
+        by_date = {day["date"]: day for day in report["days"]}
+        self.assertEqual(by_date["2026-08-20"]["day_class"], "slate_empty")
+        self.assertEqual(by_date["2026-08-20"]["roots_with_files"], ["dev"])
+        self.assertEqual(by_date["2026-08-20"]["slate_json_root"], "dev")
+
+    def test_the_same_corpus_read_from_one_root_gets_that_day_wrong(self):
+        # The discriminating half. Without it the multi-root support is only
+        # shown not to break anything, and the defect it fixes is never pinned.
+        with TemporaryDirectory() as tmp:
+            primary, _secondary = self._two_roots(
+                tmp, in_primary=("2026-08-21",), in_secondary=("2026-08-20",)
+            )
+            report = build_report(
+                picks_dir=primary,
+                since=parse_date("2026-08-20"),
+                until=parse_date("2026-08-21"),
+            )
+        by_date = {day["date"]: day for day in report["days"]}
+        self.assertEqual(by_date["2026-08-20"]["day_class"], "no_slate_artifact")
+
+    def test_a_root_with_nothing_for_a_date_is_listed_with_an_empty_list(self):
+        # An absent key and an empty list read the same to a skimmer and mean
+        # opposite things to anyone asking whether the root was searched at all.
+        with TemporaryDirectory() as tmp:
+            primary, secondary = self._two_roots(
+                tmp, in_primary=("2026-08-21",), in_secondary=("2026-08-20",)
+            )
+            report = build_report(
+                picks_dir=primary,
+                extra_picks_dirs=[secondary],
+                since=parse_date("2026-08-20"),
+                until=parse_date("2026-08-21"),
+            )
+        for day in report["days"]:
+            self.assertEqual(set(day["files_by_root"]), {"runtime", "dev"})
+        by_date = {day["date"]: day for day in report["days"]}
+        self.assertEqual(by_date["2026-08-20"]["files_by_root"]["runtime"], [])
+        self.assertEqual(by_date["2026-08-21"]["files_by_root"]["dev"], [])
+        self.assertIn(
+            "execute/2026-08-20-schedule.json",
+            by_date["2026-08-20"]["files_by_root"]["dev"],
+        )
+
+    def test_dates_present_in_exactly_one_root_are_named(self):
+        with TemporaryDirectory() as tmp:
+            primary, secondary = self._two_roots(
+                tmp,
+                in_primary=("2026-08-20", "2026-08-21"),
+                in_secondary=("2026-08-20",),
+            )
+            report = build_report(
+                picks_dir=primary,
+                extra_picks_dirs=[secondary],
+                since=parse_date("2026-08-20"),
+                until=parse_date("2026-08-21"),
+            )
+        only = report["enumeration"]["dates_in_one_root_only"]
+        self.assertEqual([entry["date"] for entry in only], ["2026-08-21"])
+        self.assertEqual(only[0]["present_in"], "runtime")
+        self.assertEqual(only[0]["absent_from"], ["dev"])
+
+    def test_only_a_date_the_PRIMARY_root_lacks_counts_as_a_miss(self):
+        # The asymmetry is the whole point. A date only the primary has is the
+        # secondary checkout no longer being written to — benign. A date only
+        # the SECONDARY has is a file a primary-only run reports as absent.
+        # Collapsing the two buries the one real miss under the benign ones.
+        with TemporaryDirectory() as tmp:
+            primary, secondary = self._two_roots(
+                tmp, in_primary=("2026-08-21",), in_secondary=("2026-08-20",)
+            )
+            report = build_report(
+                picks_dir=primary,
+                extra_picks_dirs=[secondary],
+                since=parse_date("2026-08-20"),
+                until=parse_date("2026-08-21"),
+            )
+        enumeration = report["enumeration"]
+        self.assertEqual(
+            sorted(e["date"] for e in enumeration["dates_in_one_root_only"]),
+            ["2026-08-20", "2026-08-21"],
+        )
+        missing = enumeration["dates_missing_from_primary"]
+        self.assertEqual([e["date"] for e in missing], ["2026-08-20"])
+        self.assertEqual(missing[0]["present_in"], ["dev"])
+        self.assertIn(
+            "execute/2026-08-20-schedule.json", missing[0]["files"]["dev"]
+        )
+
+    def test_a_single_root_run_never_claims_a_one_root_only_date(self):
+        # With one root every date is trivially "in one root only". Reporting
+        # that would turn the finding into noise on every single-root run.
+        with TemporaryDirectory() as tmp:
+            primary, _ = self._two_roots(tmp, in_primary=("2026-08-20",))
+            report = build_report(
+                picks_dir=primary,
+                since=parse_date("2026-08-20"),
+                until=parse_date("2026-08-20"),
+            )
+        self.assertEqual(report["enumeration"]["dates_in_one_root_only"], [])
+
+    def test_the_primary_root_wins_a_fact_both_roots_hold(self):
+        with TemporaryDirectory() as tmp:
+            primary, secondary = self._two_roots(
+                tmp, in_primary=("2026-08-20",), in_secondary=("2026-08-20",)
+            )
+            report = build_report(
+                picks_dir=primary,
+                extra_picks_dirs=[secondary],
+                since=parse_date("2026-08-20"),
+                until=parse_date("2026-08-20"),
+            )
+        self.assertEqual(report["days"][0]["slate_json_root"], "runtime")
+        self.assertEqual(report["days"][0]["schedule_cache_root"], "runtime")
+
+    def test_a_corrupt_copy_in_the_primary_root_does_not_veto_a_valid_one(self):
+        # Scan to the first VALID copy, keeping the invalid one's provenance.
+        # First-PRESENT would let a corrupt primary file suppress a readable
+        # secondary — the same shape PR #61 fixed in the other direction.
+        with TemporaryDirectory() as tmp:
+            primary, secondary = self._two_roots(tmp, in_secondary=("2026-08-20",))
+            (primary / "execute" / "2026-08-20-schedule.json").write_text("{not json")
+            report = build_report(
+                picks_dir=primary,
+                extra_picks_dirs=[secondary],
+                since=parse_date("2026-08-20"),
+                until=parse_date("2026-08-20"),
+            )
+        day = report["days"][0]
+        self.assertEqual(day["slate_json_root"], "dev")
+        self.assertTrue(day["slate_json_present"])
+        self.assertEqual([c["root"] for c in day["slate_json_corrupt"]], ["runtime"])
+
+    def test_two_roots_with_the_same_parent_name_get_distinct_labels(self):
+        # Merging them under one label would hide exactly the discrepancy the
+        # enumeration exists to surface.
+        with TemporaryDirectory() as tmp:
+            a = Path(tmp) / "a" / "same" / ".picks"
+            b = Path(tmp) / "b" / "same" / ".picks"
+            Corpus(a).day("2026-08-20", candidates=[], watchlist=[], games=[])
+            Corpus(b)
+            report = build_report(
+                picks_dir=a,
+                extra_picks_dirs=[b],
+                since=parse_date("2026-08-20"),
+                until=parse_date("2026-08-20"),
+            )
+        self.assertEqual(report["enumeration"]["roots_searched"], ["same", "same-2"])
+
+
+class NamespaceSilenceFindingTests(unittest.TestCase):
+    def test_both_instances_are_reported_as_one_pattern(self):
+        # The wrong-root lookup and the event_id/gamePk join are the same defect
+        # in different clothes: a query against the wrong namespace returns
+        # silence, and silence reads as absence. Naming them as one pattern is
+        # what makes the third occurrence recognisable.
+        with TemporaryDirectory() as tmp:
+            primary = Path(tmp) / "runtime" / ".picks"
+            secondary = Path(tmp) / "dev" / ".picks"
+            Corpus(primary)
+            Corpus(secondary).day("2026-08-20", candidates=[], watchlist=[], games=[])
+            report = build_report(
+                picks_dir=primary,
+                extra_picks_dirs=[secondary],
+                since=parse_date("2026-08-20"),
+                until=parse_date("2026-08-20"),
+            )
+        finding = next(f for f in report["findings"] if f["pattern"] == "namespace_silence")
+        instances = {entry["instance"] for entry in finding["instances"]}
+        self.assertIn("event_id joined against gamePk", instances)
+        self.assertIn("corpus enumerated from one .picks root", instances)
+
+    def test_the_root_instance_is_derived_from_the_data_not_asserted(self):
+        # A hardcoded instance would keep claiming a miss on a corpus that has
+        # none. Both roots hold this date, so there is nothing to report.
+        with TemporaryDirectory() as tmp:
+            primary = Path(tmp) / "runtime" / ".picks"
+            secondary = Path(tmp) / "dev" / ".picks"
+            Corpus(primary).day("2026-08-20", candidates=[], watchlist=[], games=[])
+            Corpus(secondary).day("2026-08-20", candidates=[], watchlist=[], games=[])
+            report = build_report(
+                picks_dir=primary,
+                extra_picks_dirs=[secondary],
+                since=parse_date("2026-08-20"),
+                until=parse_date("2026-08-20"),
+            )
+        finding = next(f for f in report["findings"] if f["pattern"] == "namespace_silence")
+        instances = {entry["instance"] for entry in finding["instances"]}
+        self.assertNotIn("corpus enumerated from one .picks root", instances)
+
+    def test_a_date_only_the_primary_root_has_is_not_reported_as_a_miss(self):
+        # The finding must not fire on the benign direction. The secondary root
+        # simply stops being written to partway through the real window, and
+        # eleven benign dates crowding out one real miss is how a finding stops
+        # being read.
+        with TemporaryDirectory() as tmp:
+            primary = Path(tmp) / "runtime" / ".picks"
+            secondary = Path(tmp) / "dev" / ".picks"
+            Corpus(primary).day("2026-08-21", candidates=[], watchlist=[], games=[])
+            Corpus(secondary)
+            report = build_report(
+                picks_dir=primary,
+                extra_picks_dirs=[secondary],
+                since=parse_date("2026-08-21"),
+                until=parse_date("2026-08-21"),
+            )
+        finding = next(f for f in report["findings"] if f["pattern"] == "namespace_silence")
+        instances = {entry["instance"] for entry in finding["instances"]}
+        self.assertNotIn("corpus enumerated from one .picks root", instances)
+        # ...and it IS still recorded in the symmetric enumeration, so the
+        # completeness question stays answerable.
+        self.assertEqual(
+            [e["date"] for e in report["enumeration"]["dates_in_one_root_only"]],
+            ["2026-08-21"],
+        )
+
+
+class CommittedEvidenceFileTests(unittest.TestCase):
+    """The evidence file that ships with the report has to satisfy the same
+    loader the CLI uses. A committed artifact the tool would refuse to read is
+    worse than no artifact."""
+
+    PATH = Path(__file__).resolve().parents[1] / "docs" / "drought-run-evidence-2026-08.json"
+
+    def test_the_committed_evidence_file_passes_the_loader(self):
+        payload = load_run_evidence(self.PATH)
+        self.assertEqual(
+            sorted(payload["dates"]),
+            ["2026-08-12", "2026-08-13", "2026-08-14", "2026-08-19"],
+        )
+
+    def test_the_08_19_absence_argument_carries_its_denominator(self):
+        # An absence argument is only as good as the control that shows the
+        # observer was looking. Without the heartbeat and the neighbouring
+        # dates, "zero job lines" is indistinguishable from "no log".
+        payload = load_run_evidence(self.PATH)
+        counts = payload["per_date_counts"]["rows"]
+        self.assertEqual(counts["2026-08-19"][0], 0)
+        self.assertGreater(counts["2026-08-18"][0], 0)
+        self.assertGreater(counts["2026-08-20"][0], 0)
+        self.assertGreater(counts["2026-08-19"][2], 0)
+        self.assertEqual(payload["delivery_channel_messages_per_date"]["rows"]["2026-08-19"], 0)
+        self.assertTrue(
+            all(
+                n > 0
+                for date, n in payload["delivery_channel_messages_per_date"]["rows"].items()
+                if date != "2026-08-19"
+            )
+        )
+
+    def test_the_08_19_verdict_keeps_its_cause_an_open_question(self):
+        # Knowing the job did not fire is not knowing why. Collapsing those
+        # would be the guess this whole design refuses.
+        payload = load_run_evidence(self.PATH)
+        open_dates = {
+            date for q in payload["open_questions"] for date in q.get("dates", [])
+        }
+        self.assertIn("2026-08-19", open_dates)
+
+    def test_every_rotating_source_states_its_retention_limit(self):
+        payload = load_run_evidence(self.PATH)
+        for source in payload["sources"]:
+            with self.subTest(source=source["name"]):
+                self.assertTrue(source.get("retention_limit"))
+                self.assertIn("reproducible_by_reviewer", source)
+
+    def test_the_08_20_artifact_receipt_is_checkable(self):
+        payload = load_run_evidence(self.PATH)
+        receipts = {r["file"]: r for r in payload["artifact_receipts"]}
+        slate = receipts[".picks/slate/2026-08-20.md"]
+        self.assertEqual(slate["size"], 9017)
+        self.assertEqual(slate["mtime_utc"], "2026-08-20T15:36:33Z")
+        self.assertEqual(len(slate["sha256"]), 64)
+        self.assertEqual(slate["root"], "sports-picks-skill")
 
 
 class PortablePathTests(unittest.TestCase):

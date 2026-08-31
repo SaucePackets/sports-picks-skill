@@ -8,22 +8,41 @@ one: **for each day, how far down the pipeline did anything get, and where did
 it stop.**
 
 The distinction this module exists to enforce is that a drought is not one
-thing. A day with no slate artifact at all, a day whose scan ran and found
-nothing on a fifteen-game slate, a day that produced only lineup-watchlist
-near-misses, and a day that produced priced candidates which the review gate
-then rejected are FOUR different findings with four different fixes. Collapsing
-them into "no picks" is what makes a drought look like one problem.
+thing. A day whose job never fired, a day whose scan ran but never reached the
+write, a day whose scan ran and found nothing on a fifteen-game slate, a day
+that produced only lineup-watchlist near-misses, and a day that produced priced
+candidates which the review gate then rejected are DIFFERENT findings with
+different fixes. Collapsing them into "no picks" is what makes a drought look
+like one problem.
 
 So every day in the window gets exactly one ``day_class``:
 
-- ``no_slate_artifact`` — no schedule JSON, no slate writeup, nothing. The scan
-  did not run, or ran and wrote nothing at all. This is the only class that is
-  about the SCAN rather than about the games.
+- ``job_never_fired`` — the scheduler never started the run. Nothing about the
+  games or the scan is implicated; the fix is in the scheduler.
+- ``scan_ran_artifact_unwritten`` — the scan ran and delivered an analysis but
+  never reached the step that persists the slate files. The analysis exists;
+  only the artifact is missing. The fix is in the run's budget, not the market.
+- ``no_slate_artifact`` — no artifact in any known root and no run evidence that
+  says why. This is the honest residual: it means "we do not know", and a day
+  only lands here when nothing can explain it.
 - ``slate_empty`` — the scan ran and produced neither a candidate nor a
   watchlist entry.
 - ``watchlist_only`` — near-misses were recorded but nothing was priced.
 - ``candidates_rejected`` — candidates were priced and none was approved.
 - ``candidates_executed`` — at least one candidate executed.
+
+The first three all look identical from a single directory listing, which is the
+point: separating them takes evidence the corpus does not contain, and this
+module refuses to guess in its absence.
+
+**The corpus is enumerated across EVERY known root.** The 2026-08 window spans a
+deploy cutover, and the daily slate wrote into more than one checkout across it:
+``2026-08-20``'s artifacts exist only under ``sports-picks-skill/.picks`` while
+every other day in the window is under ``sports-picks-runtime/.picks``. A report
+built from one root reported that day as "no artifact" — the file was there, the
+lookup was pointed at the wrong root, and the silence read as absence. That is
+the same failure as joining an ``event_id`` against a ``gamePk``, and the report
+now names both as one pattern in ``findings``.
 
 **Denominators travel with numerators.** "The scan found nothing" means one
 thing against a fifteen-game slate and another against a two-game slate, so
@@ -44,6 +63,7 @@ ledger mutation, no execution.
 
 Usage:
   python scripts/vig_drought_diagnostic.py --picks-dir <dir> \
+      [--also-picks-dir <dir> ...] [--run-evidence <json>] \
       --since 2026-08-11 --until 2026-08-31 [--ledger picks.json] [--json]
 
 No third-party dependencies: standard library only.
@@ -64,16 +84,33 @@ if str(SCRIPT_DIR) not in sys.path:
 
 from mlb_lineup_watchlist import VALID_STATUSES, validate_entry  # noqa: E402
 
-REPORT_SCHEMA = "vig-mlb-drought-diagnostic-v1"
+REPORT_SCHEMA = "vig-mlb-drought-diagnostic-v2"
+RUN_EVIDENCE_SCHEMA = "vig-drought-run-evidence-v1"
+
+# The subdirectories of a `.picks` root this report reads. Enumerated per date
+# and per root so a reader can see exactly what was and was not there.
+PICKS_SUBDIRS = ("execute", "slate", "audit-results")
 
 # One label per day, mutually exclusive and exhaustive. Ordered from "nothing
 # happened" to "something executed" so a reader can scan the counts as a funnel.
 DAY_CLASSES = (
+    "job_never_fired",
+    "scan_ran_artifact_unwritten",
     "no_slate_artifact",
     "slate_empty",
     "watchlist_only",
     "candidates_rejected",
     "candidates_executed",
+)
+
+# The only classes external run evidence is allowed to assign, and only to a day
+# the corpus has NOTHING for. Evidence explains a silence; it can never overrule
+# an artifact, because the artifact is the stronger fact and the evidence was
+# collected from logs that rotate. Kept as its own tuple rather than a slice of
+# DAY_CLASSES so widening it is a deliberate edit with a test attached.
+EVIDENCE_ASSIGNABLE_CLASSES = (
+    "job_never_fired",
+    "scan_ran_artifact_unwritten",
 )
 
 # Where a priced candidate stopped. `review_gate_rejected` is a DECISION, not a
@@ -141,6 +178,85 @@ def _load_json(path: Path) -> Any | None:
     return json.loads(path.read_text())
 
 
+def picks_roots(primary: Path, extras: list[Path] | None) -> list[dict[str, Any]]:
+    """Label every `.picks` root the report will search, primary first.
+
+    Order is precedence: for any single-valued fact (the schedule JSON, the
+    cached MLB payload) the first root that HAS a usable copy wins, and the
+    report records which one it came from. Enumeration, by contrast, is over
+    ALL roots — that is the half that catches a file the primary root lacks.
+
+    The label is the root's parent directory name, which is what distinguishes
+    the checkouts in practice (`sports-picks-runtime` vs `sports-picks-skill`)
+    and carries no home path. Collisions get a numeric suffix rather than being
+    silently merged: two roots reported under one label would hide exactly the
+    discrepancy this function exists to surface.
+    """
+    ordered = [("primary", primary)] + [("secondary", p) for p in (extras or [])]
+    seen: dict[str, int] = {}
+    roots: list[dict[str, Any]] = []
+    for role, path in ordered:
+        base = path.parent.name or path.name
+        count = seen.get(base, 0)
+        seen[base] = count + 1
+        roots.append(
+            {
+                "label": base if count == 0 else f"{base}-{count + 1}",
+                "role": role,
+                "path": portable(path),
+                "_path": path,
+                "_dirs": {sub: path / sub for sub in PICKS_SUBDIRS},
+            }
+        )
+    return roots
+
+
+def load_run_evidence(path: Path) -> dict[str, Any]:
+    """Load externally-collected run evidence, refusing anything unsupported.
+
+    This file is the ONLY way a day with no artifact gets a cause, so it is the
+    one input that could quietly launder a guess into the headline table. Three
+    refusals keep it honest, and each raises rather than warning:
+
+    - the schema must match, so a differently-shaped file is not read loosely;
+    - a verdict must be in ``EVIDENCE_ASSIGNABLE_CLASSES``, so evidence cannot
+      invent a class or claim one the corpus is responsible for;
+    - a verdict must carry at least one receipt with a source and a verbatim
+      quote. The sources behind this file rotate — the durable cron DB is a
+      1000-row ring buffer that no longer reaches these dates — so a claim
+      without a quoted line is unfalsifiable by the time anyone reads the
+      report, and an unfalsifiable claim is worth less than an open question.
+    """
+    payload = json.loads(path.read_text())
+    schema = payload.get("schema")
+    if schema != RUN_EVIDENCE_SCHEMA:
+        raise DiagnosticError(
+            f"run evidence schema is {schema!r}, expected {RUN_EVIDENCE_SCHEMA!r}"
+        )
+    dates = payload.get("dates") or {}
+    for iso in sorted(dates):
+        entry = dates[iso]
+        verdict = entry.get("verdict")
+        if verdict not in EVIDENCE_ASSIGNABLE_CLASSES:
+            raise DiagnosticError(
+                f"run evidence for {iso}: verdict {verdict!r} is not one of "
+                f"{list(EVIDENCE_ASSIGNABLE_CLASSES)}"
+            )
+        receipts = entry.get("receipts") or []
+        if not receipts:
+            raise DiagnosticError(
+                f"run evidence for {iso}: verdict {verdict!r} carries no receipt; "
+                "an evidence claim with nothing quoted is not evidence"
+            )
+        for index, receipt in enumerate(receipts):
+            if not (receipt.get("source") and receipt.get("quote")):
+                raise DiagnosticError(
+                    f"run evidence for {iso}: receipt {index} needs both a "
+                    "'source' and a verbatim 'quote'"
+                )
+    return payload
+
+
 SCHEDULE_URL = "https://statsapi.mlb.com/api/v1/schedule?sportId=1&date={date}"
 
 
@@ -175,6 +291,27 @@ def scheduled_games(results_dir: Path, day: dt.date) -> tuple[int | None, dict[s
     if payload is None:
         return None, {}
     return _walk_schedule(payload)
+
+
+def enumerate_day(roots: list[dict[str, Any]], day: dt.date) -> dict[str, list[str]]:
+    """List every file each root holds for one date, INCLUDING the empty lists.
+
+    A root that has nothing for a date must appear with ``[]`` rather than be
+    omitted. An absent key and an empty list read the same to a skimmer and mean
+    opposite things to anyone checking whether a root was searched at all — and
+    "was it searched" is precisely the question the 2026-08-20 miss raised.
+    """
+    iso = day.isoformat()
+    listing: dict[str, list[str]] = {}
+    for root in roots:
+        found: list[str] = []
+        for sub in PICKS_SUBDIRS:
+            directory = root["_dirs"][sub]
+            if not directory.is_dir():
+                continue
+            found += sorted(f"{sub}/{p.name}" for p in directory.glob(f"{iso}*"))
+        listing[root["label"]] = found
+    return listing
 
 
 def _walk_schedule(payload: dict[str, Any]) -> tuple[int, dict[str, Any]]:
@@ -304,26 +441,58 @@ def _watchlist_trace(entry: dict[str, Any]) -> dict[str, Any]:
 def analyze_day(
     day: dt.date,
     *,
-    execute_dir: Path,
-    results_dir: Path,
-    slate_dir: Path,
+    roots: list[dict[str, Any]],
     ledger_by_date: dict[str, list[dict[str, Any]]],
+    run_evidence_dates: dict[str, Any] | None = None,
     fetch_outcomes: bool = False,
 ) -> dict[str, Any]:
     """Build the full trace for a single day. Never raises on a missing file."""
     iso = day.isoformat()
-    schedule_path = execute_dir / f"{iso}-schedule.json"
+    run_evidence_dates = run_evidence_dates or {}
+    files_by_root = enumerate_day(roots, day)
 
-    corrupt: str | None = None
-    try:
-        slate = _load_json(schedule_path)
-    except json.JSONDecodeError as exc:
-        slate, corrupt = None, f"{schedule_path.name} is not valid JSON: {exc}"
+    # Scan roots to the first schedule JSON that PARSES, keeping the provenance
+    # of every root that had an unreadable one. Stopping at the first PRESENT
+    # copy would let a corrupt file in the primary root veto a valid one behind
+    # it — PR #61 lost a day to that shape, in the other direction.
+    slate: Any | None = None
+    slate_json_root: str | None = None
+    corrupt: list[dict[str, str]] = []
+    for root in roots:
+        schedule_path = root["_dirs"]["execute"] / f"{iso}-schedule.json"
+        try:
+            payload = _load_json(schedule_path)
+        except json.JSONDecodeError as exc:
+            corrupt.append(
+                {
+                    "root": root["label"],
+                    "detail": f"{schedule_path.name} is not valid JSON: {exc}",
+                }
+            )
+            continue
+        if payload is not None:
+            slate, slate_json_root = payload, root["label"]
+            break
 
-    # Every writeup for the day, morning and evening. A day can have both.
-    writeups = sorted(p.name for p in slate_dir.glob(f"{iso}*.md")) if slate_dir.exists() else []
+    # Every writeup for the day, morning and evening, from every root. A day can
+    # have both, and — as 2026-08-20 proved — a root the primary lacks.
+    writeups = [
+        {"root": label, "name": name.split("/", 1)[1]}
+        for label, names in files_by_root.items()
+        for name in names
+        if name.startswith("slate/") and name.endswith(".md")
+    ]
 
-    games_scheduled, outcomes = scheduled_games(results_dir, day)
+    games_scheduled: int | None = None
+    outcomes: dict[str, Any] = {}
+    schedule_cache_root: str | None = None
+    for root in roots:
+        count, walked = scheduled_games(root["_dirs"]["audit-results"], day)
+        if count is not None:
+            games_scheduled, outcomes = count, walked
+            schedule_cache_root = root["label"]
+            break
+
     outcome_source = "cache"
     outcome_refetch_error = None
 
@@ -368,9 +537,30 @@ def analyze_day(
     watchlist = [_watchlist_trace(entry) for entry in watchlist_raw]
     executed_ledger = ledger_by_date.get(iso, [])
 
-    has_artifact = slate is not None or bool(writeups) or corrupt is not None
+    has_artifact = slate is not None or bool(writeups) or bool(corrupt)
+
+    # Run evidence is CONSULTED only when the corpus has nothing, and the day
+    # record says so either way. An artifact is a stronger fact than a log line:
+    # the file is still there to re-read, while the logs behind the evidence
+    # rotate. Recording `applied: false` next to an unused verdict makes that
+    # precedence visible in the artifact rather than only in this comment.
+    evidence = run_evidence_dates.get(iso)
+    run_evidence: dict[str, Any] | None = None
+    if evidence is not None:
+        run_evidence = {
+            "verdict": evidence.get("verdict"),
+            "basis": evidence.get("basis"),
+            "receipts": evidence.get("receipts") or [],
+            "applied": not has_artifact,
+            "not_applied_reason": (
+                None
+                if not has_artifact
+                else "the corpus has an artifact for this date; it outranks run evidence"
+            ),
+        }
+
     if not has_artifact:
-        day_class = "no_slate_artifact"
+        day_class = (evidence or {}).get("verdict") or "no_slate_artifact"
     elif any(c["stop"] == "executed" for c in candidates) or executed_ledger:
         day_class = "candidates_executed"
     elif candidates:
@@ -385,7 +575,14 @@ def analyze_day(
         "day_class": day_class,
         "games_scheduled": games_scheduled,
         "slate_json_present": slate is not None,
+        "slate_json_root": slate_json_root,
         "slate_json_corrupt": corrupt,
+        "schedule_cache_root": schedule_cache_root,
+        "files_by_root": files_by_root,
+        "roots_with_files": sorted(
+            label for label, names in files_by_root.items() if names
+        ),
+        "run_evidence": run_evidence,
         "outcome_source": outcome_source,
         "outcome_refetch_error": outcome_refetch_error,
         "writeups": writeups,
@@ -420,26 +617,34 @@ def build_report(
     picks_dir: Path,
     since: dt.date,
     until: dt.date,
+    extra_picks_dirs: list[Path] | None = None,
     results_dir: Path | None = None,
     slate_dir: Path | None = None,
     ledger_path: Path | None = None,
+    run_evidence: dict[str, Any] | None = None,
     runtime_revision: str | None = None,
     repo_revision: str | None = None,
     fetch_outcomes: bool = False,
 ) -> dict[str, Any]:
-    execute_dir = picks_dir / "execute"
-    results_dir = results_dir or (picks_dir / "audit-results")
-    slate_dir = slate_dir or (picks_dir / "slate")
+    roots = picks_roots(picks_dir, extra_picks_dirs)
+    # The explicit --results-dir/--slate-dir overrides address the PRIMARY root
+    # only. They exist for a corpus assembled out of place; a secondary root is
+    # always a real `.picks` tree and keeps its own layout.
+    if results_dir is not None:
+        roots[0]["_dirs"]["audit-results"] = results_dir
+    if slate_dir is not None:
+        roots[0]["_dirs"]["slate"] = slate_dir
 
     ledger_by_date, ledger_gap = _ledger_by_date(ledger_path)
+    run_evidence = run_evidence or {}
+    run_evidence_dates = run_evidence.get("dates") or {}
 
     days = [
         analyze_day(
             day,
-            execute_dir=execute_dir,
-            results_dir=results_dir,
-            slate_dir=slate_dir,
+            roots=roots,
             ledger_by_date=ledger_by_date,
+            run_evidence_dates=run_evidence_dates,
             fetch_outcomes=fetch_outcomes,
         )
         for day in date_range(since, until)
@@ -481,12 +686,21 @@ def build_report(
             {
                 "kind": "no_slate_artifact",
                 "detail": (
-                    "no schedule JSON and no writeup. The corpus cannot "
-                    "distinguish 'the job did not run' from 'the job ran and "
-                    "wrote nothing'; that needs cron/journal state, which is "
-                    "outside this report's inputs"
+                    "no artifact in any searched root and no run evidence "
+                    "explaining the silence. The corpus alone cannot distinguish "
+                    "'the job did not run' from 'the job ran and wrote nothing'; "
+                    "that needs scheduler state, supplied via --run-evidence"
                 ),
                 "dates": silent_days,
+            }
+        )
+    for question in run_evidence.get("open_questions") or []:
+        data_gaps.append(
+            {
+                "kind": "run_evidence_open_question",
+                "detail": question.get("question", ""),
+                "dates": question.get("dates") or [],
+                "why_unanswerable": question.get("why_unanswerable"),
             }
         )
     invalid_status = [
@@ -512,13 +726,25 @@ def build_report(
         "window": {"since": since.isoformat(), "until": until.isoformat(), "days": len(days)},
         "sources": {
             "picks_dir": portable(picks_dir),
-            "execute_dir": portable(execute_dir),
-            "results_dir": portable(results_dir),
-            "slate_dir": portable(slate_dir),
+            "picks_roots": [
+                {k: v for k, v in root.items() if not k.startswith("_")}
+                for root in roots
+            ],
             "ledger": portable(ledger_path),
+            "run_evidence": {
+                "schema": run_evidence.get("schema"),
+                "collected_at_utc": run_evidence.get("collected_at_utc"),
+                "collected_by": run_evidence.get("collected_by"),
+                "sources": run_evidence.get("sources") or [],
+                "artifact_receipts": run_evidence.get("artifact_receipts") or [],
+            }
+            if run_evidence
+            else None,
             "repo_revision": repo_revision,
             "runtime_revision": runtime_revision,
         },
+        "enumeration": enumeration_summary(days, roots),
+        "findings": findings(days, roots),
         "aggregates": {
             "day_classes": class_counts,
             "candidate_stops": stop_counts,
@@ -530,6 +756,125 @@ def build_report(
         "days": days,
         "data_gaps": data_gaps,
     }
+
+
+def enumeration_summary(
+    days: list[dict[str, Any]], roots: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """Per-root coverage of the window, and the dates only one root has.
+
+    Two entries, and the difference between them matters. ``dates_in_one_root
+    _only`` is the symmetric answer to "was every date checked against every
+    root": any date here is one a single-root run would have described wrongly
+    in one direction or the other. Most of them are benign — the secondary root
+    simply stopped being written to partway through the window.
+
+    ``dates_missing_from_primary`` is the subset that is a defect: a date the
+    primary root does NOT have and another root does. Those are the days a
+    primary-only enumeration reports as "no artifact" when the file exists.
+    Reporting only the symmetric list would bury one real miss under ten benign
+    ones; reporting only the asymmetric one would not answer whether the rest of
+    the window was checked at all. Both are derived from the listings rather
+    than asserted, so neither can drift away from the data.
+    """
+    labels = [root["label"] for root in roots]
+    per_root = {
+        label: sorted(d["date"] for d in days if d["files_by_root"].get(label))
+        for label in labels
+    }
+    one_root_only = []
+    for day in days:
+        present = day["roots_with_files"]
+        if len(present) == 1 and len(labels) > 1:
+            one_root_only.append(
+                {
+                    "date": day["date"],
+                    "present_in": present[0],
+                    "absent_from": [lb for lb in labels if lb != present[0]],
+                    "files": day["files_by_root"][present[0]],
+                }
+            )
+    primary = labels[0] if labels else None
+    missing_from_primary = [
+        {
+            "date": day["date"],
+            "present_in": day["roots_with_files"],
+            "files": {
+                label: day["files_by_root"][label] for label in day["roots_with_files"]
+            },
+        }
+        for day in days
+        if day["roots_with_files"] and primary not in day["roots_with_files"]
+    ]
+    return {
+        "roots_searched": labels,
+        "primary_root": primary,
+        "dates_with_files_per_root": {label: len(v) for label, v in per_root.items()},
+        "dates_with_no_files_in_any_root": sorted(
+            d["date"] for d in days if not d["roots_with_files"]
+        ),
+        "dates_in_one_root_only": one_root_only,
+        "dates_missing_from_primary": missing_from_primary,
+    }
+
+
+def findings(days: list[dict[str, Any]], roots: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Named patterns the window exposed, each with its concrete instances.
+
+    Both instances of ``namespace_silence`` are the same defect wearing
+    different clothes: a lookup issued against the wrong namespace returns
+    nothing, and nothing is indistinguishable from "there was nothing there".
+    Neither raises, neither logs, and both read downstream as an honest absence.
+    This is the third time this fleet has been bitten by that shape, which is
+    why it is recorded as ONE pattern rather than two unrelated bugs.
+    """
+    instances = [
+        {
+            "instance": "event_id joined against gamePk",
+            "detail": (
+                "the slate's event_id is a different id space from the MLB "
+                "gamePk — 2026-08-30 records event_id 401816733 for the game the "
+                "schedule calls gamePk 824876. Joining outcomes on the id matches "
+                "nothing and reads as 'no outcome data'"
+            ),
+            "mitigation": "the outcome join is keyed on the matchup, never on an id",
+        }
+    ]
+    # Keyed on the ASYMMETRIC miss — a date some root has and the primary does
+    # not — because that is the direction in which the silence produced a wrong
+    # answer. A date the primary has alone is not a defect; it is the secondary
+    # root simply no longer being written to.
+    primary = roots[0]["label"] if roots else None
+    missing_from_primary = [
+        d for d in days if d["roots_with_files"] and primary not in d["roots_with_files"]
+    ]
+    if missing_from_primary:
+        instances.append(
+            {
+                "instance": "corpus enumerated from one .picks root",
+                "detail": (
+                    "the daily slate wrote into more than one checkout across "
+                    "this window, so a report built from the primary root alone "
+                    "reported an existing artifact as absent"
+                ),
+                "mitigation": "every date is enumerated across every known root",
+                "dates": [
+                    {"date": d["date"], "present_in": d["roots_with_files"]}
+                    for d in missing_from_primary
+                ],
+            }
+        )
+    return [
+        {
+            "pattern": "namespace_silence",
+            "detail": (
+                "a lookup against the wrong namespace returns silence, and "
+                "silence reads as absence. It never raises and never logs, so "
+                "the wrong answer arrives looking like a finding"
+            ),
+            "instances": instances,
+        }
+    ]
 
 
 def reconcile(
@@ -559,6 +904,31 @@ def reconcile(
             "expected": sum(1 for d in days if d["counts"]["candidates"]),
             "actual": class_counts["candidates_rejected"] + class_counts["candidates_executed"],
         },
+        {
+            # The three-way split has to stay exhaustive over the same
+            # population the old single class covered. If a day with no file in
+            # any root ever lands outside these three, the split has grown a
+            # leak and a day has silently changed meaning.
+            "check": "days with no file in any root are classed by the no-artifact split",
+            "expected": sum(1 for d in days if not d["roots_with_files"]),
+            "actual": (
+                class_counts["job_never_fired"]
+                + class_counts["scan_ran_artifact_unwritten"]
+                + class_counts["no_slate_artifact"]
+            ),
+        },
+        {
+            # An evidence verdict must never be recorded as applied on a day the
+            # corpus could class itself. This check is the artifact's own copy of
+            # that precedence.
+            "check": "applied run evidence only ever explains a day with no files",
+            "expected": 0,
+            "actual": sum(
+                1
+                for d in days
+                if (d.get("run_evidence") or {}).get("applied") and d["roots_with_files"]
+            ),
+        },
     ]
     for entry in checks:
         entry["ok"] = entry["expected"] == entry["actual"]
@@ -586,13 +956,108 @@ def render(report: dict[str, Any]) -> str:
     lines += ["", "## Where priced candidates stopped", "", "| stop | count |", "| --- | --- |"]
     for name in CANDIDATE_STOPS:
         lines.append(f"| `{name}` | {agg['candidate_stops'][name]} |")
-    lines += ["", "## Day by day", "", "| date | class | games | cands | watch |", "| --- | --- | --- | --- | --- |"]
+    enumeration = report.get("enumeration") or {}
+    roots = enumeration.get("roots_searched") or []
+    lines += ["", "## Day by day", ""]
+    header = "| date | class | games | cands | watch |"
+    divider = "| --- | --- | --- | --- | --- |"
+    for label in roots:
+        header += f" files in `{label}` |"
+        divider += " --- |"
+    lines += [header, divider]
     for day in report["days"]:
         games = "—" if day["games_scheduled"] is None else day["games_scheduled"]
-        lines.append(
+        row = (
             f"| {day['date']} | `{day['day_class']}` | {games} | "
             f"{day['counts']['candidates']} | {day['counts']['watchlist_entries']} |"
         )
+        for label in roots:
+            found = day["files_by_root"].get(label) or []
+            row += (" " + ", ".join(f"`{n}`" for n in found) if found else " —") + " |"
+        lines.append(row)
+
+    evidenced = [d for d in report["days"] if (d.get("run_evidence") or {}).get("applied")]
+    if evidenced:
+        lines += [
+            "",
+            "## Run evidence — days the corpus cannot explain by itself",
+            "",
+            "Quoted verbatim because the sources behind them rotate and cannot be "
+            "re-derived later. Consulted only for a date with no file in any root.",
+        ]
+        for day in evidenced:
+            ev = day["run_evidence"]
+            lines += ["", f"### {day['date']} — `{ev['verdict']}`", "", ev.get("basis") or ""]
+            for receipt in ev["receipts"]:
+                lines.append(f"- `{receipt['source']}` — `{receipt['quote']}`")
+
+    receipts = ((report["sources"].get("run_evidence") or {}).get("artifact_receipts")) or []
+    if receipts:
+        lines += [
+            "",
+            "## Artifact receipts",
+            "",
+            "Fingerprints for the files a reader would otherwise have to take on "
+            "description. Size, mtime and hash make the claim checkable.",
+            "",
+            "| date | root | file | size | mtime (UTC) | sha256 |",
+            "| --- | --- | --- | --- | --- | --- |",
+        ]
+        for receipt in receipts:
+            lines.append(
+                f"| {receipt['date']} | `{receipt['root']}` | `{receipt['file']}` | "
+                f"{receipt['size']} | {receipt['mtime_utc']} | `{receipt['sha256']}` |"
+            )
+
+    if roots:
+        lines += ["", "## Roots searched", "", "| label | role | path | dates with files |", "| --- | --- | --- | --- |"]
+        counts = enumeration.get("dates_with_files_per_root") or {}
+        for root in report["sources"]["picks_roots"]:
+            lines.append(
+                f"| `{root['label']}` | {root['role']} | `{root['path']}` | "
+                f"{counts.get(root['label'], 0)} |"
+            )
+        missing = enumeration.get("dates_missing_from_primary") or []
+        lines += [
+            "",
+            f"**Dates the primary root `{enumeration.get('primary_root')}` does not "
+            f"have and another root does: {len(missing)}.** These are the days a "
+            "primary-only enumeration reports as having no artifact when the file "
+            "exists.",
+            "",
+        ]
+        for entry in missing:
+            lines.append(
+                f"- **{entry['date']}** — in "
+                f"{', '.join('`' + label + '`' for label in entry['present_in'])}: "
+                + ", ".join(
+                    f"`{name}`"
+                    for names in entry["files"].values()
+                    for name in names
+                )
+            )
+        only = enumeration.get("dates_in_one_root_only") or []
+        if only:
+            lines += [
+                "",
+                f"For completeness, all {len(only)} dates present in exactly one "
+                "root. The rest of these are the secondary checkout simply no "
+                "longer being written to, and are not defects:",
+                "",
+            ]
+            for entry in only:
+                lines.append(
+                    f"- {entry['date']} — only in `{entry['present_in']}`, "
+                    f"absent from {', '.join('`' + a + '`' for a in entry['absent_from'])}"
+                )
+
+    for finding in report.get("findings") or []:
+        detail = finding["detail"]
+        lines += ["", f"## Finding — `{finding['pattern']}`", "", detail[:1].upper() + detail[1:] + ".", ""]
+        for instance in finding["instances"]:
+            lines.append(f"- **{instance['instance']}** — {instance['detail']}. "
+                         f"_Mitigation:_ {instance['mitigation']}.")
+
     if report["data_gaps"]:
         lines += ["", "## Data gaps"]
         for gap in report["data_gaps"]:
@@ -607,7 +1072,27 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Read-only day-by-day diagnostic of a no-pick stretch"
     )
-    parser.add_argument("--picks-dir", required=True, help="the .picks directory")
+    parser.add_argument("--picks-dir", required=True, help="the primary .picks directory")
+    parser.add_argument(
+        "--also-picks-dir",
+        action="append",
+        default=[],
+        metavar="DIR",
+        help=(
+            "an additional .picks root to enumerate, repeatable. Every date is "
+            "searched in every root; the first root with a usable copy wins for "
+            "any single-valued fact. Needed whenever the window spans a deploy "
+            "cutover — 2026-08-20's slate landed in a different checkout."
+        ),
+    )
+    parser.add_argument(
+        "--run-evidence",
+        help=(
+            "JSON of externally-collected scheduler evidence. Consulted ONLY for "
+            "a date with no artifact in any root, and only to assign "
+            f"{list(EVIDENCE_ASSIGNABLE_CLASSES)}."
+        ),
+    )
     parser.add_argument("--since", required=True, help="first day YYYY-MM-DD")
     parser.add_argument("--until", required=True, help="last day YYYY-MM-DD")
     parser.add_argument("--results-dir", help="MLB schedule cache (default: <picks-dir>/audit-results)")
@@ -627,8 +1112,15 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
+        evidence = (
+            load_run_evidence(Path(args.run_evidence).expanduser())
+            if args.run_evidence
+            else None
+        )
         report = build_report(
             picks_dir=Path(args.picks_dir).expanduser(),
+            extra_picks_dirs=[Path(p).expanduser() for p in args.also_picks_dir],
+            run_evidence=evidence,
             since=parse_date(args.since),
             until=parse_date(args.until),
             results_dir=Path(args.results_dir).expanduser() if args.results_dir else None,
