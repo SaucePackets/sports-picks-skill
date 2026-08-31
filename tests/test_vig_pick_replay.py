@@ -582,6 +582,23 @@ class SideSelectionAttributionTests(unittest.TestCase):
                 replay.classify_opposing_winner_miss(state), "risk_gate_declined"
             )
 
+    def test_an_explicit_review_decline_is_a_gate_save_not_unknown(self):
+        # The round-2 case from the live corpus: review ran, declined, and
+        # wrote why — vig_approved False with vig_review_needed False, so no
+        # review_rejected disposition and no skip_reason. The explicit False
+        # is the decline state and must not fall through to
+        # no_recorded_reason next to its own recorded reason.
+        record_ = record(
+            disposition="proposed_no_bet", side_outcome="loss",
+            vig_approved=False,
+            recorded_rationale=self.rationale(
+                vig_notes="FLAGGED: starter returning from IL — too much uncertainty",
+            ),
+        )
+        self.assertEqual(
+            replay.classify_opposing_winner_miss(record_), "risk_gate_declined"
+        )
+
     def test_an_approved_manual_loss_classifies_through_the_full_pipeline(self):
         # Proves the audit CARRIES the approval state, not just that the
         # classifier would use it if it were there.
@@ -640,9 +657,14 @@ class SideSelectionAttributionTests(unittest.TestCase):
             )
         }
         self.assertEqual(emitted_classes, set(replay.MISS_CLASSIFICATIONS))
-        self.assertEqual(
-            {"recorded", "not_recorded"}, set(replay.EVIDENCE_STATUSES)
-        )
+        emitted_statuses = {
+            replay.attribution_record(r)["selected_evidence"]["status"]
+            for r in (
+                record(recorded_rationale=self.rationale(thesis="t")),
+                record(),
+            )
+        }
+        self.assertEqual(emitted_statuses, set(replay.EVIDENCE_STATUSES))
 
     def test_counts_are_zero_filled_and_reject_unknown_categories(self):
         counts = replay._closed_counts(("a", "b"), ["a"])

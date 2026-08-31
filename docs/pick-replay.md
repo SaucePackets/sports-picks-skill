@@ -128,6 +128,18 @@ what the card RECORDED about the side choice — never a reconstructed reason:
   was not the miss; the winning opponent was never itself proposed), or
   `no_recorded_reason`. `vig_notes` is not a gate signal: it is present on
   approved-and-executed cards too, so its existence carries no polarity.
+  `vig_approved` carries polarity both ways — an explicit `False` is a
+  review decline and classifies `risk_gate_declined`; a card predating the
+  field (absent/None on the older executed shapes) can claim neither state
+  and falls through to the disposition/`skip_reason` clauses.
+  Two caveats on reading the buckets: neither `risk_gate_declined` nor
+  `approved_not_executed` alone is a gate-save total (post-approval gate
+  stops sit inside `approved_not_executed` next to execution failures), and
+  the no-prose-grading rule cuts both ways — a pre-approval skip whose
+  recorded reason describes a FALSE-positive gate still counts as
+  `risk_gate_declined`, because the classifier reads state, not what the
+  prose admits. The recorded reason travels verbatim on every case line so
+  a reader can make those judgments themselves.
 - **Category counts are zero-filled** over each closed set, so a category
   that has never occurred prints as 0 instead of vanishing. On the corpus
   to date every card records a thesis and none records an opponent case, so

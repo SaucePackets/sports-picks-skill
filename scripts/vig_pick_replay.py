@@ -431,14 +431,24 @@ def classify_opposing_winner_miss(record: dict[str, Any]) -> str:
     The approval check comes first: an approved side that never reached the
     market is not a gate save whatever its skip_reason says, and `vig_notes`
     is no signal at all — it is present on approved-and-executed cards too,
-    so its mere existence carries no polarity.
+    so its mere existence carries no polarity. `vig_approved` carries
+    polarity in BOTH directions: True is an approval, and an explicit False
+    is a review decline — a gate save — whether or not `vig_review_needed`
+    also flags it (the flagged shape already lands here as the
+    `review_rejected` disposition; the bare-False clause covers the
+    concluded decline that shape misses). A card predating the field has
+    `vig_approved` None and can claim neither state — it falls through to
+    the disposition/skip_reason clauses, which is the best the record
+    supports.
     """
     kinds = selection_evidence_kinds(record)
     if record.get("disposition") == "executed":
         return "evidence_process_miss" if kinds else "executed_without_recorded_evidence"
     if record.get("vig_approved") is True:
         return "approved_not_executed"
-    if record.get("disposition") == "review_rejected" or record.get("skip_reason"):
+    if (record.get("vig_approved") is False
+            or record.get("disposition") == "review_rejected"
+            or record.get("skip_reason")):
         return "risk_gate_declined"
     return "no_recorded_reason"
 
@@ -512,7 +522,11 @@ def side_selection_attribution(records: list[dict[str, Any]]) -> dict[str, Any]:
             "note": (
                 "reconciled candidates whose selected side lost — the opposing "
                 "side won these games; enumerated separately from the "
-                "per-candidate records above"
+                "per-candidate records above. risk_gate_declined counts only "
+                "PRE-approval declines: approved_not_executed mixes "
+                "post-approval gate stops with execution failures, so neither "
+                "count alone is a gate-save total — read the recorded reasons "
+                "individually before tallying saves."
             ),
             "cases": cases,
             "classification_counts": _closed_counts(
