@@ -383,9 +383,31 @@ PREGAME_RATIONALE_FIELDS = ("thesis", "vig_notes", "execution_note")
 # recorded opponent case, the recorded failure scenario, and the named risks.
 STRUCTURED_EVIDENCE_TEXT_FIELDS = ("opponent_shutdown_path", "candidate_failure_path")
 
+# Non-text `baseball_evidence` values the postgame settlement contract grades
+# against: the expected starter role and the expected innings floor. They are
+# carried in their recorded TYPE, not as prose — `mlb_postgame_evidence.
+# auto_pillar_grades` keys `starter_role` on the value and `expected_ip` on the
+# number, so a text-only carrier makes those two pillars ungradeable by
+# construction and a coverage metric over them measures this tuple, not the
+# cards.
+STRUCTURED_EVIDENCE_VALUE_FIELDS = ("starter_role", "expected_ip")
+
 
 def _clean_text(value: Any) -> str | None:
     return value.strip() if isinstance(value, str) and value.strip() else None
+
+
+def _structured_value(field: str, value: Any) -> Any:
+    """One non-text structured value, carried in its recorded type or not at all.
+
+    The carrier only type-checks; it never ranges or normalizes a vocabulary.
+    Deciding whether `starter_role` is a role it knows, or whether an
+    `expected_ip` is usable, belongs to the grader, and a carrier that quietly
+    repaired either would hide what the card actually recorded.
+    """
+    if field == "expected_ip":
+        return value if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+    return _clean_text(value)
 
 
 def recorded_rationale(raw: dict[str, Any]) -> dict[str, Any]:
@@ -402,6 +424,10 @@ def recorded_rationale(raw: dict[str, Any]) -> dict[str, Any]:
     }
     rationale.update({
         field: _clean_text(structured.get(field)) for field in STRUCTURED_EVIDENCE_TEXT_FIELDS
+    })
+    rationale.update({
+        field: _structured_value(field, structured.get(field))
+        for field in STRUCTURED_EVIDENCE_VALUE_FIELDS
     })
     rationale["named_risks"] = named_risks if isinstance(named_risks, list) else None
     rationale["has_structured_evidence"] = bool(structured)

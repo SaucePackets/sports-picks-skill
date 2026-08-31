@@ -30,10 +30,14 @@ Hindsight rails, stated because this report exists to look at outcomes:
   pregame rationale fields (`PREGAME_EVIDENCE_FIELDS`). Outcome fields cannot
   reach the grader by construction, and a test pins that flipping every
   outcome label changes cohort membership only — never a single pillar grade.
-- The corpus on disk records NO structured bet-time evidence (no
-  `starter_role`, no `expected_ip`, no `named_risks`), so the pillars those
-  inputs decide grade `unknown` across the board today. That is a coverage
-  finding, reported with its denominator — not a reason to substitute a guess.
+- No card in the executed decided cohort carries a `baseball_evidence` block at
+  all, so every allowlisted field is absent and the pillars those inputs decide
+  grade `unknown` across the board today. That is a coverage finding, reported
+  with a per-field denominator — not a reason to substitute a guess. The
+  per-field counts are load-bearing: they are what tells a later reader whether
+  a field is absent from the CARDS or merely not carried by the audit layer,
+  and `vig_historical_audit.recorded_rationale` carrying `starter_role` and
+  `expected_ip` is what makes this measurement about the cards.
 - Nothing here proposes a threshold. Descriptive pillar-failure rates are
   labelled descriptive; any model change mined from them must be graded
   leave-one-period-out by the replay's grader before it is a candidate.
@@ -136,7 +140,13 @@ def corpus_selection(records: list[dict[str, Any]]) -> dict[str, Any]:
     decided = executed_decided(records)
     losses = [r for r in decided if r["side_outcome"] == "loss"]
     wins = [r for r in decided if r["side_outcome"] == "win"]
-    excluded = [r for r in executed if r not in decided]
+    # Exclusion is by IDENTITY, not by dict equality. Equality happens to
+    # agree today — `executed_decided` filters on `side_outcome`, so two equal
+    # records are either both decided or both excluded — but that agreement is
+    # a property of the current filter, not of the set difference this line
+    # means, and it costs an O(n^2) scan to get.
+    analyzed = {id(r) for r in decided}
+    excluded = [r for r in executed if id(r) not in analyzed]
     classification = {name: 0 for name in MISS_CLASSIFICATIONS}
     for record in losses:
         classification[classify_opposing_winner_miss(record)] += 1
@@ -392,6 +402,17 @@ def coverage(rows: list[dict[str, Any]]) -> dict[str, Any]:
                 "named_risks); games recording none grade those pillars "
                 "unknown by contract"
             ),
+            # PER FIELD, not just the any-field roll-up: a roll-up cannot
+            # distinguish "no card recorded this" from "the audit layer does
+            # not carry this", and the second reads as the first. Zero-filled
+            # over the allowlist so a field the carrier drops shows up as an
+            # explicit 0 next to its siblings.
+            "records_by_field": {
+                field: sum(
+                    1 for r in rows if field in r["bet_time_evidence_fields"]
+                )
+                for field in PREGAME_EVIDENCE_FIELDS
+            },
             "records_with_any_field": sum(
                 1 for r in rows if r["bet_time_evidence_fields"]
             ),
@@ -453,7 +474,12 @@ def render(report: dict[str, Any]) -> str:
     bt = report["coverage"]["bet_time_evidence"]
     lines.append(
         f"- bet-time evidence recorded: {bt['records_with_any_field']}"
-        f"/{bt['records_total']} records"
+        f"/{bt['records_total']} records (by field: "
+        + ", ".join(
+            f"{field}={bt['records_by_field'][field]}"
+            for field in PREGAME_EVIDENCE_FIELDS
+        )
+        + ")"
     )
     for cohort in COHORTS:
         block = report["aggregates"][cohort]

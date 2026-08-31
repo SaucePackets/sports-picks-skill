@@ -10,6 +10,7 @@ changing a single pillar grade.
 
 from __future__ import annotations
 
+import ast
 import contextlib
 import io
 import json
@@ -22,6 +23,9 @@ SCRIPTS = Path(__file__).resolve().parent.parent / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+MODULE = "vig_loss_evidence_report.py"
+
+import import_closure  # noqa: E402
 import vig_loss_evidence_report as loss_report  # noqa: E402
 from mlb_postgame_evidence import PILLARS  # noqa: E402
 from test_vig_historical_audit import statsapi_payload, write_day  # noqa: E402
@@ -146,6 +150,19 @@ class CorpusSelectionTests(unittest.TestCase):
         self.assertEqual(selection["executed_decided"], 1)
         excluded_games = {e["game"] for e in selection["executed_excluded"]}
         self.assertEqual(excluded_games, {"Pushed at Game", "Lost at Sea"})
+
+    def test_two_identical_executed_records_are_two_picks_in_the_accounting(self):
+        # A property pin, not a red-run discriminator: dict equality agrees
+        # with identity under today's filter. It pins the accounting the
+        # exclusion block exists for, so a future filter that breaks that
+        # agreement fails here instead of silently under-counting.
+        duplicate = record(side_outcome="push", game="Pushed at Game")
+        selection = loss_report.corpus_selection(
+            [record(), dict(duplicate), dict(duplicate)]
+        )
+        self.assertEqual(selection["executed"], 3)
+        self.assertEqual(selection["executed_decided"], 1)
+        self.assertEqual(len(selection["executed_excluded"]), 2)
 
     def test_loss_classification_counts_are_zero_filled_over_the_closed_set(self):
         selection = loss_report.corpus_selection(
@@ -335,6 +352,13 @@ class AggregationTests(unittest.TestCase):
         self.assertEqual(cov["counts"]["complete"], 2)
         self.assertEqual(cov["bet_time_evidence"]["records_with_any_field"], 0)
         self.assertEqual(cov["bet_time_evidence"]["records_total"], 3)
+        # Zero-filled per field over the allowlist: a 0 beside its siblings is
+        # how a reader tells "no card recorded this" from "this field is not
+        # in the report at all".
+        self.assertEqual(
+            cov["bet_time_evidence"]["records_by_field"],
+            {field: 0 for field in loss_report.PREGAME_EVIDENCE_FIELDS},
+        )
 
 
 class NoHindsightLeakageTests(unittest.TestCase):
@@ -448,6 +472,98 @@ class EndToEndTests(unittest.TestCase):
         self.assertIn("failed/decided", out)
         self.assertIn("evidence_process_miss=1", out)
 
+    def _evidence_corpus(self, root):
+        """A corpus whose cards carry a real `baseball_evidence` block.
+
+        Built through `write_day` and the audit, NOT by hand-assembling a
+        rationale dict: the hand-built shape is the one the audit never
+        produces, and it is exactly where a field the carrier drops goes
+        unnoticed. Both starter pillars are exercised from card state alone.
+        """
+        root = Path(root)
+        write_day(root, "2026-06-10", {
+            "date": "2026-06-10", "sport": "mlb", "market_type": "moneyline",
+            "candidates": [
+                # Expected a starter for 5.5 IP; got 6.0 IP, 2 ER — both hold.
+                {"game": "Alpha at Beta", "side": "Alpha", "executed": True,
+                 "polymarket_ask": 0.5, "thesis": "recorded thesis",
+                 "baseball_evidence": {
+                     "starter_role": "starter", "expected_ip": 5.5,
+                     "named_risks": [{"name": "order power", "status": "resolved"}],
+                 }},
+                # Expected a starter for 9.0 IP; got 4.0 IP — quality fails.
+                {"game": "Gamma at Delta", "side": "Gamma", "executed": True,
+                 "polymarket_ask": 0.5, "thesis": "recorded thesis",
+                 "baseball_evidence": {
+                     "starter_role": "starter", "expected_ip": 9.0,
+                     "named_risks": [],
+                 }},
+            ],
+        })
+        results = root / "audit-results"
+        results.mkdir()
+        (results / "2026-06-10.json").write_text(json.dumps(statsapi_payload([
+            {"gamePk": 700001, "away": "Alpha", "home": "Beta",
+             "away_score": 5, "home_score": 2},
+            {"gamePk": 700002, "away": "Gamma", "home": "Delta",
+             "away_score": 1, "home_score": 6},
+        ])), encoding="utf-8")
+        evidence_dir = root / "postgame-evidence"
+        write_evidence(evidence_dir, postgame_evidence(
+            game_pk=700001, away="Alpha", home="Beta", away_runs=5, home_runs=2,
+            away_starter_outs=18))
+        write_evidence(evidence_dir, postgame_evidence(
+            game_pk=700002, away="Gamma", home="Delta", away_runs=1, home_runs=6,
+            away_starter_outs=12, away_reliever_runs=(4,)))
+        return root
+
+    def test_a_card_recording_bet_time_evidence_grades_the_starter_pillars(self):
+        # The blocker this pins: every field the report's coverage metric names
+        # has to survive the audit layer. A carrier that drops `starter_role`
+        # or `expected_ip` leaves these grades `unknown` on a card that
+        # recorded both, and the coverage number then measures the audit's
+        # schema rather than the corpus.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._evidence_corpus(tmp)
+            code, out, _ = self.run_cli(["--picks-dir", str(root), "--json"])
+        self.assertEqual(code, 0)
+        report = json.loads(out)
+        rows = {row["game_pk"]: row for row in report["games"]}
+        self.assertEqual(
+            rows[700001]["bet_time_evidence_fields"],
+            ["expected_ip", "named_risks", "starter_role"],
+        )
+        self.assertEqual(rows[700001]["pillars"]["starter_role"]["grade"], "held")
+        self.assertEqual(rows[700001]["pillars"]["starter_quality"]["grade"], "held")
+        self.assertEqual(rows[700002]["pillars"]["starter_role"]["grade"], "held")
+        self.assertEqual(rows[700002]["pillars"]["starter_quality"]["grade"], "failed")
+        # Coverage counts every field it names, not just the one that happens
+        # to survive the carrier.
+        bet_time = report["coverage"]["bet_time_evidence"]
+        self.assertEqual(
+            bet_time["records_by_field"],
+            {"starter_role": 2, "expected_ip": 2, "named_risks": 2},
+        )
+        self.assertEqual(bet_time["records_with_any_field"], 2)
+        # And the aggregate denominators move with them: two decided starter
+        # pillars across the cohorts, not two unknowns.
+        aggregates = report["aggregates"]
+        self.assertEqual(
+            aggregates["win"]["pillars"]["starter_quality"]["counts"]["held"], 1
+        )
+        self.assertEqual(
+            aggregates["loss"]["pillars"]["starter_quality"]["counts"]["failed"], 1
+        )
+
+    def test_an_empty_named_risks_list_is_recorded_evidence_not_absence(self):
+        # `named_risks: []` is a card saying it named no risks, which the
+        # grader treats differently from a card that recorded nothing.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._evidence_corpus(tmp)
+            _, out, _ = self.run_cli(["--picks-dir", str(root), "--json"])
+        rows = {row["game_pk"]: row for row in json.loads(out)["games"]}
+        self.assertIn("named_risks", rows[700002]["bet_time_evidence_fields"])
+
     def test_bad_flags_fail_before_reading_anything(self):
         for argv in (["--picks-dir", "/nonexistent", "--since", "June 1"],
                      ["--picks-dir", "/nonexistent", "--edge-floor", "0"]):
@@ -455,6 +571,43 @@ class EndToEndTests(unittest.TestCase):
                 with self.assertRaises(SystemExit) as ctx:
                     self.run_cli(argv)
                 self.assertEqual(ctx.exception.code, 2)
+
+
+class ReadOnlyGuardTests(unittest.TestCase):
+    """Same contract as the audit's and the replay's guards, scoped here.
+
+    The docstring claims this module is read-only end to end; that claim is a
+    property of its import CLOSURE, not of the lines in this one file. Both
+    siblings pin theirs, and PR #60 is why: an unpinned edge onto the execution
+    path is invisible to a token scan of the module's own source.
+    """
+
+    def test_sibling_imports_are_pinned_to_the_declared_set(self):
+        self.assertEqual(
+            import_closure.sibling_imports(MODULE),
+            {"http_util.py", "mlb_postgame_evidence.py",
+             "vig_historical_audit.py", "vig_pick_replay.py"},
+        )
+
+    def test_the_transitive_closure_stays_off_the_execution_path(self):
+        self.assertEqual(
+            import_closure.closure([MODULE]),
+            {"vig_loss_evidence_report.py", "http_util.py",
+             "mlb_final_scores.py", "mlb_postgame_evidence.py",
+             "mlb_runtime_policy.py", "vig_calibration_report.py",
+             "vig_historical_audit.py", "vig_pick_replay.py"},
+        )
+
+    def test_every_sibling_import_is_name_scoped(self):
+        # A whole-module bind takes every name on the module, which is strictly
+        # wider than the ones this needs and invisible to the checks above.
+        tree = ast.parse((SCRIPTS / MODULE).read_text(encoding="utf-8"))
+        bound_whole = [
+            alias.name for node in ast.walk(tree) if isinstance(node, ast.Import)
+            for alias in node.names
+            if (SCRIPTS / f"{alias.name.split('.', 1)[0]}.py").is_file()
+        ]
+        self.assertEqual(bound_whole, [])
 
 
 if __name__ == "__main__":

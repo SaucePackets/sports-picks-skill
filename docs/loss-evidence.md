@@ -19,6 +19,17 @@ python3 scripts/vig_loss_evidence_report.py --picks-dir <corpus> --json
 python3 scripts/vig_loss_evidence_report.py --picks-dir <corpus> --fetch
 ```
 
+The committed report below was generated with the window pinned, and a re-run
+that means to reproduce it must pin the same window:
+
+```sh
+python3 scripts/vig_loss_evidence_report.py \
+    --picks-dir <corpus> --until 2026-08-30 --json
+```
+
+Without `--until`, a live corpus grows and a later run reports a different
+candidate count — a difference in the window, not a regression.
+
 `<corpus>` is a `.picks`-shaped directory: `execute/<date>-schedule.json`
 slates plus an `audit-results/` cache of MLB Stats API schedule payloads (the
 same layout `vig_historical_audit` and `vig_pick_replay` read). Corpus
@@ -43,6 +54,11 @@ holes named); 2 on configuration errors.
   shape- and `game_pk`-validated before use.
 - **Determinism.** Same corpus and cache → byte-identical report, regardless
   of input order.
+- **Coverage is measured per field, not as a roll-up.** `records_by_field`
+  counts each allowlisted field separately and zero-fills, so a field that is
+  absent from the cards is distinguishable from one the audit layer does not
+  carry. The sibling-import closure is pinned too — the read-only claim is a
+  property of what this module reaches, not of its own source.
 
 ## Findings over the 2026-05-19 → 2026-08-30 corpus (89 games)
 
@@ -76,13 +92,31 @@ outright (and in the remaining 13 at least one graded `mixed`).
 
 ### The structural finding: 3 of 5 pillars are historically ungradeable
 
-0 of 89 cards record structured bet-time evidence (`starter_role`,
-`expected_ip`, `named_risks`). `starter_role`, `starter_quality`, and
-`named_risk` therefore grade `unknown` across the entire corpus by contract —
-the deterministic grader refuses to invent an expectation it was never given.
-This is the same shape the attribution slice found on the opponent side
-(0/109 cards record `opponent_shutdown_path`): the postgame contract shipped
-before the pregame recording that feeds it.
+0 of the 89 cohort cards carry a `baseball_evidence` block at all, so all three
+allowlisted bet-time fields are absent — `records_by_field` in the report reads
+`starter_role=0, expected_ip=0, named_risks=0`. `starter_role`,
+`starter_quality`, and `named_risk` therefore grade `unknown` across the entire
+corpus by contract — the deterministic grader refuses to invent an expectation
+it was never given. This is the same shape the attribution slice found on the
+opponent side (0/109 cards record `opponent_shutdown_path`): the postgame
+contract shipped before the pregame recording that feeds it.
+
+**The recording change is already starting to land.** 1 of the 111 corpus
+candidates does carry a full `baseball_evidence` block (2026-08-30, Houston at
+NY Mets: `starter_role: "starter"`, `expected_ip: 5.5`, populated
+`named_risks`). It is outside the cohort because it was not executed, so the
+89-card zero is real — but it says the slate prompt can already produce these
+fields, and a corpus of new cards will not stay at zero.
+
+That is why `vig_historical_audit.recorded_rationale` now carries
+`STRUCTURED_EVIDENCE_VALUE_FIELDS` (`starter_role`, `expected_ip`) alongside
+the text subset. Before that, those two fields were dropped at the audit layer
+whatever a card recorded, so the coverage number above would have measured the
+audit's schema rather than the corpus, and the recommended recording change
+could have shipped in full while this report still read `unknown`. An
+end-to-end test builds a corpus through `write_day` with a real
+`baseball_evidence` card and asserts `starter_role`/`starter_quality` grade
+`held` and `failed` from card state alone.
 
 ### Evidence vs inference
 

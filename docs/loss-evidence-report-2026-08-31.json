@@ -4261,6 +4261,11 @@
     "invalid": [],
     "bet_time_evidence": {
       "note": "pillars starter_role, starter_quality, and named_risk need recorded bet-time evidence (starter_role/expected_ip/named_risks); games recording none grade those pillars unknown by contract",
+      "records_by_field": {
+        "starter_role": 0,
+        "expected_ip": 0,
+        "named_risks": 0
+      },
       "records_with_any_field": 0,
       "records_total": 89
     }
