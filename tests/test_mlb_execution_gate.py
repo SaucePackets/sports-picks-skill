@@ -130,6 +130,31 @@ class MlbExecutionGateTests(unittest.TestCase):
         self.assertIn("proposal receipt", prompt)
         self.assertIn("daily cap", prompt)
 
+    def test_execution_prompt_wires_first_pitch_into_the_order_command(self):
+        # The executor's unfilled follow-up policy can only refuse a re-entry
+        # on a started game if the order command carries --first-pitch-utc.
+        # The flag is opt-in at the CLI, so the production caller — this
+        # prompt — is what makes the rule reachable; pin it here so it cannot
+        # silently un-wire.
+        now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
+        candidate = self.candidate(now)
+
+        prompt = mlb_execution_gate.build_execution_prompt(
+            Path("/runtime/.picks/execute/2026-07-19-schedule.json"),
+            {"date": "2026-07-19", "sport": "MLB", "market_type": "moneyline", "candidates": [candidate]},
+            now,
+            mlb_standing_authorized=True,
+        )
+
+        # The instruction is attached to the order-moneyline flag list itself,
+        # not free-floating prose elsewhere in the prompt.
+        self.assertIn("order-moneyline", prompt)
+        order_clause = prompt.split("order-moneyline", 1)[1].split("PARTIAL-FILL LADDER", 1)[0]
+        self.assertIn("--first-pitch-utc <candidate first_pitch_utc>", order_clause)
+        # And the candidate JSON in the prompt actually carries the value the
+        # agent is told to pass.
+        self.assertIn(candidate["first_pitch_utc"], prompt)
+
     def test_execution_prompt_requires_evidence_revalidation(self):
         # Phase 2: the poller prompt must instruct a refreshed re-check of
         # baseball_evidence and execution_checks from the schedule file.

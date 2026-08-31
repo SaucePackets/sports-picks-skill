@@ -119,8 +119,14 @@ python skills/sports-picks/scripts/polymarket_us_sdk_bet.py order-moneyline \
   --execute \
   --i-accept-live-trading \
   --write-watchlist \
+  --first-pitch-utc 2026-05-10T23:10:00Z \
   --notes "local runtime authorization: official MLB lock"
 ```
+
+`--first-pitch-utc` is optional for a one-off, but production callers must pass
+it: it is what lets the unfilled follow-up policy (below) refuse to recommend a
+re-entry once the game has started. Without it that rule cannot fire and the
+decision records `first_pitch_utc: null`.
 
 Guardrails in the helper:
 - loads `POLYMARKET_KEY_ID` / `POLYMARKET_SECRET_KEY` from env or `~/.hermes/.env`
@@ -128,6 +134,11 @@ Guardrails in the helper:
 - refuses live orders when preview outcome differs from `--expected-outcome`
 - computes proposal approval tokens from request + preview outcome + caps
 - re-previews immediately before live order
+- labels every live order receipt with `filled_quantity` + `fill_status`; on a
+  zero-fill it records a deterministic unfilled follow-up decision
+  (retry/reprice/stop) with price/source/timestamp provenance — one follow-up
+  per approved pick, never after first pitch, never above `--max-price`, and
+  the policy itself never places an order
 - compiles `ORDER_TYPE_MARKET` sports entries into capped IOC limits because the SDK/API currently rejects true market bodies during preview
 - treats `--price` as the selected outcome's price; for `BUY_SHORT` outcomes it converts to the inverse long-side orderbook price before preview/order (`Cleveland at 0.60` sends orderbook price `0.40`)
 - writes proposal/live/error receipts under `.picks/receipts/polymarket/`
