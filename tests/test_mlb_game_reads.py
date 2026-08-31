@@ -223,6 +223,33 @@ class DispositionTests(unittest.TestCase):
             any("uncertainty_haircut must be a usable number" in e for e in errors), errors
         )
 
+    def test_coherence_holds_at_every_legal_haircut_not_just_the_fixture_one(self):
+        # The original coherence tests all inherited uncertainty_haircut 0.02
+        # from the fixture, which is how the excused-haircut hole survived
+        # them. Vary the haircut across its legal range, including zero.
+        for haircut in (0, 0.0, 0.005, 0.05):
+            with self.subTest(haircut=haircut):
+                coherent = read(
+                    raw_probability={"away": 0.400, "home": 0.610},
+                    uncertainty_haircut=haircut,
+                    conservative_probability={
+                        "away": 0.400 - haircut,
+                        "home": 0.610 - haircut,
+                    },
+                )
+                self.assertEqual(mlb_game_reads.validate_read(coherent, 0), [])
+                broken = dict(coherent)
+                broken["conservative_probability"] = {
+                    "away": 0.400 - haircut + 0.05,
+                    "home": 0.610 - haircut,
+                }
+                self.assertTrue(
+                    any(
+                        "conservative_probability.away is" in e
+                        for e in mlb_game_reads.validate_read(broken, 0)
+                    )
+                )
+
     def test_the_three_model_numbers_must_reconcile_on_both_sides(self):
         # conservative == raw - haircut is the contract in mlb_probability_model.
         # A row that disagrees with itself is worse than a missing row, because
@@ -238,14 +265,32 @@ class DispositionTests(unittest.TestCase):
                     any(f"conservative_probability.{side} is" in e for e in errors), errors
                 )
 
-    def test_a_handicap_with_no_model_identity_is_refused(self):
-        entry = read()
-        entry.pop("model_version")
-        entry["unavailable"] = {"model_version": "not recorded"}
-        errors = mlb_game_reads.validate_read(entry, 0)
-        self.assertTrue(
-            any("cannot be evaluated" in e for e in errors), errors
+    def test_the_model_trail_is_recorded_whole_or_not_at_all(self):
+        # Every field of the trail, excused one at a time. Each excuse removes
+        # the evidence some OTHER check needs, so "explained away" must not
+        # read as "nothing to check here".
+        for field in mlb_game_reads.MODEL_TRAIL_FIELDS:
+            with self.subTest(field=field):
+                entry = read()
+                entry[field] = None
+                entry["unavailable"] = {field: "not recorded by this run"}
+                errors = mlb_game_reads.validate_read(entry, 0)
+                self.assertTrue(
+                    any("records part of the model trail" in e for e in errors), errors
+                )
+
+    def test_an_excused_haircut_cannot_launder_an_incoherent_handicap(self):
+        # The concrete escape hatch: with the haircut merely excused, the
+        # coherence loop had nothing to subtract and a fifty-point disagreement
+        # between raw and conservative validated clean, reached the dataset,
+        # and got scored.
+        entry = read(
+            raw_probability={"away": 0.400, "home": 0.610},
+            conservative_probability={"away": 0.900, "home": 0.100},
+            uncertainty_haircut=None,
+            unavailable={"uncertainty_haircut": "not recorded by this run"},
         )
+        self.assertNotEqual(mlb_game_reads.validate_read(entry, 0), [])
 
     def test_a_game_that_was_never_handicapped_may_say_so(self):
         # not_priced games — no DK line, no market — were never handicapped at

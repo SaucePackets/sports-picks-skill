@@ -132,6 +132,76 @@ class RowTests(unittest.TestCase):
         self.assertIsNone(row)
         self.assertIn("no Final result available", reason)
 
+    def test_a_transposed_read_is_refused_not_scored_backwards(self):
+        # The id join is right and the SIDE join was never made: probabilities
+        # come from the read's away column, the outcome from the final's away
+        # team, and nothing compared the two labels. A transposed read produced
+        # a clean row scoring one club's handicap against the other's result.
+        entry = read(away="Milwaukee Brewers", home="Atlanta Braves")
+        row, reason = dataset.row_for_read("2026-09-01", entry, self.finals)
+        self.assertIsNone(row)
+        self.assertIn("transposed", reason)
+
+    def test_one_crossed_side_is_enough_to_refuse(self):
+        # A half-transcribed read: the away slot holds the final's HOME club
+        # and the other name matches nothing. Requiring both sides to be
+        # crossed before refusing would let this through, and it is the same
+        # backwards row — the probability column and the outcome column belong
+        # to different clubs.
+        entry = read(away="Milwaukee Brewers", home="Some Other Club")
+        row, reason = dataset.row_for_read("2026-09-01", entry, self.finals)
+        self.assertIsNone(row)
+        self.assertIn("transposed", reason)
+
+    def test_the_swap_check_survives_case_and_whitespace_drift(self):
+        # Without normalising, a transposed read written in a different case
+        # matches nothing, the check stays silent, and the row is built
+        # backwards — the failure mode looks identical to having no check.
+        entry = read(away="  MILWAUKEE BREWERS ", home="\tatlanta braves  ")
+        row, reason = dataset.row_for_read("2026-09-01", entry, self.finals)
+        self.assertIsNone(row)
+        self.assertIn("transposed", reason)
+
+    def test_a_side_that_agrees_wins_over_an_apparent_cross_match(self):
+        # Precedence, stated and pinned: if either side agrees with the final,
+        # the read is not transposed, whatever the other name says. A malformed
+        # read naming one club twice would otherwise "cross-match" itself and
+        # be refused for the wrong reason.
+        entry = read(away="Atlanta Braves", home="Atlanta Braves")
+        row, reason = dataset.row_for_read("2026-09-01", entry, self.finals)
+        self.assertIsNone(reason)
+        self.assertEqual(row["side"], "Atlanta Braves")
+
+    def test_cosmetic_name_differences_do_not_drop_an_honest_row(self):
+        # Exact equality is deliberately not required: the two vocabularies can
+        # format a club differently, and dropping honest rows for that would be
+        # a worse failure than the one being prevented.
+        entry = read(away="Atlanta", home="Milwaukee")
+        row, reason = dataset.row_for_read("2026-09-01", entry, self.finals)
+        self.assertIsNone(reason)
+        self.assertEqual(row["outcome"], 1)
+
+    def test_a_read_matching_on_one_side_only_is_accepted(self):
+        # One side matching is not a swap — it is the normal case with one
+        # cosmetic difference, and the swap check must not fire on it.
+        for overrides in ({"home": "Milwaukee"}, {"away": "Atlanta"}):
+            with self.subTest(**overrides):
+                row, reason = dataset.row_for_read(
+                    "2026-09-01", read(**overrides), self.finals
+                )
+                self.assertIsNone(reason)
+                self.assertEqual(row["side"], "Atlanta Braves")
+
+    def test_a_partial_model_trail_never_reaches_the_dataset(self):
+        # Blocker 1's row shape, checked at the builder as well as the
+        # recorder: the two must agree about what a usable read is.
+        entry = read(
+            conservative_probability={"away": 0.900, "home": 0.100},
+            uncertainty_haircut=None,
+            unavailable={"uncertainty_haircut": "not recorded by this run"},
+        )
+        self.assertNotEqual(mlb_game_reads.validate_read(entry, 0), [])
+
     def test_a_final_whose_teams_do_not_match_the_winner_is_refused(self):
         finals = dataset._final_by_game_pk(statsapi())
         finals[823509]["winner"] = "Some Other Club"

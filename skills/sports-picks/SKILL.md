@@ -114,9 +114,14 @@ Then write one `game_reads` entry per game in that roster:
   These are the same four numbers an approved candidate already carries; on a
   refused game they are discarded today, and they are the only record that can
   ever tell us whether our handicap beats the market. `conservative_probability`
-  must equal `raw_probability - uncertainty_haircut` on **both** sides, and a
-  `raw_probability` with no `model_version` is rejected — a probability nobody
-  can attribute to a model can be counted but never evaluated.
+  must equal `raw_probability - uncertainty_haircut` on **both** sides.
+- **The model trail is all four fields or none of them.** Recording some and
+  excusing the rest is rejected: each field is what makes another checkable, so
+  an excused `uncertainty_haircut` would let `conservative_probability`
+  disagree with `raw_probability` by any amount and still validate, and a
+  `raw_probability` with no `model_version` can be counted but never
+  evaluated. If the game was handicapped, record all four; if it was not,
+  excuse all four.
 - **A number you do not have must say why.** Omit the field and put a reason in
   `unavailable`, e.g. `"unavailable": {"polymarket_ask": "exact slug returned no
   market data"}`. A missing field with no reason is invalid, because "no price"

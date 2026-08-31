@@ -97,6 +97,45 @@ def _final_by_game_pk(payload: Any) -> dict[int, dict[str, Any]]:
     return indexed
 
 
+def _name(value: Any) -> str:
+    return value.strip().casefold() if isinstance(value, str) else ""
+
+
+def _transposition(entry: dict[str, Any], away_name: Any, home_name: Any) -> str | None:
+    """Refuse a read whose sides are transposed relative to the final.
+
+    The row joins read to final on ``game_pk`` and then takes the probability
+    from the READ's away column and the outcome from the FINAL's away team.
+    Those are two different sources — the probabilities descend from the ESPN
+    scoreboard, the outcome from StatsAPI — and nothing else in the pipeline
+    ever compares the two side labels. A transposed read therefore produces a
+    perfectly clean row that scores one club's handicap against the other
+    club's result: not an error, not a skip, no trace to find it by, and it
+    drags Brier and log-loss the wrong way so the gate reads it as the model
+    being worse than the market.
+
+    Exact name equality is deliberately NOT required. The two vocabularies may
+    format a club differently and no real ``game_reads`` exist yet to measure
+    how often, so demanding equality would drop honest rows for a cosmetic
+    difference. Detecting the SWAP is free and needs no shared vocabulary: it
+    only fires when the read's own two names appear on the opposite sides of
+    the final, which cosmetic drift cannot produce.
+    """
+    read_away, read_home = _name(entry.get("away")), _name(entry.get("home"))
+    final_away, final_home = _name(away_name), _name(home_name)
+    if not read_away or not read_home or not final_away or not final_home:
+        return None
+    if read_away == final_away or read_home == final_home:
+        return None
+    if read_away == final_home or read_home == final_away:
+        return (
+            f"the read has {entry.get('away')!r} away and {entry.get('home')!r} home, "
+            f"but the final has {away_name!r} away and {home_name!r} home; the sides are "
+            "transposed and the row would score one club's handicap against the other's result"
+        )
+    return None
+
+
 def row_for_read(
     date: str, entry: Any, finals: dict[int, dict[str, Any]]
 ) -> tuple[dict[str, Any] | None, str | None]:
@@ -131,6 +170,10 @@ def row_for_read(
     home_name = final.get("home")
     if winner not in (away_name, home_name):
         return None, f"{label}: winner {winner!r} is neither team on the final"
+
+    swap = _transposition(entry, away_name, home_name)
+    if swap is not None:
+        return None, f"{label}: {swap}"
 
     row: dict[str, Any] = {
         "date": date,

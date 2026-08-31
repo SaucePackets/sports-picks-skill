@@ -296,9 +296,22 @@ same trail an approved candidate carries, recorded for the games you refuse as
 well as the one or two you take. `conservative_probability` must equal
 `raw_probability - uncertainty_haircut` on both sides, exactly as it does for a
 candidate, and the haircut is one non-negative number for the read; **zero is
-legal**, because a market-only read charges no buffer. A `raw_probability`
-without a `model_version` is refused: the deployment gate segments rows by that
-string, so an unattributed probability can be counted but never evaluated.
+legal**, because a market-only read charges no buffer.
+
+**Record all four or excuse all four.** A partial trail is refused, because
+every field is what makes another one checkable: an excused
+`uncertainty_haircut` leaves nothing to subtract, so `conservative_probability`
+could disagree with `raw_probability` by any amount and still validate, and a
+`raw_probability` with no `model_version` can be counted but never evaluated —
+the deployment gate segments rows by that string. A game that was never
+handicapped excuses the whole trail in `unavailable`; a game that was
+handicapped owes the whole trail.
+
+**Get the sides the right way round.** The reads carry `away` and `home` from
+the scan, and the outcome is joined from the MLB StatsAPI final. A transposed
+read produces a row that scores one club's handicap against the other club's
+result — clean-looking, counted, and invisible afterwards — so the dataset
+builder refuses a read whose sides are crossed relative to the final.
 
 This is what makes the model gate answerable. `mlb_probability_model.py
 dataset` has only ever been able to read `picks.json` — settled, executed

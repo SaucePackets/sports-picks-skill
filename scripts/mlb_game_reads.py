@@ -265,28 +265,44 @@ def _side_field_errors(label: str, entry: dict[str, Any]) -> list[str]:
     return errors
 
 
-def _model_trail_errors(label: str, entry: dict[str, Any]) -> list[str]:
-    """The three model numbers have to agree with each other, or say nothing.
+# The trail is all-or-nothing. Naming them here so the rule below is a list to
+# check rather than a chain of conditions to reason about.
+MODEL_TRAIL_FIELDS = (
+    "raw_probability",
+    "uncertainty_haircut",
+    "conservative_probability",
+    "model_version",
+)
 
-    A read may legitimately carry no handicap at all — a game with no DK price
-    was never handicapped. What it may not do is carry a handicap that does not
-    hold together, because every row of the evaluation dataset is built from
-    exactly these fields and a row that quietly disagrees with itself is worse
-    than a row that is missing: it is counted.
+
+def _model_trail_errors(label: str, entry: dict[str, Any]) -> list[str]:
+    """The model trail is recorded whole, or not at all, and it must reconcile.
+
+    A read may legitimately carry no handicap — a game with no DK price was
+    never handicapped, and every field then says so in ``unavailable``. What it
+    may not do is carry PART of a handicap, because every check that makes the
+    rest of the trail trustworthy is conditional on the piece that is missing.
+
+    That was a real hole and not a hypothetical one: with
+    ``uncertainty_haircut`` merely excused as unavailable, ``conservative``
+    could disagree with ``raw`` by fifty points and validate clean, because the
+    coherence loop had nothing to subtract. A guard that treats "the field was
+    explained away" as "there is nothing to check here" is half-wired — the
+    explanation is exactly what removes the evidence. So the requirement is
+    symmetric: record one of these and you owe all of them.
     """
     errors: list[str] = []
-    raw = entry.get("raw_probability")
-    if raw is None:
+    recorded = [field for field in MODEL_TRAIL_FIELDS if entry.get(field) is not None]
+    if not recorded:
         return errors
-
-    # A probability with no model identity cannot be evaluated, only counted —
-    # the deployment gate segments rows by this exact string.
-    if entry.get("model_version") is None:
+    absent = [field for field in MODEL_TRAIL_FIELDS if entry.get(field) is None]
+    if absent:
         errors.append(
-            f"{label}.raw_probability is recorded but {label}.model_version is not; "
-            "a handicap with no model identity cannot be evaluated"
+            f"{label} records part of the model trail ({', '.join(recorded)}) but not "
+            f"{', '.join(absent)}; a partial handicap cannot be checked or evaluated"
         )
 
+    raw = entry.get("raw_probability")
     conservative = entry.get("conservative_probability")
     haircut = entry.get("uncertainty_haircut")
     if not isinstance(raw, dict) or not isinstance(conservative, dict):

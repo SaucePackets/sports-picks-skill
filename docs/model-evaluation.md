@@ -33,7 +33,8 @@ full trail drew their edge from the model's disagreement with DK — median
 The slate handicaps every scheduled game and keeps the one or two it bets.
 `game_reads` now records the rest: `raw_probability`, `uncertainty_haircut`,
 `conservative_probability` and `model_version` on **every** game, refused ones
-included.
+included. The four are recorded whole or excused whole — each one is what makes
+another checkable, so a partial trail is a trail nothing can verify.
 
 **A handicap on a game we passed is still a testable pre-pitch prediction.** It
 is also the less biased sample, which is the substantive argument and not a
@@ -71,6 +72,14 @@ Two properties of the builder worth knowing before reading its output:
   final is skipped with a stated reason, and the reasons are printed with the
   row count. A dataset that silently drops what it could not parse is a dataset
   whose denominator nobody can check.
+- **A transposed read is refused, not scored backwards.** The row joins read to
+  final on `game_pk`, then takes the probability from the read's away column
+  and the outcome from the final's away team — two different sources, and
+  nothing else in the pipeline compares the two side labels. A crossed read
+  would produce a perfectly clean row scoring one club's handicap against the
+  other club's result, with no trace to find it by. Exact name equality is not
+  required (the two vocabularies may format a club differently); the check
+  fires only on a genuine swap, which cosmetic drift cannot produce.
 
 ## Predeclared margins
 
