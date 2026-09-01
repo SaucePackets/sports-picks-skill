@@ -90,7 +90,12 @@ python3 scripts/mlb_slate_writer.py --land .picks/tmp/<day>-slate-draft.json --d
 A nonzero exit means nothing was written and the errors name every defect. The
 draft must **not** carry `slate_denominator`: the denominator is the one field
 whose whole value is that the run did not write it, and a transcribed one is
-refused even when it happens to be correct. What lands looks like this:
+refused even when it happens to be correct. For the same reason the draft must
+not rule on its own candidates — leave `vig_approved`, `vig_notes` and
+`execution_status` `null` and `executed` `false`, exactly as the candidate
+template above has them. Those values land; a non-null ruling or a truthy
+`executed` is refused, because an approved card is never queued for review and
+goes to the executor unreviewed. What lands looks like this:
 
 ```json
 "slate_denominator": {

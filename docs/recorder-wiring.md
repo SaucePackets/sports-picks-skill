@@ -109,9 +109,20 @@ it is not a supported artifact:
   across two id spaces was the producer's job and the part that silently went
   missing; it is now a file. The stub names no disposition and no prices, so an
   unfilled skeleton cannot land — a head start, not a bypass.
-- **Landing never clobbers a decision.** A schedule whose candidates carry
-  `vig_approved`, `vig_notes`, `execution_status` or `executed`, or whose
-  watchlist entries have been rechecked, is refused. There is no override flag,
+- **Landing never clobbers a decision, and never invents one.** A schedule whose
+  candidates carry `vig_approved`, `vig_notes`, `execution_status` or `executed`
+  is refused as the target of a landing, and a *draft* carrying any of them is
+  refused as the source of one. The second half matters because the executor
+  reads `vig_approved` straight off the schedule and the review queue holds only
+  candidates whose value is not yet a bool, so a producer-authored `true` would
+  reach the executor having never been reviewed. Both sites ask one predicate,
+  `decision_fields`, of two different records — the question "does this card
+  carry a decision" has one answer and two copies of it would drift. The rule is
+  presence of a *value*, not of a key: the producer's own template spells all
+  four out as `null`/`false`, so a key-presence test would refuse every slate.
+  `execution_mode` is not on the list — `standing_authorized` says what may
+  happen after a review, not that one happened. Watchlist entries that have been
+  rechecked are refused on the same principle. There is no override flag,
   because an optional rail is the shape of defect this lane keeps paying for.
 
 **What it does not close, stated plainly.** Nothing here stops a run from

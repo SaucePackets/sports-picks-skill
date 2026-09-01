@@ -19,6 +19,14 @@ half:
   on every run — and a draft that carries its own ``slate_denominator`` is
   *refused* rather than silently overwritten. A run cannot shrink a roster it
   does not write.
+- **The producer does not author decisions.** ``vig_approved``/``vig_notes``
+  belong to the reviewer and ``execution_status``/``executed`` to the executor.
+  The executor reads ``vig_approved`` straight off the schedule and the review
+  queue holds only candidates whose value is not yet a bool, so a
+  producer-written ``true`` would reach the executor having never been
+  reviewed. A draft carrying any of them is refused, by the same rule that
+  refuses to overwrite a card already carrying them — one predicate, asked of
+  the record landing and of the record it replaces.
 - **One validated read per scheduled game, before the record can land.** The
   composed schedule is put through ``mlb_game_reads.validate_with_denominator``
   and ``mlb_lineup_watchlist.validate_watchlist`` — the same functions the gate
@@ -80,8 +88,13 @@ DENOMINATOR_FIELDS = ("game_pk", "event_id", "away", "home")
 # whole value is that the run did not write it.
 DERIVED_KEYS = ("slate_denominator",)
 
-# Review and execution state a landing must never clobber. A schedule that has
+# Review and execution state a landing must never clobber, and — the same list,
+# read the other way — state the producer must never author. A schedule that has
 # been through the reviewer is no longer a slate being produced.
+#
+# ``execution_mode`` is deliberately absent. It is ``"standing_authorized"`` in
+# the producer's own template: it says what MAY happen after a review, not that
+# one happened, and listing it here would refuse every ordinary slate.
 CANDIDATE_STATE_FIELDS = ("vig_approved", "vig_notes", "execution_status")
 
 
@@ -176,6 +189,60 @@ def scan_fetched_at(path: Path) -> str:
     return utc_iso(dt.datetime.fromtimestamp(path.stat().st_mtime, tz=dt.timezone.utc))
 
 
+def decision_fields(candidate: Any) -> list[str]:
+    """Which decisions a candidate already carries — one rule, two call sites.
+
+    The occupancy check asks it of the schedule being *replaced* ("would landing
+    erase a decision?") and the draft check asks it of the schedule doing the
+    *replacing* ("did the producer author a decision?"). Those are two questions
+    about two objects, but the underlying answer — does this card carry a
+    decision — is one, and two copies of it would drift.
+
+    The rule is presence-of-a-VALUE, never presence-of-a-KEY. The producer's own
+    canonical candidate spells all four fields out as ``null``/``false``, so a
+    ``field in candidate`` test would refuse every ordinary slate — and it would
+    do so at the CLI, on a live slate night, having passed every test here.
+    """
+    if not isinstance(candidate, dict):
+        return []
+    stamped = [field for field in CANDIDATE_STATE_FIELDS if candidate.get(field) is not None]
+    if candidate.get("executed"):
+        stamped.append("executed")
+    return stamped
+
+
+def authored_decision_errors(draft: dict[str, Any]) -> list[str]:
+    """Refuse a draft whose candidates arrive already reviewed or already executed.
+
+    ``vig_approved`` is read straight off the schedule by the executor, and the
+    review queue only stops candidates whose value is not yet a bool — so a
+    producer-authored ``true`` reaches the executor having never been reviewed.
+    Nothing new made that possible, but this module is now the sanctioned way a
+    schedule comes into existence, and it already refuses ``slate_denominator``
+    on exactly this principle: a field whose whole value is that the run did not
+    write it cannot be accepted from the run, not even when it looks right.
+
+    The reviewer writes ``vig_approved``/``vig_notes``; the executor writes
+    ``execution_status``/``executed``. The producer writes neither.
+    """
+    candidates = draft.get("candidates")
+    if candidates is None:
+        return []
+    if not isinstance(candidates, list):
+        return ["draft.candidates must be a list of candidate objects"]
+    errors: list[str] = []
+    for index, candidate in enumerate(candidates):
+        stamped = decision_fields(candidate)
+        if stamped:
+            errors.append(
+                f"draft.candidates[{index}] already carries "
+                f"{', '.join(sorted(set(stamped)))}; review and execution state is "
+                "written by the reviewer and the executor, never by the producer — "
+                "leave those fields null (and executed false) in the draft"
+            )
+    return errors
+
+
 def draft_errors(draft: Any, day: str) -> list[str]:
     """Everything wrong with the draft before a denominator is attached."""
     if not isinstance(draft, dict):
@@ -200,6 +267,7 @@ def draft_errors(draft: Any, day: str) -> list[str]:
             )
     if not isinstance(draft.get("game_reads"), list):
         errors.append("draft.game_reads must be a list, one entry per scheduled game")
+    errors.extend(authored_decision_errors(draft))
     return errors
 
 
@@ -251,13 +319,7 @@ def occupancy_errors(schedule_path: Path) -> list[str]:
     errors: list[str] = []
     candidates = existing.get("candidates") if isinstance(existing, dict) else None
     for index, candidate in enumerate(candidates or []):
-        if not isinstance(candidate, dict):
-            continue
-        stamped = [
-            field for field in CANDIDATE_STATE_FIELDS if candidate.get(field) is not None
-        ]
-        if candidate.get("executed"):
-            stamped.append("executed")
+        stamped = decision_fields(candidate)
         if stamped:
             errors.append(
                 f"the existing schedule's candidates[{index}] already carries "

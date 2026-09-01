@@ -23,6 +23,7 @@ from scripts import mlb_game_reads
 from scripts import mlb_lineup_watchlist
 from scripts import mlb_slate_receipt
 from scripts import mlb_slate_writer
+from scripts import vig_review_gate_common
 
 DAY = "2026-09-01"
 
@@ -442,6 +443,269 @@ class NonDestructiveTests(WriterTestCase):
         _, schedule = mlb_slate_writer.land(self.root, DAY, relanded)
 
         self.assertEqual(schedule["game_reads"][0]["refusing_rails"], ["starter_floor"])
+
+
+class AuthoredDecisionTests(WriterTestCase):
+    """The producer may not author the decisions the reviewer and executor own.
+
+    The occupancy check already refuses to *erase* a decision. These cover the
+    other direction — a landing that *invents* one — because the executor reads
+    ``vig_approved`` straight off the schedule and the review queue only holds
+    candidates whose value is not yet a bool, so a producer-authored ``true``
+    reaches the executor never having been reviewed.
+
+    The positive control is the load-bearing one. The producer's canonical
+    candidate spells all four fields out as ``null``/``false``, so a guard
+    written as a key-presence test would refuse every ordinary slate — and
+    without a test that a real candidate still lands, that guard is
+    indistinguishable from one that refuses everything.
+    """
+
+    # scripts/../skills/sports-picks/SKILL.md, verbatim: what the producer is
+    # told to write. If this stops landing, the guard is broken, not the slate.
+    CANONICAL_CANDIDATE = {
+        "sport": "MLB",
+        "market_type": "moneyline",
+        "vig_review_needed": True,
+        "vig_approved": None,
+        "vig_notes": None,
+        "execution_mode": "standing_authorized",
+        "execution_status": None,
+        "max_polymarket_price": 0.51,
+        "executed": False,
+    }
+
+    def draft_with_candidate(self, rows, **overrides):
+        candidate = dict(self.CANONICAL_CANDIDATE)
+        candidate.update(overrides)
+        draft = draft_for(rows)
+        draft["candidates"] = [candidate]
+        draft["game_reads"][0]["disposition"] = "candidate"
+        draft["game_reads"][0]["refusing_rails"] = []
+        return draft
+
+    def test_the_canonical_producer_candidate_still_lands(self):
+        rows = [scan_row(823509)]
+        self.write_scan(rows)
+
+        path, schedule = mlb_slate_writer.land(
+            self.root, DAY, self.draft_with_candidate(rows)
+        )
+
+        self.assertTrue(path.exists())
+        self.assertEqual(schedule["candidates"], [self.CANONICAL_CANDIDATE])
+        # And it is still the thing the review queue is supposed to pick up.
+        self.assertEqual(
+            vig_review_gate_common.pending_candidates(schedule["candidates"]),
+            schedule["candidates"],
+        )
+
+    def test_a_draft_that_approves_its_own_candidate_is_refused(self):
+        rows = [scan_row(823509)]
+        self.write_scan(rows)
+        draft = self.draft_with_candidate(rows, vig_approved=True)
+
+        with self.assertRaises(mlb_slate_writer.SlateWriteError) as caught:
+            mlb_slate_writer.land(self.root, DAY, draft)
+
+        self.assertTrue(
+            any(
+                "draft.candidates[0] already carries vig_approved" in error
+                for error in caught.exception.errors
+            ),
+            caught.exception.errors,
+        )
+        self.assertFalse(self.schedule_path().exists())
+
+    def test_the_refused_shape_is_the_one_that_would_reach_the_executor(self):
+        """Why the guard exists, stated as the two facts that make it necessary.
+
+        A producer-authored card in this exact shape is not queued for review —
+        ``pending_candidates`` holds only candidates whose ``vig_approved`` is
+        not yet a bool — and it satisfies the executor's own state predicate.
+        The writer is the only thing between it and the executor.
+        """
+        rows = [scan_row(823509)]
+        self.write_scan(rows)
+        approved = dict(
+            self.CANONICAL_CANDIDATE,
+            vig_approved=True,
+            execution_status="pending",
+        )
+
+        self.assertEqual(vig_review_gate_common.pending_candidates([approved]), [])
+
+        with self.assertRaises(mlb_slate_writer.SlateWriteError):
+            mlb_slate_writer.land(
+                self.root, DAY, self.draft_with_candidate(rows, **approved)
+            )
+
+    def test_a_draft_that_rejects_its_own_candidate_is_also_refused(self):
+        """``false`` is a ruling too — the rail is about authorship, not polarity."""
+        rows = [scan_row(823509)]
+        self.write_scan(rows)
+
+        with self.assertRaises(mlb_slate_writer.SlateWriteError) as caught:
+            mlb_slate_writer.land(
+                self.root, DAY, self.draft_with_candidate(rows, vig_approved=False)
+            )
+
+        self.assertTrue(
+            any("vig_approved" in error for error in caught.exception.errors),
+            caught.exception.errors,
+        )
+
+    def test_every_decision_field_is_refused_and_named(self):
+        """One case per field, so growing the tuple cannot outrun the coverage."""
+        stamps = {
+            "vig_approved": True,
+            "vig_notes": "cleared on the 08-30 read",
+            "execution_status": "pending",
+            "executed": True,
+        }
+        self.assertEqual(
+            sorted(stamps), sorted(mlb_slate_writer.CANDIDATE_STATE_FIELDS + ("executed",))
+        )
+        for field, value in stamps.items():
+            with self.subTest(field=field):
+                rows = [scan_row(823509)]
+                self.write_scan(rows)
+                draft = self.draft_with_candidate(rows, **{field: value})
+
+                with self.assertRaises(mlb_slate_writer.SlateWriteError) as caught:
+                    mlb_slate_writer.land(self.root, DAY, draft)
+
+                self.assertTrue(
+                    any(
+                        f"draft.candidates[0] already carries {field}" in error
+                        for error in caught.exception.errors
+                    ),
+                    caught.exception.errors,
+                )
+                self.assertFalse(self.schedule_path().exists())
+
+    def test_execution_mode_is_not_a_decision(self):
+        """``standing_authorized`` says what may happen later, not that it did.
+
+        It is in the producer's template on every card. Treating it as decision
+        state would refuse every ordinary slate.
+        """
+        self.assertNotIn("execution_mode", mlb_slate_writer.CANDIDATE_STATE_FIELDS)
+        self.assertEqual(
+            mlb_slate_writer.decision_fields(
+                {"execution_mode": "standing_authorized", "vig_review_needed": True}
+            ),
+            [],
+        )
+
+    def test_the_offending_card_is_named_by_index(self):
+        rows = [scan_row(823509)]
+        self.write_scan(rows)
+        draft = self.draft_with_candidate(rows)
+        draft["candidates"] = [
+            dict(self.CANONICAL_CANDIDATE),
+            dict(self.CANONICAL_CANDIDATE, executed=True),
+        ]
+
+        errors = mlb_slate_writer.draft_errors(draft, DAY)
+
+        self.assertEqual(
+            [error for error in errors if "already carries" in error],
+            [
+                "draft.candidates[1] already carries executed; review and execution "
+                "state is written by the reviewer and the executor, never by the "
+                "producer — leave those fields null (and executed false) in the draft"
+            ],
+        )
+
+    def test_a_refused_authorship_leaves_the_previous_schedule_byte_identical(self):
+        rows = [scan_row(823509)]
+        self.write_scan(rows)
+        mlb_slate_writer.land(self.root, DAY, self.draft_with_candidate(rows))
+        before = self.schedule_path().read_bytes()
+
+        with self.assertRaises(mlb_slate_writer.SlateWriteError):
+            mlb_slate_writer.land(
+                self.root, DAY, self.draft_with_candidate(rows, vig_approved=True)
+            )
+
+        self.assertEqual(self.schedule_path().read_bytes(), before)
+
+    def test_a_candidate_list_that_is_not_a_list_is_refused(self):
+        rows = [scan_row(823509)]
+        self.write_scan(rows)
+        draft = draft_for(rows)
+        draft["candidates"] = {"sport": "MLB", "vig_approved": True}
+
+        errors = mlb_slate_writer.draft_errors(draft, DAY)
+
+        self.assertIn("draft.candidates must be a list of candidate objects", errors)
+
+    def test_a_draft_with_no_candidates_key_is_ordinary(self):
+        """A pass-everything slate names no cards at all; ``compose`` fills it in."""
+        rows = [scan_row(823509)]
+        self.write_scan(rows)
+        draft = draft_for(rows)
+        draft.pop("candidates")
+
+        _, schedule = mlb_slate_writer.land(self.root, DAY, draft)
+
+        self.assertEqual(schedule["candidates"], [])
+
+    def test_a_non_object_candidate_carries_no_decision(self):
+        self.assertEqual(mlb_slate_writer.decision_fields("vig_approved"), [])
+        self.assertEqual(mlb_slate_writer.decision_fields(None), [])
+
+    def test_both_rails_ask_one_predicate_rather_than_two_copies(self):
+        """The consultation, proven by rebinding the source and both answers moving.
+
+        The occupancy check asks it of the file being replaced and the draft
+        check asks it of the record replacing it. Asserting the two agree on
+        some card would pass just as well against two identical copies; forcing
+        the shared name to lie is what makes this a consultation pin.
+        """
+        rows = [scan_row(823509)]
+        self.write_scan(rows)
+        clean = self.draft_with_candidate(rows)
+        mlb_slate_writer.land(self.root, DAY, clean)
+        approved = self.draft_with_candidate(rows, vig_approved=True)
+
+        # Baseline in both directions with the real predicate: the existing
+        # schedule is landable and the approved draft is not.
+        self.assertEqual(mlb_slate_writer.occupancy_errors(self.schedule_path()), [])
+        self.assertTrue(
+            [error for error in mlb_slate_writer.draft_errors(approved, DAY)]
+        )
+
+        with mock.patch.object(
+            mlb_slate_writer, "decision_fields", return_value=["sentinel"]
+        ):
+            self.assertTrue(
+                any(
+                    "sentinel" in error
+                    for error in mlb_slate_writer.occupancy_errors(self.schedule_path())
+                )
+            )
+            self.assertTrue(
+                any(
+                    "sentinel" in error
+                    for error in mlb_slate_writer.draft_errors(clean, DAY)
+                )
+            )
+
+        with mock.patch.object(mlb_slate_writer, "decision_fields", return_value=[]):
+            reviewed = json.loads(self.schedule_path().read_text())
+            reviewed["candidates"][0]["vig_approved"] = True
+            self.schedule_path().write_text(json.dumps(reviewed), encoding="utf-8")
+            self.assertEqual(mlb_slate_writer.occupancy_errors(self.schedule_path()), [])
+            self.assertEqual(
+                [
+                    error
+                    for error in mlb_slate_writer.draft_errors(approved, DAY)
+                    if "already carries" in error
+                ],
+                [],
+            )
 
 
 class SkeletonTests(WriterTestCase):
