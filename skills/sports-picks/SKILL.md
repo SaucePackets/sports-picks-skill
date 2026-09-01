@@ -132,10 +132,26 @@ Then write one `game_reads` entry per game in that roster:
   `candidates` and `lineup_watchlist` entries on the schedule.
 
 Before completing a slate, run
-`python3 scripts/mlb_game_reads.py <schedule> --validate --denominator <stage2-output.json>`;
-a nonzero exit means the slate is invalid and must be reported as an error
-rather than handed to the reviewer. The `--denominator` cross-check is what
-stops a run from trimming its own roster to match a short read set.
+`python3 scripts/mlb_game_reads.py <schedule> --validate`; a nonzero exit means
+the slate is invalid and must be reported as an error rather than handed to the
+reviewer. The cross-check against the scan is what stops a run from trimming its
+own roster to match a short read set, and it is **no longer optional**:
+`mlb_stage2_scan.py` persists its roster to `.picks/tmp/stage2-<date>.json`
+every time it runs, the validator resolves that path from the schedule's date,
+and a **missing** scan is an error rather than a skipped check. Pass
+`--denominator <path>` only to check against some other file.
+
+Then run `python3 scripts/mlb_slate_receipt.py --write`. It writes
+`.picks/journal/<date>-slate-receipt.json` with one verdict from a closed set —
+`complete`, `honest_zero`, `recorder_failed`, `no_schedule` — and exits nonzero
+on `recorder_failed`. Report the verdict in the slate summary. On 2026-09-01 a
+run reported "Slate complete" over a schedule carrying no reads at all, and
+nothing in this repository contradicted it; the receipt is the artifact that
+now does.
+
+A day with no card is **not** exempt from any of this. Zero reads is only
+honest when the scan says the day had no games, and the receipt is what tells
+those two apart.
 
 ### Lineup-dependent MLB watchlist
 

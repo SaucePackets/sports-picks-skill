@@ -25,6 +25,7 @@ from mlb_runtime_policy import (
     enforce_daily_candidate_limit,
     live_conservative_edge,
     load_mlb_selection_policy,
+    model_deployment_errors,
     stale_probability_field_errors,
     standing_authorization_enabled,
 )
@@ -158,6 +159,13 @@ def candidate_is_eligible(candidate: dict[str, Any], now: datetime) -> bool:
     # fields make the candidate ineligible — a stale stored edge never
     # overrides live arithmetic.
     if stale_probability_field_errors(candidate):
+        return False
+    # Deployment contract: a version string is not a deployed model. The
+    # probability trail above proves the numbers are internally consistent and
+    # says nothing about whether the model that produced them was ever cleared
+    # to bet. Only the market-only fallback (which asserts no model) and
+    # versions named in the deployment record may reach an order.
+    if model_deployment_errors(candidate):
         return False
     # Baseball evidence hard validators (Phase 2): deterministic starter role,
     # resolved named risks, available leverage arms, etc. Fails closed at gate time.

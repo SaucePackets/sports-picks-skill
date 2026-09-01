@@ -278,8 +278,14 @@ such as `-120`). Values such as `"MIN +119 at DraftKings"` and `"+105"` are
 invalid. Keep source and timestamp prose in the slate or `thesis`, not in the
 numeric fields. Validate the finished schedule with
 `python3 scripts/mlb_lineup_watchlist.py <schedule> --validate` and
-`python3 scripts/mlb_game_reads.py <schedule> --validate --denominator <stage2-output.json>`
-before reporting slate success.
+`python3 scripts/mlb_game_reads.py <schedule> --validate`
+before reporting slate success, then `python3 scripts/mlb_slate_receipt.py
+--write`. The game-reads validator finds the denominator by convention at
+`.picks/tmp/stage2-<date>.json`, which `mlb_stage2_scan.py` now writes on every
+run; its absence is an error, not a skipped check, so neither command needs
+`--denominator`. **Slate success is the receipt's verdict, not your own
+assessment of the run** — report `recorder_failed` as a failure even when the
+prose reads well and the card is legitimately empty.
 
 ### Recording the refusals
 

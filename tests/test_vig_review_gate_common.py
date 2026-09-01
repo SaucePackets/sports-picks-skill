@@ -40,7 +40,7 @@ PROBABILITY_TRAIL = {
     "conservative_probability": 0.54,
     "current_ask": 0.48,
     "projected_edge_at_current_ask": 0.06,
-    "model_version": "market-only-fallback-v1",
+    "model_version": "vig-mlb-market-v1",
     "baseball_evidence": valid_baseball_evidence(),
     "execution_checks": valid_execution_checks(supported_price=0.48),
     "probability_components": valid_probability_components(),
@@ -100,6 +100,83 @@ _POLICY_STATE = None
 # Sentinel for "the child omitted this field", distinct from a None value the
 # child could legitimately write.
 _OMITTED = object()
+
+
+
+# A schedule whose per-game record is VALID, so the recorder-gap notice stays
+# silent. An MLB schedule with no `game_reads` is now a reported defect, which
+# is the whole point of the 2026-09-01 fix; a fixture that omits it is testing
+# the gap path while claiming to test the quiet path.
+def with_recorder_record(payload):
+    """Add a VALID per-game record matching whatever the fixture carries.
+
+    These fixtures are about watchlist expiry, child failures and approval
+    repair — not about the recorder. Without a record they would each also be
+    exercising the recorder-gap path, and their "no extra notices" assertions
+    would be asserting the absence of a notice that is now correct to emit.
+
+    The record is generated from the fixture's own candidates and watchlist so
+    the coverage counts line up; a hand-written constant would drift the first
+    time a fixture grew an entry.
+    """
+    payload = dict(payload)
+    if "game_reads" in payload and "slate_denominator" in payload:
+        return payload
+    entries = [
+        ("candidate", entry) for entry in payload.get("candidates", []) or []
+    ] + [
+        ("lineup_watchlist", entry) for entry in payload.get("lineup_watchlist", []) or []
+    ]
+    reads, games = [], []
+    for index, (disposition, _entry) in enumerate(entries):
+        game_pk = 900000 + index
+        event_id = f"4019{game_pk}"
+        games.append(
+            {"game_pk": game_pk, "event_id": event_id, "away": "Away Club",
+             "home": "Home Club"}
+        )
+        reads.append(
+            {
+                "game_pk": game_pk,
+                "event_id": event_id,
+                "away": "Away Club",
+                "home": "Home Club",
+                "disposition": disposition,
+                "dk_fair_prob": {"away": 0.398, "home": 0.602},
+                "polymarket_ask": {"away": 0.460, "home": 0.545},
+                "raw_probability": {"away": 0.400, "home": 0.610},
+                "uncertainty_haircut": 0.02,
+                "conservative_probability": {"away": 0.380, "home": 0.590},
+                "model_version": "vig-mlb-market-v1",
+                "net_edge": {"away": -0.080, "home": 0.035},
+                "refusing_rails": [],
+            }
+        )
+    payload.setdefault(
+        "slate_denominator",
+        {
+            "source": "mlb_stage2_scan",
+            "fetched_at_utc": "2026-09-01T15:30:00+00:00",
+            "games": games,
+        },
+    )
+    payload.setdefault("game_reads", reads)
+    return payload
+
+
+def recorded_empty_card(**overrides):
+    payload = {
+        "candidates": [],
+        "lineup_watchlist": [],
+        "slate_denominator": {
+            "source": "mlb_stage2_scan",
+            "fetched_at_utc": "2026-09-01T15:30:00+00:00",
+            "games": [],
+        },
+        "game_reads": [],
+    }
+    payload.update(overrides)
+    return payload
 
 
 class VigReviewGateCommonTests(unittest.TestCase):
@@ -561,7 +638,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 "approved_polymarket_ask": 0.48,
                 "vig_approved": None,
                 "dk_fair_prob": 0.55,
-                "model_version": "market-only-fallback-v1",
+                "model_version": "vig-mlb-market-v1",
                 "baseball_evidence": valid_baseball_evidence(),
                 "execution_checks": valid_execution_checks(supported_price=0.48),
                 **consistent_probability_overrides(round(0.48 + edge, 6), 0.48),
@@ -603,7 +680,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 "approved_polymarket_ask": 0.48,
                 "vig_approved": None,
                 "dk_fair_prob": 0.55,
-                "model_version": "market-only-fallback-v1",
+                "model_version": "vig-mlb-market-v1",
                 "baseball_evidence": valid_baseball_evidence(),
                 "execution_checks": valid_execution_checks(supported_price=0.48),
                 **consistent_probability_overrides(round(0.48 + edge, 6), 0.48),
@@ -650,7 +727,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 "approved_polymarket_ask": 0.48,
                 "vig_approved": vig_approved,
                 "dk_fair_prob": 0.55,
-                "model_version": "market-only-fallback-v1",
+                "model_version": "vig-mlb-market-v1",
                 "baseball_evidence": valid_baseball_evidence(),
                 "execution_checks": valid_execution_checks(supported_price=0.48),
                 **consistent_probability_overrides(round(0.48 + edge, 6), 0.48),
@@ -987,7 +1064,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
                     first_pitch_utc=first_pitch.isoformat(),
                 )
                 schedule_path.write_text(
-                    json.dumps({"candidates": [], "lineup_watchlist": [before_entry]})
+                    json.dumps(with_recorder_record({"candidates": [], "lineup_watchlist": [before_entry]}))
                 )
                 promoted_candidate = {
                     "watchlist_id": "watch-1",
@@ -1494,7 +1571,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
                 schedule_path.parent.mkdir(parents=True)
                 schedule_path.write_text(
-                    json.dumps({"candidates": [], "lineup_watchlist": []})
+                    json.dumps(recorded_empty_card())
                 )
 
                 output = StringIO()
@@ -1570,7 +1647,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
                 schedule_path.parent.mkdir(parents=True)
                 schedule_path.write_text(
-                    json.dumps({"candidates": [], "lineup_watchlist": []})
+                    json.dumps(recorded_empty_card())
                 )
 
                 output = StringIO()
@@ -2362,7 +2439,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
         with self._temp_root() as root:
             status, output, records, path = self._journalled_gate(
                 root,
-                json.dumps({"candidates": [], "lineup_watchlist": [entry]}),
+                json.dumps(with_recorder_record({"candidates": [], "lineup_watchlist": [entry]})),
                 run=no_child,
                 extra_patches=[
                     patch.object(
@@ -2426,7 +2503,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
         with self._temp_root() as root:
             status, output, records, path = self._journalled_gate(
                 root,
-                json.dumps({"candidates": [], "lineup_watchlist": [entry]}),
+                json.dumps(with_recorder_record({"candidates": [], "lineup_watchlist": [entry]})),
                 run=AssertionError("no reviewer child on a no-work cycle"),
                 extra_patches=[
                     patch.object(
@@ -2548,10 +2625,12 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 schedule_path.parent.mkdir(parents=True)
                 schedule_path.write_text(
                     json.dumps(
-                        {
-                            "candidates": [{"event_id": "1", "side": "CWS"}],
-                            "lineup_watchlist": [],
-                        }
+                        with_recorder_record(
+                            {
+                                "candidates": [{"event_id": "1", "side": "CWS"}],
+                                "lineup_watchlist": [],
+                            }
+                        )
                     )
                 )
                 failed = vig_review_gate_common.subprocess.CompletedProcess(

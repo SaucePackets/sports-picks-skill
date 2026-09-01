@@ -50,10 +50,17 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from mlb_runtime_policy import resolve_state_dir  # noqa: E402
+from mlb_runtime_policy import (  # noqa: E402
+    MARKET_MODEL_VERSION,
+    resolve_state_dir,
+)
 from numeric_util import is_finite_number  # noqa: E402
 
-MARKET_MODEL_VERSION = "vig-mlb-market-v1"
+# MARKET_MODEL_VERSION is re-exported, not redefined. It used to be a literal
+# here and a second literal in mlb_runtime_policy's new deployment rail; the
+# execution boundary now refuses any version that is neither this one nor
+# deployed, so two spellings of "market-only" would mean the fallback itself
+# stops being executable on one side of a rename.
 DEPLOYMENT_POLICY_SCHEMA = "vig-mlb-model-deployment-policy-v1"
 
 # The versioned feature contract: every raw-probability adjustment off the

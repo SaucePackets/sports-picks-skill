@@ -578,16 +578,42 @@ class CardReconciliationTests(unittest.TestCase):
 
 
 class CliTests(unittest.TestCase):
-    def run_cli(self, payload, scan=None):
+    def run_cli(self, payload, scan=None, conventional_scan=True):
+        """Run the CLI in a real .picks layout.
+
+        The schedule sits where the runtime puts it, because --denominator is
+        no longer optional: with the flag omitted the validator resolves the
+        scan by convention and treats its ABSENCE as an error. A tmpdir with a
+        loose schedule.json used to exercise the no-cross-check path, which is
+        precisely the path that no longer exists.
+        """
         with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "schedule.json"
+            date = payload.get("date", "2026-08-22") if isinstance(payload, dict) else "x"
+            path = Path(tmp) / ".picks" / "execute" / f"{date}-schedule.json"
+            path.parent.mkdir(parents=True)
             path.write_text(json.dumps(payload), encoding="utf-8")
             argv = [str(path)]
             if scan is not None:
                 scan_path = Path(tmp) / "scan.json"
                 scan_path.write_text(json.dumps(scan), encoding="utf-8")
                 argv += ["--denominator", str(scan_path)]
+            elif conventional_scan:
+                # Derived from the module's own helper, never a second literal
+                # spelling of the layout.
+                conventional = mlb_game_reads.conventional_denominator_path(path, payload)
+                conventional.parent.mkdir(parents=True, exist_ok=True)
+                games = []
+                if isinstance(payload, dict):
+                    block = payload.get("slate_denominator")
+                    if isinstance(block, dict) and isinstance(block.get("games"), list):
+                        games = block["games"]
+                conventional.write_text(json.dumps(games), encoding="utf-8")
             return mlb_game_reads.main(argv)
+
+    def test_a_missing_conventional_scan_fails_the_slate(self):
+        # The cross-check is not opt-in any more: "nobody ran the scan" and
+        # "the scan agrees" must not share an exit code.
+        self.assertEqual(self.run_cli(schedule(), conventional_scan=False), 1)
 
     def test_a_valid_slate_exits_zero(self):
         self.assertEqual(self.run_cli(schedule()), 0)
