@@ -1,0 +1,594 @@
+import json
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+from scripts import mlb_game_reads
+from scripts import mlb_measurement_lane as lane
+from scripts import mlb_model_eval_dataset as dataset
+from scripts import mlb_probability_model
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def read(game_pk=823509, **overrides):
+    entry = {
+        "game_pk": game_pk,
+        "event_id": f"4018{game_pk}",
+        "away": "Atlanta Braves",
+        "home": "Milwaukee Brewers",
+        "disposition": "pass",
+        "dk_fair_prob": {"away": 0.398, "home": 0.602},
+        "polymarket_ask": {"away": 0.460, "home": 0.545},
+        "raw_probability": {"away": 0.400, "home": 0.610},
+        "uncertainty_haircut": 0.02,
+        "conservative_probability": {"away": 0.380, "home": 0.590},
+        "model_version": "vig-mlb-market-v1",
+        "net_edge": {"away": -0.080, "home": 0.035},
+        "refusing_rails": ["price_discipline"],
+    }
+    entry.update(overrides)
+    return entry
+
+
+def game(game_pk=823509, away="Atlanta Braves", home="Milwaukee Brewers"):
+    return {"game_pk": game_pk, "event_id": f"4018{game_pk}", "away": away, "home": home}
+
+
+def schedule(games=None, reads=None, **overrides):
+    games = [game()] if games is None else games
+    payload = {
+        "date": "2026-09-01",
+        "sport": "mlb",
+        "market_type": "moneyline",
+        "candidates": [],
+        "lineup_watchlist": [],
+        "slate_denominator": {
+            "source": "mlb_stage2_scan",
+            "fetched_at_utc": "2026-09-01T15:30:00+00:00",
+            "games": games,
+        },
+        "game_reads": [read()] if reads is None else reads,
+    }
+    payload.update(overrides)
+    return payload
+
+
+def statsapi(game_pk=823509, away="Atlanta Braves", home="Milwaukee Brewers",
+             away_score=5, home_score=2, status="Final"):
+    return {
+        "dates": [
+            {
+                "games": [
+                    {
+                        "gamePk": game_pk,
+                        "status": {"detailedState": status},
+                        "teams": {
+                            "away": {"team": {"name": away}, "score": away_score},
+                            "home": {"team": {"name": home}, "score": home_score},
+                        },
+                    }
+                ]
+            }
+        ]
+    }
+
+
+def rows_for(sched, finals_payload=None):
+    finals = (
+        {"2026-09-01": dataset._final_by_game_pk(finals_payload)}
+        if finals_payload is not None
+        else {}
+    )
+    return lane.build_rows([("2026-09-01", sched)], finals)
+
+
+class DenominatorTests(unittest.TestCase):
+    def test_a_scheduled_game_with_no_read_still_produces_a_row(self):
+        # The whole reason this module exists next to the dataset builder. The
+        # builder SKIPS an unusable read, which is right for an evaluator and
+        # useless for a measurement: a game nobody recorded is exactly the kind
+        # of failure the lane is looking for, and it cannot be counted if it
+        # vanishes.
+        rows = rows_for(schedule(games=[game(1), game(2)], reads=[read(1)]))
+        self.assertEqual([row["game_pk"] for row in rows], [1, 2])
+        missing = rows[1]
+        self.assertEqual(missing["fidelity"], "no_read")
+        self.assertEqual(missing["refusal_attribution"]["label"], "process_missing_input")
+        self.assertEqual(
+            missing["dk_fair_prob"],
+            {
+                "value": None,
+                "provenance": "unavailable",
+                "reason": "the slate recorded no read for this scheduled game",
+            },
+        )
+
+    def test_a_read_for_a_game_not_in_the_denominator_contributes_no_row(self):
+        # The denominator is the roster the recorder cross-checks against a
+        # fresh scan. A read outside it would let a run add rows to its own
+        # population, which is the failure `--denominator` exists to stop one
+        # level down.
+        rows = rows_for(schedule(games=[game(1)], reads=[read(1), read(2)]))
+        self.assertEqual([row["game_pk"] for row in rows], [1])
+
+    def test_a_schedule_with_no_denominator_contributes_no_rows(self):
+        sched = schedule()
+        del sched["slate_denominator"]
+        self.assertEqual(rows_for(sched), [])
+
+
+class FidelityTests(unittest.TestCase):
+    def test_a_full_trail_is_a_recorded_handicap(self):
+        row = rows_for(schedule())[0]
+        self.assertEqual(row["fidelity"], "recorded_handicap")
+        self.assertEqual(row["source_quality"], "market_only_fallback")
+
+    def test_a_non_market_model_version_is_its_own_source_quality(self):
+        # The split has to survive into every aggregate: under the market-only
+        # fallback our raw probability IS DK's fair, so a model-versus-DK number
+        # computed across both would be partly DK measured against itself.
+        row = rows_for(schedule(reads=[read(model_version="vig-mlb-elo-v2")]))[0]
+        self.assertEqual(row["source_quality"], "non_market_model")
+
+    def test_a_read_with_the_trail_excused_is_no_handicap_not_a_defect(self):
+        entry = read()
+        for field in lane.MODEL_TRAIL_FIELDS:
+            del entry[field]
+        entry["unavailable"] = {field: "never handicapped" for field in lane.MODEL_TRAIL_FIELDS}
+        entry["refusing_rails"] = ["no_dk_price"]
+        row = rows_for(schedule(reads=[entry]))[0]
+        self.assertEqual(row["fidelity"], "no_handicap")
+        self.assertEqual(row["source_quality"], "not_applicable")
+
+    def test_a_read_the_recorder_would_refuse_is_reported_as_unusable_not_folded_in(self):
+        # A read that never passed the slate-time validator has reached this
+        # report by some path that skipped it. That is a finding in itself, so
+        # it gets its own bucket rather than being counted as a handicap.
+        row = rows_for(schedule(reads=[read(refusing_rails=["not_a_real_rail"])]))[0]
+        self.assertEqual(row["fidelity"], "unusable_read")
+        self.assertTrue(row["read_errors"])
+
+    def test_every_fidelity_bucket_is_zero_filled(self):
+        # A bucket that never occurred must print 0. Without it a reader cannot
+        # tell a constant axis from an impossible one, and the tuple stops being
+        # load-bearing.
+        payload = lane.report(rows_for(schedule()), {"policy": "", "dates_requested": 1,
+                                                     "dates_used": 1, "excluded": [],
+                                                     "dates_with_no_schedule": [],
+                                                     "duplicate_copies_collapsed": 0})
+        self.assertEqual(
+            set(payload["aggregates"]["coverage_by_fidelity"]), set(lane.FIDELITY_BUCKETS)
+        )
+        self.assertEqual(
+            set(payload["aggregates"]["refusal_attribution"]), set(lane.REFUSAL_ATTRIBUTIONS)
+        )
+        self.assertEqual(
+            set(payload["aggregates"]["outcome_attribution"]), set(lane.OUTCOME_ATTRIBUTIONS)
+        )
+        self.assertEqual(
+            payload["aggregates"]["refusal_attribution"]["gate_candidate_from_inferred_input"], 0
+        )
+
+
+class AvailabilityTests(unittest.TestCase):
+    def test_an_explained_absence_carries_the_runs_own_reason(self):
+        entry = read()
+        del entry["polymarket_ask"]
+        entry["unavailable"] = {"polymarket_ask": "the exact slug returned no market data"}
+        row = rows_for(schedule(reads=[entry]))[0]
+        self.assertEqual(row["polymarket_ask"]["provenance"], "unavailable")
+        self.assertEqual(
+            row["polymarket_ask"]["reason"], "the exact slug returned no market data"
+        )
+
+    def test_an_unexplained_absence_is_not_the_same_state_as_an_explained_one(self):
+        # "No price" and "a price nobody recorded" are different facts and only
+        # one of them is a finding. Collapsing them here would undo the whole
+        # reason the recorder demands a reason.
+        entry = read()
+        del entry["polymarket_ask"]
+        row = rows_for(schedule(reads=[entry]))[0]
+        self.assertEqual(row["polymarket_ask"]["provenance"], "unexplained_absence")
+
+    def test_starter_and_lineup_availability_are_never_reported_as_confirmed(self):
+        # Nothing in a read states that a starter was announced or a lineup
+        # posted; what exists is the rail the run named when one was NOT. The
+        # absence of a complaint is not a confirmation, and reporting one as the
+        # other would manufacture exactly the input provenance this lane exists
+        # to stop inventing.
+        quiet = rows_for(schedule())[0]
+        self.assertEqual(quiet["starter_availability"], "not_stated")
+        self.assertEqual(quiet["lineup_availability"], "not_stated")
+        self.assertNotIn(
+            "confirmed",
+            {quiet["starter_availability"], quiet["lineup_availability"]},
+        )
+        named = rows_for(
+            schedule(reads=[read(refusing_rails=["starter_unannounced"])])
+        )[0]
+        self.assertEqual(named["starter_availability"], "pending")
+        self.assertEqual(named["lineup_availability"], "not_stated")
+
+    def test_capture_time_says_it_is_the_rosters_and_not_the_games(self):
+        row = rows_for(schedule())[0]
+        self.assertEqual(row["captured_at_utc"]["value"], "2026-09-01T15:30:00+00:00")
+        self.assertIn("schedule-level", row["captured_at_utc"]["provenance"])
+
+    def test_bbo_mid_and_traded_are_never_captured_on_every_row(self):
+        # D1: order-book capture is a runtime change held out of this lane. The
+        # fields stay on the row so the gap is visible rather than absent, and
+        # they are never approximated from the ask.
+        row = rows_for(schedule())[0]
+        for field in lane.UNCAPTURED_PRICE_FIELDS:
+            self.assertEqual(row[field]["provenance"], "never_captured")
+            self.assertIsNone(row[field]["value"])
+
+
+class RefusalAttributionTests(unittest.TestCase):
+    def test_a_missing_input_outranks_a_handicapping_rail_named_beside_it(self):
+        # Precedence is the finding, not an implementation detail: a gate cannot
+        # be said to have refused a game it was never able to price. A read
+        # naming both is a process failure that happens to have written down a
+        # gate as well.
+        entry = read(refusing_rails=["no_dk_price", "price_discipline"])
+        attribution = rows_for(schedule(reads=[entry]))[0]["refusal_attribution"]
+        self.assertEqual(attribution["label"], "process_missing_input")
+        self.assertIn("rail no_dk_price", attribution["evidence"])
+
+    def test_a_handicapping_rail_alone_is_a_gate_refusal(self):
+        attribution = rows_for(schedule())[0]["refusal_attribution"]
+        self.assertEqual(attribution["label"], "gate_handicapping_rail")
+
+    def test_the_volume_cap_is_not_counted_as_a_handicapping_decision(self):
+        entry = read(refusing_rails=["daily_volume_cap"])
+        attribution = rows_for(schedule(reads=[entry]))[0]["refusal_attribution"]
+        self.assertEqual(attribution["label"], "gate_volume_cap")
+
+    def test_an_unavailable_field_is_a_process_failure_even_with_no_process_rail(self):
+        entry = read(refusing_rails=["price_discipline"])
+        del entry["net_edge"]
+        entry["unavailable"] = {"net_edge": "the edge was never computed"}
+        attribution = rows_for(schedule(reads=[entry]))[0]["refusal_attribution"]
+        self.assertEqual(attribution["label"], "process_missing_input")
+        self.assertIn("net_edge: the edge was never computed", attribution["evidence"])
+
+    def test_a_game_we_took_is_not_attributed_a_refusal(self):
+        entry = read(disposition="candidate", refusing_rails=[])
+        sched = schedule(reads=[entry], candidates=[{"game_pk": 823509}])
+        attribution = rows_for(sched)[0]["refusal_attribution"]
+        self.assertEqual(attribution["label"], "not_refused")
+
+    def test_process_fixes_are_ranked_by_how_many_games_they_cost(self):
+        entry = read(1, refusing_rails=["no_dk_price"])
+        other = read(2, refusing_rails=["no_dk_price"])
+        third = read(3, refusing_rails=["no_polymarket_market"])
+        rows = rows_for(
+            schedule(games=[game(1), game(2), game(3)], reads=[entry, other, third])
+        )
+        fixes = lane.ranked_process_fixes(rows)
+        self.assertEqual([fix["cause"] for fix in fixes],
+                         ["rail no_dk_price", "rail no_polymarket_market"])
+        self.assertEqual([fix["games"] for fix in fixes], [2, 1])
+        self.assertTrue(fixes[0]["example"])
+
+
+class OutcomeTests(unittest.TestCase):
+    def test_a_result_with_a_handicap_is_left_unattributed_between_read_and_variance(self):
+        # Rebecca's classes 1 and 2 are not separable from a scoreline. The lane
+        # records which way the read leaned and what happened, and refuses to
+        # sort them.
+        row = rows_for(schedule(), statsapi())[0]
+        self.assertEqual(row["result"]["outcome"], 1)
+        attribution = row["outcome_attribution"]
+        self.assertEqual(attribution["label"], "unattributed_no_game_script")
+        self.assertIs(attribution["away_won"], True)
+        self.assertIs(attribution["read_favoured_away"], False)
+        self.assertNotIn("bad_read", attribution.values())
+
+    def test_a_transposed_read_is_refused_rather_than_scored(self):
+        # Probabilities descend from ESPN and the outcome from StatsAPI. A
+        # transposed read otherwise produces a perfectly clean row scoring one
+        # club's handicap against the other club's result, with no trace.
+        payload = statsapi(away="Milwaukee Brewers", home="Atlanta Braves",
+                           away_score=5, home_score=2)
+        row = rows_for(schedule(), payload)[0]
+        self.assertEqual(row["result"]["provenance"], "refused")
+        self.assertIsNone(row["result"]["outcome"])
+        self.assertEqual(row["outcome_attribution"]["label"], "refused_transposed_read")
+
+    def test_swap_detection_is_the_dataset_builders_and_not_a_second_copy(self):
+        # Two halves, and neither alone is the pin.
+        #
+        # The call-site half: rebind the name the lane holds and the answer must
+        # follow. An inline re-derivation at the call site would leave this
+        # green while the import sat there looking consulted.
+        #
+        # The identity half: that name must BE the builder's object, pinned
+        # against sys.modules under the BARE key. The lane imports
+        # `mlb_model_eval_dataset` and this suite imports
+        # `scripts.mlb_model_eval_dataset`; those are two different module
+        # objects, and pinning against the wrong one passes while proving
+        # nothing.
+        self.assertIs(
+            lane._transposition, sys.modules["mlb_model_eval_dataset"]._transposition
+        )
+        original = lane._transposition
+        try:
+            lane._transposition = lambda entry, away, home: "probe refusal"
+            row = rows_for(schedule(), statsapi())[0]
+            self.assertEqual(row["result"]["reason"], "probe refusal")
+            self.assertEqual(row["result"]["provenance"], "refused")
+        finally:
+            lane._transposition = original
+        self.assertIsNone(rows_for(schedule(), statsapi())[0]["result"].get("reason"))
+
+    def test_a_row_with_no_final_is_pending_not_absent(self):
+        row = rows_for(schedule())[0]
+        self.assertEqual(row["outcome_attribution"]["label"], "pending_no_final")
+
+    def test_a_final_with_no_handicap_says_so_rather_than_being_scored(self):
+        entry = read()
+        for field in lane.MODEL_TRAIL_FIELDS:
+            del entry[field]
+        entry["unavailable"] = {field: "never handicapped" for field in lane.MODEL_TRAIL_FIELDS}
+        entry["refusing_rails"] = ["no_dk_price"]
+        row = rows_for(schedule(reads=[entry]), statsapi())[0]
+        self.assertEqual(row["outcome_attribution"]["label"], "no_probability_recorded")
+
+
+class AggregateTests(unittest.TestCase):
+    def test_no_combined_metric_key_exists_anywhere_above_a_bucket(self):
+        # Blocker 1 on PR #75 was a headline drawn from one fidelity of input
+        # without saying so. The fix there was to make the combined key
+        # impossible to write rather than to remember not to write it.
+        aggregates = lane.aggregate(rows_for(schedule(), statsapi()))
+        for key in ("brier", "log_loss", "record", "calibration", "metrics"):
+            self.assertNotIn(key, aggregates)
+        for bucket in aggregates["buckets"]:
+            self.assertIn("fidelity", bucket)
+            self.assertIn("source_quality", bucket)
+
+    def test_every_metric_block_carries_its_own_n(self):
+        aggregates = lane.aggregate(rows_for(schedule(), statsapi()))
+        scored = [b for b in aggregates["buckets"] if b["metrics"] is not None]
+        self.assertTrue(scored)
+        for bucket in scored:
+            self.assertIn("n", bucket["metrics"])
+
+    def test_the_market_comparison_reports_its_own_n_and_not_the_buckets(self):
+        # The two populations differ whenever a read carries a handicap and no
+        # DK line. A comparison quietly computed over a smaller set than the
+        # record printed beside it is the shape that made the replay's headline
+        # wrong.
+        with_dk = read(1)
+        without_dk = read(2)
+        del without_dk["dk_fair_prob"]
+        without_dk["unavailable"] = {"dk_fair_prob": "DK line unavailable"}
+        payload = {"dates": [{"games": statsapi(1)["dates"][0]["games"]
+                              + statsapi(2)["dates"][0]["games"]}]}
+        rows = rows_for(
+            schedule(games=[game(1), game(2)], reads=[with_dk, without_dk]), payload
+        )
+        bucket = next(
+            b for b in lane.aggregate(rows)["buckets"] if b["fidelity"] == "recorded_handicap"
+        )
+        self.assertEqual(bucket["metrics"]["n"], 2)
+        self.assertEqual(bucket["market_comparison"]["n"], 1)
+
+    def test_a_bucket_with_no_scoreable_row_reports_none_rather_than_zero(self):
+        # A Brier of 0 over no rows is a number a reader will read. None is the
+        # honest answer and forces the report to say there is nothing here.
+        bucket = lane.aggregate(rows_for(schedule()))["buckets"][0]
+        self.assertIsNone(bucket["metrics"])
+        self.assertIsNone(bucket["market_comparison"])
+
+    def test_buckets_split_by_model_version_within_one_fidelity(self):
+        rows = rows_for(
+            schedule(
+                games=[game(1), game(2)],
+                reads=[read(1), read(2, model_version="vig-mlb-elo-v2")],
+            ),
+            {"dates": [{"games": statsapi(1)["dates"][0]["games"]
+                        + statsapi(2)["dates"][0]["games"]}]},
+        )
+        versions = sorted(
+            b["model_version"] for b in lane.aggregate(rows)["buckets"] if b["model_version"]
+        )
+        self.assertEqual(versions, ["vig-mlb-elo-v2", "vig-mlb-market-v1"])
+
+
+class DedupTests(unittest.TestCase):
+    def test_byte_identical_copies_across_roots_collapse_to_one(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root_a, root_b = Path(tmp) / "a", Path(tmp) / "b"
+            root_a.mkdir()
+            root_b.mkdir()
+            raw = json.dumps(schedule())
+            for root in (root_a, root_b):
+                (root / "2026-09-01-schedule.json").write_text(raw, encoding="utf-8")
+            schedules, dedup = lane.load_schedules([root_a, root_b], ["2026-09-01"])
+            self.assertEqual(len(schedules), 1)
+            self.assertEqual(dedup["duplicate_copies_collapsed"], 1)
+            self.assertEqual(dedup["excluded"], [])
+
+    def test_roots_that_disagree_exclude_the_date_and_name_it(self):
+        # Refusal, not repair. Choosing between two disagreeing captures of the
+        # same slate is exactly the decision the replay could not make on
+        # 2026-08-22, where the two cards' asks differed by up to nine points
+        # and preferring either root produced a different answer with equal
+        # confidence.
+        with tempfile.TemporaryDirectory() as tmp:
+            root_a, root_b = Path(tmp) / "a", Path(tmp) / "b"
+            root_a.mkdir()
+            root_b.mkdir()
+            (root_a / "2026-09-01-schedule.json").write_text(
+                json.dumps(schedule()), encoding="utf-8"
+            )
+            (root_b / "2026-09-01-schedule.json").write_text(
+                json.dumps(schedule(reads=[read(refusing_rails=["cold_fade_reset"])])),
+                encoding="utf-8",
+            )
+            schedules, dedup = lane.load_schedules([root_a, root_b], ["2026-09-01"])
+            self.assertEqual(schedules, [])
+            self.assertEqual(len(dedup["excluded"]), 1)
+            self.assertEqual(dedup["excluded"][0]["date"], "2026-09-01")
+            self.assertEqual(len(dedup["excluded"][0]["digests"]), 2)
+
+    def test_the_dedup_policy_is_stated_in_the_output_and_not_only_in_code(self):
+        # Open finding #4 on the replay was two dedup policies in one report,
+        # neither of them printed. One policy, and it is on the page.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "2026-09-01-schedule.json").write_text(
+                json.dumps(schedule()), encoding="utf-8"
+            )
+            _, dedup = lane.load_schedules([root], ["2026-09-01"])
+        payload = lane.report([], dedup)
+        self.assertIn("byte-identical", payload["dedup"]["policy"])
+        self.assertIn(payload["dedup"]["policy"], lane.markdown(payload))
+
+
+class SharedRuleTests(unittest.TestCase):
+    def test_the_market_only_version_string_matches_the_model_modules_own(self):
+        # Defined locally so a read-only reporting module does not drag the
+        # execution-path model into its import closure, and pinned here because
+        # two copies of one name agree only until one of them changes.
+        self.assertEqual(
+            lane.MARKET_ONLY_MODEL_VERSION, mlb_probability_model.MARKET_MODEL_VERSION
+        )
+
+    def test_the_probability_rule_is_the_recorders_own_object(self):
+        # Identity against sys.modules under the BARE name — the lane imports
+        # `mlb_game_reads` while the suite imports `scripts.mlb_game_reads`, and
+        # those are two different module objects — plus a call-site rebind, so
+        # a copy re-derived inline while the import sat untouched would red.
+        self.assertIs(lane._is_probability, sys.modules["mlb_game_reads"]._is_probability)
+        original = lane._is_probability
+        try:
+            lane._is_probability = lambda value: False
+            self.assertEqual(rows_for(schedule())[0]["fidelity"], "no_handicap")
+        finally:
+            lane._is_probability = original
+        self.assertEqual(rows_for(schedule())[0]["fidelity"], "recorded_handicap")
+
+    def test_the_scored_side_is_the_dataset_builders_and_not_a_second_decision(self):
+        # Same two halves. The rebind proves the row actually reads the bound
+        # name rather than a literal "away" written out at each call site: the
+        # away and home probabilities in the fixture differ, so flipping the
+        # constant has to move the recorded value.
+        self.assertIs(
+            lane.EVALUATED_SIDE, sys.modules["mlb_model_eval_dataset"].EVALUATED_SIDE
+        )
+        self.assertEqual(rows_for(schedule())[0]["dk_fair_prob"]["value"], 0.398)
+        original = lane.EVALUATED_SIDE
+        try:
+            lane.EVALUATED_SIDE = "home"
+            self.assertEqual(rows_for(schedule())[0]["dk_fair_prob"]["value"], 0.602)
+        finally:
+            lane.EVALUATED_SIDE = original
+
+    def test_the_rail_vocabulary_is_a_partition_of_the_recorders_own(self):
+        # Every rail the recorder accepts must land in exactly one attribution
+        # class. A rail in none of them would fall through to
+        # `unclassified_rail` — which is a real bucket on purpose, but it must
+        # be empty by construction rather than by luck.
+        classified = lane.PROCESS_RAILS | lane.HANDICAPPING_RAILS | lane.VOLUME_RAILS
+        self.assertEqual(classified, mlb_game_reads.REFUSAL_RAILS)
+        self.assertFalse(lane.PROCESS_RAILS & lane.HANDICAPPING_RAILS)
+        self.assertFalse(lane.PROCESS_RAILS & lane.VOLUME_RAILS)
+        self.assertFalse(lane.HANDICAPPING_RAILS & lane.VOLUME_RAILS)
+
+    def test_an_integer_too_large_for_a_float_is_refused_and_never_raises(self):
+        # math.isfinite is not total on ints — it raises OverflowError on one
+        # too large to convert — and json.loads parses an arbitrarily long
+        # integer literal straight off a card. A predicate that can itself crash
+        # is not a guard.
+        #
+        # Both guards are exercised DIRECTLY, and the reason is a survivor this
+        # sweep produced. Going through `build_rows` proves nothing about
+        # `_has_full_trail`: the recorder's validator refuses a huge haircut
+        # first, so the row is already `unusable_read` and the trail check never
+        # runs. A fixture that cannot exhibit the defect is not coverage,
+        # however plausible the assertion on the far side looks.
+        entry = read(uncertainty_haircut=10 ** 400)
+        self.assertFalse(lane._has_full_trail(entry))
+        self.assertEqual(
+            lane._scalar_availability(
+                entry, "uncertainty_haircut", lane.is_finite_number(10 ** 400)
+            )["provenance"],
+            "unexplained_absence",
+        )
+        row = rows_for(schedule(reads=[entry]))[0]
+        self.assertEqual(row["fidelity"], "unusable_read")
+        self.assertEqual(row["uncertainty_haircut"]["provenance"], "unexplained_absence")
+
+
+class ReadOnlyTests(unittest.TestCase):
+    def test_the_module_names_no_way_to_reach_the_network(self):
+        source = (REPO_ROOT / "scripts" / "mlb_measurement_lane.py").read_text(encoding="utf-8")
+        for token in ("fetch_json", "urlopen", "requests.", "http_util"):
+            self.assertNotIn(token, source)
+
+    def test_missing_finals_cache_yields_no_finals_rather_than_a_fetch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(lane.load_finals(Path(tmp), ["2026-09-01"]), {})
+        self.assertEqual(lane.load_finals(None, ["2026-09-01"]), {})
+
+
+class CliTests(unittest.TestCase):
+    def test_the_cli_writes_the_report_and_the_rows(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "2026-09-01-schedule.json").write_text(
+                json.dumps(schedule()), encoding="utf-8"
+            )
+            finals_dir = root / "finals"
+            finals_dir.mkdir()
+            (finals_dir / "2026-09-01.json").write_text(json.dumps(statsapi()), encoding="utf-8")
+            out_json, out_md, out_rows = root / "r.json", root / "r.md", root / "r.jsonl"
+            code = lane.main(
+                [
+                    "--schedules", str(root),
+                    "--finals", str(finals_dir),
+                    "--start", "2026-09-01",
+                    "--until", "2026-09-01",
+                    "--out-json", str(out_json),
+                    "--out-markdown", str(out_md),
+                    "--out-rows", str(out_rows),
+                ]
+            )
+            self.assertEqual(code, 0)
+            payload = json.loads(out_json.read_text(encoding="utf-8"))
+            self.assertEqual(payload["rows"], 1)
+            self.assertEqual(len(out_rows.read_text(encoding="utf-8").strip().splitlines()), 1)
+            report = out_md.read_text(encoding="utf-8")
+            self.assertIn("recorded_handicap", report)
+            self.assertIn("never captured", report)
+
+    def test_an_empty_window_reports_zero_rows_with_the_dates_named(self):
+        # The first real run of this lane has no recorder output at all. It must
+        # say "nothing here, and these are the dates" rather than print an empty
+        # table that reads like a clean bill of health.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            out_json = root / "r.json"
+            lane.main(
+                [
+                    "--schedules", str(root),
+                    "--start", "2026-09-01",
+                    "--until", "2026-09-02",
+                    "--out-json", str(out_json),
+                ]
+            )
+            payload = json.loads(out_json.read_text(encoding="utf-8"))
+            self.assertEqual(payload["rows"], 0)
+            self.assertEqual(
+                payload["dedup"]["dates_with_no_schedule"], ["2026-09-01", "2026-09-02"]
+            )
+            self.assertIn("2026-09-01", lane.markdown(payload))
+
+
+if __name__ == "__main__":
+    unittest.main()
