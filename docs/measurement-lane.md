@@ -84,6 +84,40 @@ outcome record was drawn from a different fidelity of input and the headline
 did not say so. The fix was to make the combined key impossible to write rather
 than to remember not to write it.
 
+**The property is pinned where a headline would actually land.** The first
+version of this lane asserted it on `aggregate()` alone, one level below the
+two things a reader sees, and a blended Brier added to `report()` left the
+whole suite green (blocker 2, review round 1). The guard now walks the JSON
+payload recursively and requires every metric key to sit inside a bucket that
+names its own fidelity, source quality and n, walks the rendered Markdown for
+the same words outside a bucket heading, and carries a positive control that
+proves both guards fail on the headline they exist to catch.
+
+## Schedules opened
+
+Beside the per-read counters, the report carries a **schedule-level** audit,
+because two whole-date failures are invisible to the row counts.
+
+A date whose file was read but whose `slate_denominator` is missing or
+malformed contributes no rows — `denominator_games` returns `[]` for that with
+no raise and no log. Counted as a used date with zero rows, the page reads *we
+measured these slates and found nothing in them* when the truth is *we never
+opened them*. This is not a corner case: across 617 schedule files on this
+fleet, 613 carry no usable denominator, so every historical date takes that
+path. Each one is now named, with which of the three ways it failed — no
+denominator object, no games list, or a denominator listing zero games.
+
+A `game_reads` entry whose `game_pk` is not in the denominator is dropped, and
+that is correct: the denominator is the roster the recorder cross-checks
+against a fresh scan, and a run must not be able to add rows to its own
+population. But the recorder's own validator calls exactly that an error, so an
+orphaned read reaching this lane is evidence the slate was written
+unvalidated. It is dropped **and counted**, with its date and `game_pk`.
+
+Both are the same rule as the `unusable_read` bucket, one level up: a record
+that reached this report without passing the recorder's gate is itself the
+finding.
+
 ## Attribution
 
 **Why we did not bet** — from recorded state, closed and zero-filled:
@@ -161,6 +195,8 @@ into one table is the fidelity blend that was blocker 1 on that very PR wearing
 a different hat. The replay is history for this lane, not population.
 
 The first recorder output lands with the 2026-09-01 10:30 CT slate. Until then
-this lane reports zero rows with the dates named — which is the correct output,
+this lane reports zero rows with every date named — both the dates with no
+schedule file at all and, separately, the dates whose schedule carried no
+usable denominator — which is the correct output,
 not a failure, and the report says so rather than printing an empty table that
 reads like a clean bill of health.

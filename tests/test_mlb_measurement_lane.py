@@ -1,4 +1,5 @@
 import json
+import re
 import sys
 import tempfile
 import unittest
@@ -81,7 +82,20 @@ def rows_for(sched, finals_payload=None):
         if finals_payload is not None
         else {}
     )
-    return lane.build_rows([("2026-09-01", sched)], finals)
+    return lane.build_rows([("2026-09-01", sched)], finals)[0]
+
+
+def audit_for(sched):
+    return lane.build_rows([("2026-09-01", sched)], {})[1]
+
+
+EMPTY_AUDIT = {
+    "policy": "",
+    "dates_used": 1,
+    "dates_with_no_usable_denominator": [],
+    "orphaned_reads": [],
+    "rows": 0,
+}
 
 
 class DenominatorTests(unittest.TestCase):
@@ -113,10 +127,60 @@ class DenominatorTests(unittest.TestCase):
         rows = rows_for(schedule(games=[game(1)], reads=[read(1), read(2)]))
         self.assertEqual([row["game_pk"] for row in rows], [1])
 
+    def test_an_orphaned_read_is_dropped_and_named_not_dropped_silently(self):
+        # Dropping it is right. Dropping it silently is not: the recorder's own
+        # validator calls a read outside the denominator an error, so one
+        # reaching this lane is evidence the slate was written unvalidated.
+        audit = audit_for(schedule(games=[game(1)], reads=[read(1), read(2)]))
+        self.assertEqual(audit["orphaned_reads"], [{"date": "2026-09-01", "game_pk": 2}])
+
     def test_a_schedule_with_no_denominator_contributes_no_rows(self):
         sched = schedule()
         del sched["slate_denominator"]
         self.assertEqual(rows_for(sched), [])
+
+    def test_a_date_read_but_never_opened_is_named_with_which_way_it_failed(self):
+        # `denominator_games` returns [] for a missing OR malformed denominator
+        # with no raise and no log, and on every schedule file that exists today
+        # that is the path taken. Counted as a used date with zero rows, the
+        # page reads "we opened nine slates and found nothing" when the truth is
+        # "we never opened them".
+        cases = {
+            "the schedule carries no slate_denominator object": lambda s: s.pop(
+                "slate_denominator"
+            ),
+            "the slate_denominator carries no games list": lambda s: s[
+                "slate_denominator"
+            ].pop("games"),
+            "the slate_denominator lists zero games": lambda s: s["slate_denominator"].update(
+                {"games": []}
+            ),
+        }
+        for reason, break_it in cases.items():
+            with self.subTest(reason=reason):
+                sched = schedule()
+                break_it(sched)
+                audit = audit_for(sched)
+                self.assertEqual(audit["dates_used"], 1)
+                self.assertEqual(audit["rows"], 0)
+                self.assertEqual(
+                    audit["dates_with_no_usable_denominator"],
+                    [{"date": "2026-09-01", "reason": reason}],
+                )
+
+    def test_a_used_date_can_never_contribute_zero_rows_in_silence(self):
+        # The invariant behind the case above, stated once so a fourth way of
+        # having no roster cannot slip through the three named cases.
+        for sched in (schedule(), schedule(games=[], reads=[])):
+            with self.subTest(sched=sched["slate_denominator"].get("games")):
+                rows, audit = lane.build_rows([("2026-09-01", sched)], {})
+                named = {
+                    item["date"] for item in audit["dates_with_no_usable_denominator"]
+                }
+                dates_with_rows = {row["date"] for row in rows}
+                self.assertEqual(
+                    audit["dates_used"], len(dates_with_rows | named), audit
+                )
 
 
 class FidelityTests(unittest.TestCase):
@@ -157,7 +221,8 @@ class FidelityTests(unittest.TestCase):
         payload = lane.report(rows_for(schedule()), {"policy": "", "dates_requested": 1,
                                                      "dates_used": 1, "excluded": [],
                                                      "dates_with_no_schedule": [],
-                                                     "duplicate_copies_collapsed": 0})
+                                                     "duplicate_copies_collapsed": 0},
+                              dict(EMPTY_AUDIT))
         self.assertEqual(
             set(payload["aggregates"]["coverage_by_fidelity"]), set(lane.FIDELITY_BUCKETS)
         )
@@ -338,6 +403,112 @@ class OutcomeTests(unittest.TestCase):
         self.assertEqual(row["outcome_attribution"]["label"], "no_probability_recorded")
 
 
+METRIC_KEYS = frozenset(
+    {
+        "brier",
+        "log_loss",
+        "record",
+        "calibration",
+        "model_brier",
+        "dk_brier",
+        "median_model_minus_dk",
+        "model_below_dk",
+        "mean_conservative_probability",
+        "away_wins",
+        "away_losses",
+    }
+)
+
+# A bucket is a dict that names which population it is. Anything under one may
+# carry a metric; anything above one may not.
+BUCKET_KEYS = frozenset({"fidelity", "source_quality", "rows"})
+
+METRIC_WORDS = re.compile(r"\b(brier|log[ _]loss|calibration|record|win rate)\b", re.I)
+
+
+def blended_metric_paths(node, inside_bucket=False, path="payload"):
+    """Every metric key in the payload that does not sit inside a named bucket."""
+    found = []
+    if isinstance(node, dict):
+        is_bucket = BUCKET_KEYS <= set(node)
+        for key, value in node.items():
+            if key in METRIC_KEYS and not inside_bucket:
+                found.append(f"{path}.{key}")
+            found += blended_metric_paths(value, inside_bucket or is_bucket, f"{path}.{key}")
+    elif isinstance(node, list):
+        for index, item in enumerate(node):
+            found += blended_metric_paths(item, inside_bucket, f"{path}[{index}]")
+    return found
+
+
+def metric_lines_outside_a_bucket(text):
+    """Every rendered line naming a metric that is not under a bucket heading."""
+    offenders = []
+    in_metrics_section = False
+    under_bucket_header = False
+    for line in text.splitlines():
+        if line.startswith("#"):
+            in_metrics_section = line.strip() == "### Metrics, per bucket"
+            under_bucket_header = False
+        elif line.startswith("**") and "rows" in line:
+            under_bucket_header = True
+        if METRIC_WORDS.search(line) and not (in_metrics_section and under_bucket_header):
+            offenders.append(line)
+    return offenders
+
+
+class BlendedHeadlineTests(unittest.TestCase):
+    """The no-combined-headline property, pinned where a headline would land.
+
+    Blocker 2 on this PR: the property was asserted on `aggregate()` alone,
+    which is one level below the two things a reader actually sees. A blended
+    Brier added to `report()` — mixing `unusable_read` rows into a headline,
+    a strictly worse version of the replay's own blocker 1 — left the whole
+    suite green.
+    """
+
+    def payload(self):
+        return lane.report(
+            rows_for(schedule(), statsapi()),
+            {"policy": "", "dates_requested": 1, "dates_used": 1, "excluded": [],
+             "dates_with_no_schedule": [], "duplicate_copies_collapsed": 0},
+            dict(EMPTY_AUDIT),
+        )
+
+    def test_the_json_report_carries_no_metric_above_a_bucket(self):
+        self.assertEqual(blended_metric_paths(self.payload()), [])
+
+    def test_the_rendered_markdown_carries_no_metric_above_a_bucket(self):
+        self.assertEqual(metric_lines_outside_a_bucket(lane.markdown(self.payload())), [])
+
+    def test_both_guards_catch_the_headline_they_exist_to_catch(self):
+        # A guard nobody has seen fail is not a guard. This is the exact
+        # mutation the reviewer landed green: an unfiltered blended headline in
+        # the report dict, and the same number rendered.
+        payload = self.payload()
+        payload["brier"] = 0.2374
+        payload["record"] = "10-12"
+        self.assertEqual(
+            sorted(blended_metric_paths(payload)), ["payload.brier", "payload.record"]
+        )
+        self.assertTrue(
+            metric_lines_outside_a_bucket(
+                "# MLB measurement lane\n\nBrier 0.2374, record 10-12.\n"
+                + lane.markdown(self.payload())
+            )
+        )
+
+    def test_a_bucket_metric_block_is_reachable_and_still_names_its_n(self):
+        # Without this the two guards above pass vacuously on a report that
+        # stopped emitting metrics at all.
+        buckets = self.payload()["aggregates"]["buckets"]
+        scored = [b for b in buckets if b["metrics"] is not None]
+        self.assertTrue(scored)
+        for bucket in scored:
+            self.assertIn("n", bucket["metrics"])
+            self.assertIn("brier", bucket["metrics"])
+
+
 class AggregateTests(unittest.TestCase):
     def test_no_combined_metric_key_exists_anywhere_above_a_bucket(self):
         # Blocker 1 on PR #75 was a headline drawn from one fidelity of input
@@ -445,7 +616,7 @@ class DedupTests(unittest.TestCase):
                 json.dumps(schedule()), encoding="utf-8"
             )
             _, dedup = lane.load_schedules([root], ["2026-09-01"])
-        payload = lane.report([], dedup)
+        payload = lane.report([], dedup, dict(EMPTY_AUDIT))
         self.assertIn("byte-identical", payload["dedup"]["policy"])
         self.assertIn(payload["dedup"]["policy"], lane.markdown(payload))
 
@@ -588,6 +759,42 @@ class CliTests(unittest.TestCase):
                 payload["dedup"]["dates_with_no_schedule"], ["2026-09-01", "2026-09-02"]
             )
             self.assertIn("2026-09-01", lane.markdown(payload))
+
+    def test_a_window_of_schedules_with_no_denominator_names_every_date(self):
+        # The population that actually exists: 613 of the 617 schedule files on
+        # this fleet carry no usable `slate_denominator`. Before this test the
+        # zero-row path was only ever exercised with no file at all, so the
+        # common case was the untested one.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for date in ("2026-09-01", "2026-09-02"):
+                sched = schedule()
+                del sched["slate_denominator"]
+                sched["date"] = date
+                (root / f"{date}-schedule.json").write_text(json.dumps(sched), encoding="utf-8")
+            out_json = root / "r.json"
+            out_md = root / "r.md"
+            lane.main(
+                [
+                    "--schedules", str(root),
+                    "--start", "2026-09-01",
+                    "--until", "2026-09-02",
+                    "--out-json", str(out_json),
+                    "--out-markdown", str(out_md),
+                ]
+            )
+            payload = json.loads(out_json.read_text(encoding="utf-8"))
+            self.assertEqual(payload["rows"], 0)
+            self.assertEqual(payload["dedup"]["dates_with_no_schedule"], [])
+            audit = payload["schedule_audit"]
+            self.assertEqual(audit["dates_used"], 2)
+            self.assertEqual(
+                [item["date"] for item in audit["dates_with_no_usable_denominator"]],
+                ["2026-09-01", "2026-09-02"],
+            )
+            report = out_md.read_text(encoding="utf-8")
+            for date in ("2026-09-01", "2026-09-02"):
+                self.assertIn(f"No roster `{date}`", report)
 
 
 if __name__ == "__main__":

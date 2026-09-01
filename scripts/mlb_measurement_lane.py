@@ -30,7 +30,17 @@ explicitly out of this read-only lane (D1). It wants its own slice.
 **No blended headline.** Every metric names its bucket and its n. There is no
 combined Brier, log-loss, record, or calibration key anywhere in the output,
 because the replay's blocker 1 was exactly that: half the outcome record was
-drawn from a different fidelity of input and the headline did not say so.
+drawn from a different fidelity of input and the headline did not say so. The
+suite pins that on the JSON report *and* on the rendered Markdown, not on
+``aggregate`` alone — asserting it one level below where a headline would be
+written left the mutation that writes one green.
+
+**A date that produced nothing says which nothing it is.** ``report`` carries a
+schedule-level audit beside the per-read counters: dates used, dates whose
+schedule was read but carried no usable ``slate_denominator`` (named, with the
+reason), reads dropped for naming a game outside the denominator, and rows.
+Without it a whole date drops out as ``rows: 0`` and reads as an empty slate
+rather than an unopened one.
 
 **Read-only in the strongest available sense.** No network at all — finals come
 from a cache directory or the row says it has no final. Nothing is written
@@ -699,19 +709,55 @@ def load_finals(directory: Path | None, dates: list[str]) -> dict[str, dict[int,
     return finals
 
 
+def _no_denominator_reason(schedule: dict[str, Any]) -> str:
+    """Why this schedule produced no roster. Classification only.
+
+    Called only when :func:`denominator_games` has already returned nothing, so
+    it never decides WHICH games count — that stays the recorder's function.
+    It only says which of the three ways of having none this is, because
+    "malformed" and "the slate genuinely had no games" are different findings.
+    """
+    denominator = schedule.get("slate_denominator")
+    if not isinstance(denominator, dict):
+        return "the schedule carries no slate_denominator object"
+    if not isinstance(denominator.get("games"), list):
+        return "the slate_denominator carries no games list"
+    return "the slate_denominator lists zero games"
+
+
 def build_rows(
     schedules: list[tuple[str, dict[str, Any]]],
     finals_by_date: dict[str, dict[int, dict[str, Any]]],
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """One row per scheduled game, over every date that survived dedup.
 
-    The denominator is ``slate_denominator``, which the recorder cross-checks
-    against a fresh scan. A date with no denominator contributes no rows and is
-    reported by the caller: an unverifiable roster is not an empty one, and
-    counting it as zero games would flatter every coverage number here.
+    Returns the rows **and a schedule-level audit**, because the per-read
+    counters cannot see the two ways a whole date can vanish here:
+
+    * a date whose file was read but whose ``slate_denominator`` is missing or
+      malformed contributes no rows. ``denominator_games`` returns ``[]`` for
+      that case with no raise and no log, and on the corpus that exists today
+      that is *every* historical date. Reported as ``rows: 0`` with the date
+      still counted as used, the page reads "we measured these slates and found
+      nothing in them" when the truth is "we never opened them".
+    * a ``game_reads`` entry whose ``game_pk`` is not in the denominator is
+      dropped, correctly — the denominator is the roster the recorder
+      cross-checks against a fresh scan, and a run must not be able to add rows
+      to its own population. But the recorder's own validator calls exactly
+      that an error, so an orphaned read reaching here is evidence the slate
+      was written unvalidated. Dropping it is right; dropping it silently is
+      the same defect one level down.
+
+    Both are named, not merely counted, for the same reason ``unusable_read``
+    is its own fidelity bucket: a record that reached this report without
+    passing the recorder's gate is itself the finding.
     """
     rows: list[dict[str, Any]] = []
+    dates_used: list[str] = []
+    no_denominator: list[dict[str, Any]] = []
+    orphaned: list[dict[str, Any]] = []
     for date, schedule in schedules:
+        dates_used.append(date)
         denominator = schedule.get("slate_denominator")
         captured = {
             "value": denominator.get("fetched_at_utc") if isinstance(denominator, dict) else None,
@@ -732,17 +778,38 @@ def build_rows(
                 if isinstance(entry, dict) and isinstance(entry.get("game_pk"), int):
                     by_pk.setdefault(entry["game_pk"], (index, entry))
         finals = finals_by_date.get(date) or {}
-        for game in denominator_games(schedule):
+        games = denominator_games(schedule)
+        if not games:
+            no_denominator.append({"date": date, "reason": _no_denominator_reason(schedule)})
+        rostered = set()
+        for game in games:
             if not isinstance(game, dict):
                 continue
+            rostered.add(game.get("game_pk"))
             index_entry = by_pk.get(game.get("game_pk"))
             index, entry = index_entry if index_entry is not None else (None, None)
             rows.append(build_row(date, game, entry, index, finals, dict(captured)))
+        orphaned += [
+            {"date": date, "game_pk": game_pk}
+            for game_pk in sorted(by_pk)
+            if game_pk not in rostered
+        ]
     rows.sort(key=lambda r: (r["date"], r["game_pk"] if r["game_pk"] is not None else 0))
-    return rows
+    audit = {
+        "policy": "a date read but never opened is named, not counted as zero games; a read "
+        "outside the denominator is dropped and named, never allowed to add to its own "
+        "population",
+        "dates_used": len(dates_used),
+        "dates_with_no_usable_denominator": no_denominator,
+        "orphaned_reads": orphaned,
+        "rows": len(rows),
+    }
+    return rows, audit
 
 
-def report(rows: list[dict[str, Any]], dedup: dict[str, Any]) -> dict[str, Any]:
+def report(
+    rows: list[dict[str, Any]], dedup: dict[str, Any], schedule_audit: dict[str, Any]
+) -> dict[str, Any]:
     return {
         "population": "game_reads recorder rows only; the 2026-08 prose replay is history for "
         "this lane, not population (D2)",
@@ -752,6 +819,7 @@ def report(rows: list[dict[str, Any]], dedup: dict[str, Any]) -> dict[str, Any]:
             field: UNCAPTURED_PRICE_REASON for field in UNCAPTURED_PRICE_FIELDS
         },
         "dedup": dedup,
+        "schedule_audit": schedule_audit,
         "rows": len(rows),
         "aggregates": aggregate(rows),
         "ranked_process_fixes": ranked_process_fixes(rows),
@@ -795,6 +863,31 @@ def markdown(payload: dict[str, Any]) -> str:
         lines.append(
             "Dates with no schedule file: "
             + ", ".join(f"`{d}`" for d in payload["dedup"]["dates_with_no_schedule"])
+        )
+        lines.append("")
+
+    audit = payload["schedule_audit"]
+    lines += [
+        "## Schedules opened",
+        "",
+        audit["policy"] + ".",
+        "",
+        f"Dates used {audit['dates_used']}, of which "
+        f"{len(audit['dates_with_no_usable_denominator'])} produced no roster; rows "
+        f"{audit['rows']}.",
+        "",
+    ]
+    for item in audit["dates_with_no_usable_denominator"]:
+        lines.append(f"- No roster `{item['date']}`: {item['reason']}")
+    if audit["dates_with_no_usable_denominator"]:
+        lines.append("")
+    if audit["orphaned_reads"]:
+        lines.append(
+            f"Reads dropped for naming a game the denominator does not list: "
+            f"{len(audit['orphaned_reads'])} — "
+            + ", ".join(
+                f"`{item['date']}` game_pk {item['game_pk']}" for item in audit["orphaned_reads"]
+            )
         )
         lines.append("")
 
@@ -882,8 +975,8 @@ def main(argv: list[str] | None = None) -> int:
 
     schedules, dedup = load_schedules(args.schedules, dates)
     finals = load_finals(args.finals, dates)
-    rows = build_rows(schedules, finals)
-    payload = report(rows, dedup)
+    rows, schedule_audit = build_rows(schedules, finals)
+    payload = report(rows, dedup, schedule_audit)
 
     if args.out_rows:
         args.out_rows.write_text(
