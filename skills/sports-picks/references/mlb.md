@@ -297,6 +297,15 @@ watchlist entries have been rechecked. There is no flag to override that: those
 decisions exist nowhere else. Re-landing an untouched schedule is ordinary and
 allowed.
 
+It refuses the same four fields in the **draft**, for the mirror-image reason:
+`vig_approved` and `vig_notes` are the reviewer's to write and
+`execution_status` and `executed` are the executor's, and a candidate the
+producer has already marked approved is not queued for review — it goes to the
+executor unreviewed. Leave all four exactly as the template above has them
+(`null`, `null`, `null`, `false`); those values land fine, and it is only a
+non-null ruling or a truthy `executed` that is refused. `execution_mode:
+"standing_authorized"` is not a decision and is expected on every card.
+
 You can still validate a landed schedule by hand with
 `python3 scripts/mlb_lineup_watchlist.py <schedule> --validate` and
 `python3 scripts/mlb_game_reads.py <schedule> --validate`. Then run
