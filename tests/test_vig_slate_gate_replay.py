@@ -173,10 +173,15 @@ class MatchupTitleTests(unittest.TestCase):
         self.assertEqual(parsed["away"], AWAY)
         self.assertEqual(parsed["home"], HOME)
 
-    def test_a_dash_suffix_is_stripped(self):
+    def test_a_dash_suffix_is_stripped_and_retained(self):
         parsed = split_matchup("Boston Red Sox at Miami Marlins — 5:40 PM CT")
         self.assertEqual((parsed["away"], parsed["home"]),
                          ("Boston Red Sox", "Miami Marlins"))
+        # Retained, not discarded: 2026-08-26 writes its DraftKings line here.
+        self.assertEqual(parsed["dash_suffix"], "5:40 PM CT")
+
+    def test_a_title_with_no_dash_has_no_dash_suffix(self):
+        self.assertIsNone(split_matchup("Seattle Mariners at New York Yankees")["dash_suffix"])
 
     def test_a_comma_time_suffix_is_stripped_and_retained(self):
         parsed = split_matchup("Astros at Mets, 20:10Z")
@@ -330,6 +335,68 @@ class FairProbabilityTests(unittest.TestCase):
         result = resolve_dk_fair("DraftKings unavailable, game in progress", AWAY, HOME)
         self.assertIsNone(result["values"])
         self.assertTrue(result["reason"])
+
+
+class TitleLineTests(unittest.TestCase):
+    """2026-08-26 writes its DraftKings line in the block TITLE and nowhere else.
+
+    Reading only the body left every block on that date resolving its prices by
+    a writing convention while the side-labelled line that would have resolved
+    them sat one strip away in the same line of text.
+    """
+
+    # Verbatim from the window: `- **Kansas City Royals at Toronto Blue Jays —
+    # KC +136 / TOR -146:** DK fair 41.7% / 58.3%; PM asks 51.0% / 49.5%.`
+    KC, TOR = "Kansas City Royals", "Toronto Blue Jays"
+
+    def test_a_line_in_the_title_is_read_and_resolved_from_its_club_tokens(self):
+        result = resolve_dk_fair(
+            "DK fair 41.7% / 58.3%; PM asks 51.0% / 49.5%.",
+            self.KC, self.TOR, "KC +136 / TOR -146:",
+        )
+        self.assertEqual(result["provenance"], "reconstructed")
+        self.assertEqual(result["reconstructed"]["source"], "title")
+        self.assertAlmostEqual(result["values"]["away"], 0.417, places=2)
+        # And the stated pair, written in bare order, agrees with it side for
+        # side — which is what makes the convention a measurement here.
+        self.assertEqual(result["cross_check"], "agree")
+
+    def test_the_title_orients_by_its_tokens_and_not_by_written_order(self):
+        """The same guarantee the body form gives, one position over."""
+        result = resolve_dk_fair("", self.KC, self.TOR, "TOR -146 / KC +136")
+        self.assertEqual(result["provenance"], "reconstructed")
+        self.assertGreater(result["values"]["home"], result["values"]["away"])
+
+    def test_the_body_line_wins_when_both_positions_carry_one(self):
+        """The title is a FALLBACK. A body line already proved itself a DK line."""
+        result = resolve_dk_fair(
+            "DK KC -200 / TOR +170", self.KC, self.TOR, "KC +136 / TOR -146:"
+        )
+        self.assertEqual(result["reconstructed"]["source"], "body")
+        self.assertGreater(result["values"]["away"], 0.6)
+
+    def test_an_untokened_pair_in_a_title_is_not_read_as_a_line_at_all(self):
+        """No `DK` anchor and no club tokens is two numbers, not a reading.
+
+        The body form may fall back on written order because its `DK` prefix
+        proves the pair is a DraftKings line. A title has no such anchor, so
+        accepting an untokened pair there would invent both the source and the
+        orientation.
+        """
+        result = resolve_dk_fair("", self.KC, self.TOR, "+136 / -146:")
+        self.assertIsNone(result["values"])
+        self.assertEqual(result["provenance"], "unavailable")
+
+    def test_a_title_line_whose_tokens_name_one_side_twice_is_refused(self):
+        result = resolve_dk_fair("", self.KC, self.TOR, "KC +136 / KC -146")
+        self.assertIsNone(result["values"])
+        self.assertEqual(result["provenance"], "unavailable")
+        self.assertIn("did not resolve to a distinct side", result["reason"])
+
+    def test_a_title_line_naming_a_club_in_neither_side_is_refused(self):
+        result = resolve_dk_fair("", self.KC, self.TOR, "BOS +136 / TOR -146")
+        self.assertIsNone(result["values"])
+        self.assertEqual(result["provenance"], "unavailable")
 
 
 class HandicapAndHaircutTests(unittest.TestCase):
@@ -857,6 +924,164 @@ class ReportTests(unittest.TestCase):
         cross = self.report(extra_picks_dirs=[other])["cross_document_disagreement"]
         self.assertEqual(cross["games_priced_by_more_than_one_document"], 1)
         self.assertEqual(cross["games_where_the_documents_disagree"], 0)
+
+    def test_a_doubleheader_in_one_document_is_not_two_documents_disagreeing(self):
+        """The 2026-08-17 false positive: one file, one matchup, two GAMES.
+
+        St. Louis at Cincinnati is priced twice in the same document because it
+        is DH1 and DH2 — correctly priced differently. Grouping by matchup alone
+        reported that as a cross-document price conflict, and the report drew a
+        sentence about book drift from it. A matchup one document prices twice
+        is not uniquely identified by its matchup, so it is refused and named
+        rather than paired with anything.
+        """
+        self.write_day(
+            "2026-08-11",
+            "## Full-slate read\n\n"
+            "### St. Louis Cardinals at Cincinnati Reds — 12:40 PM CT DH1\n"
+            "**Price:** DK fair STL 0.500 / CIN 0.500. PM asks STL 0.520 / CIN 0.485.\n\n"
+            "### St. Louis Cardinals at Cincinnati Reds — 5:40 PM CT DH2\n"
+            "**Price:** DK fair STL 0.500 / CIN 0.500. PM asks STL 0.530 / CIN 0.475.\n",
+            [],
+        )
+        cross = self.report()["cross_document_disagreement"]
+        self.assertEqual(cross["games_priced_by_more_than_one_document"], 0)
+        self.assertEqual(cross["games_where_the_documents_disagree"], 0)
+        ambiguous = cross["matchups_one_document_prices_twice"]
+        self.assertEqual(len(ambiguous), 1)
+        self.assertEqual(ambiguous[0]["matchup"], "St. Louis Cardinals at Cincinnati Reds")
+        self.assertEqual(ambiguous[0]["times_priced"], 2)
+        self.assertTrue(ambiguous[0]["reason"])
+
+    def test_a_doubleheader_is_excluded_even_when_a_second_document_prices_it(self):
+        """Refused, not repaired: pairing DH1 in one card against DH2 in another
+        by guessing which is which is the transposition defect in another
+        costume."""
+        other = Path(self.tmp.name) / "skill" / ".picks"
+        (other / "slate").mkdir(parents=True)
+        self.write_day(
+            "2026-08-11",
+            "## Full-slate read\n\n"
+            "### St. Louis Cardinals at Cincinnati Reds — 12:40 PM CT DH1\n"
+            "**Price:** DK fair STL 0.500 / CIN 0.500. PM asks STL 0.520 / CIN 0.485.\n\n"
+            "### St. Louis Cardinals at Cincinnati Reds — 5:40 PM CT DH2\n"
+            "**Price:** DK fair STL 0.500 / CIN 0.500. PM asks STL 0.530 / CIN 0.475.\n",
+            [],
+        )
+        (other / "slate" / "2026-08-11.md").write_text(
+            "## Full-slate read\n\n"
+            "### St. Louis Cardinals at Cincinnati Reds — 12:40 PM CT DH1\n"
+            "**Price:** DK fair STL 0.500 / CIN 0.500. PM asks STL 0.610 / CIN 0.395.\n",
+            encoding="utf-8",
+        )
+        cross = self.report(extra_picks_dirs=[other])["cross_document_disagreement"]
+        self.assertEqual(cross["games_priced_by_more_than_one_document"], 0)
+        self.assertEqual(cross["games_where_the_documents_disagree"], 0)
+        self.assertEqual(len(cross["matchups_one_document_prices_twice"]), 1)
+
+    def test_a_byte_identical_copy_in_a_second_root_is_not_a_second_opinion(self):
+        """08-11 and 08-15..08-18 exist byte-identically in both roots.
+
+        Counting a copy of a file as a second document pricing the game makes
+        the metric measure the checkout layout instead of the record.
+        """
+        other = Path(self.tmp.name) / "skill" / ".picks"
+        (other / "slate").mkdir(parents=True)
+        document = (
+            "## Full-slate read\n\n### Seattle Mariners at New York Yankees\n"
+            "**Price:** DK fair SEA 0.415 / NYY 0.585. PM asks SEA 0.330 / NYY 0.675.\n"
+        )
+        self.write_day("2026-08-11", document, [])
+        (other / "slate" / "2026-08-11.md").write_text(document, encoding="utf-8")
+        cross = self.report(extra_picks_dirs=[other])["cross_document_disagreement"]
+        self.assertEqual(cross["games_priced_by_more_than_one_document"], 0)
+        self.assertEqual(cross["duplicate_root_copies_excluded"], 1)
+        self.assertEqual(cross["games_where_the_documents_disagree"], 0)
+
+    def test_outcomes_are_split_by_fidelity_and_never_reported_combined(self):
+        """Both 2026-08-26 selections — including the only WIN — rest on written
+        order. A blended 1-3 describes a record that is 0-2 in the faithful half.
+        """
+        self.write_day(
+            "2026-08-11",
+            "## Full-slate read\n\n"
+            "### Seattle Mariners at New York Yankees\n"
+            "**Price:** DK fair SEA 0.415 / NYY 0.585. PM asks SEA 0.350 / NYY 0.660.\n\n"
+            "### Boston Red Sox at Miami Marlins\n"
+            "**Price:** DK fair 0.600 / 0.400. Polymarket ask 0.500 / 0.520.\n",
+            [(AWAY, HOME, "Final", 2, 7), ("Boston Red Sox", "Miami Marlins", "Final", 9, 1)],
+        )
+        stats = self.report()["populations"]["market_only"]
+        faithful = stats["by_fidelity"]["faithful"]
+        inferred = stats["by_fidelity"]["inferred_order"]
+        self.assertEqual((faithful["graded"], faithful["wins"], faithful["losses"]), (1, 0, 1))
+        self.assertEqual((inferred["graded"], inferred["wins"], inferred["losses"]), (1, 1, 0))
+        self.assertEqual(faithful["units"], -1.0)
+        self.assertGreater(inferred["units"], 0)
+        # No combined outcome anywhere: a caller that wants one has to add it
+        # up itself, in sight of what it is adding.
+        for key in ("graded", "wins", "losses", "units"):
+            self.assertNotIn(key, stats)
+        self.assertNotIn("units", replay.render(self.report()).split("[faithful]")[0])
+
+    def test_a_selection_carries_the_fidelity_its_totals_were_counted_under(self):
+        self.write_day(
+            "2026-08-11",
+            "## Full-slate read\n\n### Boston Red Sox at Miami Marlins\n"
+            "**Price:** DK fair 0.600 / 0.400. Polymarket ask 0.500 / 0.520.\n",
+            [],
+        )
+        pick = self.report()["populations"]["market_only"]["selections"][0]
+        self.assertEqual(pick["fidelity"], "inferred_order")
+        self.assertFalse(pick["faithful_inputs"])
+
+    def test_a_corroborated_written_order_is_recorded_without_making_it_faithful(self):
+        """The 08-26 shape: a side-labelled title line agreeing with a pair
+        written in bare order says the convention held IN THIS BLOCK. That is
+        evidence about the ask's orientation, not proof of it — the two were
+        written by different steps — so the game stays inferred_order.
+        """
+        self.write_day(
+            "2026-08-11",
+            "## Full-slate read\n\n"
+            "- **Kansas City Royals at Toronto Blue Jays — KC +136 / TOR -146:** "
+            "DK fair 41.7% / 58.3%; PM asks 51.0% / 49.5%.\n",
+            [],
+        )
+        report = self.report()
+        game = report["days"][0]["documents"][0]["games"][0]
+        self.assertEqual(game["inputs"]["dk_fair_prob"]["provenance"], "reconstructed")
+        self.assertEqual(game["inputs"]["dk_fair_prob"]["american_source"], "title")
+        self.assertEqual(game["inputs"]["polymarket_ask"]["provenance"], "inferred_order")
+        self.assertTrue(game["written_order_corroborated"])
+        self.assertFalse(game["faithful_inputs"])
+
+    def test_a_fully_labelled_block_has_no_written_order_to_corroborate(self):
+        """The flag means "this block's unlabelled pair was checked", not "this
+        block is fine". A block with nothing written in bare order has nothing
+        for the check to be about, and reporting it as corroborated would make
+        the flag a synonym for `parsed`."""
+        self.write_day(
+            "2026-08-11",
+            "## Full-slate read\n\n### Seattle Mariners at New York Yankees\n"
+            "**Price:** DK SEA +137 / NYY -147, fair SEA 0.415 / NYY 0.585. "
+            "PM asks SEA 0.350 / NYY 0.660.\n",
+            [],
+        )
+        game = self.report()["days"][0]["documents"][0]["games"][0]
+        self.assertTrue(game["faithful_inputs"])
+        self.assertFalse(game["written_order_corroborated"])
+
+    def test_an_uncorroborated_block_says_so(self):
+        """A block with nothing side-labelled in it cannot check its own order."""
+        self.write_day(
+            "2026-08-11",
+            "## Full-slate read\n\n### Boston Red Sox at Miami Marlins\n"
+            "**Price:** DK fair 0.600 / 0.400. Polymarket ask 0.500 / 0.520.\n",
+            [],
+        )
+        game = self.report()["days"][0]["documents"][0]["games"][0]
+        self.assertFalse(game["written_order_corroborated"])
 
     def test_the_report_records_the_rails_it_ran_against(self):
         self.write_day("2026-08-11", "## Clean read\n", [])

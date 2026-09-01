@@ -43,9 +43,27 @@ denominator rather than falling back to the block count, which would read as
 two-sided American line by `mlb_stage2_scan.devig`), `recorded` (stated and
 side-labelled in the prose), `inferred_order` (stated but NOT side-labelled, so
 the away/home assignment rests on a writing convention), `unavailable` (with a
-reason, and the raw prose retained). Only the first two count as faithful, and
-the faithful and inferred counts are reported separately — a single
-"131 evaluable games" headline would hide that 80 of them are the weaker kind.
+reason, and the raw prose retained). Only the first two count as faithful.
+
+The line is read from the block body and, where the body has none, from the
+block **title** — 2026-08-26 writes it there and nowhere else
+(`— KC +136 / TOR -146:`). The title form requires both club tokens, because
+the body form's `DK` prefix is what licenses falling back on written order and
+a title has no such anchor; so it can only ever add a side-resolved reading.
+
+**Outcomes are reported per fidelity and never combined.** A selection whose
+price orientation rests on a writing convention is weaker evidence than one
+whose sides were labelled, so `graded`, `wins`, `losses` and `units` exist only
+inside `by_fidelity` — there is no combined key in the report or the render. In
+this window that is not a formality: both 2026-08-26 selections, including the
+only win, carry `inferred_order` on their Polymarket ask.
+
+Where a block writes a side-labelled line **and** a pair in bare order that
+agrees with it side for side, the block's writing convention was measured
+rather than assumed, and the game is flagged `written_order_corroborated`. It
+stays `inferred_order` regardless: agreement on the fair pair is evidence about
+the ask pair's orientation, not proof of it, and the two were written by
+different steps.
 
 **Prices are asks.** No Polymarket quote receipt exists anywhere in this window;
 the three in `receipts/polymarket` all belong to the last executed pick, on
@@ -63,7 +81,17 @@ relabel a handicapped game as a market-only one.
 
 **Clearing the floor is not being bet.** The gate also caps the day, so
 `enforce_daily_candidate_limit` is applied per card. On 2026-08-22 five games
-clear the floor and the cap allows two.
+clear the floor and the cap allows two. The cap is **2 per card**; the window
+total of four is two cards each filling it.
+
+**A comparison between documents needs two documents.** 08-11 and 08-15..08-18
+exist byte-identically in both `.picks` roots, and a copy of a file is not a
+second opinion about a price, so copies are excluded from the cross-document
+metric and the exclusion is counted. A matchup a *single* document prices twice
+is a doubleheader — two games, not one game with two prices — so it is excluded
+and named rather than compared. That refusal is why 2026-08-17's St. Louis at
+Cincinnati no longer appears as a document conflict: both prices are in the
+same file, and they are DH1 and DH2.
 
 ## Findings
 
@@ -84,9 +112,23 @@ p90 +0.030, max +0.085 over 79 games. Two independent readings of one book
 agreeing to within half a point is the strongest evidence available that this
 report's prose parsing is not systematically wrong.
 
-Seven games clear the 0.05 floor; the daily cap allows four; those four grade
-1-3 for **-1.98 synthetic units** at the ask. That is not a result anyone should
-act on, for the reason below.
+Seven games clear the 0.05 floor and the per-card cap keeps four. Their record
+is reported per fidelity and is never added up:
+
+| fidelity | evaluable | clearing | kept by the cap | graded | units |
+|---|---|---|---|---|---|
+| faithful | 51 | 5 | 2 | 0-2 | **-2.00** |
+| inferred_order | 80 | 2 | 2 | 1-1 | **+0.02** |
+
+The split is the finding, not the presentation. Both `inferred_order`
+selections are the two 2026-08-26 games, and one of them is the window's only
+win — so a combined "1-3" would describe a record that is **0-2** where the
+prices were side-labelled in the text. Both of those blocks do carry
+`written_order_corroborated`: 08-26 writes a side-labelled DraftKings line in
+the block title and its bare-order fair pair agrees with it, so the convention
+was checked in-block rather than assumed. That is evidence, not proof, and it
+does not move them into the faithful half. Neither half is a result anyone
+should act on, for the reason below.
 
 ### Every clearing game comes from one price capture, and a second capture of
 ### the same slate disagrees with it
@@ -105,9 +147,9 @@ is why both copies of every date are carried, and it is the single most
 important caveat on the numbers above.
 
 Which capture is right is **not decidable from this repo**. It needs a quote
-receipt, and this window has none. The remaining eleven disagreements, on 08-17
-and 08-27, are half-point morning-versus-evening drift and look like the book
-moving normally.
+receipt, and this window has none. The remaining three disagreements are all on
+08-27, between that day's morning and evening cards, and are half-point drift
+that looks like the book moving normally.
 
 ### The 12:59 card saw those prices and refused anyway
 
@@ -125,7 +167,9 @@ for a read-only replay.
 
 The replay is evidence about throughput, not permission to move a rail. Lowering
 the floor to 0.03 on this window buys games priced by a capture that a second
-capture of the same slate contradicts, graded 1-3 over four bets. Nothing here
+capture of the same slate contradicts, graded 0-2 over the two bets whose
+prices were side-labelled and 1-1 over the two that rest on written order.
+Nothing here
 supports a gate change, and the recorded-handicap population — the one that
 would actually test our model — does not exist yet. It starts existing with the
 first `game_reads` slate.

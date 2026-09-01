@@ -28,7 +28,10 @@ preference and the source is recorded:
 - ``recorded`` — stated verbatim in the prose and side-labelled.
 - ``inferred_order`` — stated verbatim but NOT side-labelled ("fair 36.7% /
   63.3%"), so the away/home assignment rests on a writing convention rather than
-  on the text. Carried, labelled, and excluded from the faithful totals.
+  on the text. Carried and labelled, and counted in its OWN totals: every
+  outcome in this report — graded, wins, losses, units — exists per fidelity
+  and there is no combined key anywhere, because in this window the only
+  hypothetical win rests on written order and a blended record would hide that.
 - ``unavailable`` — with a reason and the raw line.
 
 **The traded price was never recorded; only the ask was.** Two-sided ask sums in
@@ -132,6 +135,11 @@ EXCLUDED_SECTION_HEADINGS = (
 # faithful totals is the entire contract of this module.
 PROVENANCE = ("reconstructed", "recorded", "inferred_order", "unavailable")
 FAITHFUL_PROVENANCE = frozenset({"reconstructed", "recorded"})
+# A game is `faithful` only when EVERY price it was replayed from was side
+# labelled in the text; one unlabelled pair makes the whole game
+# `inferred_order`, because a transposed price is a transposed game whichever
+# field carried it. Outcome counters are kept per fidelity and never summed.
+FIDELITIES = ("faithful", "inferred_order")
 # Preference order for a usable reading: a side-labelled source outranks one
 # whose orientation rests on a writing convention, whichever pattern matched it.
 FAIR_AGREEMENT_PREFERENCE = FAITHFUL_PROVENANCE
@@ -168,6 +176,19 @@ AMERICAN_LINE_RE = re.compile(
     rf"(?:DK|DraftKings)(?:\s+is)?\s*:?\s*"
     rf"(?:(?P<away_team>{_TOKEN})\s+)?(?P<away_odds>{_ODDS})\s*/\s*"
     rf"(?:(?P<home_team>{_TOKEN})\s+)?(?P<home_odds>{_ODDS})"
+)
+
+# The same line as written in a BLOCK TITLE, after the em dash and with no
+# `DK` prefix to anchor it: `— KC +136 / TOR -146:`. Both club tokens are
+# REQUIRED here, unlike the body form. The body pattern can fall back on
+# written order because the `DK` prefix proves the pair is a DraftKings line;
+# in a title there is no such anchor, so an untokened pair of odds could be any
+# two numbers and orienting it by convention would be a guess dressed as a
+# reading. Requiring the tokens means this pattern can only ever produce a
+# side-RESOLVED reading or nothing.
+TITLE_AMERICAN_LINE_RE = re.compile(
+    rf"(?P<away_team>{_TOKEN})\s+(?P<away_odds>{_ODDS})\s*/\s*"
+    rf"(?P<home_team>{_TOKEN})\s+(?P<home_odds>{_ODDS})"
 )
 
 # `de-vig fair BOS 0.585 / MIA 0.415`, `de-vigged ATL 39.8% / MIL 60.2%`,
@@ -313,17 +334,38 @@ def _oriented_pair(
     return {"away": values["away"], "home": values["home"]}, "recorded", None
 
 
-def parse_american_line(body: str, away: str, home: str) -> dict[str, Any]:
+def parse_american_line(
+    body: str, away: str, home: str, title_suffix: str | None = None
+) -> dict[str, Any]:
     """De-vig the two-sided American line into a fair probability per side.
 
     The de-vig itself is ``mlb_stage2_scan.devig``, imported rather than
     reimplemented: this replay's whole claim is that it runs the arithmetic the
     pipeline runs, and a second copy of a formula is how two answers to one
     question start disagreeing.
+
+    The line is searched in the block body first and, only when the body has
+    none, in the block TITLE's dash suffix. 2026-08-26 writes it there and
+    nowhere else — ``- **Kansas City Royals at Toronto Blue Jays — KC +136 /
+    TOR -146:**`` — so reading the body alone left every block on that date
+    falling back to ``inferred_order`` while the side-labelled evidence that
+    would have resolved it sat in the same line, discarded. The title form
+    requires both club tokens (see ``TITLE_AMERICAN_LINE_RE``), so it can only
+    ever ADD a side-resolved reading; it can never turn a body reading into a
+    guess, and it is consulted only when the body yielded nothing.
     """
     match = AMERICAN_LINE_RE.search(body)
+    source = "body"
+    if match is None and title_suffix:
+        match = TITLE_AMERICAN_LINE_RE.search(title_suffix)
+        source = "title"
     if match is None:
-        return {"values": None, "provenance": "unavailable", "reason": "no DK American line"}
+        return {
+            "values": None,
+            "provenance": "unavailable",
+            "reason": "no DK American line",
+            "source": None,
+        }
     away_odds, home_odds = match.group("away_odds"), match.group("home_odds")
     away_token, home_token = match.group("away_team"), match.group("home_team")
     if away_token is None and home_token is None:
@@ -340,6 +382,7 @@ def parse_american_line(body: str, away: str, home: str) -> dict[str, Any]:
                     f"({away_token!r}, {home_token!r})"
                 ),
                 "raw": match.group(0),
+                "source": source,
             }
         orientation, provenance = (away_side, home_side), "reconstructed"
     first, second = devig(away_odds, home_odds)
@@ -349,6 +392,7 @@ def parse_american_line(body: str, away: str, home: str) -> dict[str, Any]:
             "provenance": "unavailable",
             "reason": "American odds did not de-vig",
             "raw": match.group(0),
+            "source": source,
         }
     values = {orientation[0]: first, orientation[1]: second}
     return {
@@ -356,11 +400,14 @@ def parse_american_line(body: str, away: str, home: str) -> dict[str, Any]:
         "provenance": provenance,
         "reason": None,
         "raw": match.group(0),
+        "source": source,
         "american": {"away": away_odds, "home": home_odds},
     }
 
 
-def resolve_dk_fair(body: str, away: str, home: str) -> dict[str, Any]:
+def resolve_dk_fair(
+    body: str, away: str, home: str, title_suffix: str | None = None
+) -> dict[str, Any]:
     """Pick the de-vigged fair probability per side, and cross-check it.
 
     Two readings of the same fact are available in most blocks — the American
@@ -373,7 +420,7 @@ def resolve_dk_fair(body: str, away: str, home: str) -> dict[str, Any]:
     measurement in the module that can catch a systematically wrong pattern, so
     its agreement rate is reported as a first-class number.
     """
-    reconstructed = parse_american_line(body, away, home)
+    reconstructed = parse_american_line(body, away, home, title_suffix)
     stated_values, stated_provenance, stated_reason = _oriented_pair(
         STATED_FAIR_RE.search(body), away, home, parse_probability
     )
@@ -749,14 +796,21 @@ def split_matchup(title: str) -> dict[str, Any] | None:
     a start time and sometimes ``DH1``/``DH2``. Every one is stripped, IN THAT
     ORDER — the first version stripped the parenthetical before the colon, so a
     bullet title kept "(6:05 PM CT):" on the home club and every side lookup in
-    the block failed. The stripped suffix is RETAINED rather than discarded,
-    because a doubleheader marker is the one piece of it that decides whether a
-    later grade is even possible.
+    the block failed. Both stripped suffixes are RETAINED rather than
+    discarded: the comma suffix because a doubleheader marker is the one piece
+    of it that decides whether a later grade is even possible, and the DASH
+    suffix because 2026-08-26 writes its DraftKings line there and nowhere else
+    ("— KC +136 / TOR -146:"). Discarding the dash suffix made every block on
+    that date read as unlabelled prices oriented by a writing convention, with
+    the side-labelled line sitting one strip away.
     """
     text = title.strip()
+    dash_tails: list[str] = []
     for dash in ("—", "–"):
         if dash in text:
-            text = text.split(dash, 1)[0]
+            text, _, tail = text.partition(dash)
+            dash_tails.insert(0, tail.strip())
+    dash_suffix = " ".join(t for t in dash_tails if t) or None
     text = text.strip().rstrip(":").strip()
     text = re.sub(r"\s*\([^)]*\)\s*$", "", text).strip().rstrip(":").strip()
     suffix = None
@@ -789,6 +843,7 @@ def split_matchup(title: str) -> dict[str, Any] | None:
         "away": away,
         "home": home,
         "suffix": suffix or None,
+        "dash_suffix": dash_suffix,
         "doubleheader_marker": marker,
     }
 
@@ -877,7 +932,7 @@ def replay_block(block: dict[str, Any], edge_floor: float) -> dict[str, Any]:
         }
     away, home = matchup["away"], matchup["home"]
     body = block["body"]
-    dk_fair = resolve_dk_fair(body, away, home)
+    dk_fair = resolve_dk_fair(body, away, home, matchup["dash_suffix"])
     ask = resolve_ask(body, away, home)
     handicap = resolve_handicap(body, away, home)
     haircut = resolve_haircut(body)
@@ -897,6 +952,7 @@ def replay_block(block: dict[str, Any], edge_floor: float) -> dict[str, Any]:
                 "reason": dk_fair.get("reason"),
                 "cross_check": dk_fair["cross_check"],
                 "american": dk_fair["reconstructed"].get("american"),
+                "american_source": dk_fair["reconstructed"].get("source"),
                 "raw": dk_fair["reconstructed"].get("raw") or dk_fair["stated"].get("raw"),
             },
             "polymarket_ask": ask,
@@ -909,6 +965,19 @@ def replay_block(block: dict[str, Any], edge_floor: float) -> dict[str, Any]:
         and ask["provenance"] in FAITHFUL_PROVENANCE
     )
     record["faithful_inputs"] = faithful
+    # Evidence ABOUT the writing convention, not a promotion of it. When a
+    # side-labelled de-vig and a pair written in bare order agree side for side
+    # within tolerance, this block's unlabelled pairs were written away-first —
+    # measured, not assumed. It does NOT make the block faithful: agreement on
+    # the fair pair is evidence about the ask pair's order, not proof of it,
+    # and the two were written by different steps. It is carried so a reader
+    # can tell an inferred_order row whose convention was checked from one
+    # where nothing in the block could check it.
+    record["written_order_corroborated"] = bool(
+        dk_fair["cross_check"] == "agree"
+        and dk_fair["reconstructed"]["provenance"] == "reconstructed"
+        and dk_fair["stated"]["provenance"] == "inferred_order"
+    )
     record["replay"] = replay_sides(dk_fair, ask, handicap, haircut, edge_floor)
     if not dk_fair.get("values") or not ask.get("values"):
         record["raw"] = body
@@ -1301,15 +1370,36 @@ def population_summary(days: list[dict[str, Any]]) -> dict[str, Any]:
     populations of wildly different size and selection. A combined rate would
     describe neither, and this window's recorded-handicap bucket is small enough
     that reporting it beside the market-only bucket is the only honest framing.
+
+    Fidelity is split the same way and for the same reason. A selection whose
+    price orientation rests on a writing convention is weaker evidence than one
+    whose sides were labelled in the text, so the clearing, cap, grade and unit
+    counters are kept per fidelity and there is no combined ``graded`` or
+    ``units`` anywhere in the report. In this window that is not a formality:
+    both 2026-08-26 selections — including the only WIN — carry
+    ``inferred_order`` on their price, so a blended "1-3" describes a record
+    that is 0-2 in the faithful half. A reader should not have to reconstruct
+    the composition of a headline from per-pick flags.
     """
     out: dict[str, Any] = {}
     for population in POPULATIONS:
-        evaluable = cleared = ties = 0
-        graded = wins = 0
-        units = 0.0
+        evaluable = ties = 0
         shortfalls: list[float] = []
         evaluable_by_fidelity: Counter = Counter()
-        ungraded: Counter = Counter()
+        by_fidelity: dict[str, dict[str, Any]] = {
+            fidelity: {
+                "games_evaluable": 0,
+                "games_clearing_floor": 0,
+                "games_within_daily_cap": 0,
+                "graded": 0,
+                "wins": 0,
+                "losses": 0,
+                "units": None,
+                "ungraded_reasons": Counter(),
+                "_units": 0.0,
+            }
+            for fidelity in FIDELITIES
+        }
         selections: list[dict[str, Any]] = []
         for day, doc, game in _parsed_games(days):
             replay = game["replay"][population]
@@ -1319,8 +1409,11 @@ def population_summary(days: list[dict[str, Any]]) -> dict[str, Any]:
             usable = [s for s in sides.values() if isinstance(s, dict) and s.get("evaluable")]
             if not usable:
                 continue
+            fidelity = "faithful" if game["faithful_inputs"] else "inferred_order"
+            bucket = by_fidelity[fidelity]
             evaluable += 1
-            evaluable_by_fidelity["faithful" if game["faithful_inputs"] else "inferred"] += 1
+            evaluable_by_fidelity[fidelity] += 1
+            bucket["games_evaluable"] += 1
             shortfalls += [s["shortfall"] for s in usable if s.get("shortfall") is not None]
             selection = _population_selection(game, population)
             if selection is None:
@@ -1328,7 +1421,7 @@ def population_summary(days: list[dict[str, Any]]) -> dict[str, Any]:
             if selection.get("tie"):
                 ties += 1
                 continue
-            cleared += 1
+            bucket["games_clearing_floor"] += 1
             within_cap = game["within_daily_cap"][population]
             grading = (
                 grade(selection, game["outcome"].get("record")) if within_cap
@@ -1344,33 +1437,49 @@ def population_summary(days: list[dict[str, Any]]) -> dict[str, Any]:
                 "current_ask": selection["current_ask"],
                 "conservative_edge": selection["conservative_edge"],
                 "faithful_inputs": game["faithful_inputs"],
+                "fidelity": fidelity,
+                "written_order_corroborated": game["written_order_corroborated"],
                 "within_daily_cap": within_cap,
                 "grade": grading,
             })
             if not within_cap:
                 continue
+            bucket["games_within_daily_cap"] += 1
             if grading.get("graded"):
-                graded += 1
-                wins += 1 if grading["won"] else 0
-                units += grading["units"]
+                bucket["graded"] += 1
+                if grading["won"]:
+                    bucket["wins"] += 1
+                else:
+                    bucket["losses"] += 1
+                bucket["_units"] += grading["units"]
             else:
-                ungraded[grading.get("reason", "unknown")] += 1
+                bucket["ungraded_reasons"][grading.get("reason", "unknown")] += 1
+        for bucket in by_fidelity.values():
+            bucket["units"] = round(bucket.pop("_units"), 4) if bucket["graded"] else None
+            bucket["ungraded_reasons"] = dict(sorted(bucket["ungraded_reasons"].items()))
         out[population] = {
             "games_evaluable": evaluable,
             # Split, not summed. An evaluable game whose price orientation rests
             # on a writing convention is weaker evidence than one whose sides
-            # were labelled, and a single "129 games" headline hides that 78 of
+            # were labelled, and a single "129 games" headline hides that 80 of
             # them are the weaker kind.
             "games_evaluable_faithful": evaluable_by_fidelity["faithful"],
-            "games_evaluable_inferred_order": evaluable_by_fidelity["inferred"],
-            "games_clearing_floor": cleared,
-            "games_within_daily_cap": sum(1 for s in selections if s["within_daily_cap"]),
+            "games_evaluable_inferred_order": evaluable_by_fidelity["inferred_order"],
+            # How many games the GATE would have taken is a fidelity-blind fact
+            # — the gate cannot see a provenance label — so these two stay
+            # whole. What those selections then DID is not fidelity-blind, and
+            # outcomes exist ONLY per fidelity: there is deliberately no
+            # combined graded/wins/losses/units key anywhere in the report, so
+            # a caller that wants one has to write the addition itself, in
+            # sight of what it is adding.
+            "games_clearing_floor": sum(
+                b["games_clearing_floor"] for b in by_fidelity.values()
+            ),
+            "games_within_daily_cap": sum(
+                b["games_within_daily_cap"] for b in by_fidelity.values()
+            ),
+            "by_fidelity": by_fidelity,
             "ties_refused": ties,
-            "graded": graded,
-            "wins": wins,
-            "losses": graded - wins,
-            "units": round(units, 4) if graded else None,
-            "ungraded_reasons": dict(sorted(ungraded.items())),
             "median_shortfall": _median(shortfalls),
             "p90_shortfall": _quantile(shortfalls, 0.90),
             "selections": selections,
@@ -1424,24 +1533,78 @@ def cross_document_disagreement(days: list[dict[str, Any]]) -> dict[str, Any]:
     the better one — it disagrees with the DraftKings line recorded beside it in
     the same document, while the earlier capture matches its own — and deciding
     between them needs a quote receipt, which this window does not have.
+
+    Two things have to be true before a price difference means what this metric
+    says it means, and the first version checked neither.
+
+    **The two prices must come from two DIFFERENT documents.** Grouping by
+    matchup alone reported 2026-08-17's St. Louis at Cincinnati as a document
+    conflict when both prices are in the SAME file: they are DH1 and DH2, two
+    different games correctly priced differently. A matchup a single document
+    prices more than once is not uniquely identified by its matchup, so it is
+    excluded from the comparison and reported by name — the same refusal
+    ``_join_outcome`` already makes on key non-uniqueness, one level up. It is
+    a refusal rather than a repair because the doubleheader marker this window
+    writes ("— 12:40 PM CT / 5:40 PM CT DH1") sits in a title position
+    ``split_matchup`` does not read, so the two blocks cannot be told apart
+    here; pairing them across documents by guessing would be the transposition
+    defect in another costume.
+
+    **The two documents must be genuinely different documents.** 08-11 and
+    08-15..08-18 exist BYTE-IDENTICALLY in both roots, and counting a copy of a
+    file as a second opinion about a price makes "priced by more than one
+    document" measure the checkout layout instead of the record.
+    ``duplicate_of_other_root`` is computed in ``_document_records`` and is what
+    this consults; copies are excluded here and counted so the exclusion is
+    visible rather than silent.
     """
     rows: list[dict[str, Any]] = []
+    ambiguous: list[dict[str, Any]] = []
+    duplicates_excluded = 0
+    priced_by_more_than_one = 0
     for day in days:
         seen: dict[str, list[dict[str, Any]]] = {}
+        digests: set[str] = set()
         for doc in day["documents"]:
             if not doc.get("readable"):
                 continue
+            if doc["sha256"] in digests:
+                duplicates_excluded += 1
+                continue
+            digests.add(doc["sha256"])
+            priced: dict[str, dict[str, Any]] = {}
+            times_priced: Counter = Counter()
             for game in doc["games"]:
                 if not game.get("parsed"):
                     continue
                 ask = game["inputs"]["polymarket_ask"]["values"]
-                if ask:
-                    seen.setdefault(game["matchup"], []).append(
-                        {"document": doc["relative_path"], "root": doc["root"], "ask": ask}
-                    )
+                if not ask:
+                    continue
+                times_priced[game["matchup"]] += 1
+                priced[game["matchup"]] = {
+                    "document": doc["relative_path"], "root": doc["root"], "ask": ask
+                }
+            for matchup, count in sorted(times_priced.items()):
+                if count > 1:
+                    priced.pop(matchup, None)
+                    ambiguous.append({
+                        "date": day["date"],
+                        "root": doc["root"],
+                        "document": doc["relative_path"],
+                        "matchup": matchup,
+                        "times_priced": count,
+                        "reason": (
+                            "one document prices this matchup more than once — a "
+                            "doubleheader is two games, not one game with two "
+                            "prices, and the blocks cannot be told apart here"
+                        ),
+                    })
+            for matchup, entry in priced.items():
+                seen.setdefault(matchup, []).append(entry)
         for matchup, entries in sorted(seen.items()):
             if len(entries) < 2:
                 continue
+            priced_by_more_than_one += 1
             spread = max(e["ask"]["away"] for e in entries) - min(
                 e["ask"]["away"] for e in entries
             )
@@ -1454,17 +1617,9 @@ def cross_document_disagreement(days: list[dict[str, Any]]) -> dict[str, Any]:
                 "sources": entries,
             })
     return {
-        "games_priced_by_more_than_one_document": sum(
-            1
-            for day in days
-            for matchup, count in Counter(
-                game["matchup"]
-                for doc in day["documents"] if doc.get("readable")
-                for game in doc["games"]
-                if game.get("parsed") and game["inputs"]["polymarket_ask"]["values"]
-            ).items()
-            if count > 1
-        ),
+        "games_priced_by_more_than_one_document": priced_by_more_than_one,
+        "duplicate_root_copies_excluded": duplicates_excluded,
+        "matchups_one_document_prices_twice": ambiguous,
         "games_where_the_documents_disagree": len(rows),
         "max_spread": round(max((r["away_ask_spread"] for r in rows), default=0.0), 6),
         "disagreements": rows,
@@ -1584,11 +1739,25 @@ def render(report: dict[str, Any]) -> str:
             f"{stats['games_evaluable_inferred_order']} inferred order), clearing the floor "
             f"{stats['games_clearing_floor']}, kept by the daily cap "
             f"{stats['games_within_daily_cap']}, ties refused {stats['ties_refused']}",
-            f"  graded {stats['graded']} ({stats['wins']}-{stats['losses']}), "
-            f"units {stats['units'] if stats['units'] is not None else '—'}",
-            f"  shortfall below the floor: median "
-            f"{stats['median_shortfall']}, p90 {stats['p90_shortfall']}",
         ]
+        # One line per fidelity and no combined line. A single graded record
+        # over both would be the headline whose composition this split exists
+        # to stop a reader having to reconstruct.
+        for fidelity in FIDELITIES:
+            fold = stats["by_fidelity"][fidelity]
+            lines.append(
+                f"  [{fidelity}] evaluable {fold['games_evaluable']}, clearing the floor "
+                f"{fold['games_clearing_floor']}, kept by the daily cap "
+                f"{fold['games_within_daily_cap']}, graded {fold['graded']} "
+                f"({fold['wins']}-{fold['losses']}), units "
+                f"{fold['units'] if fold['units'] is not None else '—'}"
+            )
+            if fold["ungraded_reasons"]:
+                lines.append(f"    ungraded: {fold['ungraded_reasons']}")
+        lines.append(
+            f"  shortfall below the floor: median "
+            f"{stats['median_shortfall']}, p90 {stats['p90_shortfall']}"
+        )
         if stats.get("why_empty"):
             gap = stats["why_empty"]
             lines.append(
@@ -1596,10 +1765,13 @@ def render(report: dict[str, Any]) -> str:
                 f"with a recorded haircut {gap['blocks_with_a_recorded_haircut']}, "
                 f"with both {gap['blocks_with_both']}"
             )
-        if stats["ungraded_reasons"]:
-            lines.append(f"  ungraded: {stats['ungraded_reasons']}")
         for pick in stats["selections"]:
-            flags = "" if pick["faithful_inputs"] else "  [inferred inputs]"
+            flags = ""
+            if not pick["faithful_inputs"]:
+                flags = (
+                    "  [inferred inputs, written order corroborated in-block]"
+                    if pick["written_order_corroborated"] else "  [inferred inputs]"
+                )
             if not pick["within_daily_cap"]:
                 flags += "  [over the daily cap]"
             result = pick["grade"]
@@ -1617,11 +1789,21 @@ def render(report: dict[str, Any]) -> str:
     lines += [
         "Same game, two documents, different price",
         "-----------------------------------------",
-        f"games priced by more than one document "
+        f"games priced by more than one DISTINCT document "
         f"{cross['games_priced_by_more_than_one_document']}, of which the documents "
         f"disagree on {cross['games_where_the_documents_disagree']} "
         f"(max away-ask spread {cross['max_spread']})",
+        f"byte-identical root copies excluded {cross['duplicate_root_copies_excluded']}; "
+        f"matchups one document prices twice, not compared "
+        f"{len(cross['matchups_one_document_prices_twice'])}",
     ]
+    for row in cross["matchups_one_document_prices_twice"]:
+        lines.append(
+            f"    not compared: {row['date']} {row['matchup']} — priced "
+            f"{row['times_priced']}x in {row['root']}:"
+            f"{row['document'].removeprefix('slate/').removesuffix('.md')} "
+            f"(doubleheader; two games, not two prices)"
+        )
     for row in cross["disagreements"]:
         sources = "; ".join(
             f"{s['root']}:{s['document'].removeprefix('slate/').removesuffix('.md')} "
