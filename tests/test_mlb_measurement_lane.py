@@ -89,11 +89,24 @@ def audit_for(sched):
     return lane.build_rows([("2026-09-01", sched)], {})[1]
 
 
+DEDUP_STUB = {
+    "policy": "",
+    "dates_requested": 1,
+    "dates_used": 1,
+    "excluded": [],
+    "dates_with_no_schedule": [],
+    "duplicate_copies_collapsed": 0,
+}
+
 EMPTY_AUDIT = {
     "policy": "",
+    "accounting": "",
     "dates_used": 1,
     "dates_with_no_usable_denominator": [],
     "orphaned_reads": [],
+    "scheduled_games": 0,
+    "unusable_denominator_entries": [],
+    "per_date": [],
     "rows": 0,
 }
 
@@ -181,6 +194,65 @@ class DenominatorTests(unittest.TestCase):
                 self.assertEqual(
                     audit["dates_used"], len(dates_with_rows | named), audit
                 )
+
+    def test_every_scheduled_game_either_builds_a_row_or_is_named(self):
+        """The lane's headline invariant, checked against the denominator's own length.
+
+        Round-2 blocker: the three named no-roster reasons are a
+        classification, not a proof. A denominator whose ``games`` list is
+        non-empty but holds non-dict entries is truthy, so it was never
+        classified, and each such entry was dropped with a bare ``continue`` —
+        a used date with two scheduled games and two rows missing, named
+        nowhere, and the partial case (2 of 3 built) survived every counter in
+        the report while falsifying the one claim this lane is built on.
+
+        So this asserts over the shape space rather than on hand-picked
+        fixtures: for every date, ``rows + named_shortfall == scheduled_games``.
+        That closes a fourth reason, a fifth, and any filter added to the loop
+        later — none of them can both skip a game and stay silent.
+        """
+        junk = ["not-a-dict", 7, None, ["nested"]]
+        shapes = {
+            "two good": [game(1), game(2)],
+            "two junk": [junk[0], junk[1]],
+            "partial, junk last": [game(1), game(2), junk[2]],
+            "partial, junk first": [junk[3], game(1)],
+            "junk between": [game(1), junk[0], game(2)],
+            "empty": [],
+        }
+        for name, games in shapes.items():
+            with self.subTest(shape=name):
+                sched = schedule(games=games, reads=[])
+                sched["slate_denominator"]["games"] = games
+                rows, audit = lane.build_rows([("2026-09-01", sched)], {})
+                scheduled = len(lane.denominator_games(sched))
+                entry = audit["per_date"][0]
+                self.assertEqual(entry["date"], "2026-09-01")
+                self.assertEqual(entry["scheduled_games"], scheduled)
+                self.assertEqual(entry["rows"], len(rows))
+                self.assertEqual(entry["rows"] + entry["named_shortfall"], scheduled)
+                # Counted is not named. Every unit of the shortfall is an entry
+                # a reader can point at, with the date and its position.
+                named = [
+                    item
+                    for item in audit["unusable_denominator_entries"]
+                    if item["date"] == "2026-09-01"
+                ]
+                self.assertEqual(len(named), entry["named_shortfall"])
+                for item in named:
+                    self.assertIn("reason", item)
+                    self.assertIsInstance(item["index"], int)
+                self.assertEqual(audit["scheduled_games"], scheduled)
+
+    def test_a_partly_unusable_denominator_is_not_reported_as_a_clean_slate(self):
+        # The reader-facing half: 2 rows out of 3 scheduled games must not
+        # render as three games measured. The shortfall reaches the page.
+        sched = schedule(games=[game(1), game(2)], reads=[])
+        sched["slate_denominator"]["games"] = [game(1), game(2), "not-a-dict"]
+        rows, audit = lane.build_rows([("2026-09-01", sched)], {})
+        text = lane.markdown(lane.report(rows, dict(DEDUP_STUB), audit))
+        self.assertIn("denominator entry 2", text)
+        self.assertIn("Scheduled games", text)
 
 
 class FidelityTests(unittest.TestCase):
@@ -442,17 +514,45 @@ def blended_metric_paths(node, inside_bucket=False, path="payload"):
 
 
 def metric_lines_outside_a_bucket(text):
-    """Every rendered line naming a metric that is not under a bucket heading."""
+    """Every rendered line naming a metric that is not inside a bucket's own block.
+
+    The latch closes at the end of the bullet block it opened, not merely at
+    the next heading. Round 2's blocker: clearing only on ``#`` left it stuck
+    on for the whole ``### Metrics, per bucket`` section after the first
+    bucket, so "under a bucket header" degenerated to "anywhere after the first
+    bucket" — and the tail of that section, immediately before the next
+    heading, is exactly where a summary row goes.
+
+    In-bucket means: inside the metrics section, after a bucket header, still
+    in that header's bullet block, and itself a bullet. A blended headline is
+    none of those wherever it is written.
+    """
     offenders = []
     in_metrics_section = False
     under_bucket_header = False
+    seen_bullet = False
     for line in text.splitlines():
+        is_bullet = line.startswith("- ")
         if line.startswith("#"):
             in_metrics_section = line.strip() == "### Metrics, per bucket"
             under_bucket_header = False
+            seen_bullet = False
         elif line.startswith("**") and "rows" in line:
             under_bucket_header = True
-        if METRIC_WORDS.search(line) and not (in_metrics_section and under_bucket_header):
+            seen_bullet = False
+        elif not line.strip():
+            # The blank between a bucket header and its bullets does not end
+            # the block; the blank after the bullets does.
+            if seen_bullet:
+                under_bucket_header = False
+                seen_bullet = False
+        elif is_bullet:
+            seen_bullet = True
+        else:
+            under_bucket_header = False
+            seen_bullet = False
+        in_bucket = in_metrics_section and under_bucket_header and is_bullet
+        if METRIC_WORDS.search(line) and not in_bucket:
             offenders.append(line)
     return offenders
 
@@ -497,6 +597,38 @@ class BlendedHeadlineTests(unittest.TestCase):
                 + lane.markdown(self.payload())
             )
         )
+
+    def test_the_markdown_guard_catches_a_headline_in_every_position_it_could_be_written(self):
+        # Round-2 blocker: the guard was proven only ABOVE the metrics section,
+        # which is the one position its stuck latch could not hide. The tail of
+        # the metrics section — after the last bucket's bullets, immediately
+        # before the next heading — is where a totals row naturally goes, and
+        # the guard walked straight past one there.
+        rendered = lane.markdown(self.payload()).splitlines()
+        headline = "Overall Brier 0.2374 across all buckets, record 10-12."
+        anchor = rendered.index("### Ranked process fixes")
+        first_bucket = next(
+            i for i, line in enumerate(rendered) if line.startswith("**") and "rows" in line
+        )
+        # Both forms — plain and bulleted, because "starts with a dash" must
+        # not be a way in — in every position outside a bucket's own block.
+        positions = {
+            "above the metrics section": 0,
+            "inside the section, before the first bucket": first_bucket,
+            "at the tail, after the last bucket's bullets": anchor,
+        }
+        for where, index in positions.items():
+            for text in (headline, f"- {headline}"):
+                with self.subTest(position=where, bulleted=text.startswith("- ")):
+                    mutated = rendered[:index] + [text, ""] + rendered[index:]
+                    self.assertIn(
+                        text, metric_lines_outside_a_bucket("\n".join(mutated)), where
+                    )
+        # The one position a text scan cannot reach is inside a bucket's own
+        # bullet block, where the line is indistinguishable from the bucket's
+        # own metrics. That is not a gap in this guard: nothing writes there
+        # except the per-bucket render, and the JSON walk covers the payload
+        # those bullets are drawn from. Said out loud rather than left implied.
 
     def test_a_bucket_metric_block_is_reachable_and_still_names_its_n(self):
         # Without this the two guards above pass vacuously on a report that

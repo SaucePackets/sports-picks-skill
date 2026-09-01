@@ -96,7 +96,7 @@ proves both guards fail on the headline they exist to catch.
 ## Schedules opened
 
 Beside the per-read counters, the report carries a **schedule-level** audit,
-because two whole-date failures are invisible to the row counts.
+because three ways of losing a scheduled game are invisible to the row counts.
 
 A date whose file was read but whose `slate_denominator` is missing or
 malformed contributes no rows — `denominator_games` returns `[]` for that with
@@ -114,9 +114,34 @@ population. But the recorder's own validator calls exactly that an error, so an
 orphaned read reaching this lane is evidence the slate was written
 unvalidated. It is dropped **and counted**, with its date and `game_pk`.
 
-Both are the same rule as the `unusable_read` bucket, one level up: a record
-that reached this report without passing the recorder's gate is itself the
-finding.
+A **denominator entry that is not an object** builds no row while leaving the
+denominator itself truthy, so neither counter above can see it — a used date
+with three scheduled games and two rows, and nothing saying so. Each such entry
+is named with its date and its position in the list.
+
+All three are the same rule as the `unusable_read` bucket, one level up: a
+record that reached this report without passing the recorder's gate is itself
+the finding.
+
+### The accounting, which does not rest on having enumerated the ways
+
+Naming three reasons is a classification, not a proof — the third was found
+exactly by a reviewer asking what the first two did not cover. So the audit
+also carries `per_date`, and for every date:
+
+```
+rows + named_shortfall == scheduled_games
+```
+
+where `scheduled_games` is the length of the denominator itself. Any filter
+added to this loop later either builds a row or is named; it cannot do neither.
+The suite asserts this over a space of denominator shapes — all good, all
+malformed, and partial in both orders — rather than on hand-picked fixtures.
+
+Reachability, stated plainly: zero instances of the non-object entry exist on
+the corpora scanned to date. It is latent, and it is pinned anyway, because the
+claim it falsifies — *one row per scheduled game, always* — is the one this
+lane is built on.
 
 ## Attribution
 

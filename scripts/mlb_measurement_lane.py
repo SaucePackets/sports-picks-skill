@@ -40,7 +40,10 @@ schedule-level audit beside the per-read counters: dates used, dates whose
 schedule was read but carried no usable ``slate_denominator`` (named, with the
 reason), reads dropped for naming a game outside the denominator, and rows.
 Without it a whole date drops out as ``rows: 0`` and reads as an empty slate
-rather than an unopened one.
+rather than an unopened one. The audit does not rest on having enumerated those
+reasons: it also carries per-date accounting where ``rows + named_shortfall ==
+scheduled_games``, so a filter added to that loop later either builds a row or
+is named.
 
 **Read-only in the strongest available sense.** No network at all — finals come
 from a cache directory or the row says it has no final. Nothing is written
@@ -748,14 +751,25 @@ def build_rows(
       was written unvalidated. Dropping it is right; dropping it silently is
       the same defect one level down.
 
-    Both are named, not merely counted, for the same reason ``unusable_read``
-    is its own fidelity bucket: a record that reached this report without
-    passing the recorder's gate is itself the finding.
+    * a denominator entry that is not an object builds no row while leaving the
+      denominator itself truthy, so neither counter above can see it. That is
+      the same defect a third time — a scheduled game vanishing with nothing
+      naming it — and the two named cases above are a classification, not a
+      proof of exhaustiveness. So the audit does not rest on having enumerated
+      the ways: it carries ``per_date`` accounting where, for every date,
+      ``rows + named_shortfall == scheduled_games``. Any future filter added to
+      this loop either builds a row or is named; it cannot do neither.
+
+    All three are named, not merely counted, for the same reason
+    ``unusable_read`` is its own fidelity bucket: a record that reached this
+    report without passing the recorder's gate is itself the finding.
     """
     rows: list[dict[str, Any]] = []
     dates_used: list[str] = []
     no_denominator: list[dict[str, Any]] = []
     orphaned: list[dict[str, Any]] = []
+    unusable_entries: list[dict[str, Any]] = []
+    per_date: list[dict[str, Any]] = []
     for date, schedule in schedules:
         dates_used.append(date)
         denominator = schedule.get("slate_denominator")
@@ -782,26 +796,49 @@ def build_rows(
         if not games:
             no_denominator.append({"date": date, "reason": _no_denominator_reason(schedule)})
         rostered = set()
-        for game in games:
+        built = 0
+        for index_in_denominator, game in enumerate(games):
             if not isinstance(game, dict):
+                unusable_entries.append(
+                    {
+                        "date": date,
+                        "index": index_in_denominator,
+                        "reason": "the denominator entry is not an object, so it names no game",
+                    }
+                )
                 continue
             rostered.add(game.get("game_pk"))
             index_entry = by_pk.get(game.get("game_pk"))
             index, entry = index_entry if index_entry is not None else (None, None)
             rows.append(build_row(date, game, entry, index, finals, dict(captured)))
+            built += 1
         orphaned += [
             {"date": date, "game_pk": game_pk}
             for game_pk in sorted(by_pk)
             if game_pk not in rostered
         ]
+        per_date.append(
+            {
+                "date": date,
+                "scheduled_games": len(games),
+                "rows": built,
+                "named_shortfall": len(games) - built,
+            }
+        )
     rows.sort(key=lambda r: (r["date"], r["game_pk"] if r["game_pk"] is not None else 0))
     audit = {
         "policy": "a date read but never opened is named, not counted as zero games; a read "
         "outside the denominator is dropped and named, never allowed to add to its own "
         "population",
+        "accounting": "per date, rows + named_shortfall == scheduled_games; a denominator entry "
+        "that builds no row is named, so no filter added to this loop later can shrink the "
+        "population in silence",
         "dates_used": len(dates_used),
         "dates_with_no_usable_denominator": no_denominator,
         "orphaned_reads": orphaned,
+        "scheduled_games": sum(item["scheduled_games"] for item in per_date),
+        "unusable_denominator_entries": unusable_entries,
+        "per_date": per_date,
         "rows": len(rows),
     }
     return rows, audit
@@ -876,7 +913,15 @@ def markdown(payload: dict[str, Any]) -> str:
         f"{len(audit['dates_with_no_usable_denominator'])} produced no roster; rows "
         f"{audit['rows']}.",
         "",
+        f"Scheduled games across the dates that produced a roster {audit['scheduled_games']}, "
+        f"rows built {audit['rows']}, denominator entries named as building no row "
+        f"{len(audit['unusable_denominator_entries'])}. {audit['accounting']}.",
+        "",
     ]
+    for item in audit["unusable_denominator_entries"]:
+        lines.append(f"- No row `{item['date']}` denominator entry {item['index']}: {item['reason']}")
+    if audit["unusable_denominator_entries"]:
+        lines.append("")
     for item in audit["dates_with_no_usable_denominator"]:
         lines.append(f"- No roster `{item['date']}`: {item['reason']}")
     if audit["dates_with_no_usable_denominator"]:
