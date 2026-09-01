@@ -45,8 +45,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from mlb_game_reads import (  # noqa: E402
-    conventional_denominator_path,
-    scan_denominator_errors,
+    check_denominator,
     validate_game_reads,
 )
 
@@ -129,30 +128,17 @@ def build_receipt(root: Path, day: str) -> dict[str, Any]:
 
     errors = list(validate_game_reads(schedule))
 
-    scan_path = conventional_denominator_path(schedule_path, schedule)
-    receipt["denominator_path"] = str(scan_path) if scan_path is not None else None
-    scan_rows: Any = None
-    if scan_path is None:
-        errors.append(
-            "cannot locate the denominator scan: the schedule carries no usable date"
-        )
-    else:
-        try:
-            scan_rows = json.loads(scan_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            errors.append(
-                f"denominator scan not readable at {scan_path}: {exc}; the day's "
-                "size is unknown, so a zero read count cannot be called honest"
-            )
-        else:
-            # Against the SCAN, not against the schedule's own copy of it.
-            # validate_game_reads checks the reads against `slate_denominator`,
-            # which the same run wrote: a run that trimmed both together is
-            # perfectly self-consistent and would certify itself complete.
-            # This is the only check here with an independent source.
-            if isinstance(schedule, dict):
-                errors.extend(scan_denominator_errors(schedule, scan_rows))
-    receipt["scheduled_games"] = _scan_game_count(scan_rows)
+    # Against the SCAN, not against the schedule's own copy of it.
+    # validate_game_reads checks the reads against `slate_denominator`, which
+    # the same run wrote: a run that trimmed both together is perfectly
+    # self-consistent and would certify itself complete. This is the only
+    # check here with an independent source — and it is the SAME function the
+    # scheduled gate now calls, so the receipt cannot drift stricter or looser
+    # than the rail.
+    check = check_denominator(schedule_path, schedule)
+    receipt["denominator_path"] = str(check.path) if check.path is not None else None
+    errors.extend(check.errors)
+    receipt["scheduled_games"] = _scan_game_count(check.rows)
     receipt["recorder_errors"] = errors
 
     scheduled = receipt["scheduled_games"]

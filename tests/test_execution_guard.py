@@ -51,11 +51,12 @@ class ExecutionGuardTests(unittest.TestCase):
                 "conservative_probability": 0.65,
                 "current_ask": 0.59,
                 "projected_edge_at_current_ask": 0.06,
-                # The REAL market-only version, not an invented one. These fixtures
-            # used a made-up string and passed, which is the defect itself: the
-            # execution boundary read "there is a version" as "a model was
-            # deployed". Only this version and a deployed one may execute now.
-            "model_version": "vig-mlb-market-v1",
+                # The REAL market-only version, not an invented one. These
+                # fixtures used a made-up string and passed, which is the
+                # defect itself: the execution boundary read "there is a
+                # version" as "a model was deployed". Only this version and a
+                # deployed one may execute now.
+                "model_version": "vig-mlb-market-v1",
                 "baseball_evidence": valid_baseball_evidence(),
                 "execution_checks": valid_execution_checks(supported_price=0.59),
             }],

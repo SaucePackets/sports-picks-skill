@@ -632,14 +632,34 @@ class ReviewGateRecorderGapTests(unittest.TestCase):
         self.day = self.gate.schedule_day_now()
         self.schedule_path = self.root / ".picks" / "execute" / f"{self.day}-schedule.json"
         self.schedule_path.parent.mkdir(parents=True)
+        self.scan_path = self.root / ".picks" / "tmp" / f"stage2-{self.day}.json"
+        self.scan_path.parent.mkdir(parents=True)
 
-    def _run(self, payload):
+    def _run(self, payload, scan=None, child=None):
+        """One gate cycle. `scan` is the independent artifact, written or not.
+
+        `child` replaces subprocess.run, which is how a case reaches the
+        has-work branch without spawning a reviewer: the notice is emitted
+        before the child is invoked, so any child outcome exercises it.
+        """
         import contextlib
         import io
 
         self.schedule_path.write_text(json.dumps(payload), encoding="utf-8")
+        if scan is not None:
+            self.scan_path.write_text(json.dumps(scan), encoding="utf-8")
         out = io.StringIO()
-        with contextlib.redirect_stdout(out):
+        with contextlib.ExitStack() as stack:
+            if child is not None:
+                stack.enter_context(
+                    mock.patch.object(self.gate.subprocess, "run", side_effect=child)
+                )
+            stack.enter_context(
+                mock.patch.object(
+                    self.gate, "standing_authorization_enabled", return_value=True
+                )
+            )
+            stack.enter_context(contextlib.redirect_stdout(out))
             status = self.gate.run_gate("MLB")
         return status, out.getvalue()
 
@@ -667,7 +687,7 @@ class ReviewGateRecorderGapTests(unittest.TestCase):
     def test_a_properly_recorded_empty_day_stays_plain_no_work(self):
         # The contrast case. Without it, the test above would pass for a gate
         # that shouted on every quiet day, which is a different bug.
-        status, output = self._run(schedule([], date=self.day))
+        status, output = self._run(schedule([], date=self.day), scan=[])
         self.assertEqual(status, 0)
         stages = [record.get("stage") for record in self._journal()]
         self.assertIn("no_reviewable_work", stages)
@@ -696,6 +716,116 @@ class ReviewGateRecorderGapTests(unittest.TestCase):
         with mock.patch.object(self.gate, "read_records", side_effect=OSError("boom")):
             _status, output = self._run(payload)
         self.assertIn(self.gate.RECORDER_GAP_NOTICE_PREFIX, output)
+
+    def test_the_scheduled_gate_catches_a_self_consistently_trimmed_slate(self):
+        # PR #77 review, blocker 1. This is the failure the cross-check was
+        # written for and the one the SCHEDULED run could not see: a slate
+        # that cut `game_reads` and `slate_denominator` to the same short set
+        # agrees with itself perfectly. The schedule-only validator passes it
+        # and the gate journals `no_reviewable_work` — bit for bit the record
+        # the 09-01 run produced, reached a different way. Only the scan, which
+        # this run did not write, is an independent witness.
+        kept, dropped = read(823509), read(824876)
+        trimmed = schedule([kept], date=self.day)
+        # The premise, asserted rather than assumed: without the scan there is
+        # nothing here to find. If this ever stops holding the test below is
+        # passing for the wrong reason.
+        self.assertEqual(mlb_game_reads.validate_game_reads(trimmed), [])
+
+        status, output = self._run(trimmed, scan=scan_rows([kept, dropped]))
+
+        self.assertEqual(status, 0)
+        self.assertIn(self.gate.RECORDER_GAP_NOTICE_PREFIX, output)
+        self.assertIn("824876", output)
+        stages = [record.get("stage") for record in self._journal()]
+        self.assertIn(self.gate.RECORDER_GAP_STAGE, stages)
+        self.assertNotIn("no_reviewable_work", stages)
+
+    def test_the_scheduled_gate_reports_a_day_nobody_scanned(self):
+        # "Nobody ran the scan" and "the scan agrees" must not look alike from
+        # the gate either — that is the same collapse one level up, and it is
+        # what makes the check above unfakeable by simply not scanning.
+        status, output = self._run(schedule([], date=self.day))
+        self.assertEqual(status, 0)
+        self.assertIn(self.gate.RECORDER_GAP_NOTICE_PREFIX, output)
+        self.assertIn("denominator scan not readable", output)
+
+    def _has_work_payload(self):
+        # A card with review work on it AND no per-game record. `candidates`
+        # is what carries the gate past the empty-card early return, which is
+        # the only route to the second report site.
+        return {
+            "date": self.day,
+            "candidates": [{"event_id": "1", "side": "CWS"}],
+            "lineup_watchlist": [],
+        }
+
+    def test_a_day_with_review_work_reports_its_recorder_gap_too(self):
+        # PR #77 review, blocker 2. Deleting the whole `if recorder_errors:`
+        # block below the early return left the full suite byte-identical:
+        # every case here exited above it on an empty card. A day WITH work
+        # can be exactly as unrecorded, and it is the busy days whose refusals
+        # the dataset most wants.
+        status, output = self._run(
+            self._has_work_payload(), child=OSError("no reviewer child in tests")
+        )
+        # The child failure is what it is; the recorder notice is what this
+        # asserts, and it is emitted before the child is ever invoked.
+        self.assertEqual(status, 1)
+        self.assertIn(self.gate.RECORDER_GAP_NOTICE_PREFIX, output)
+        records = self._journal()
+        stages = [record.get("stage") for record in records]
+        # The justification for keying the throttle on the notice PREFIX
+        # rather than the journal stage, made checkable: this branch never
+        # journals `recorder_missing`. A throttle keyed on the stage would
+        # look throttled here and print on all ninety-six cycles.
+        self.assertNotIn(self.gate.RECORDER_GAP_STAGE, stages)
+        carried = [
+            text
+            for record in records
+            for text in (record.get("notices") or [])
+            if isinstance(text, str)
+            and text.startswith(self.gate.RECORDER_GAP_NOTICE_PREFIX)
+        ]
+        self.assertEqual(len(carried), 1, records)
+
+    def test_the_has_work_notice_is_throttled_on_the_second_cycle(self):
+        # And it is throttled THROUGH the notices list, since no
+        # `recorder_missing` stage is ever written on this path.
+        payload = self._has_work_payload()
+        child = OSError("no reviewer child in tests")
+        _first_status, first = self._run(payload, child=child)
+        _second_status, second = self._run(payload, child=child)
+        self.assertIn(self.gate.RECORDER_GAP_NOTICE_PREFIX, first)
+        self.assertNotIn(self.gate.RECORDER_GAP_NOTICE_PREFIX, second)
+        # Disk still carries it on both cycles: stdout is the notification,
+        # the journal is the record.
+        carried = [
+            text
+            for record in self._journal()
+            for text in (record.get("notices") or [])
+            if isinstance(text, str)
+            and text.startswith(self.gate.RECORDER_GAP_NOTICE_PREFIX)
+        ]
+        self.assertEqual(len(carried), 2)
+
+    def test_a_recorded_day_with_review_work_stays_quiet(self):
+        # The contrast the has-work cases need: without it they would pass for
+        # a gate that shouts on every busy day.
+        entry = read()
+        payload = schedule(
+            # A game we TOOK refuses nothing, so the rails come off with the
+            # disposition — the coherence check is right to insist.
+            [dict(entry, disposition="candidate", refusing_rails=[])],
+            date=self.day,
+            candidates=[{"event_id": "1", "side": "CWS"}],
+        )
+        _status, output = self._run(
+            payload,
+            scan=scan_rows([entry]),
+            child=OSError("no reviewer child in tests"),
+        )
+        self.assertNotIn(self.gate.RECORDER_GAP_NOTICE_PREFIX, output)
 
     def test_the_gap_never_changes_the_gate_verdict(self):
         # A defect in a measurement artifact must not take the reviewer

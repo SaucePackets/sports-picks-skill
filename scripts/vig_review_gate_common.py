@@ -1461,7 +1461,25 @@ def run_gate(sport: str) -> int:
         # exists to end. The check is stdlib arithmetic over the file already
         # in hand: no network, no order behaviour, no change to what the gate
         # accepts or routes.
-        recorder_errors = mlb_game_reads.validate_game_reads(schedule)
+        #
+        # WITH the denominator cross-check, not without it (PR #77 review).
+        # `validate_game_reads` alone can only see a MISSING record. The
+        # failure this lane was opened for is a TRIMMED one — a run that cut
+        # `game_reads` and `slate_denominator` to the same short set is
+        # internally consistent, passes that check, and journals
+        # `no_reviewable_work`: the identical record the 09-01 run produced,
+        # reached by a different route. Only the scan artifact, which the run
+        # did not write, is an independent witness. Leaving that half in
+        # commands nothing schedules would have reproduced this PR's own
+        # diagnosis — a sentence in a prompt rather than a rail.
+        #
+        # Via `mlb_game_reads`, deliberately: it is in deploy-runtime.sh's
+        # PROFILE_MANIFEST and `mlb_slate_receipt` is not, so importing the
+        # receipt here would pass every test in this repo and ImportError on
+        # the runtime's profile-local copies.
+        recorder_errors = mlb_game_reads.validate_with_denominator(
+            schedule_path, schedule
+        )
     if not candidates and not watchlist:
         # An explicit PASS: the slate was collected and produced nothing to
         # review. Journalled with the notices this cycle raised, so a quiet

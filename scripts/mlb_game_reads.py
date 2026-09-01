@@ -554,6 +554,78 @@ def conventional_denominator_path(
     return schedule_path.parent.parent / DENOMINATOR_DIRNAME / f"{DENOMINATOR_STEM}-{date}.json"
 
 
+class DenominatorCheck:
+    """The result of resolving and reading the independent denominator scan.
+
+    One function, three callers: the CLI, the slate receipt, and — since the
+    PR #77 review — the scheduled gate itself. Three copies of "find the scan,
+    read it, cross-check it" would be three chances for the scheduled run to
+    check something weaker than the command an operator types by hand, which
+    is the exact asymmetry this lane exists to close.
+    """
+
+    __slots__ = ("path", "rows", "errors", "read_failed")
+
+    def __init__(
+        self,
+        path: Path | None,
+        rows: Any,
+        errors: list[str],
+        read_failed: bool,
+    ) -> None:
+        self.path = path
+        self.rows = rows
+        self.errors = errors
+        self.read_failed = read_failed
+
+
+def check_denominator(
+    schedule_path: Path, schedule: Any, override: Path | None = None
+) -> DenominatorCheck:
+    """Locate the scan artifact for this schedule and cross-check against it.
+
+    A MISSING scan is an error, never a skipped check: "nobody ran the scan"
+    and "the scan agrees" must not share an outcome. ``override`` is the
+    ``--denominator`` flag; ``read_failed`` lets the CLI keep treating an
+    explicitly named unreadable file as a usage error.
+    """
+    errors: list[str] = []
+    path = override
+    if path is None:
+        path = conventional_denominator_path(schedule_path, schedule)
+        if path is None:
+            errors.append(
+                "cannot locate the denominator scan: the schedule carries no "
+                "usable date and the filename does not supply one"
+            )
+            return DenominatorCheck(None, None, errors, False)
+    try:
+        rows = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        errors.append(
+            f"denominator scan not readable at {path}: {exc}; the day's size is "
+            "unknown, so a zero read count cannot be called honest — run "
+            "scripts/mlb_stage2_scan.py for this date"
+        )
+        return DenominatorCheck(path, None, errors, True)
+    if isinstance(schedule, dict):
+        errors.extend(scan_denominator_errors(schedule, rows))
+    return DenominatorCheck(path, rows, errors, False)
+
+
+def validate_with_denominator(schedule_path: Path, schedule: Any) -> list[str]:
+    """``validate_game_reads`` plus the independent scan cross-check.
+
+    This is what a caller wants whenever it holds a schedule PATH. The bare
+    ``validate_game_reads`` can only see a MISSING record; a run that trimmed
+    ``game_reads`` and ``slate_denominator`` together is self-consistent and
+    passes it. Only the scan, which the run did not write, can see that.
+    """
+    errors = list(validate_game_reads(schedule))
+    errors.extend(check_denominator(schedule_path, schedule).errors)
+    return errors
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Validate the per-game refusal record on an MLB schedule."
@@ -579,27 +651,12 @@ def main(argv: list[str] | None = None) -> int:
     # conventional artifact is required, and its ABSENCE is an error rather
     # than a skipped check: "nobody ran the scan" and "the scan agrees" must
     # never produce the same exit code.
-    denominator_path = args.denominator
-    if denominator_path is None:
-        denominator_path = conventional_denominator_path(args.schedule, schedule)
-        if denominator_path is None:
-            errors = errors + [
-                "cannot locate the denominator scan: the schedule carries no "
-                "usable date and the filename does not supply one"
-            ]
-    if denominator_path is not None:
-        try:
-            scan_rows = json.loads(denominator_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            if args.denominator is not None:
-                parser.error(str(exc))
-            errors = errors + [
-                f"denominator scan not readable at {denominator_path}: {exc}; "
-                "run scripts/mlb_stage2_scan.py for this date before validating"
-            ]
-        else:
-            if isinstance(schedule, dict):
-                errors = errors + scan_denominator_errors(schedule, scan_rows)
+    check = check_denominator(args.schedule, schedule, args.denominator)
+    if check.read_failed and args.denominator is not None:
+        # A file the operator named by hand and that cannot be read is a usage
+        # error, not a finding about the slate.
+        parser.error(check.errors[0])
+    errors = errors + check.errors
     print(json.dumps({"ok": not errors, "errors": errors}, indent=2))
     return 1 if errors else 0
 

@@ -38,9 +38,20 @@ schedule's date. Both sides derive it from one function
 other in different directories. A **missing** scan is an error: "nobody ran the
 scan" and "the scan agrees" no longer share an exit code.
 
-**The scheduled run notices.** `vig_review_gate_common.run_gate` validates the
-day's per-game record on every cycle and journals stage `recorder_missing`
-instead of `no_reviewable_work` when it fails. The notice prints once per day,
+**The scheduled run notices — including the trimmed case.**
+`vig_review_gate_common.run_gate` validates the day's per-game record on every
+cycle, **against the scan as well as against the schedule**
+(`mlb_game_reads.validate_with_denominator`), and journals stage
+`recorder_missing` instead of `no_reviewable_work` when it fails. The scan half
+is not optional here either: a run that trimmed `game_reads` and
+`slate_denominator` to the same short set agrees with itself, passes every
+check keyed on the schedule alone, and would otherwise journal a clean
+`no_reviewable_work` — the identical record the 09-01 run produced, reached by
+a different route. The gate reaches the cross-check through `mlb_game_reads`,
+which is in `deploy-runtime.sh`'s `PROFILE_MANIFEST`; `mlb_slate_receipt.py` is
+not, so a gate importing the receipt would pass every test here and
+`ImportError` on the runtime's profile-local copies. The notice prints once per
+day,
 not on all ninety-six cycles — a repeating alarm is the same as no alarm, which
 this lane already paid to learn with the stuck watchlist entry. The gate's exit
 code is deliberately unchanged: a defect in a measurement artifact must not

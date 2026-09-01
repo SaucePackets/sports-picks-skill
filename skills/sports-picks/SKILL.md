@@ -141,6 +141,12 @@ every time it runs, the validator resolves that path from the schedule's date,
 and a **missing** scan is an error rather than a skipped check. Pass
 `--denominator <path>` only to check against some other file.
 
+Running it by hand is still the fastest way to see the errors, but it is no
+longer the only thing that looks: the scheduled review gate runs the same
+validation, cross-check included, on every cycle, and journals
+`recorder_missing` when it fails. A slate that skips this step does not escape
+the check — it only finds out later, from the gate.
+
 Then run `python3 scripts/mlb_slate_receipt.py --write`. It writes
 `.picks/journal/<date>-slate-receipt.json` with one verdict from a closed set —
 `complete`, `honest_zero`, `recorder_failed`, `no_schedule` — and exits nonzero

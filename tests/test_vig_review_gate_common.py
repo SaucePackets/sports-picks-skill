@@ -164,6 +164,22 @@ def with_recorder_record(payload):
     return payload
 
 
+def write_denominator_scan(root, day, payload):
+    """Write the independent scan artifact beside a fixture's schedule.
+
+    A valid ``game_reads`` record is no longer enough to make a fixture day
+    recorder-clean: the gate cross-checks the record against the scan, which
+    the run did not write, because a run that trimmed the reads and the
+    denominator together passes every check keyed on the schedule alone.
+    A fixture with no scan is a day nobody scanned, and that is a defect.
+    """
+    games = (payload.get("slate_denominator") or {}).get("games") or []
+    path = Path(root) / ".picks" / "tmp" / f"stage2-{day}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(games), encoding="utf-8")
+    return path
+
+
 def recorded_empty_card(**overrides):
     payload = {
         "candidates": [],
@@ -1063,9 +1079,11 @@ class VigReviewGateCommonTests(unittest.TestCase):
                     bettable_to_price=105,
                     first_pitch_utc=first_pitch.isoformat(),
                 )
-                schedule_path.write_text(
-                    json.dumps(with_recorder_record({"candidates": [], "lineup_watchlist": [before_entry]}))
+                payload = with_recorder_record(
+                    {"candidates": [], "lineup_watchlist": [before_entry]}
                 )
+                schedule_path.write_text(json.dumps(payload))
+                write_denominator_scan(root, day, payload)
                 promoted_candidate = {
                     "watchlist_id": "watch-1",
                     "side": "MIN",
@@ -1570,9 +1588,9 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 day = vig_review_gate_common.schedule_day_now()
                 schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
                 schedule_path.parent.mkdir(parents=True)
-                schedule_path.write_text(
-                    json.dumps(recorded_empty_card())
-                )
+                payload = recorded_empty_card()
+                schedule_path.write_text(json.dumps(payload))
+                write_denominator_scan(root, day, payload)
 
                 output = StringIO()
                 with redirect_stdout(output):
@@ -1646,9 +1664,9 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 day = vig_review_gate_common.schedule_day_now()
                 schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
                 schedule_path.parent.mkdir(parents=True)
-                schedule_path.write_text(
-                    json.dumps(recorded_empty_card())
-                )
+                payload = recorded_empty_card()
+                schedule_path.write_text(json.dumps(payload))
+                write_denominator_scan(root, day, payload)
 
                 output = StringIO()
                 with redirect_stdout(output):
@@ -2120,19 +2138,26 @@ class VigReviewGateCommonTests(unittest.TestCase):
             finally:
                 setattr(vig_review_gate_common, "ROOT", original_root)
 
-    def _journalled_gate(self, root, schedule_text, *, run=None, extra_patches=()):
+    def _journalled_gate(
+        self, root, schedule_text, *, run=None, extra_patches=(), scan=None
+    ):
         """Drive run_gate("MLB") over schedule_text; return status, stdout, records, path.
 
         schedule_text is written verbatim rather than dumped, because several
         of these stages are reachable only by a schedule that is not valid
         JSON or not an object at all. `run` replaces subprocess.run, so a case
         can make the child time out, fail to start, exit nonzero, or write a
-        reviewed state back over the schedule.
+        reviewed state back over the schedule. `scan` is the schedule payload
+        whose denominator should also exist as a scan artifact on disk —
+        passed explicitly, because "this day was never scanned" is itself a
+        state several of these cases are about.
         """
         day = vig_review_gate_common.schedule_day_now()
         schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
         schedule_path.parent.mkdir(parents=True, exist_ok=True)
         schedule_path.write_text(schedule_text)
+        if scan is not None:
+            write_denominator_scan(root, day, scan)
         output = StringIO()
         with ExitStack() as stack:
             if run is not None:
@@ -2437,9 +2462,13 @@ class VigReviewGateCommonTests(unittest.TestCase):
         entry = self._overdue_pending_entry(now)
         no_child = AssertionError("no reviewer child may spawn for dead state")
         with self._temp_root() as root:
+            payload = with_recorder_record(
+                {"candidates": [], "lineup_watchlist": [entry]}
+            )
             status, output, records, path = self._journalled_gate(
                 root,
-                json.dumps(with_recorder_record({"candidates": [], "lineup_watchlist": [entry]})),
+                json.dumps(payload),
+                scan=payload,
                 run=no_child,
                 extra_patches=[
                     patch.object(
@@ -2501,9 +2530,13 @@ class VigReviewGateCommonTests(unittest.TestCase):
         now = datetime.now(timezone.utc)
         entry = self._overdue_pending_entry(now)
         with self._temp_root() as root:
+            payload = with_recorder_record(
+                {"candidates": [], "lineup_watchlist": [entry]}
+            )
             status, output, records, path = self._journalled_gate(
                 root,
-                json.dumps(with_recorder_record({"candidates": [], "lineup_watchlist": [entry]})),
+                json.dumps(payload),
+                scan=payload,
                 run=AssertionError("no reviewer child on a no-work cycle"),
                 extra_patches=[
                     patch.object(
@@ -2623,16 +2656,14 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 day = vig_review_gate_common.schedule_day_now()
                 schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
                 schedule_path.parent.mkdir(parents=True)
-                schedule_path.write_text(
-                    json.dumps(
-                        with_recorder_record(
-                            {
-                                "candidates": [{"event_id": "1", "side": "CWS"}],
-                                "lineup_watchlist": [],
-                            }
-                        )
-                    )
+                payload = with_recorder_record(
+                    {
+                        "candidates": [{"event_id": "1", "side": "CWS"}],
+                        "lineup_watchlist": [],
+                    }
                 )
+                schedule_path.write_text(json.dumps(payload))
+                write_denominator_scan(root, day, payload)
                 failed = vig_review_gate_common.subprocess.CompletedProcess(
                     ["hermes"],
                     7,
