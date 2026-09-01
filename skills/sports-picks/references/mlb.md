@@ -276,16 +276,37 @@ Both watchlist price fields use signed American odds as JSON numbers:
 `"original_price": 119` and `"bettable_to_price": 105` (or negative numbers
 such as `-120`). Values such as `"MIN +119 at DraftKings"` and `"+105"` are
 invalid. Keep source and timestamp prose in the slate or `thesis`, not in the
-numeric fields. Validate the finished schedule with
+numeric fields.
+
+**The schedule is landed by code.** Do not write
+`.picks/execute/<date>-schedule.json` yourself. Run
+`python3 scripts/mlb_slate_writer.py --skeleton --day <date>` after the Stage 2
+scan, fill in the draft it writes to `.picks/tmp/<date>-slate-draft.json`, and
+land it with `python3 scripts/mlb_slate_writer.py --land <draft> --day <date>`.
+The writer derives `slate_denominator` from the scan roster — a draft that
+carries its own is refused — runs both validators
+(`mlb_game_reads.validate_with_denominator` and
+`mlb_lineup_watchlist.validate_watchlist`, the same functions the scheduled gate
+uses) and writes **nothing** unless they come back clean, so a refused landing
+leaves any previous schedule byte-identical. A nonzero exit lists every defect
+at once; fix the draft and land again.
+
+The writer refuses to overwrite a schedule whose candidates already carry
+`vig_approved`, `vig_notes`, `execution_status` or `executed`, or whose
+watchlist entries have been rechecked. There is no flag to override that: those
+decisions exist nowhere else. Re-landing an untouched schedule is ordinary and
+allowed.
+
+You can still validate a landed schedule by hand with
 `python3 scripts/mlb_lineup_watchlist.py <schedule> --validate` and
-`python3 scripts/mlb_game_reads.py <schedule> --validate`
-before reporting slate success, then `python3 scripts/mlb_slate_receipt.py
---write`. The game-reads validator finds the denominator by convention at
-`.picks/tmp/stage2-<date>.json`, which `mlb_stage2_scan.py` now writes on every
-run; its absence is an error, not a skipped check, so neither command needs
-`--denominator`. **Slate success is the receipt's verdict, not your own
-assessment of the run** — report `recorder_failed` as a failure even when the
-prose reads well and the card is legitimately empty.
+`python3 scripts/mlb_game_reads.py <schedule> --validate`. Then run
+`python3 scripts/mlb_slate_receipt.py --write`. The game-reads validator finds
+the denominator by convention at `.picks/tmp/stage2-<date>.json`, which
+`mlb_stage2_scan.py` writes on every run; its absence is an error, not a skipped
+check, so neither command needs `--denominator`. **Slate success is the
+receipt's verdict, not your own assessment of the run** — report
+`recorder_failed` as a failure even when the prose reads well and the card is
+legitimately empty.
 
 ### Recording the refusals
 

@@ -68,9 +68,29 @@ the attribution and the loss-evidence reports, so a refused game leaves no trace
 anywhere except the prose — and prose coverage is decided by how tersely a run
 happened to write that day.
 
-The denominator comes from code, not from the writeup. `scripts/mlb_stage2_scan.py`
-emits one row per scheduled game with both `game_pk` (MLB) and `event_id` (ESPN);
-copy that roster into schedule-level `slate_denominator`:
+**Do not hand-write the schedule.** It is landed by
+`scripts/mlb_slate_writer.py`, which derives `slate_denominator` from the scan
+roster, validates the whole record, and writes nothing at all if it does not
+pass. Start the day from the skeleton:
+
+```
+python3 scripts/mlb_stage2_scan.py --date <day>
+python3 scripts/mlb_slate_writer.py --skeleton --day <day>
+```
+
+That writes `.picks/tmp/<day>-slate-draft.json` carrying one `game_reads` stub
+per scanned game — both id spaces, the team names, and the DK fair prior the
+scan already computed. Fill in the decisions, add `candidates` and
+`lineup_watchlist`, then land it:
+
+```
+python3 scripts/mlb_slate_writer.py --land .picks/tmp/<day>-slate-draft.json --day <day>
+```
+
+A nonzero exit means nothing was written and the errors name every defect. The
+draft must **not** carry `slate_denominator`: the denominator is the one field
+whose whole value is that the run did not write it, and a transcribed one is
+refused even when it happens to be correct. What lands looks like this:
 
 ```json
 "slate_denominator": {
@@ -81,7 +101,7 @@ copy that roster into schedule-level `slate_denominator`:
 }
 ```
 
-Then write one `game_reads` entry per game in that roster:
+Each `game_reads` entry — one per game in that roster — looks like this:
 
 ```json
 "game_reads": [{
@@ -131,21 +151,22 @@ Then write one `game_reads` entry per game in that roster:
 - The count of `candidate` and `lineup_watchlist` reads must equal the number of
   `candidates` and `lineup_watchlist` entries on the schedule.
 
-Before completing a slate, run
-`python3 scripts/mlb_game_reads.py <schedule> --validate`; a nonzero exit means
-the slate is invalid and must be reported as an error rather than handed to the
-reviewer. The cross-check against the scan is what stops a run from trimming its
-own roster to match a short read set, and it is **no longer optional**:
-`mlb_stage2_scan.py` persists its roster to `.picks/tmp/stage2-<date>.json`
-every time it runs, the validator resolves that path from the schedule's date,
-and a **missing** scan is an error rather than a skipped check. Pass
-`--denominator <path>` only to check against some other file.
+`--land` runs `mlb_game_reads.py --validate` for you, before it writes: the
+writer calls the same validator, and a schedule it accepts is one the gate
+accepts. You can still run
+`python3 scripts/mlb_game_reads.py <schedule> --validate` by hand against a
+landed schedule. The cross-check against the scan is what stops a run from
+trimming its own roster to match a short read set, and it is **no longer
+optional**: `mlb_stage2_scan.py` persists its roster to
+`.picks/tmp/stage2-<date>.json` every time it runs, the validator resolves that
+path from the schedule's date, and a **missing** scan is an error rather than a
+skipped check. Pass `--denominator <path>` only to check against some other file.
 
-Running it by hand is still the fastest way to see the errors, but it is no
-longer the only thing that looks: the scheduled review gate runs the same
-validation, cross-check included, on every cycle, and journals
-`recorder_missing` when it fails. A slate that skips this step does not escape
-the check — it only finds out later, from the gate.
+Landing through the writer is the supported path and the only one that cannot
+produce an incomplete record. It is not the only thing that looks either: the
+scheduled review gate runs the same validation, cross-check included, on every
+cycle, and journals `recorder_missing` when it fails. A schedule written by hand
+does not escape the check — it only finds out later, from the gate.
 
 Then run `python3 scripts/mlb_slate_receipt.py --write`. It writes
 `.picks/journal/<date>-slate-receipt.json` with one verdict from a closed set —
