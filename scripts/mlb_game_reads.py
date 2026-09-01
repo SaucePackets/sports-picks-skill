@@ -521,6 +521,111 @@ def scan_denominator_errors(schedule: dict[str, Any], scan_rows: Any) -> list[st
     return errors
 
 
+DENOMINATOR_DIRNAME = "tmp"
+DENOMINATOR_STEM = "stage2"
+
+
+def conventional_denominator_path(
+    schedule_path: Path, schedule: Any = None
+) -> Path | None:
+    """Where ``mlb_stage2_scan`` leaves the denominator for a given schedule.
+
+    The cross-check that stops a run trimming its own roster used to depend on
+    somebody remembering ``--denominator``. An optional flag is not a rail:
+    the 2026-09-01 slate ran, reported success, and wrote a schedule with no
+    ``game_reads`` and no ``slate_denominator`` at all — and there was no scan
+    artifact on disk to check it against either, because nothing had ever been
+    asked to persist one. Both halves are fixed by making the location a
+    convention that the scan writes and this validator reads, so neither side
+    needs an argument to find the other.
+
+    Returns None only when the schedule's date cannot be determined, which is
+    itself reported as an error by the caller rather than skipped.
+    """
+    date = None
+    if isinstance(schedule, dict) and isinstance(schedule.get("date"), str):
+        date = schedule["date"].strip() or None
+    if date is None:
+        stem = schedule_path.name
+        if stem.endswith("-schedule.json"):
+            date = stem[: -len("-schedule.json")]
+    if not date:
+        return None
+    return schedule_path.parent.parent / DENOMINATOR_DIRNAME / f"{DENOMINATOR_STEM}-{date}.json"
+
+
+class DenominatorCheck:
+    """The result of resolving and reading the independent denominator scan.
+
+    One function, three callers: the CLI, the slate receipt, and — since the
+    PR #77 review — the scheduled gate itself. Three copies of "find the scan,
+    read it, cross-check it" would be three chances for the scheduled run to
+    check something weaker than the command an operator types by hand, which
+    is the exact asymmetry this lane exists to close.
+    """
+
+    __slots__ = ("path", "rows", "errors", "read_failed")
+
+    def __init__(
+        self,
+        path: Path | None,
+        rows: Any,
+        errors: list[str],
+        read_failed: bool,
+    ) -> None:
+        self.path = path
+        self.rows = rows
+        self.errors = errors
+        self.read_failed = read_failed
+
+
+def check_denominator(
+    schedule_path: Path, schedule: Any, override: Path | None = None
+) -> DenominatorCheck:
+    """Locate the scan artifact for this schedule and cross-check against it.
+
+    A MISSING scan is an error, never a skipped check: "nobody ran the scan"
+    and "the scan agrees" must not share an outcome. ``override`` is the
+    ``--denominator`` flag; ``read_failed`` lets the CLI keep treating an
+    explicitly named unreadable file as a usage error.
+    """
+    errors: list[str] = []
+    path = override
+    if path is None:
+        path = conventional_denominator_path(schedule_path, schedule)
+        if path is None:
+            errors.append(
+                "cannot locate the denominator scan: the schedule carries no "
+                "usable date and the filename does not supply one"
+            )
+            return DenominatorCheck(None, None, errors, False)
+    try:
+        rows = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        errors.append(
+            f"denominator scan not readable at {path}: {exc}; the day's size is "
+            "unknown, so a zero read count cannot be called honest — run "
+            "scripts/mlb_stage2_scan.py for this date"
+        )
+        return DenominatorCheck(path, None, errors, True)
+    if isinstance(schedule, dict):
+        errors.extend(scan_denominator_errors(schedule, rows))
+    return DenominatorCheck(path, rows, errors, False)
+
+
+def validate_with_denominator(schedule_path: Path, schedule: Any) -> list[str]:
+    """``validate_game_reads`` plus the independent scan cross-check.
+
+    This is what a caller wants whenever it holds a schedule PATH. The bare
+    ``validate_game_reads`` can only see a MISSING record; a run that trimmed
+    ``game_reads`` and ``slate_denominator`` together is self-consistent and
+    passes it. Only the scan, which the run did not write, can see that.
+    """
+    errors = list(validate_game_reads(schedule))
+    errors.extend(check_denominator(schedule_path, schedule).errors)
+    return errors
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Validate the per-game refusal record on an MLB schedule."
@@ -542,13 +647,16 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(str(exc))
 
     errors = validate_game_reads(schedule)
-    if args.denominator is not None:
-        try:
-            scan_rows = json.loads(args.denominator.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            parser.error(str(exc))
-        if isinstance(schedule, dict):
-            errors = errors + scan_denominator_errors(schedule, scan_rows)
+    # The scan cross-check is not opt-in. When --denominator is omitted the
+    # conventional artifact is required, and its ABSENCE is an error rather
+    # than a skipped check: "nobody ran the scan" and "the scan agrees" must
+    # never produce the same exit code.
+    check = check_denominator(args.schedule, schedule, args.denominator)
+    if check.read_failed and args.denominator is not None:
+        # A file the operator named by hand and that cannot be read is a usage
+        # error, not a finding about the slate.
+        parser.error(check.errors[0])
+    errors = errors + check.errors
     print(json.dumps({"ok": not errors, "errors": errors}, indent=2))
     return 1 if errors else 0
 

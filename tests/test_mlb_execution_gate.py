@@ -105,7 +105,11 @@ class MlbExecutionGateTests(unittest.TestCase):
             "conservative_probability": 0.54,
             "current_ask": 0.48,
             "projected_edge_at_current_ask": 0.06,
-            "model_version": "market-only-fallback-v1",
+            # The REAL market-only version, not an invented one. These fixtures
+            # used a made-up string and passed, which is the defect itself: the
+            # execution boundary read "there is a version" as "a model was
+            # deployed". Only this version and a deployed one may execute now.
+            "model_version": "vig-mlb-market-v1",
             "baseball_evidence": BASEBALL_EVIDENCE,
             "execution_checks": EXECUTION_CHECKS,
             "probability_components": PROBABILITY_COMPONENTS,

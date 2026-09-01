@@ -40,7 +40,7 @@ PROBABILITY_TRAIL = {
     "conservative_probability": 0.54,
     "current_ask": 0.48,
     "projected_edge_at_current_ask": 0.06,
-    "model_version": "market-only-fallback-v1",
+    "model_version": "vig-mlb-market-v1",
     "baseball_evidence": valid_baseball_evidence(),
     "execution_checks": valid_execution_checks(supported_price=0.48),
     "probability_components": valid_probability_components(),
@@ -100,6 +100,99 @@ _POLICY_STATE = None
 # Sentinel for "the child omitted this field", distinct from a None value the
 # child could legitimately write.
 _OMITTED = object()
+
+
+
+# A schedule whose per-game record is VALID, so the recorder-gap notice stays
+# silent. An MLB schedule with no `game_reads` is now a reported defect, which
+# is the whole point of the 2026-09-01 fix; a fixture that omits it is testing
+# the gap path while claiming to test the quiet path.
+def with_recorder_record(payload):
+    """Add a VALID per-game record matching whatever the fixture carries.
+
+    These fixtures are about watchlist expiry, child failures and approval
+    repair — not about the recorder. Without a record they would each also be
+    exercising the recorder-gap path, and their "no extra notices" assertions
+    would be asserting the absence of a notice that is now correct to emit.
+
+    The record is generated from the fixture's own candidates and watchlist so
+    the coverage counts line up; a hand-written constant would drift the first
+    time a fixture grew an entry.
+    """
+    payload = dict(payload)
+    if "game_reads" in payload and "slate_denominator" in payload:
+        return payload
+    entries = [
+        ("candidate", entry) for entry in payload.get("candidates", []) or []
+    ] + [
+        ("lineup_watchlist", entry) for entry in payload.get("lineup_watchlist", []) or []
+    ]
+    reads, games = [], []
+    for index, (disposition, _entry) in enumerate(entries):
+        game_pk = 900000 + index
+        event_id = f"4019{game_pk}"
+        games.append(
+            {"game_pk": game_pk, "event_id": event_id, "away": "Away Club",
+             "home": "Home Club"}
+        )
+        reads.append(
+            {
+                "game_pk": game_pk,
+                "event_id": event_id,
+                "away": "Away Club",
+                "home": "Home Club",
+                "disposition": disposition,
+                "dk_fair_prob": {"away": 0.398, "home": 0.602},
+                "polymarket_ask": {"away": 0.460, "home": 0.545},
+                "raw_probability": {"away": 0.400, "home": 0.610},
+                "uncertainty_haircut": 0.02,
+                "conservative_probability": {"away": 0.380, "home": 0.590},
+                "model_version": "vig-mlb-market-v1",
+                "net_edge": {"away": -0.080, "home": 0.035},
+                "refusing_rails": [],
+            }
+        )
+    payload.setdefault(
+        "slate_denominator",
+        {
+            "source": "mlb_stage2_scan",
+            "fetched_at_utc": "2026-09-01T15:30:00+00:00",
+            "games": games,
+        },
+    )
+    payload.setdefault("game_reads", reads)
+    return payload
+
+
+def write_denominator_scan(root, day, payload):
+    """Write the independent scan artifact beside a fixture's schedule.
+
+    A valid ``game_reads`` record is no longer enough to make a fixture day
+    recorder-clean: the gate cross-checks the record against the scan, which
+    the run did not write, because a run that trimmed the reads and the
+    denominator together passes every check keyed on the schedule alone.
+    A fixture with no scan is a day nobody scanned, and that is a defect.
+    """
+    games = (payload.get("slate_denominator") or {}).get("games") or []
+    path = Path(root) / ".picks" / "tmp" / f"stage2-{day}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(games), encoding="utf-8")
+    return path
+
+
+def recorded_empty_card(**overrides):
+    payload = {
+        "candidates": [],
+        "lineup_watchlist": [],
+        "slate_denominator": {
+            "source": "mlb_stage2_scan",
+            "fetched_at_utc": "2026-09-01T15:30:00+00:00",
+            "games": [],
+        },
+        "game_reads": [],
+    }
+    payload.update(overrides)
+    return payload
 
 
 class VigReviewGateCommonTests(unittest.TestCase):
@@ -561,7 +654,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 "approved_polymarket_ask": 0.48,
                 "vig_approved": None,
                 "dk_fair_prob": 0.55,
-                "model_version": "market-only-fallback-v1",
+                "model_version": "vig-mlb-market-v1",
                 "baseball_evidence": valid_baseball_evidence(),
                 "execution_checks": valid_execution_checks(supported_price=0.48),
                 **consistent_probability_overrides(round(0.48 + edge, 6), 0.48),
@@ -603,7 +696,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 "approved_polymarket_ask": 0.48,
                 "vig_approved": None,
                 "dk_fair_prob": 0.55,
-                "model_version": "market-only-fallback-v1",
+                "model_version": "vig-mlb-market-v1",
                 "baseball_evidence": valid_baseball_evidence(),
                 "execution_checks": valid_execution_checks(supported_price=0.48),
                 **consistent_probability_overrides(round(0.48 + edge, 6), 0.48),
@@ -650,7 +743,7 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 "approved_polymarket_ask": 0.48,
                 "vig_approved": vig_approved,
                 "dk_fair_prob": 0.55,
-                "model_version": "market-only-fallback-v1",
+                "model_version": "vig-mlb-market-v1",
                 "baseball_evidence": valid_baseball_evidence(),
                 "execution_checks": valid_execution_checks(supported_price=0.48),
                 **consistent_probability_overrides(round(0.48 + edge, 6), 0.48),
@@ -986,9 +1079,11 @@ class VigReviewGateCommonTests(unittest.TestCase):
                     bettable_to_price=105,
                     first_pitch_utc=first_pitch.isoformat(),
                 )
-                schedule_path.write_text(
-                    json.dumps({"candidates": [], "lineup_watchlist": [before_entry]})
+                payload = with_recorder_record(
+                    {"candidates": [], "lineup_watchlist": [before_entry]}
                 )
+                schedule_path.write_text(json.dumps(payload))
+                write_denominator_scan(root, day, payload)
                 promoted_candidate = {
                     "watchlist_id": "watch-1",
                     "side": "MIN",
@@ -1493,9 +1588,9 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 day = vig_review_gate_common.schedule_day_now()
                 schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
                 schedule_path.parent.mkdir(parents=True)
-                schedule_path.write_text(
-                    json.dumps({"candidates": [], "lineup_watchlist": []})
-                )
+                payload = recorded_empty_card()
+                schedule_path.write_text(json.dumps(payload))
+                write_denominator_scan(root, day, payload)
 
                 output = StringIO()
                 with redirect_stdout(output):
@@ -1569,9 +1664,9 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 day = vig_review_gate_common.schedule_day_now()
                 schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
                 schedule_path.parent.mkdir(parents=True)
-                schedule_path.write_text(
-                    json.dumps({"candidates": [], "lineup_watchlist": []})
-                )
+                payload = recorded_empty_card()
+                schedule_path.write_text(json.dumps(payload))
+                write_denominator_scan(root, day, payload)
 
                 output = StringIO()
                 with redirect_stdout(output):
@@ -2043,19 +2138,26 @@ class VigReviewGateCommonTests(unittest.TestCase):
             finally:
                 setattr(vig_review_gate_common, "ROOT", original_root)
 
-    def _journalled_gate(self, root, schedule_text, *, run=None, extra_patches=()):
+    def _journalled_gate(
+        self, root, schedule_text, *, run=None, extra_patches=(), scan=None
+    ):
         """Drive run_gate("MLB") over schedule_text; return status, stdout, records, path.
 
         schedule_text is written verbatim rather than dumped, because several
         of these stages are reachable only by a schedule that is not valid
         JSON or not an object at all. `run` replaces subprocess.run, so a case
         can make the child time out, fail to start, exit nonzero, or write a
-        reviewed state back over the schedule.
+        reviewed state back over the schedule. `scan` is the schedule payload
+        whose denominator should also exist as a scan artifact on disk —
+        passed explicitly, because "this day was never scanned" is itself a
+        state several of these cases are about.
         """
         day = vig_review_gate_common.schedule_day_now()
         schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
         schedule_path.parent.mkdir(parents=True, exist_ok=True)
         schedule_path.write_text(schedule_text)
+        if scan is not None:
+            write_denominator_scan(root, day, scan)
         output = StringIO()
         with ExitStack() as stack:
             if run is not None:
@@ -2360,9 +2462,13 @@ class VigReviewGateCommonTests(unittest.TestCase):
         entry = self._overdue_pending_entry(now)
         no_child = AssertionError("no reviewer child may spawn for dead state")
         with self._temp_root() as root:
+            payload = with_recorder_record(
+                {"candidates": [], "lineup_watchlist": [entry]}
+            )
             status, output, records, path = self._journalled_gate(
                 root,
-                json.dumps({"candidates": [], "lineup_watchlist": [entry]}),
+                json.dumps(payload),
+                scan=payload,
                 run=no_child,
                 extra_patches=[
                     patch.object(
@@ -2424,9 +2530,13 @@ class VigReviewGateCommonTests(unittest.TestCase):
         now = datetime.now(timezone.utc)
         entry = self._overdue_pending_entry(now)
         with self._temp_root() as root:
+            payload = with_recorder_record(
+                {"candidates": [], "lineup_watchlist": [entry]}
+            )
             status, output, records, path = self._journalled_gate(
                 root,
-                json.dumps({"candidates": [], "lineup_watchlist": [entry]}),
+                json.dumps(payload),
+                scan=payload,
                 run=AssertionError("no reviewer child on a no-work cycle"),
                 extra_patches=[
                     patch.object(
@@ -2546,14 +2656,14 @@ class VigReviewGateCommonTests(unittest.TestCase):
                 day = vig_review_gate_common.schedule_day_now()
                 schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
                 schedule_path.parent.mkdir(parents=True)
-                schedule_path.write_text(
-                    json.dumps(
-                        {
-                            "candidates": [{"event_id": "1", "side": "CWS"}],
-                            "lineup_watchlist": [],
-                        }
-                    )
+                payload = with_recorder_record(
+                    {
+                        "candidates": [{"event_id": "1", "side": "CWS"}],
+                        "lineup_watchlist": [],
+                    }
                 )
+                schedule_path.write_text(json.dumps(payload))
+                write_denominator_scan(root, day, payload)
                 failed = vig_review_gate_common.subprocess.CompletedProcess(
                     ["hermes"],
                     7,

@@ -31,6 +31,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from http_util import fetch_json  # noqa: E402
+from mlb_game_reads import conventional_denominator_path  # noqa: E402
 
 ALIASES = {"WSH": "WSN", "CHW": "CWS", "AZ": "ARI"}
 BOXSCORE_CACHE_DIR = Path.home() / ".cache" / "hermes" / "mlb-boxscores"
@@ -561,6 +562,36 @@ class MlbSlateCollector:
         return rows
 
 
+def denominator_output_path(date: str, root: Path | None = None) -> Path:
+    """Canonical location for this scan's roster, as the validator expects it.
+
+    The path is derived from ``mlb_game_reads.conventional_denominator_path``
+    against the schedule that day's run will write, so the two cannot drift
+    into looking for each other in different directories.
+    """
+    base = (root or resolve_scan_root()).resolve()
+    schedule_path = base / ".picks" / "execute" / f"{date}-schedule.json"
+    resolved = conventional_denominator_path(schedule_path, {"date": date})
+    # conventional_denominator_path returns None only without a usable date,
+    # and the date is required here, so this is a contract violation not a
+    # runtime condition.
+    assert resolved is not None
+    return resolved
+
+
+def resolve_scan_root(cwd: Path | None = None, home: Path | None = None) -> Path:
+    override = os.environ.get("SPORTS_PICKS_ROOT")
+    if override:
+        return Path(override).expanduser().resolve()
+    current = (cwd or Path.cwd()).expanduser().resolve()
+    if (current / ".picks").is_dir():
+        return current
+    default = ((home or Path.home()) / "projects" / "sports-picks-skill").resolve()
+    if (default / ".picks").is_dir():
+        return default
+    return current
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--date", default=dt.date.today().isoformat(), help="Slate date YYYY-MM-DD")
@@ -568,7 +599,23 @@ def main() -> None:
     args = parser.parse_args()
     season = args.season or int(args.date[:4])
     rows = MlbSlateCollector(args.date, season).collect()
-    print(json.dumps(rows, indent=2, sort_keys=True))
+    payload = json.dumps(rows, indent=2, sort_keys=True)
+    # Persist unconditionally. Printing to stdout left the denominator existing
+    # only inside whatever shell the run happened to use, so the cross-check
+    # that is supposed to stop a short roster had no file to check against —
+    # the newest scan artifact on the runtime was three weeks old while the
+    # slate ran daily. Writing it is what makes the check reachable at all.
+    destination = denominator_output_path(args.date)
+    try:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(payload + "\n", encoding="utf-8")
+    except OSError as exc:
+        # stdout is still the primary output; a write failure is reported and
+        # never silently swallowed, but it does not destroy the scan itself.
+        print(f"warning: could not write denominator to {destination}: {exc}", file=sys.stderr)
+    else:
+        print(f"denominator written to {destination}", file=sys.stderr)
+    print(payload)
 
 
 if __name__ == "__main__":

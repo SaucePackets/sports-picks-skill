@@ -70,8 +70,11 @@ from vig_run_journal import (  # noqa: E402
     SOURCE_PRICE_FEED,
     build_record,
     deferral,
+    journal_path,
+    read_records,
     record_run,
 )
+import mlb_game_reads  # noqa: E402
 
 HERMES = os.environ.get("HERMES_BIN") or shutil.which("hermes") or str(Path.home() / ".local/bin/hermes")
 
@@ -1269,6 +1272,51 @@ def journal_gate_run(
     return error
 
 
+RECORDER_GAP_STAGE = "recorder_missing"
+# The once-per-day check keys on THIS prefix, not on the stage, because the
+# gap is reported from two branches and only one of them journals a
+# `recorder_missing` stage. Keying on the stage alone would leave the
+# has-work branch printing on every one of the day's ninety-six cycles while
+# looking, in the code, exactly as throttled as the other one.
+RECORDER_GAP_NOTICE_PREFIX = "game_reads gap:"
+
+
+def recorder_gap_notice(errors: list[str]) -> str:
+    """One notice text for both report sites, so the throttle can recognise it."""
+    return (
+        f"{RECORDER_GAP_NOTICE_PREFIX} {len(errors)} defect(s) on today's schedule; "
+        "the day's refusals were not recorded: " + "; ".join(errors[:3])
+    )
+
+
+def _recorder_gap_already_reported(sport: str, day: str) -> bool:
+    """True when today's journal already carries a recorder-gap report.
+
+    Fails OPEN (False, so the notice prints) on any read problem: an
+    unreadable journal must not be able to silence the one report that says
+    the day's refusals went unrecorded. Duplicating a notice is cheap; losing
+    it is the failure mode this whole lane is about.
+    """
+    try:
+        records, _errors = read_records(journal_path(ROOT, day))
+    except Exception:
+        return False
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        if record.get("sport") != sport or record.get("day") != day:
+            continue
+        if record.get("stage") == RECORDER_GAP_STAGE:
+            return True
+        entries = record.get("notices")
+        if isinstance(entries, list) and any(
+            isinstance(text, str) and text.startswith(RECORDER_GAP_NOTICE_PREFIX)
+            for text in entries
+        ):
+            return True
+    return False
+
+
 def run_gate(sport: str) -> int:
     day = schedule_day_now()
     schedule_path = _schedule_path(sport, day)
@@ -1402,16 +1450,77 @@ def run_gate(sport: str) -> int:
         ):
             print(f"{sport} review gate NOTICE: {warning}")
             notices.append(warning)
+    recorder_errors: list[str] = []
+    if sport == "MLB":
+        # A slate that reviews nothing still owes a row per scheduled game.
+        # On 2026-09-01 the first slate carrying the recorder wrote a schedule
+        # with no `game_reads` and no `slate_denominator`, reported success,
+        # and this gate recorded `no_work` — the same record a genuinely empty
+        # card produces. "We refused fifteen games" and "we recorded nothing"
+        # became one observation, which is exactly the confusion the recorder
+        # exists to end. The check is stdlib arithmetic over the file already
+        # in hand: no network, no order behaviour, no change to what the gate
+        # accepts or routes.
+        #
+        # WITH the denominator cross-check, not without it (PR #77 review).
+        # `validate_game_reads` alone can only see a MISSING record. The
+        # failure this lane was opened for is a TRIMMED one — a run that cut
+        # `game_reads` and `slate_denominator` to the same short set is
+        # internally consistent, passes that check, and journals
+        # `no_reviewable_work`: the identical record the 09-01 run produced,
+        # reached by a different route. Only the scan artifact, which the run
+        # did not write, is an independent witness. Leaving that half in
+        # commands nothing schedules would have reproduced this PR's own
+        # diagnosis — a sentence in a prompt rather than a rail.
+        #
+        # Via `mlb_game_reads`, deliberately: it is in deploy-runtime.sh's
+        # PROFILE_MANIFEST and `mlb_slate_receipt` is not, so importing the
+        # receipt here would pass every test in this repo and ImportError on
+        # the runtime's profile-local copies.
+        recorder_errors = mlb_game_reads.validate_with_denominator(
+            schedule_path, schedule
+        )
     if not candidates and not watchlist:
         # An explicit PASS: the slate was collected and produced nothing to
         # review. Journalled with the notices this cycle raised, so a quiet
         # cycle that still surfaced a zombie keeps that evidence on disk.
+        if recorder_errors:
+            # Reported ONCE per day, not every fifteen minutes: a warning that
+            # repeats ninety-six times is the alarm-fatigue failure this lane
+            # already paid for with the stuck watchlist entry. The journal
+            # carries it on every cycle regardless — disk is the durable
+            # record, stdout is the notification.
+            notice = recorder_gap_notice(recorder_errors)
+            if not _recorder_gap_already_reported(sport, day):
+                print(f"{sport} review gate NOTICE: {notice}")
+            notices = notices + [notice]
+            journal_gate_run(
+                sport, day, OUTCOME_NO_WORK, "recorder_missing",
+                detail=(
+                    "schedule present with no candidates and no due watchlist "
+                    "entries, and its per-game record is invalid: "
+                    + "; ".join(recorder_errors)
+                ),
+                schedule_path=schedule_path, notices=notices,
+            )
+            # Exit code deliberately unchanged. Nothing about review routing is
+            # wrong on this cycle, and failing the gate closed here would take
+            # the reviewer offline for a defect in a measurement artifact.
+            return 0
         journal_gate_run(
             sport, day, OUTCOME_NO_WORK, "no_reviewable_work",
             detail="schedule present with no candidates and no due watchlist entries",
             schedule_path=schedule_path, notices=notices,
         )
         return 0
+    if recorder_errors:
+        # Same defect, the other branch: a day WITH review work can be just as
+        # unrecorded, and the early return above would never see it. Reported
+        # under the same once-per-day rule so the two paths cannot double up.
+        notice = recorder_gap_notice(recorder_errors)
+        if not _recorder_gap_already_reported(sport, day):
+            print(f"{sport} review gate NOTICE: {notice}")
+        notices.append(notice)
     if sport == "MLB":
         # Invalid entries whose first pitch already passed are dead as routing
         # inputs (due_entries quarantines them); surface them alongside real

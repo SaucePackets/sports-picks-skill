@@ -46,6 +46,83 @@ REQUIRED_EXECUTION_NUMERIC_FIELDS = (
 )
 REQUIRED_EXECUTION_FIELDS = (*REQUIRED_EXECUTION_NUMERIC_FIELDS, "model_version")
 
+# The market-only fallback's own model version. This is the ONE version that is
+# executable without a deployment record, because it makes no model claim: it
+# sets our probability to the book's de-vigged fair price and charges a zero
+# uncertainty haircut. Defined here rather than in ``mlb_probability_model``
+# because that module imports this one; both now read this single name so a
+# rename cannot leave two spellings of "market-only" disagreeing.
+MARKET_MODEL_VERSION = "vig-mlb-market-v1"
+
+DEPLOYED_MODELS_SCHEMA = "vig-mlb-deployed-models-v1"
+
+
+def load_deployed_model_versions(state_dir: Path | None = None) -> frozenset[str]:
+    """Load the set of model versions cleared for execution by the deployment gate.
+
+    Fails CLOSED to the empty set on any read/parse/schema problem: a model
+    version can never become executable because the record that would have
+    refused it was unreadable. The market-only fallback is deliberately NOT
+    included here — it is allowed by ``model_deployment_errors`` on the
+    separate ground that it makes no model claim, so an empty or missing
+    record leaves exactly today's behaviour rather than halting the slate.
+    """
+    root = state_dir or resolve_state_dir()
+    try:
+        data = json.loads((root / "risk_limits.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return frozenset()
+    if not isinstance(data, dict):
+        return frozenset()
+    block = data.get("mlb_deployed_models")
+    if not isinstance(block, dict) or block.get("schema") != DEPLOYED_MODELS_SCHEMA:
+        return frozenset()
+    versions = block.get("versions")
+    if not isinstance(versions, list):
+        return frozenset()
+    cleared: set[str] = set()
+    for entry in versions:
+        # One malformed entry invalidates the whole record rather than being
+        # skipped: a record we cannot read completely is a record we cannot
+        # trust to be the reason a version is absent.
+        if not isinstance(entry, str) or not entry.strip():
+            return frozenset()
+        cleared.add(entry.strip())
+    return frozenset(cleared)
+
+
+def model_deployment_errors(candidate: dict, state_dir: Path | None = None) -> list[str]:
+    """Refuse execution on a model version nobody deployed.
+
+    ``stale_probability_field_errors`` checks that ``model_version`` is a
+    non-empty string and stops there — against no allowlist and against no
+    deployment record. That leaves the money boundary open in exactly the
+    direction the versioned deployment gate exists to close: a candidate
+    carrying an invented, experimental, or retired non-market version passes
+    every downstream check, because "there is a version string" was being
+    read as "a model was deployed".
+
+    Eligible versions are the market-only fallback (which asserts no model)
+    and whatever the deployment record lists. Everything else is refused, and
+    the refusal names the version so the receipt says which model was claimed.
+    """
+    version = candidate.get("model_version")
+    if not isinstance(version, str) or not version.strip():
+        # Deliberately silent here: the missing/blank case is already reported
+        # by stale_probability_field_errors, and reporting it twice would make
+        # a single defect look like two.
+        return []
+    version = version.strip()
+    if version == MARKET_MODEL_VERSION:
+        return []
+    if version in load_deployed_model_versions(state_dir):
+        return []
+    return [
+        f"model_version {version!r} is not deployed: it is neither the "
+        f"market-only fallback ({MARKET_MODEL_VERSION!r}) nor listed in the "
+        f"{DEPLOYED_MODELS_SCHEMA} record in risk_limits.json"
+    ]
+
 
 def standing_authorization_enabled(state_dir: Path | None = None) -> bool:
     """Authorization is an explicit flag file, never prose substring matching.
