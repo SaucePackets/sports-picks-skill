@@ -79,6 +79,50 @@ size we could not establish tells us nothing about whether zero was the right
 answer, and treating "unknown" as "empty" is precisely how a recorder failure
 would be laundered into an honest one.
 
+## The producer half: landing the schedule through code
+
+Everything above makes the *checks* reachable. None of it changes who writes the
+record. The schedule was authored by the run, from a prompt, and every rail sat
+downstream of the write — so the strongest thing the repository could say about
+a bare schedule was that it had already happened.
+
+`scripts/mlb_slate_writer.py` is the other half. A schedule lands through it or
+it is not a supported artifact:
+
+- **The denominator is derived, never transcribed.** It is built from
+  `.picks/tmp/stage2-<date>.json` and a draft carrying its own
+  `slate_denominator` is **refused** — not overwritten, and not accepted when it
+  happens to agree. "Accept it if it matches" is how transcription survives: the
+  day it stops matching is the day nobody is checking. `fetched_at_utc` comes
+  from the artifact's mtime, so it is a fact about the file the roster came from
+  rather than a claim the writeup made about a scan it could not see.
+- **One validated read per scheduled game, before anything is written.** The
+  composed record goes through `mlb_game_reads.validate_with_denominator` and
+  `mlb_lineup_watchlist.validate_watchlist` — the functions the gate and the
+  receipt already call, consulted rather than re-derived. A landing check that is
+  a second opinion is worse than none, because a record it accepts and the gate
+  rejects is a record nobody expected to be wrong. The write is atomic, so a
+  refusal leaves the previous schedule byte-identical rather than truncated.
+- **`--skeleton` moves the enumeration out of the prompt.** It emits one
+  `game_reads` stub per scanned game with both id spaces, the team names and the
+  DK fair prior the scan already computed. Enumerating the slate and copying ids
+  across two id spaces was the producer's job and the part that silently went
+  missing; it is now a file. The stub names no disposition and no prices, so an
+  unfilled skeleton cannot land — a head start, not a bypass.
+- **Landing never clobbers a decision.** A schedule whose candidates carry
+  `vig_approved`, `vig_notes`, `execution_status` or `executed`, or whose
+  watchlist entries have been rechecked, is refused. There is no override flag,
+  because an optional rail is the shape of defect this lane keeps paying for.
+
+**What it does not close, stated plainly.** Nothing here stops a run from
+writing `.picks/execute/<date>-schedule.json` by hand and skipping the writer.
+That case is not left open — it is exactly what the postflight receipt and the
+scheduled gate catch, and both are deliberately unchanged by this work, with a
+regression pinning that a hand-written bare schedule still reads
+`recorder_failed`. The claim here is the narrower one: an incomplete record can
+no longer *land* through the supported path, and the supported path is now the
+easier one.
+
 ## The deployment gap, and why it pointed the other way
 
 `load_model_deployment_policy` existed and was consulted in exactly one
