@@ -607,6 +607,82 @@ class IdentityAgreementTests(unittest.TestCase):
 
         self.assertEqual(mlb_game_reads.validate_game_reads(payload), [])
 
+    def test_a_crossing_written_in_another_vocabulary_is_a_declared_limit(self):
+        """The uncaught half of choosing crossing over equality, pinned.
+
+        Crossing is decided by comparing names, so it bites only when both
+        records use the SAME vocabulary. A read that renames AND crosses
+        matches on neither side and nothing fires. This test exists so that
+        boundary is a checked fact instead of a gap somebody rediscovers: it
+        asserts the limit in the same breath as it asserts that the rail is
+        otherwise alive, because a test showing only the silence would also
+        pass if crossing detection were deleted outright.
+        """
+        payload = schedule()
+        self.assertEqual(mlb_game_reads.validate_game_reads(payload), [])
+
+        entry = payload["game_reads"][0]
+        # Crossed, and written in a vocabulary the denominator does not use:
+        # the away club in the home slot, the home club in the away slot.
+        entry["away"], entry["home"] = "MIL", "ATL"
+
+        self.assertEqual(
+            mlb_game_reads.validate_game_reads(payload),
+            [],
+            "the declared limit has moved; update mlb.md and the docstring with it",
+        )
+
+        # The same crossing in the denominator's own vocabulary — the one the
+        # skeleton prefills — is still caught, so the silence above is about
+        # the vocabularies and not about a rail that stopped working.
+        entry["away"], entry["home"] = "Milwaukee Brewers", "Atlanta Braves"
+        self.assertTrue(
+            any(
+                "away/home transposed" in error
+                for error in mlb_game_reads.validate_game_reads(payload)
+            )
+        )
+
+    def test_the_declared_limit_is_stated_where_the_run_reads_it(self):
+        # mlb.md is what the run reads. A rail promised there and absent from
+        # the code is worse than an absent rail — the doc said this case was
+        # caught while the CLI landed it at exit 0, which is what made the
+        # blind spot invisible. Pin the disclosure to the doc, not to a comment
+        # nobody downstream sees.
+        text = " ".join(
+            (REPO_ROOT / "skills" / "sports-picks" / "references" / "mlb.md")
+            .read_text()
+            .split()
+        )
+        self.assertIn("as long as both records name the clubs the same way", text)
+        self.assertIn("matches on neither side and is reported by nothing", text)
+
+    def test_a_padded_event_id_is_canonicalised_rather_than_only_compared(self):
+        """Agreement is decided on the canonical form, and so is persistence.
+
+        Stripping both sides here and letting the raw value through is the
+        item (2) defect one field over — validated in one spelling, written in
+        another — and an ``event_id`` is an address, not just a label.
+        """
+        payload = schedule()
+        payload["game_reads"][0]["event_id"] = "  4018823509  "
+
+        # Padding alone is not a disagreement...
+        self.assertEqual(mlb_game_reads.validate_game_reads(payload), [])
+        # ...and the canonical form is a value the writer can persist, so the
+        # value compared and the value written are the same string.
+        self.assertEqual(
+            mlb_game_reads.normalize_event_id("  4018823509  "), "4018823509"
+        )
+        # A genuinely different id is still a different game.
+        payload["game_reads"][0]["event_id"] = "  401999999  "
+        self.assertIn(
+            "game_reads[0].event_id is '401999999' but the same game_pk is "
+            "'4018823509'; one of these records is about a different game — "
+            "matching game_pk alone does not make them the same game",
+            mlb_game_reads.validate_game_reads(payload),
+        )
+
     def test_whitespace_and_case_alone_are_not_a_finding(self):
         payload = schedule()
         entry = payload["game_reads"][0]
@@ -630,14 +706,23 @@ class IdentityAgreementTests(unittest.TestCase):
         self.assertEqual([error for error in errors if "transposed" in error], [])
 
     def test_an_absent_identity_field_is_reported_once_not_twice(self):
-        payload = schedule()
-        payload["game_reads"][0]["event_id"] = None
+        # Both spellings of absent: missing, and present but blank. A blank id
+        # is an absence, not a disagreement, and canonicalising the two sides
+        # before comparing them is exactly where that could start reading as
+        # one — ``''`` is a string, and it is not equal to the real id.
+        for absent in (None, "", "   "):
+            with self.subTest(event_id=absent):
+                payload = schedule()
+                payload["game_reads"][0]["event_id"] = absent
 
-        errors = mlb_game_reads.validate_game_reads(payload)
-        self.assertIn("game_reads[0].event_id must be a non-empty string", errors)
-        self.assertEqual(
-            [error for error in errors if "is about a different game" in error], []
-        )
+                errors = mlb_game_reads.validate_game_reads(payload)
+                self.assertIn(
+                    "game_reads[0].event_id must be a non-empty string", errors
+                )
+                self.assertEqual(
+                    [error for error in errors if "is about a different game" in error],
+                    [],
+                )
 
     def test_a_denominator_listing_one_game_twice_is_refused(self):
         """An ambiguous join cannot be corroborated at all.

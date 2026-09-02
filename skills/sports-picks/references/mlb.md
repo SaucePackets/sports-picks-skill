@@ -358,7 +358,16 @@ pass — most easily on a doubleheader, whose two games share a date and both
 clubs — and it produced well-formed numbers about a different game. The club
 names are checked only for *crossing*, never for spelling, so writing `ATL`
 where the scan wrote `Atlanta Braves` is fine; putting the away club in the
-`home` slot is not.
+`home` slot is not — **as long as both records name the clubs the same way**.
+
+That last clause is a declared limit, not an oversight. Crossing is decided by
+comparing the two names, so a read that both renames and crosses — `away:
+"NYM"`, `home: "ATL"` against a scan saying `Atlanta Braves` at `New York
+Mets` — matches on neither side and is reported by nothing. Resolving one
+vocabulary onto the other is not something this rail does. What keeps the limit
+narrow is `--skeleton`: the stub it writes already carries the scan's own
+`away`, `home` and `event_id`, so a crossing made while filling that stub in is
+caught. Retyping the club names by hand is what removes the rail.
 
 The slate date is canonicalised before it is persisted: exactly `YYYY-MM-DD`, a
 real day on the calendar, whitespace stripped. The date is the record's

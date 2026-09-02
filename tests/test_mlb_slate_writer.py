@@ -855,6 +855,62 @@ class PostflightUnchangedTests(WriterTestCase):
         self.assertEqual(receipt["scheduled_games"], 15)
 
 
+class IdentityCanonicalFormTests(WriterTestCase):
+    """The date is not the only field that validates in one spelling.
+
+    ``identity_agreement_errors`` compares the two ``event_id``s stripped, so a
+    padded id agrees and then lands padded. The id is an address as well as a
+    label — ``mlb_lineup_watchlist`` builds a URL out of it — so the padded
+    form is a wrong address, the same failure item (2) exists to kill.
+    """
+
+    def test_a_padded_event_id_persists_canonical_on_both_halves(self):
+        rows = [scan_row(823509, event_id="  4018823509  ")]
+        self.write_scan(rows)
+        draft = draft_for(rows)
+        draft["game_reads"][0]["event_id"] = "\t4018823509\n"
+
+        path, schedule = mlb_slate_writer.land(self.root, DAY, draft)
+
+        written = json.loads(path.read_text())
+        self.assertEqual(written["game_reads"][0]["event_id"], "4018823509")
+        self.assertEqual(
+            written["slate_denominator"]["games"][0]["event_id"], "4018823509"
+        )
+        self.assertEqual(written, schedule)
+        self.assertEqual(mlb_game_reads.validate_with_denominator(path, written), [])
+
+    def test_a_crossing_written_in_another_vocabulary_lands_by_design(self):
+        """The declared limit, at the boundary an operator actually uses.
+
+        The unit test pins the rule; this pins what the CLI does with it, which
+        is what the doc's promise is about. A read that renames AND crosses the
+        clubs lands, because crossing is decided by comparing names and these
+        names match on neither side. Recorded here so the limit is a checked
+        fact rather than something rediscovered by probing the landed record.
+        """
+        rows = [scan_row(823509)]
+        self.write_scan(rows)
+
+        draft = draft_for(rows)
+        entry = draft["game_reads"][0]
+        entry["away"], entry["home"] = "MIL", "ATL"
+
+        _, schedule = mlb_slate_writer.land(self.root, DAY, draft)
+        self.assertEqual(schedule["game_reads"][0]["away"], "MIL")
+
+        # And the same crossing in the scan's own vocabulary — which is what
+        # ``--skeleton`` prefills — is refused, so the landing above is the
+        # stated limit and not a dead rail.
+        entry["away"], entry["home"] = rows[0]["home"], rows[0]["away"]
+        with self.assertRaises(mlb_slate_writer.SlateWriteError) as caught:
+            mlb_slate_writer.land(self.root, DAY, draft)
+        self.assertTrue(
+            any("away/home transposed" in error for error in caught.exception.errors),
+            caught.exception.errors,
+        )
+
+
 class SlateDateTests(WriterTestCase):
     """The value that validates must be the value that persists.
 

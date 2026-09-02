@@ -197,6 +197,25 @@ def _normalized_name(value: Any) -> str | None:
     return collapsed or None
 
 
+def normalize_event_id(value: Any) -> Any:
+    """The one canonical spelling of an ``event_id``.
+
+    The same move ``mlb_slate_writer.normalize_slate_date`` makes, for the same
+    reason: the agreement check below strips both sides, so ``" 401 "`` agrees
+    with ``"401"`` and is then persisted with its padding — validated in one
+    spelling, written in another. An ``event_id`` is an address as well as a
+    label (``mlb_lineup_watchlist`` builds a URL out of ``str(event_id)``), so
+    the padded form is a wrong address rather than a cosmetic difference.
+
+    Anything that is not a non-empty string is returned unchanged: refusing it
+    is ``_identity_errors``' job, and that refusal should name the value the
+    producer actually wrote.
+    """
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return value
+
+
 def identity_agreement_errors(
     label: str, expected: dict[str, Any], actual: dict[str, Any]
 ) -> list[str]:
@@ -222,25 +241,50 @@ def identity_agreement_errors(
       no corpus exists yet to measure how often, so demanding equality would
       refuse honest rows for cosmetic drift. A crossed pair is the failure that
       changes what a read MEANS — every probability on it lands on the other
-      club — and it is visible without resolving either vocabulary.
+      club.
+
+    DECLARED LIMIT, and it is the price of choosing crossing over equality: the
+    crossing test compares normal forms, so it bites only when the two records
+    name the clubs in the SAME vocabulary. A read carrying ``away: "NYM"`` and
+    ``home: "ATL"`` against a denominator saying ``Atlanta Braves`` at ``New
+    York Mets`` is crossed and matches on NEITHER side, so nothing is reported.
+    Seeing it would take a club-name resolver this module does not have and
+    will not guess at.
+
+    What keeps the limit narrow is that on the sanctioned path both records
+    descend from one scan: ``mlb_slate_writer.skeleton`` prefills ``away``,
+    ``home`` and ``event_id`` into the stub the run fills in, so the vocabulary
+    is shared and a crossing made while filling that stub IS caught. The
+    uncaught case is a read whose club names were retyped in another vocabulary
+    AND crossed. It is pinned by
+    ``test_a_crossing_written_in_another_vocabulary_is_a_declared_limit`` so the
+    boundary is a checked fact rather than a gap, and it is stated in
+    ``mlb.md``, which is what the run reads — a rail promised in the doc and
+    absent from the code is worse than an absent rail, because nobody looks for
+    it again.
 
     Fields the two records do not both carry are skipped here; their absence is
     already reported by ``_identity_errors``, and repeating it would bury the
     disagreement this function exists to name.
     """
     errors: list[str] = []
-    expected_event = expected.get("event_id")
-    actual_event = actual.get("event_id")
+    # Compare the canonical forms, and let the writer persist that same form —
+    # one function decides what an ``event_id`` IS, so the value compared here
+    # is the value written there.
+    expected_event = normalize_event_id(expected.get("event_id"))
+    actual_event = normalize_event_id(actual.get("event_id"))
+    # A blank id is an absence, not a disagreement: ``_identity_errors`` already
+    # names it, and repeating it here would bury the finding this exists for.
     if (
         isinstance(expected_event, str)
         and isinstance(actual_event, str)
         and expected_event.strip()
         and actual_event.strip()
-        and expected_event.strip() != actual_event.strip()
+        and expected_event != actual_event
     ):
         errors.append(
-            f"{label}.event_id is {actual_event.strip()!r} but the same game_pk is "
-            f"{expected_event.strip()!r}; one of these records is about a different "
+            f"{label}.event_id is {actual_event!r} but the same game_pk is "
+            f"{expected_event!r}; one of these records is about a different "
             "game — matching game_pk alone does not make them the same game"
         )
 

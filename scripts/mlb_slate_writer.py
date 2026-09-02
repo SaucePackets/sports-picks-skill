@@ -322,6 +322,25 @@ def draft_errors(draft: Any, day: str) -> list[str]:
     return errors
 
 
+def _canonical_event_ids(entry: Any) -> Any:
+    """One record with its ``event_id`` in the form the validator compares."""
+    if not isinstance(entry, dict) or "event_id" not in entry:
+        return entry
+    canonical = dict(entry)
+    canonical["event_id"] = mlb_game_reads.normalize_event_id(entry["event_id"])
+    return canonical
+
+
+def _canonical_denominator(denominator: Any) -> Any:
+    if not isinstance(denominator, dict) or not isinstance(
+        denominator.get("games"), list
+    ):
+        return denominator
+    canonical = dict(denominator)
+    canonical["games"] = [_canonical_event_ids(game) for game in denominator["games"]]
+    return canonical
+
+
 def compose(draft: dict[str, Any], denominator: dict[str, Any]) -> dict[str, Any]:
     """The schedule that will be validated, and if it validates, written.
 
@@ -330,6 +349,13 @@ def compose(draft: dict[str, Any], denominator: dict[str, Any]) -> dict[str, Any
     place that can guarantee the value validated is the value written — the
     property that was missing when ``draft_errors`` compared ``date.strip()``
     and this function copied the draft verbatim.
+
+    ``event_id`` is canonicalised here for exactly the same reason, one field
+    over: ``identity_agreement_errors`` compares the two ids stripped, so
+    ``" 401 "`` agrees with ``"401"`` and then lands padded — and the id is an
+    address (``mlb_lineup_watchlist`` builds a URL from it), so the padded form
+    is not cosmetic. Both halves of the record are canonicalised, the reads and
+    the denominator, because the padding can arrive from either side.
     """
     schedule = dict(draft)
     if "date" in schedule:
@@ -343,7 +369,11 @@ def compose(draft: dict[str, Any], denominator: dict[str, Any]) -> dict[str, Any
             # typed. A draft with no ``date`` at all keeps not having one, for
             # the same reason.
             pass
-    schedule["slate_denominator"] = denominator
+    if isinstance(schedule.get("game_reads"), list):
+        schedule["game_reads"] = [
+            _canonical_event_ids(entry) for entry in schedule["game_reads"]
+        ]
+    schedule["slate_denominator"] = _canonical_denominator(denominator)
     schedule.setdefault("candidates", [])
     schedule.setdefault("lineup_watchlist", [])
     return schedule
