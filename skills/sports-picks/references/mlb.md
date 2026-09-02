@@ -349,6 +349,23 @@ read produces a row that scores one club's handicap against the other club's
 result — clean-looking, counted, and invisible afterwards — so the dataset
 builder refuses a read whose sides are crossed relative to the final.
 
+The schedule validator asks the same question one step earlier, at the schedule
+itself. A read is matched to its scheduled game by `game_pk`, and the matched
+pair then has to agree: the `event_id` must be the one the denominator (and the
+scan behind it) carries, and the two clubs must not be the other way round.
+Copying a read from the game above it and editing only the `game_pk` used to
+pass — most easily on a doubleheader, whose two games share a date and both
+clubs — and it produced well-formed numbers about a different game. The club
+names are checked only for *crossing*, never for spelling, so writing `ATL`
+where the scan wrote `Atlanta Braves` is fine; putting the away club in the
+`home` slot is not.
+
+The slate date is canonicalised before it is persisted: exactly `YYYY-MM-DD`, a
+real day on the calendar, whitespace stripped. The date is the record's
+address, so a value that validates in one spelling and is written in another
+files the schedule where the receipt and the gate will not look. `--day
+2026-9-1` and `--day 2026-02-30` are usage errors, not landings.
+
 This is what makes the model gate answerable. `mlb_probability_model.py
 dataset` has only ever been able to read `picks.json` — settled, executed
 picks — so a model could not deploy without out-of-sample evidence, evidence

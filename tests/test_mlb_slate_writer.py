@@ -855,6 +855,128 @@ class PostflightUnchangedTests(WriterTestCase):
         self.assertEqual(receipt["scheduled_games"], 15)
 
 
+class SlateDateTests(WriterTestCase):
+    """The value that validates must be the value that persists.
+
+    The day is the record's address: the schedule filename, the scan
+    artifact's conventional path and every later job's lookup are derived from
+    it. ``draft_errors`` compared ``date.strip()`` against the day and
+    ``compose`` copied the draft verbatim, so a padded date passed on its
+    stripped form and was written with the padding intact — a schedule that
+    validates and is then filed where nothing looks for it.
+    """
+
+    def test_a_padded_draft_date_persists_canonical(self):
+        rows = [scan_row(823509)]
+        self.write_scan(rows)
+        draft = draft_for(rows, date=f"  {DAY}\n")
+
+        path, schedule = mlb_slate_writer.land(self.root, DAY, draft)
+
+        self.assertEqual(schedule["date"], DAY)
+        # Read back off disk: the in-memory return value agreeing is not the
+        # claim — the persisted record is.
+        self.assertEqual(json.loads(path.read_text())["date"], DAY)
+        # And the canonical record is the one the gate reads.
+        self.assertEqual(
+            mlb_game_reads.validate_with_denominator(path, json.loads(path.read_text())),
+            [],
+        )
+
+    def test_the_draft_is_not_mutated_by_landing_it(self):
+        rows = [scan_row(823509)]
+        self.write_scan(rows)
+        draft = draft_for(rows, date=f" {DAY} ")
+
+        mlb_slate_writer.land(self.root, DAY, draft)
+
+        self.assertEqual(draft["date"], f" {DAY} ")
+
+    def test_a_padded_day_still_addresses_the_canonical_path(self):
+        """Normalising the draft alone would leave the FILENAME padded."""
+        rows = [scan_row(823509)]
+        self.write_scan(rows)
+
+        path, schedule = mlb_slate_writer.land(self.root, f" {DAY} ", draft_for(rows))
+
+        self.assertEqual(path, self.schedule_path())
+        self.assertEqual(schedule["date"], DAY)
+
+    def test_a_date_that_is_not_a_real_day_is_refused(self):
+        """Shape is not enough: ``2026-02-30`` matches ``YYYY-MM-DD``.
+
+        A schedule filed under a day that cannot occur is unreachable rather
+        than merely odd — nothing will ever ask for it.
+        """
+        rows = [scan_row(823509)]
+        self.write_scan(rows)
+        draft = draft_for(rows, date="2026-02-30")
+
+        errors = mlb_slate_writer.draft_errors(draft, "2026-02-30")
+
+        self.assertTrue(
+            any("not a real calendar date" in error for error in errors), errors
+        )
+
+    def test_an_unpadded_shape_variant_is_refused_rather_than_guessed(self):
+        rows = [scan_row(823509)]
+        self.write_scan(rows)
+
+        for spelling in ("2026-9-1", "20260901", "09/01/2026", "2026-09-01T00:00:00Z"):
+            with self.subTest(spelling=spelling):
+                errors = mlb_slate_writer.draft_errors(
+                    draft_for(rows, date=spelling), DAY
+                )
+                self.assertTrue(
+                    any("is not a YYYY-MM-DD date" in error for error in errors), errors
+                )
+
+    def test_the_accepted_vocabulary_does_not_move_with_the_interpreter(self):
+        """Spelled out rather than delegated to ``date.fromisoformat``.
+
+        That function's accepted set has grown across Python versions (3.11
+        began taking ``"20260901"``), and a normaliser whose input vocabulary
+        depends on the interpreter is not a canonical form.
+        """
+        self.assertEqual(mlb_slate_writer.normalize_slate_date(f" {DAY} "), DAY)
+        for rejected in ("20260901", "2026-9-01", "2026-09-1", "", "  ", None, 20260901):
+            with self.subTest(rejected=rejected):
+                with self.assertRaises(ValueError):
+                    mlb_slate_writer.normalize_slate_date(rejected)
+
+    def test_a_wrong_but_well_formed_date_is_still_refused(self):
+        """Normalising is not accepting: the day being landed still decides."""
+        rows = [scan_row(823509)]
+        self.write_scan(rows)
+
+        errors = mlb_slate_writer.draft_errors(draft_for(rows, date="2026-09-02"), DAY)
+
+        self.assertIn(
+            f"draft.date is '2026-09-02' but the day being landed is {DAY!r}; "
+            "a schedule filed under the wrong date is invisible to every later job",
+            errors,
+        )
+
+    def test_the_skeleton_carries_the_canonical_date(self):
+        """The stub the producer fills in must pass the check it was made for."""
+        rows = [scan_row(823509)]
+        self.write_scan(rows)
+
+        draft = mlb_slate_writer.skeleton(self.root, f"{DAY} ")
+
+        self.assertEqual(draft["date"], DAY)
+
+    def test_landing_an_unusable_day_writes_nothing(self):
+        rows = [scan_row(823509)]
+        self.write_scan(rows)
+
+        with self.assertRaises(mlb_slate_writer.SlateWriteError):
+            mlb_slate_writer.land(self.root, "2026-02-30", draft_for(rows))
+
+        self.assertFalse(self.schedule_path().exists())
+        self.assertEqual(list((self.root / ".picks" / "execute").iterdir()), [])
+
+
 class CliTests(WriterTestCase):
     def test_skeleton_writes_the_draft_and_refuses_to_clobber_it(self):
         rows = [scan_row(823509)]
@@ -895,6 +1017,49 @@ class CliTests(WriterTestCase):
             1,
         )
         self.assertFalse(self.schedule_path().exists())
+
+    def test_a_malformed_day_is_a_usage_error_not_a_finding(self):
+        """Every path below ``--day`` is built from it.
+
+        There is no day whose record could be reported on, so this exits as a
+        usage error rather than printing a landing verdict about a slate that
+        has no address.
+        """
+        rows = [scan_row(823509)]
+        self.write_scan(rows)
+        draft_path = self.root / "draft.json"
+        draft_path.write_text(json.dumps(draft_for(rows)), encoding="utf-8")
+
+        for spelling in (" ", "2026-02-30", "20260901"):
+            with self.subTest(spelling=spelling):
+                with self.assertRaises(SystemExit) as caught:
+                    mlb_slate_writer.main(
+                        [
+                            "--land",
+                            str(draft_path),
+                            "--day",
+                            spelling,
+                            "--root",
+                            str(self.root),
+                        ]
+                    )
+                self.assertEqual(caught.exception.code, 2)
+
+    def test_a_padded_day_lands_at_the_canonical_path(self):
+        rows = [scan_row(823509)]
+        self.write_scan(rows)
+        draft_path = self.root / "draft.json"
+        draft_path.write_text(json.dumps(draft_for(rows)), encoding="utf-8")
+
+        self.assertEqual(
+            mlb_slate_writer.main(
+                ["--land", str(draft_path), "--day", f" {DAY} ", "--root", str(self.root)]
+            ),
+            0,
+        )
+
+        self.assertTrue(self.schedule_path().exists())
+        self.assertEqual(json.loads(self.schedule_path().read_text())["date"], DAY)
 
     def test_a_mode_is_required(self):
         with self.assertRaises(SystemExit):

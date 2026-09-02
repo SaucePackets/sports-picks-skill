@@ -36,6 +36,15 @@ for the game MLB calls ``824876``. Anything joining the two on one id gets
 silence that reads as missing data, which is how the drought diagnostic found
 it. A read carries both, and validation requires both.
 
+**An id matches records; it does not corroborate them.** Every join here keys
+on ``game_pk``, and for a long time that was the whole of it: a read whose
+``game_pk`` matched was counted as the read for that game, whatever else it
+said. Both sides of every one of those joins also carry an ``event_id`` and the
+two club names, checked for shape and never against each other — so a read
+copied off the wrong game, or a doubleheader's two cards filled in against each
+other, joined cleanly and passed. ``identity_agreement_errors`` closes that: the
+id selects the pair, and the pair then has to agree.
+
 **A missing number must say why.** A numeric field may be absent only when
 ``unavailable`` carries a non-empty reason for it. ``null`` with no reason is
 an error, because "no price" and "a price nobody recorded" are different facts
@@ -171,6 +180,90 @@ def _identity_errors(label: str, entry: dict[str, Any]) -> list[str]:
         value = entry.get(field)
         if not isinstance(value, str) or not value.strip():
             errors.append(f"{label}.{field} must be a non-empty string")
+    return errors
+
+
+def _normalized_name(value: Any) -> str | None:
+    """A club name reduced to what two vocabularies can be compared on.
+
+    Case and internal whitespace only. Nothing here tries to map ``NYM`` onto
+    ``New York Mets``: the comparison this feeds is a *crossing* test, and a
+    normalisation that silently failed to match would make that test pass for
+    every row — a check indistinguishable from having no check at all.
+    """
+    if not isinstance(value, str):
+        return None
+    collapsed = " ".join(value.split()).casefold()
+    return collapsed or None
+
+
+def identity_agreement_errors(
+    label: str, expected: dict[str, Any], actual: dict[str, Any]
+) -> list[str]:
+    """Two records already matched on ``game_pk`` must agree on the rest.
+
+    ``game_pk`` is a *disambiguator*, not a corroboration. Every join in this
+    module keys on it alone, and both sides of every one of those joins also
+    carry an ``event_id`` and the two club names — shape-checked individually by
+    ``_identity_errors`` and until now never compared to each other. A read
+    copied from the wrong game, or a doubleheader's two cards filled in against
+    each other, joins cleanly on an edited ``game_pk`` and is counted as
+    coverage. Nothing downstream can see it: the probabilities are well-formed,
+    they are simply about another game.
+
+    The two rules are deliberately different strengths, because the two fields
+    are different kinds of thing:
+
+    - ``event_id`` must AGREE. It is an opaque ESPN id with exactly one source
+      — the scan — travelling by copy. There is no honest reason for two
+      records about one game to carry different ones.
+    - ``away``/``home`` are checked for CROSSING, not equality. The names may be
+      written in different vocabularies (``NYM`` against ``New York Mets``) and
+      no corpus exists yet to measure how often, so demanding equality would
+      refuse honest rows for cosmetic drift. A crossed pair is the failure that
+      changes what a read MEANS — every probability on it lands on the other
+      club — and it is visible without resolving either vocabulary.
+
+    Fields the two records do not both carry are skipped here; their absence is
+    already reported by ``_identity_errors``, and repeating it would bury the
+    disagreement this function exists to name.
+    """
+    errors: list[str] = []
+    expected_event = expected.get("event_id")
+    actual_event = actual.get("event_id")
+    if (
+        isinstance(expected_event, str)
+        and isinstance(actual_event, str)
+        and expected_event.strip()
+        and actual_event.strip()
+        and expected_event.strip() != actual_event.strip()
+    ):
+        errors.append(
+            f"{label}.event_id is {actual_event.strip()!r} but the same game_pk is "
+            f"{expected_event.strip()!r}; one of these records is about a different "
+            "game — matching game_pk alone does not make them the same game"
+        )
+
+    expected_away = _normalized_name(expected.get("away"))
+    expected_home = _normalized_name(expected.get("home"))
+    actual_away = _normalized_name(actual.get("away"))
+    actual_home = _normalized_name(actual.get("home"))
+    # A pair that cannot tell its own sides apart cannot witness a crossing:
+    # against ``away == home`` every row reads as swapped. That record is
+    # already broken and says so elsewhere.
+    if None not in (expected_away, expected_home, actual_away, actual_home) and (
+        expected_away != expected_home
+    ):
+        # Either side crossed is the same backwards row. Requiring both to cross
+        # would let a half-transposed record through, and a read with the away
+        # club in the home slot is exactly as wrong as one with both.
+        if actual_away == expected_home or actual_home == expected_away:
+            errors.append(
+                f"{label} has away/home transposed against the same game_pk "
+                f"(recorded {actual.get('away')!r} at {actual.get('home')!r}, "
+                f"the game is {expected.get('away')!r} at {expected.get('home')!r}); "
+                "every per-side number on this record is on the wrong club"
+            )
     return errors
 
 
@@ -408,13 +501,19 @@ def _denominator_errors(schedule: dict[str, Any]) -> list[str]:
 
 
 def coverage_errors(schedule: dict[str, Any]) -> list[str]:
-    """One read per scheduled game, keyed on ``game_pk``, in both directions.
+    """One read per scheduled game, matched on ``game_pk`` and then corroborated.
 
-    Both directions matter and for different reasons. A game in the
-    denominator with no read is the terse-writeup failure this module exists
-    to stop. A read for a game NOT in the denominator means the read set and
-    the schedule disagree about what was played, which is the id-space defect
-    showing up as a phantom row.
+    Both directions of the count matter and for different reasons. A game in
+    the denominator with no read is the terse-writeup failure this module
+    exists to stop. A read for a game NOT in the denominator means the read set
+    and the schedule disagree about what was played, which is the id-space
+    defect showing up as a phantom row.
+
+    Counting is not the whole job. ``game_pk`` decides WHICH denominator entry
+    a read is about; it does not establish that the read is about that game.
+    Each matched pair is put through ``identity_agreement_errors`` so a read
+    carrying another game's ``event_id`` or the two clubs the wrong way round
+    is named rather than counted as coverage.
     """
     errors = _denominator_errors(schedule)
     reads = schedule.get("game_reads")
@@ -422,9 +521,11 @@ def coverage_errors(schedule: dict[str, Any]) -> list[str]:
         return errors + ["game_reads must be a list"]
 
     expected: list[int] = []
+    expected_by_pk: dict[int, dict[str, Any]] = {}
     for game in denominator_games(schedule):
         if isinstance(game, dict) and isinstance(game.get("game_pk"), int):
             expected.append(game["game_pk"])
+            expected_by_pk.setdefault(game["game_pk"], game)
     seen: dict[int, int] = {}
     for entry in reads:
         if isinstance(entry, dict) and isinstance(entry.get("game_pk"), int):
@@ -438,6 +539,25 @@ def coverage_errors(schedule: dict[str, Any]) -> list[str]:
             errors.append(f"game_reads entry {game_pk} is not in slate_denominator")
         if count > 1:
             errors.append(f"game_reads has {count} entries for game {game_pk}")
+    # A ``game_pk`` the denominator lists twice cannot say which of its entries
+    # a read agrees with, so the corroboration below would be answering an
+    # arbitrary question. Ambiguity in the join is itself the defect.
+    for game_pk in sorted({pk for pk in expected if expected.count(pk) > 1}):
+        errors.append(
+            f"slate_denominator lists game {game_pk} more than once; a join on "
+            "game_pk cannot say which entry a read belongs to"
+        )
+
+    for index, entry in enumerate(reads):
+        # ``isinstance`` and not a bare ``.get``: a read whose ``game_pk`` is a
+        # list is unhashable and would raise here rather than be reported.
+        if not isinstance(entry, dict) or not isinstance(entry.get("game_pk"), int):
+            continue
+        game = expected_by_pk.get(entry["game_pk"])
+        if isinstance(game, dict):
+            errors.extend(
+                identity_agreement_errors(f"game_reads[{index}]", game, entry)
+            )
     return errors
 
 
@@ -513,6 +633,24 @@ def scan_denominator_errors(schedule: dict[str, Any], scan_rows: Any) -> list[st
         errors.append(f"scan lists game {game_pk} but slate_denominator does not")
     for game_pk in sorted(recorded - scanned):
         errors.append(f"slate_denominator lists game {game_pk} but the scan does not")
+    # The same join, the same weakness: two sets of ``game_pk`` agreeing says
+    # the rosters are the same SIZE and carry the same ids, not that the entry
+    # under an id describes the game the scan found under it. The scan is the
+    # independent copy, so it is the expected side.
+    scanned_rows: dict[int, dict[str, Any]] = {}
+    for row in scan_rows:
+        if isinstance(row, dict) and isinstance(row.get("game_pk"), int):
+            scanned_rows.setdefault(row["game_pk"], row)
+    for game in denominator_games(schedule):
+        if not isinstance(game, dict) or not isinstance(game.get("game_pk"), int):
+            continue
+        row = scanned_rows.get(game["game_pk"])
+        if row is not None:
+            errors.extend(
+                identity_agreement_errors(
+                    f"slate_denominator game {game['game_pk']}", row, game
+                )
+            )
     if unresolved:
         errors.append(
             f"{len(unresolved)} scan row(s) carry no game_pk; the denominator cannot be "

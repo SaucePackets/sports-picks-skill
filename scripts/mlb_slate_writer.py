@@ -33,6 +33,14 @@ half:
   and the receipt call, not a second opinion — and nothing is written unless
   both come back empty. The write itself is atomic, so a refused landing leaves
   the previous schedule byte-identical rather than half-replaced.
+- **The date is canonical before it is persisted.** The day is the record's
+  address — the schedule filename, the scan artifact's conventional path and
+  every later job's lookup key are all derived from it — so a value that
+  validates in one spelling and is written in another files the schedule where
+  nothing will look for it. ``draft_errors`` compared ``date.strip()`` against
+  the day and ``compose`` copied the draft verbatim, so ``" 2026-09-01 "``
+  passed on its stripped form and landed with the padding. One
+  ``normalize_slate_date`` now decides the value at every boundary that has one.
 - ``--skeleton`` emits the draft **from the scan**: one stub per scanned game
   carrying both id spaces, the team names and the DK fair prior the scan already
   computed. Enumerating the slate was the producer's job and the omission it got
@@ -57,6 +65,7 @@ import argparse
 import datetime as dt
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -78,6 +87,9 @@ from mlb_slate_receipt import schedule_path_for  # noqa: E402
 from mlb_stage2_scan import denominator_output_path, resolve_scan_root  # noqa: E402
 
 DENOMINATOR_SOURCE = "mlb_stage2_scan"
+
+# The only accepted spelling of a slate day. See ``normalize_slate_date``.
+DATE_SHAPE = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 # Fields the scan carries per game that the denominator records verbatim. Both
 # id spaces, always — an ESPN ``event_id`` and an MLB ``game_pk`` are different
@@ -108,6 +120,39 @@ class SlateWriteError(Exception):
     def __init__(self, errors: list[str]) -> None:
         self.errors = list(errors)
         super().__init__("; ".join(self.errors))
+
+
+def normalize_slate_date(value: Any) -> str:
+    """The one canonical spelling of a slate day, or ``ValueError``.
+
+    The day is not a label on the record; it is the record's address. The
+    receipt derives the schedule filename from it, ``mlb_game_reads`` resolves
+    the scan artifact by convention from it, and the gate finds the day's work
+    by it. So a value that VALIDATES in one spelling and PERSISTS in another
+    files the schedule where the next job will not look — which is the failure
+    ``draft.date`` already had: ``draft_errors`` compared ``date.strip()``
+    against the day and ``compose`` copied the draft verbatim, so
+    ``" 2026-09-01 "`` passed on its stripped form and was written with the
+    padding intact.
+
+    Deterministic, and spelled out rather than delegated to
+    ``date.fromisoformat``: that function's accepted set has grown across
+    Python versions (3.11 took ``"20260901"``), and a normaliser whose input
+    vocabulary depends on the interpreter is not a canonical form. Exactly
+    ``YYYY-MM-DD``, whitespace-stripped, and a real day on the calendar —
+    ``2026-02-30`` matches the shape and is not a date, and a schedule filed
+    under it is unreachable rather than wrong-looking.
+    """
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("must be a non-empty YYYY-MM-DD string")
+    text = value.strip()
+    if not DATE_SHAPE.fullmatch(text):
+        raise ValueError(f"{text!r} is not a YYYY-MM-DD date")
+    year, month, day = (int(part) for part in text.split("-"))
+    try:
+        return dt.date(year, month, day).isoformat()
+    except ValueError as exc:
+        raise ValueError(f"{text!r} is not a real calendar date ({exc})") from exc
 
 
 def utc_iso(moment: dt.datetime) -> str:
@@ -248,14 +293,20 @@ def draft_errors(draft: Any, day: str) -> list[str]:
     if not isinstance(draft, dict):
         return ["draft must be a JSON object"]
     errors: list[str] = []
-    date = draft.get("date")
-    if not isinstance(date, str) or not date.strip():
-        errors.append("draft.date must be a non-empty YYYY-MM-DD string")
-    elif date.strip() != day:
-        errors.append(
-            f"draft.date is {date!r} but the day being landed is {day!r}; "
-            "a schedule filed under the wrong date is invisible to every later job"
-        )
+    # Normalise first, then compare the normal forms. Comparing a stripped value
+    # and persisting an unstripped one is the defect; comparing two canonical
+    # forms means a draft that passes here is a draft ``compose`` can write
+    # unchanged.
+    try:
+        date = normalize_slate_date(draft.get("date"))
+    except ValueError as exc:
+        errors.append(f"draft.date {exc}")
+    else:
+        if date != day:
+            errors.append(
+                f"draft.date is {date!r} but the day being landed is {day!r}; "
+                "a schedule filed under the wrong date is invisible to every later job"
+            )
     sport = draft.get("sport")
     if sport != "MLB":
         errors.append(f"draft.sport must be 'MLB', got {sport!r}")
@@ -272,8 +323,26 @@ def draft_errors(draft: Any, day: str) -> list[str]:
 
 
 def compose(draft: dict[str, Any], denominator: dict[str, Any]) -> dict[str, Any]:
-    """The schedule that will be validated, and if it validates, written."""
+    """The schedule that will be validated, and if it validates, written.
+
+    The composed record carries the CANONICAL date, not the draft's spelling of
+    it. This is the only place the persisted value is decided, so it is the only
+    place that can guarantee the value validated is the value written — the
+    property that was missing when ``draft_errors`` compared ``date.strip()``
+    and this function copied the draft verbatim.
+    """
     schedule = dict(draft)
+    if "date" in schedule:
+        try:
+            schedule["date"] = normalize_slate_date(schedule["date"])
+        except ValueError:
+            # Unnormalisable dates are refused by ``draft_errors``, whose
+            # findings are raised before anything is written. Carrying the value
+            # through verbatim keeps that refusal about the string the producer
+            # actually wrote; inventing one here would report a date nobody
+            # typed. A draft with no ``date`` at all keeps not having one, for
+            # the same reason.
+            pass
     schedule["slate_denominator"] = denominator
     schedule.setdefault("candidates", [])
     schedule.setdefault("lineup_watchlist", [])
@@ -365,6 +434,14 @@ def land(root: Path, day: str, draft: Any) -> tuple[Path, dict[str, Any]]:
 
     Returns the schedule path and the schedule that was written.
     """
+    # The day names three files (the schedule, the scan artifact, the draft) and
+    # is persisted as ``date``. Canonicalising it once, here, is what makes those
+    # four uses provably the same string; normalising the draft alone would leave
+    # a padded ``--day`` writing ``.picks/execute/ 2026-09-01 -schedule.json``.
+    try:
+        day = normalize_slate_date(day)
+    except ValueError as exc:
+        raise SlateWriteError([f"day {exc}"]) from exc
     schedule_path = schedule_path_for(root, day)
     scan_path = denominator_output_path(day, root)
 
@@ -400,6 +477,13 @@ def skeleton(root: Path, day: str) -> dict[str, Any]:
     doing by hand is *enumerating the slate* and copying ids across id spaces,
     which is the part that silently went missing on 2026-09-01.
     """
+    # Canonical here for the same reason as in ``land``: the stub the producer
+    # fills in carries this string as ``date``, and a draft that arrives padded
+    # is a draft that fails the landing check it was generated to pass.
+    try:
+        day = normalize_slate_date(day)
+    except ValueError as exc:
+        raise SlateWriteError([f"day {exc}"]) from exc
     scan_path = denominator_output_path(day, root)
     rows = load_scan(scan_path)
     reads: list[dict[str, Any]] = []
@@ -452,7 +536,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     root = (args.root or resolve_scan_root()).resolve()
-    day = args.day or dt.date.today().isoformat()
+    # A malformed ``--day`` is a usage error and not a finding about the slate:
+    # every path below is built from it, so there is no day whose record could
+    # be reported on.
+    try:
+        day = normalize_slate_date(args.day or dt.date.today().isoformat())
+    except ValueError as exc:
+        parser.error(f"--day {exc}")
 
     if args.skeleton:
         destination = args.out or default_draft_path(root, day)
