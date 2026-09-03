@@ -621,10 +621,15 @@ class TheDocPromisesOnlyRailsThatExistTests(unittest.TestCase):
 
 
 class PolicyIsLoadedNotRestatedTests(unittest.TestCase):
-    def test_the_price_rail_reads_the_shared_policy_module(self):
-        # Consultation, not equality: rebind the loader's answer and the
-        # validator's must follow. An assertEqual against 0.05 would be
-        # satisfied by a hard-coded constant.
+    def test_a_policy_the_loader_could_not_supply_makes_the_rail_uncheckable(self):
+        # Named for what it proves. It patches the loader and then hands the
+        # loader's own answer back in as the argument, so it reduces to
+        # `policy_disposition_errors(entry, None)` — a second spelling of the
+        # no-policy case above, not a consultation pin. The rail takes the floor
+        # as a parameter; it cannot read the module, so consultation can only be
+        # observed at a CALL SITE. That pin is
+        # `test_the_gate_loads_the_policy_rather_than_passing_none` in
+        # ThePriceRailIsLoadBearingAtEveryBoundaryTests below.
         entry = read()  # home edge 0.045
         with mock.patch.object(
             mlb_runtime_policy, "load_mlb_selection_policy", return_value=None
@@ -643,6 +648,247 @@ class PolicyIsLoadedNotRestatedTests(unittest.TestCase):
         # failed closed — which is the state this whole lane was opened over.
         self.assertIsNotNone(policy())
         self.assertEqual(policy().min_conservative_edge, FLOOR)
+
+
+class ThePriceRailIsLoadBearingAtEveryBoundaryTests(unittest.TestCase):
+    """The rail is correct. These are about whether anything would notice it go.
+
+    Reviewer, round 1: ``policy_disposition_errors`` is enforced at four call
+    sites and deleting it from any one of them left the whole suite green.
+    Every boundary fixture in the repo makes the rail a no-op — the gate's names
+    no rails at all, the writer's names ``price_discipline`` with a home edge of
+    0.045 under a 0.05 floor — so the rail fired in unit tests calling it
+    directly and nowhere a caller actually stands. That is this lane's own
+    thesis one level up: a check that exists, reads correctly, and is never
+    reached. Same shape as PR #77 blocker 2, where deleting a whole report site
+    left the suite byte-identical.
+
+    Every case below turns on ONE pair of records that differ in a single input
+    and straddle the deployed floor, and the first test proves that premise
+    rather than assuming it: both are otherwise valid reads, so nothing except
+    the price rail can tell them apart. Each boundary is asserted in BOTH
+    directions, because a boundary that refuses the offending record is only
+    half the claim — a site that refused everything would satisfy it too, and
+    the accepting half is what makes the gate's ``load_mlb_selection_policy()``
+    argument load-bearing rather than an assertion in a comment.
+    """
+
+    GAME_PK = 823509
+
+    def setUp(self):
+        from scripts import mlb_slate_receipt
+        from scripts import mlb_slate_writer
+        from scripts import vig_review_gate_common
+
+        self.receipt_mod = mlb_slate_receipt
+        self.writer = mlb_slate_writer
+        self.gate = vig_review_gate_common
+        self.stack = contextlib.ExitStack()
+        self.addCleanup(self.stack.close)
+        self.root = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
+        (self.root / ".picks" / "execute").mkdir(parents=True)
+        (self.root / ".picks" / "tmp").mkdir(parents=True)
+        original = self.gate.ROOT
+        self.gate.ROOT = self.root
+        self.addCleanup(lambda: setattr(self.gate, "ROOT", original))
+        # The gate reads today's schedule and cannot be told a different day,
+        # so every boundary here shares the day the gate would look for.
+        self.day = self.gate.schedule_day_now()
+        self.stack.enter_context(vig_policy_state.deployed_policy(self.root / "state"))
+        self.scan_path = self.root / ".picks" / "tmp" / f"stage2-{self.day}.json"
+
+    # --- the one pair of records every case turns on
+
+    def _read(self, *, clearing):
+        """The same read twice: an honest price refusal, and one that is not.
+
+        ``read()`` recomputes ``net_edge`` from the ask it is handed, so moving
+        the home ask moves the edge with it and the record stays internally
+        coherent — which is the point. A record that ALSO tripped the net_edge
+        rail would be refused everywhere for a second reason and prove nothing
+        about the floor.
+        """
+        return read(
+            self.GAME_PK,
+            polymarket_ask={"away": 0.460, "home": 0.500 if clearing else 0.545},
+        )
+
+    def _draft(self, *, clearing):
+        return {
+            "date": self.day,
+            "sport": "MLB",
+            "market_type": "moneyline",
+            "candidates": [],
+            "lineup_watchlist": [],
+            "game_reads": [self._read(clearing=clearing)],
+        }
+
+    def _write_scan(self):
+        entry = self._read(clearing=False)
+        rows = [{key: entry[key] for key in ("game_pk", "event_id", "away", "home")}]
+        self.scan_path.write_text(json.dumps(rows), encoding="utf-8")
+
+    def _landed(self, *, clearing):
+        """A schedule the writer itself certified, then moved one number.
+
+        The offending schedule is NOT hand-written. Composing it here would risk
+        it being refused downstream for some defect I introduced, and the test
+        would pass with the price rail deleted. Landing the honest draft first
+        means the file the gate, the receipt and the CLI are handed differs from
+        a record ``land()`` accepted in exactly the home ask and the edge that
+        follows from it.
+        """
+        self._write_scan()
+        path, schedule = self.writer.land(
+            self.root, self.day, self._draft(clearing=False)
+        )
+        if clearing:
+            entry = dict(schedule["game_reads"][0])
+            entry["polymarket_ask"] = {"away": 0.460, "home": 0.500}
+            entry["net_edge"] = {"away": -0.080, "home": 0.090}
+            schedule["game_reads"] = [entry]
+            path.write_text(json.dumps(schedule), encoding="utf-8")
+        return path, schedule
+
+    def _run_gate(self):
+        out = io.StringIO()
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(
+                mock.patch.object(
+                    self.gate, "standing_authorization_enabled", return_value=True
+                )
+            )
+            stack.enter_context(contextlib.redirect_stdout(out))
+            status = self.gate.run_gate("MLB")
+        return status, out.getvalue()
+
+    def _records(self):
+        records, _errors = vig_run_journal.read_records(
+            vig_run_journal.journal_path(self.root, self.day)
+        )
+        return records
+
+    def _names_the_rail(self, errors):
+        return [
+            error
+            for error in errors
+            if mlb_game_reads.PRICE_RAIL in error and "home" in error
+        ]
+
+    # --- the premise, asserted rather than assumed
+
+    def test_the_pair_differs_in_one_input_and_straddles_the_floor(self):
+        honest, clearing = self._read(clearing=False), self._read(clearing=True)
+        moved = ("polymarket_ask", "net_edge")
+        self.assertEqual(
+            {key: value for key, value in honest.items() if key not in moved},
+            {key: value for key, value in clearing.items() if key not in moved},
+        )
+        self.assertIn(mlb_game_reads.PRICE_RAIL, honest["refusing_rails"])
+        self.assertIn(mlb_game_reads.PRICE_RAIL, clearing["refusing_rails"])
+        self.assertLess(mlb_game_reads.side_edges(honest)["home"], FLOOR)
+        self.assertGreaterEqual(mlb_game_reads.side_edges(clearing)["home"], FLOOR)
+        # The load-bearing half: BOTH records pass every rail that does not need
+        # the policy. So a boundary that refuses the clearing one is refusing it
+        # for the floor and nothing else, and a boundary that accepts the honest
+        # one has actually applied a floor rather than skipped the rail.
+        self.assertEqual(mlb_game_reads.validate_read(honest, 0), [])
+        self.assertEqual(mlb_game_reads.validate_read(clearing, 0), [])
+
+    # --- boundary 1: the producer
+
+    def test_land_refuses_a_clearing_price_discipline_read(self):
+        path, _schedule = self._landed(clearing=False)
+        before = path.read_bytes()
+
+        with self.assertRaises(self.writer.SlateWriteError) as caught:
+            self.writer.land(self.root, self.day, self._draft(clearing=True))
+
+        self.assertTrue(
+            self._names_the_rail(caught.exception.errors), caught.exception.errors
+        )
+        # Refused BEFORE anything was written: the previous day's record is the
+        # one artifact a failed landing must not damage.
+        self.assertEqual(path.read_bytes(), before)
+
+    def test_land_accepts_the_honest_price_discipline_read(self):
+        path, _schedule = self._landed(clearing=False)
+        self.assertTrue(path.exists())
+
+    # --- boundary 2: the scheduled gate
+
+    def test_the_gate_journals_a_clearing_price_discipline_read_as_recorder_failed(self):
+        self._landed(clearing=True)
+
+        status, _output = self._run_gate()
+
+        records = self._records()
+        self.assertEqual(
+            [record["outcome"] for record in records],
+            [vig_run_journal.OUTCOME_RECORDER_FAILED],
+        )
+        self.assertTrue(self._names_the_rail([records[0]["detail"]]), records[0])
+        # Exit code deliberately unchanged: a measurement defect must not take
+        # the reviewer offline (PR #77's design, unaltered here).
+        self.assertEqual(status, 0)
+
+    def test_the_gate_loads_the_policy_rather_than_passing_none(self):
+        # THE CONSULTATION PIN, and the only one in the suite. With no floor a
+        # `price_discipline` claim is UNCHECKABLE and the rail says so, so a
+        # gate that passed None would report this ordinary, honest day as a
+        # recorder failure. The offending case above cannot see that — it is
+        # refused either way, for two different reasons.
+        self._landed(clearing=False)
+
+        status, _output = self._run_gate()
+
+        self.assertEqual(
+            [record["outcome"] for record in self._records()],
+            [vig_run_journal.OUTCOME_NO_WORK],
+        )
+        self.assertEqual(status, 0)
+
+    # --- boundary 3: the receipt
+
+    def test_the_receipt_does_not_call_that_day_complete(self):
+        self._landed(clearing=True)
+
+        receipt = self.receipt_mod.build_receipt(self.root, self.day)
+
+        self.assertEqual(receipt["verdict"], self.receipt_mod.VERDICT_RECORDER_FAILED)
+        self.assertTrue(
+            self._names_the_rail(receipt["recorder_errors"]), receipt["recorder_errors"]
+        )
+
+    def test_the_receipt_still_calls_the_honest_day_complete(self):
+        self._landed(clearing=False)
+
+        receipt = self.receipt_mod.build_receipt(self.root, self.day)
+
+        self.assertEqual(receipt["verdict"], self.receipt_mod.VERDICT_COMPLETE)
+        self.assertEqual(receipt["recorder_errors"], [])
+
+    # --- boundary 4: the command an operator types
+
+    def test_the_cli_refuses_the_same_record_and_names_the_rail(self):
+        path, _schedule = self._landed(clearing=True)
+        out = io.StringIO()
+
+        with contextlib.redirect_stdout(out):
+            status = mlb_game_reads.main([str(path)])
+
+        payload = json.loads(out.getvalue())
+        self.assertEqual(status, 1)
+        self.assertTrue(self._names_the_rail(payload["errors"]), payload)
+
+    def test_the_cli_accepts_the_honest_record(self):
+        path, _schedule = self._landed(clearing=False)
+        out = io.StringIO()
+
+        with contextlib.redirect_stdout(out):
+            status = mlb_game_reads.main([str(path)])
+
+        self.assertEqual(status, 0, out.getvalue())
 
 
 if __name__ == "__main__":
