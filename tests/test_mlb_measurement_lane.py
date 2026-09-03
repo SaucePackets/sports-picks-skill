@@ -26,7 +26,7 @@ def read(game_pk=823509, **overrides):
         "uncertainty_haircut": 0.02,
         "conservative_probability": {"away": 0.380, "home": 0.590},
         "model_version": "vig-mlb-market-v1",
-        "net_edge": {"away": -0.080, "home": 0.035},
+        "net_edge": {"away": -0.080, "home": 0.045},
         "refusing_rails": ["price_discipline"],
     }
     entry.update(overrides)
@@ -273,6 +273,13 @@ class FidelityTests(unittest.TestCase):
         for field in lane.MODEL_TRAIL_FIELDS:
             del entry[field]
         entry["unavailable"] = {field: "never handicapped" for field in lane.MODEL_TRAIL_FIELDS}
+        # The edge goes with the handicap. `net_edge` is
+        # `conservative_probability - polymarket_ask`, so a read excusing the
+        # conservative probability and keeping the edge is claiming a
+        # subtraction it did not do — which the recorder now refuses. Before the
+        # coherence rail this fixture could hold both, and it did.
+        del entry["net_edge"]
+        entry["unavailable"]["net_edge"] = "never handicapped; nothing to subtract"
         entry["refusing_rails"] = ["no_dk_price"]
         row = rows_for(schedule(reads=[entry]))[0]
         self.assertEqual(row["fidelity"], "no_handicap")

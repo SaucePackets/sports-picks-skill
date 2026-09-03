@@ -19,6 +19,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import vig_policy_state
 from scripts import mlb_game_reads
 from scripts import mlb_lineup_watchlist
 from scripts import mlb_slate_receipt
@@ -56,7 +57,7 @@ def read_for(row, **overrides):
         "uncertainty_haircut": 0.02,
         "conservative_probability": {"away": 0.380, "home": 0.590},
         "model_version": "vig-mlb-market-v1",
-        "net_edge": {"away": -0.080, "home": 0.035},
+        "net_edge": {"away": -0.080, "home": 0.045},
         "refusing_rails": ["price_discipline"],
     }
     entry.update(overrides)
@@ -83,6 +84,17 @@ class WriterTestCase(unittest.TestCase):
         (self.root / ".picks" / "tmp").mkdir(parents=True)
         (self.root / ".picks" / "execute").mkdir(parents=True)
         self.addCleanup(self._tmp.cleanup)
+        # Landing loads the deployed selection policy — the same floor the gate
+        # will apply — so the fixture supplies one. Leaving it to the machine
+        # would mean a read naming `price_discipline` validated on a developer
+        # box with a live Vig state dir and failed on one without.
+        policy = vig_policy_state.deployed_policy(self.root / "state")
+        policy.__enter__()
+        self.addCleanup(policy.__exit__, None, None, None)
+
+    def policy(self):
+        """The floor the gate would load, from this test's own state dir."""
+        return vig_policy_state.loaded_policy(self.root / "state")
 
     def write_scan(self, rows):
         path = mlb_slate_writer.denominator_output_path(DAY, self.root)
@@ -107,7 +119,7 @@ class LandingTests(WriterTestCase):
         self.assertEqual(written, schedule)
         # The record it wrote passes the rail the scheduled gate runs. A landing
         # check that accepts what the gate rejects is worse than none.
-        self.assertEqual(mlb_game_reads.validate_with_denominator(path, written), [])
+        self.assertEqual(mlb_game_reads.validate_with_denominator(path, written, self.policy()), [])
 
     def test_the_denominator_is_built_from_the_scan_not_from_the_draft(self):
         rows = [scan_row(823509), scan_row(823510, away="New York Mets", home="Chicago Cubs")]
@@ -878,7 +890,7 @@ class IdentityCanonicalFormTests(WriterTestCase):
             written["slate_denominator"]["games"][0]["event_id"], "4018823509"
         )
         self.assertEqual(written, schedule)
-        self.assertEqual(mlb_game_reads.validate_with_denominator(path, written), [])
+        self.assertEqual(mlb_game_reads.validate_with_denominator(path, written, self.policy()), [])
 
     def test_a_crossing_written_in_another_vocabulary_lands_by_design(self):
         """The declared limit, at the boundary an operator actually uses.
@@ -935,7 +947,9 @@ class SlateDateTests(WriterTestCase):
         self.assertEqual(json.loads(path.read_text())["date"], DAY)
         # And the canonical record is the one the gate reads.
         self.assertEqual(
-            mlb_game_reads.validate_with_denominator(path, json.loads(path.read_text())),
+            mlb_game_reads.validate_with_denominator(
+                path, json.loads(path.read_text()), self.policy()
+            ),
             [],
         )
 

@@ -65,6 +65,7 @@ from vig_run_journal import (  # noqa: E402
     OUTCOME_ERROR,
     OUTCOME_NO_SCHEDULE,
     OUTCOME_NO_WORK,
+    OUTCOME_RECORDER_FAILED,
     OUTCOME_REVIEWED,
     SOURCE_LINEUP_FEED,
     SOURCE_PRICE_FEED,
@@ -1477,8 +1478,14 @@ def run_gate(sport: str) -> int:
         # PROFILE_MANIFEST and `mlb_slate_receipt` is not, so importing the
         # receipt here would pass every test in this repo and ImportError on
         # the runtime's profile-local copies.
+        #
+        # The policy is loaded and PASSED, not defaulted. `price_discipline` is
+        # the rail the slate refuses on most often and the only one whose truth
+        # depends on a number this repo does not hold; a validator that guessed
+        # the floor, or quietly skipped the rail when it could not find one,
+        # would report a clean record for a day whose refusals nobody checked.
         recorder_errors = mlb_game_reads.validate_with_denominator(
-            schedule_path, schedule
+            schedule_path, schedule, load_mlb_selection_policy()
         )
     if not candidates and not watchlist:
         # An explicit PASS: the slate was collected and produced nothing to
@@ -1495,7 +1502,12 @@ def run_gate(sport: str) -> int:
                 print(f"{sport} review gate NOTICE: {notice}")
             notices = notices + [notice]
             journal_gate_run(
-                sport, day, OUTCOME_NO_WORK, "recorder_missing",
+                # Not `no_work`. That word is what hid this on 2026-09-02: the
+                # gap was caught on forty-one cycles and every one of them
+                # journalled the outcome an honest empty card produces, so the
+                # only surface carrying the difference was `stage` — which
+                # nothing reads.
+                sport, day, OUTCOME_RECORDER_FAILED, "recorder_missing",
                 detail=(
                     "schedule present with no candidates and no due watchlist "
                     "entries, and its per-game record is invalid: "
