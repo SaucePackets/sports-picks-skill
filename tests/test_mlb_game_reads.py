@@ -519,6 +519,250 @@ class CoverageTests(unittest.TestCase):
         )
 
 
+class IdentityAgreementTests(unittest.TestCase):
+    """A matching ``game_pk`` selects the pair; it does not corroborate it.
+
+    Every one of this module's joins keyed on ``game_pk`` alone, and both sides
+    of each join carry an ``event_id`` and two club names that were never
+    compared. A read copied off the wrong game keeps well-formed probabilities
+    about a game nobody asked about, and it was counted as coverage.
+
+    Each refusal below states its premise first — the same payload with the one
+    field put right validates clean — so none of them can pass because the
+    fixture was broken in some other way.
+    """
+
+    def denominator_of(self, payload):
+        return payload["slate_denominator"]["games"]
+
+    def test_a_read_carrying_another_games_event_id_is_refused(self):
+        payload = schedule()
+        self.assertEqual(mlb_game_reads.validate_game_reads(payload), [])
+
+        payload["game_reads"][0]["event_id"] = "401999999"
+
+        self.assertIn(
+            "game_reads[0].event_id is '401999999' but the same game_pk is "
+            "'4018823509'; one of these records is about a different game — "
+            "matching game_pk alone does not make them the same game",
+            mlb_game_reads.validate_game_reads(payload),
+        )
+
+    def test_a_read_with_the_clubs_the_wrong_way_round_is_refused(self):
+        payload = schedule()
+        self.assertEqual(mlb_game_reads.validate_game_reads(payload), [])
+
+        entry = payload["game_reads"][0]
+        entry["away"], entry["home"] = entry["home"], entry["away"]
+
+        errors = mlb_game_reads.validate_game_reads(payload)
+        self.assertTrue(
+            any("away/home transposed" in error for error in errors), errors
+        )
+
+    def test_one_crossed_side_is_the_same_backwards_row(self):
+        """Requiring BOTH sides to cross would let the half-transposed row land.
+
+        A read whose away slot holds the home club is already wrong about every
+        per-side number it carries, whatever its other slot says.
+        """
+        payload = schedule()
+        self.assertEqual(mlb_game_reads.validate_game_reads(payload), [])
+
+        payload["game_reads"][0]["away"] = "Milwaukee Brewers"
+
+        errors = mlb_game_reads.validate_game_reads(payload)
+        self.assertTrue(
+            any("away/home transposed" in error for error in errors), errors
+        )
+
+    def test_a_crossing_written_in_another_case_is_still_caught(self):
+        """The normalisation has to actually match, or the check fails silent.
+
+        A swap detector that only recognises one spelling is indistinguishable
+        from no swap detector at all: it passes every row and reports nothing.
+        """
+        payload = schedule()
+        entry = payload["game_reads"][0]
+        entry["away"] = "  MILWAUKEE   BREWERS "
+        entry["home"] = "atlanta braves"
+
+        errors = mlb_game_reads.validate_game_reads(payload)
+        self.assertTrue(
+            any("away/home transposed" in error for error in errors), errors
+        )
+
+    def test_a_differently_written_name_on_the_right_side_is_not_a_finding(self):
+        """Crossing, not equality. The two sides may name a club differently.
+
+        No corpus of hand-filled reads exists yet to measure how far the
+        vocabularies drift, so demanding equality would refuse honest rows for
+        cosmetic difference — and a rail that fires on correct records is a
+        rail somebody turns off.
+        """
+        payload = schedule()
+        entry = payload["game_reads"][0]
+        entry["away"] = "ATL"
+        entry["home"] = "MIL"
+
+        self.assertEqual(mlb_game_reads.validate_game_reads(payload), [])
+
+    def test_a_crossing_written_in_another_vocabulary_is_a_declared_limit(self):
+        """The uncaught half of choosing crossing over equality, pinned.
+
+        Crossing is decided by comparing names, so it bites only when both
+        records use the SAME vocabulary. A read that renames AND crosses
+        matches on neither side and nothing fires. This test exists so that
+        boundary is a checked fact instead of a gap somebody rediscovers: it
+        asserts the limit in the same breath as it asserts that the rail is
+        otherwise alive, because a test showing only the silence would also
+        pass if crossing detection were deleted outright.
+        """
+        payload = schedule()
+        self.assertEqual(mlb_game_reads.validate_game_reads(payload), [])
+
+        entry = payload["game_reads"][0]
+        # Crossed, and written in a vocabulary the denominator does not use:
+        # the away club in the home slot, the home club in the away slot.
+        entry["away"], entry["home"] = "MIL", "ATL"
+
+        self.assertEqual(
+            mlb_game_reads.validate_game_reads(payload),
+            [],
+            "the declared limit has moved; update mlb.md and the docstring with it",
+        )
+
+        # The same crossing in the denominator's own vocabulary — the one the
+        # skeleton prefills — is still caught, so the silence above is about
+        # the vocabularies and not about a rail that stopped working.
+        entry["away"], entry["home"] = "Milwaukee Brewers", "Atlanta Braves"
+        self.assertTrue(
+            any(
+                "away/home transposed" in error
+                for error in mlb_game_reads.validate_game_reads(payload)
+            )
+        )
+
+    def test_the_declared_limit_is_stated_where_the_run_reads_it(self):
+        # mlb.md is what the run reads. A rail promised there and absent from
+        # the code is worse than an absent rail — the doc said this case was
+        # caught while the CLI landed it at exit 0, which is what made the
+        # blind spot invisible. Pin the disclosure to the doc, not to a comment
+        # nobody downstream sees.
+        text = " ".join(
+            (REPO_ROOT / "skills" / "sports-picks" / "references" / "mlb.md")
+            .read_text()
+            .split()
+        )
+        self.assertIn("as long as both records name the clubs the same way", text)
+        self.assertIn("matches on neither side and is reported by nothing", text)
+
+    def test_a_padded_event_id_is_canonicalised_rather_than_only_compared(self):
+        """Agreement is decided on the canonical form, and so is persistence.
+
+        Stripping both sides here and letting the raw value through is the
+        item (2) defect one field over — validated in one spelling, written in
+        another — and an ``event_id`` is an address, not just a label.
+        """
+        payload = schedule()
+        payload["game_reads"][0]["event_id"] = "  4018823509  "
+
+        # Padding alone is not a disagreement...
+        self.assertEqual(mlb_game_reads.validate_game_reads(payload), [])
+        # ...and the canonical form is a value the writer can persist, so the
+        # value compared and the value written are the same string.
+        self.assertEqual(
+            mlb_game_reads.normalize_event_id("  4018823509  "), "4018823509"
+        )
+        # A genuinely different id is still a different game.
+        payload["game_reads"][0]["event_id"] = "  401999999  "
+        self.assertIn(
+            "game_reads[0].event_id is '401999999' but the same game_pk is "
+            "'4018823509'; one of these records is about a different game — "
+            "matching game_pk alone does not make them the same game",
+            mlb_game_reads.validate_game_reads(payload),
+        )
+
+    def test_whitespace_and_case_alone_are_not_a_finding(self):
+        payload = schedule()
+        entry = payload["game_reads"][0]
+        entry["away"] = "atlanta   braves "
+        entry["home"] = " MILWAUKEE BREWERS"
+
+        self.assertEqual(mlb_game_reads.validate_game_reads(payload), [])
+
+    def test_a_denominator_that_cannot_tell_its_sides_apart_reports_no_crossing(self):
+        """Against ``away == home`` every read reads as swapped.
+
+        That record is broken and says so through the fields it actually got
+        wrong; a phantom transposition finding on top would send the reader to
+        the wrong record.
+        """
+        payload = schedule()
+        game = self.denominator_of(payload)[0]
+        game["away"] = game["home"] = "Atlanta Braves"
+
+        errors = mlb_game_reads.validate_game_reads(payload)
+        self.assertEqual([error for error in errors if "transposed" in error], [])
+
+    def test_an_absent_identity_field_is_reported_once_not_twice(self):
+        # Both spellings of absent: missing, and present but blank. A blank id
+        # is an absence, not a disagreement, and canonicalising the two sides
+        # before comparing them is exactly where that could start reading as
+        # one — ``''`` is a string, and it is not equal to the real id.
+        for absent in (None, "", "   "):
+            with self.subTest(event_id=absent):
+                payload = schedule()
+                payload["game_reads"][0]["event_id"] = absent
+
+                errors = mlb_game_reads.validate_game_reads(payload)
+                self.assertIn(
+                    "game_reads[0].event_id must be a non-empty string", errors
+                )
+                self.assertEqual(
+                    [error for error in errors if "is about a different game" in error],
+                    [],
+                )
+
+    def test_a_denominator_listing_one_game_twice_is_refused(self):
+        """An ambiguous join cannot be corroborated at all.
+
+        With two entries under one ``game_pk`` there is no fact of the matter
+        about which one a read agrees with, so the agreement question below is
+        unanswerable rather than merely unasked.
+        """
+        payload = schedule()
+        self.assertEqual(mlb_game_reads.validate_game_reads(payload), [])
+
+        self.denominator_of(payload).append(dict(self.denominator_of(payload)[0]))
+
+        self.assertIn(
+            "slate_denominator lists game 823509 more than once; a join on game_pk "
+            "cannot say which entry a read belongs to",
+            mlb_game_reads.validate_game_reads(payload),
+        )
+
+    def test_a_doubleheader_read_filled_in_from_its_twin_is_caught(self):
+        """The live shape of this defect, not a synthetic one.
+
+        A doubleheader's two games share a date and both clubs and differ only
+        by ``game_pk`` and ``event_id``. Filling the second card in from the
+        first — the obvious thing to do by hand — leaves an ``event_id`` that
+        matching ``game_pk`` values would otherwise wave through.
+        """
+        first = read(game_pk=823509)
+        second = read(game_pk=823510)
+        payload = schedule(reads=[first, second])
+        self.assertEqual(mlb_game_reads.validate_game_reads(payload), [])
+
+        second["event_id"] = first["event_id"]
+
+        errors = mlb_game_reads.validate_game_reads(payload)
+        self.assertTrue(
+            any("game_reads[1].event_id" in error for error in errors), errors
+        )
+
+
 class ScanCrossCheckTests(unittest.TestCase):
     def test_a_denominator_trimmed_to_match_a_short_read_set_is_caught(self):
         # Without this the denominator is only as honest as the run that wrote
@@ -552,6 +796,55 @@ class ScanCrossCheckTests(unittest.TestCase):
             "1 scan row(s) carry no game_pk; the denominator cannot be verified against a "
             "scan that failed to identify every game",
             errors,
+        )
+
+
+    def test_a_denominator_entry_that_disagrees_with_its_scan_row_is_caught(self):
+        """Same ids on both sides is not the same games on both sides.
+
+        The set comparison above says the two rosters are the same SIZE and
+        carry the same ``game_pk`` values. It cannot see a denominator entry
+        that files another game's ``event_id`` under one of them — and the scan
+        is the independent copy, so it is the side that decides.
+        """
+        payload = schedule()
+        scan = [
+            {
+                "game_pk": 823509,
+                "event_id": "4018823509",
+                "away": "Atlanta Braves",
+                "home": "Milwaukee Brewers",
+            }
+        ]
+        self.assertEqual(mlb_game_reads.scan_denominator_errors(payload, scan), [])
+
+        payload["slate_denominator"]["games"][0]["event_id"] = "401700000"
+
+        self.assertIn(
+            "slate_denominator game 823509.event_id is '401700000' but the same "
+            "game_pk is '4018823509'; one of these records is about a different "
+            "game — matching game_pk alone does not make them the same game",
+            mlb_game_reads.scan_denominator_errors(payload, scan),
+        )
+
+    def test_a_denominator_entry_transposed_against_the_scan_is_caught(self):
+        payload = schedule()
+        scan = [
+            {
+                "game_pk": 823509,
+                "event_id": "4018823509",
+                "away": "Atlanta Braves",
+                "home": "Milwaukee Brewers",
+            }
+        ]
+        self.assertEqual(mlb_game_reads.scan_denominator_errors(payload, scan), [])
+
+        game = payload["slate_denominator"]["games"][0]
+        game["away"], game["home"] = game["home"], game["away"]
+
+        errors = mlb_game_reads.scan_denominator_errors(payload, scan)
+        self.assertTrue(
+            any("away/home transposed" in error for error in errors), errors
         )
 
 
