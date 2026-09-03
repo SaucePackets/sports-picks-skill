@@ -627,9 +627,14 @@ class PolicyIsLoadedNotRestatedTests(unittest.TestCase):
         # `policy_disposition_errors(entry, None)` — a second spelling of the
         # no-policy case above, not a consultation pin. The rail takes the floor
         # as a parameter; it cannot read the module, so consultation can only be
-        # observed at a CALL SITE. That pin is
-        # `test_the_gate_loads_the_policy_rather_than_passing_none` in
-        # ThePriceRailIsLoadBearingAtEveryBoundaryTests below.
+        # observed at a CALL SITE. Two pins there, in
+        # ThePriceRailIsLoadBearingAtEveryBoundaryTests below:
+        # `test_the_gate_loads_the_policy_rather_than_passing_none` catches a
+        # caller that passes NO floor, and
+        # `test_the_gate_reads_the_deployed_floor_rather_than_restating_it`
+        # catches one that passes a floor of its own — the class name's claim
+        # rests on the second, because the fixture floor and a plausible
+        # hardcoded literal are the same number.
         entry = read()  # home edge 0.045
         with mock.patch.object(
             mlb_runtime_policy, "load_mlb_selection_policy", return_value=None
@@ -668,9 +673,14 @@ class ThePriceRailIsLoadBearingAtEveryBoundaryTests(unittest.TestCase):
     rather than assuming it: both are otherwise valid reads, so nothing except
     the price rail can tell them apart. Each boundary is asserted in BOTH
     directions, because a boundary that refuses the offending record is only
-    half the claim — a site that refused everything would satisfy it too, and
-    the accepting half is what makes the gate's ``load_mlb_selection_policy()``
-    argument load-bearing rather than an assertion in a comment.
+    half the claim — a site that refused everything would satisfy it too.
+
+    The accepting half pins that the gate passed SOME floor. Making its
+    ``load_mlb_selection_policy()`` call load-bearing takes one more case,
+    because the fixture floor is bit-for-bit the number a restatement would
+    hardcode: ``test_the_gate_reads_the_deployed_floor_rather_than_restating_it``
+    moves the deployed floor under an unchanged file and requires the verdict to
+    follow. Without it a hardcoded literal at that call site is invisible.
     """
 
     GAME_PK = 823509
@@ -846,6 +856,40 @@ class ThePriceRailIsLoadBearingAtEveryBoundaryTests(unittest.TestCase):
             [record["outcome"] for record in self._records()],
             [vig_run_journal.OUTCOME_NO_WORK],
         )
+        self.assertEqual(status, 0)
+
+    def test_the_gate_reads_the_deployed_floor_rather_than_restating_it(self):
+        # THE CONSULTATION PIN. Reviewer, round 2: the test above pins that a
+        # floor was PASSED, not that it was LOADED — replacing the gate's
+        # `load_mlb_selection_policy()` with a hardcoded 0.05 literal passed the
+        # whole suite, because the fixture floor is bit-for-bit the number a
+        # restatement would hardcode. The gate's own comment names both harms;
+        # skipping the rail was pinned and GUESSING the floor was not, and
+        # guessing is the half that survives the floor moving.
+        #
+        # So move the DEPLOYED floor under the record and require the verdict to
+        # follow. The bytes on disk never change: the honest read lands under the
+        # 0.05 policy the writer certified it against, and only then does the
+        # deployed floor become 0.04 — so its `price_discipline` claim now sits
+        # on a side that clears, and the gate must refuse the day it accepted a
+        # moment ago. A gate restating 0.05 journals `no_work` and this reds.
+        #
+        # 0.04 and not 0.07: at 0.07 both records keep their current verdicts,
+        # so the case would discriminate nothing.
+        self._landed(clearing=False)
+        self.assertLess(0.04, mlb_game_reads.side_edges(self._read(clearing=False))["home"])
+
+        with vig_policy_state.deployed_policy(
+            self.root / "state", min_conservative_edge=0.04
+        ):
+            status, _output = self._run_gate()
+
+        records = self._records()
+        self.assertEqual(
+            [record["outcome"] for record in records],
+            [vig_run_journal.OUTCOME_RECORDER_FAILED],
+        )
+        self.assertTrue(self._names_the_rail([records[0]["detail"]]), records[0])
         self.assertEqual(status, 0)
 
     # --- boundary 3: the receipt
