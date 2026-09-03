@@ -18,6 +18,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import vig_policy_state
 from scripts import mlb_game_reads
 from scripts import mlb_execution_gate
 from scripts import mlb_probability_chain_report
@@ -42,7 +43,7 @@ def read(game_pk=823509, **overrides):
         "uncertainty_haircut": 0.02,
         "conservative_probability": {"away": 0.380, "home": 0.590},
         "model_version": "vig-mlb-market-v1",
-        "net_edge": {"away": -0.080, "home": 0.035},
+        "net_edge": {"away": -0.080, "home": 0.045},
         "refusing_rails": ["price_discipline"],
     }
     entry.update(overrides)
@@ -98,6 +99,10 @@ class Runtime:
         (self.root / ".picks" / "execute").mkdir(parents=True)
         (self.root / ".picks" / "tmp").mkdir(parents=True)
         (self.root / ".picks" / "journal").mkdir(parents=True)
+        # Every command in this file loads the deployed selection policy, so
+        # the throwaway runtime carries one. A test whose answer depends on
+        # whether the developer has a live Vig state dir is not a test.
+        stack.enter_context(vig_policy_state.deployed_policy(self.root / "state"))
 
     @property
     def schedule_path(self):

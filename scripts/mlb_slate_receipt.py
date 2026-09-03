@@ -44,8 +44,10 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
+import mlb_runtime_policy  # noqa: E402
 from mlb_game_reads import (  # noqa: E402
     check_denominator,
+    policy_disposition_errors,
     validate_game_reads,
 )
 
@@ -127,6 +129,13 @@ def build_receipt(root: Path, day: str) -> dict[str, Any]:
     receipt["reads_recorded"] = len(reads) if isinstance(reads, list) else 0
 
     errors = list(validate_game_reads(schedule))
+    # The receipt asks the same question the gate asks, with the same rails: a
+    # receipt that called a slate `complete` while the gate reported a defect
+    # would be a second opinion about what a valid record is, which is what the
+    # shared validator exists to prevent.
+    errors.extend(
+        policy_disposition_errors(schedule, mlb_runtime_policy.load_mlb_selection_policy())
+    )
 
     # Against the SCAN, not against the schedule's own copy of it.
     # validate_game_reads checks the reads against `slate_denominator`, which

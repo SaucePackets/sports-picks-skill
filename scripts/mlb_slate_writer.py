@@ -76,6 +76,7 @@ if str(SCRIPT_DIR) not in sys.path:
 
 import mlb_game_reads  # noqa: E402
 import mlb_lineup_watchlist  # noqa: E402
+import mlb_runtime_policy  # noqa: E402
 
 # The scan decided where the roster went; the writer has to look in the same
 # place, so it resolves the root through the scan's own function rather than a
@@ -388,7 +389,16 @@ def record_errors(schedule_path: Path, schedule: dict[str, Any]) -> list[str]:
     point of a preflight check is that it is the SAME check — a landing this
     accepts and the gate rejects is worse than no landing check at all.
     """
-    errors = list(mlb_game_reads.validate_with_denominator(schedule_path, schedule))
+    errors = list(
+        mlb_game_reads.validate_with_denominator(
+            schedule_path,
+            schedule,
+            # The same floor the gate will apply fifteen minutes later. A
+            # landing that accepted a read the gate then reports on would be a
+            # preflight check answering a different question from the flight.
+            mlb_runtime_policy.load_mlb_selection_policy(),
+        )
+    )
     for label, entry_errors in sorted(
         mlb_lineup_watchlist.validate_watchlist(schedule).items()
     ):

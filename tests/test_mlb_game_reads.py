@@ -7,10 +7,12 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import vig_policy_state
 from scripts import mlb_game_reads
 from scripts import mlb_lineup_watchlist
 from scripts import mlb_postgame_evidence
 from scripts import mlb_probability_model
+from scripts.numeric_util import is_finite_number
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 NUMBER_WORDS = {
@@ -35,11 +37,40 @@ def read(game_pk=823509, **overrides):
         "uncertainty_haircut": 0.02,
         "conservative_probability": {"away": 0.380, "home": 0.590},
         "model_version": "vig-mlb-market-v1",
-        "net_edge": {"away": -0.080, "home": 0.035},
+        # conservative - ask on BOTH sides, which the validator now checks. The
+        # committed value was 0.035 against an arithmetic 0.045 until this
+        # slice: the repo's own canonical read disagreed with itself by a point,
+        # and nothing could see it because net_edge was a free-form number.
+        "net_edge": {"away": -0.080, "home": 0.045},
         "refusing_rails": ["price_discipline"],
     }
     entry.update(overrides)
+    if "net_edge" not in overrides:
+        # A test that moves the ask or the handicap is testing THAT, not the
+        # edge trail; recomputing keeps the fixture internally true so those
+        # tests keep failing for their own reason. A test that means to write an
+        # incoherent edge passes net_edge explicitly, which is exactly what the
+        # coherence tests below do.
+        entry["net_edge"] = _coherent_edge(entry)
     return entry
+
+
+def _coherent_edge(entry):
+    ask = entry.get("polymarket_ask")
+    conservative = entry.get("conservative_probability")
+    if not isinstance(ask, dict) or not isinstance(conservative, dict):
+        return entry.get("net_edge")
+    edge = {}
+    for side in ("away", "home"):
+        # is_finite_number and not isinstance: a probability subtest feeds this
+        # a 10**400 int, and `int - float` on it raises OverflowError. The
+        # repository's own rule about what counts as a usable number is the
+        # right one to ask here too.
+        if is_finite_number(ask.get(side)) and is_finite_number(conservative.get(side)):
+            edge[side] = round(conservative[side] - ask[side], 6)
+        else:
+            return entry.get("net_edge")
+    return edge
 
 
 def schedule(reads=None, denominator=None, **overrides):
@@ -140,8 +171,18 @@ class GameReadStructureTests(unittest.TestCase):
                 )
 
     def test_a_signed_edge_may_be_negative_but_must_be_usable(self):
+        # A large negative edge is legal — it is what an unbettable side looks
+        # like — as long as it is the edge the read's own two numbers produce.
         self.assertEqual(
-            mlb_game_reads.validate_read(read(net_edge={"away": -0.4, "home": 0.4}), 0), []
+            mlb_game_reads.validate_read(
+                read(
+                    polymarket_ask={"away": 0.780, "home": 0.230},
+                    conservative_probability={"away": 0.380, "home": 0.590},
+                    net_edge={"away": -0.400, "home": 0.360},
+                ),
+                0,
+            ),
+            [],
         )
         self.assertIn(
             "game_reads[0].net_edge.away must be a usable number",
@@ -901,7 +942,11 @@ class CliTests(unittest.TestCase):
                     if isinstance(block, dict) and isinstance(block.get("games"), list):
                         games = block["games"]
                 conventional.write_text(json.dumps(games), encoding="utf-8")
-            return mlb_game_reads.main(argv)
+            # The CLI loads the deployed policy, so the fixture supplies one
+            # rather than letting the developer's own machine decide whether a
+            # `price_discipline` claim is checkable.
+            with vig_policy_state.deployed_policy(Path(tmp) / "state"):
+                return mlb_game_reads.main(argv)
 
     def test_a_missing_conventional_scan_fails_the_slate(self):
         # The cross-check is not opt-in any more: "nobody ran the scan" and

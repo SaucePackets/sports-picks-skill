@@ -70,6 +70,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
+import mlb_runtime_policy  # noqa: E402
 from mlb_lineup_watchlist import (  # noqa: E402
     ALLOWED_BLOCKERS,
     REQUIRED_ORIGINAL_GATES,
@@ -411,6 +412,17 @@ MODEL_TRAIL_FIELDS = (
     "model_version",
 )
 
+# The other half of the same idea, on the price side. ``net_edge`` is the number
+# every selection rail is argued from, and until now it was a free-form signed
+# number: a read could say ``net_edge`` +0.09 beside a ``conservative`` and an
+# ``ask`` whose difference was -0.01 and validate clean. Two facts written side
+# by side and never joined — the shape this lane has now paid for four times.
+EDGE_TRAIL_FIELDS = (
+    "polymarket_ask",
+    "conservative_probability",
+    "net_edge",
+)
+
 
 def _model_trail_errors(label: str, entry: dict[str, Any]) -> list[str]:
     """The model trail is recorded whole, or not at all, and it must reconcile.
@@ -460,6 +472,138 @@ def _model_trail_errors(label: str, entry: dict[str, Any]) -> list[str]:
     return errors
 
 
+def _edge_trail_errors(label: str, entry: dict[str, Any]) -> list[str]:
+    """``net_edge`` is the arithmetic it claims to be, per side.
+
+    ``conservative_probability - polymarket_ask`` is the definition every
+    selection rail in this repo argues from — ``mlb_runtime_policy`` recomputes
+    exactly it at execution time and refuses a candidate whose stored edge
+    disagrees. On a ``game_reads`` entry the same number was free-form: nothing
+    compared it to the two numbers recorded beside it, so a read could name
+    ``price_discipline`` while its own recorded edge cleared the floor, or claim
+    an edge on a game it never priced, and pass every check.
+
+    Symmetric, for the reason PR #74's blocker taught: record one of the three
+    and you owe all three. Excusing ``polymarket_ask`` as unavailable while
+    keeping ``net_edge`` would leave nothing to subtract, and a guard that reads
+    "the field was explained away" as "there is nothing to check here" is
+    half-wired — the explanation is exactly what removes the evidence.
+
+    Record ``net_edge`` and you owe both operands: an edge with nothing to
+    subtract is a number no one can check, which is the state it was already in.
+
+    The converse is deliberately NOT required. A read may record both operands
+    and explain, in ``unavailable``, that the edge was never computed — the
+    2026-08 corpus contains exactly that, and ``mlb_measurement_lane`` classifies
+    it as a process failure rather than pretending it did not happen. Demanding
+    the field here would relabel a real recorded state as a malformed record and
+    make it invisible to the report that counts it. It costs nothing, because
+    ``policy_disposition_errors`` and ``mlb_eligibility_report`` both RECOMPUTE
+    the edge from the operands: a read cannot escape the floor rail by declining
+    to write the number down.
+    """
+    errors: list[str] = []
+    if entry.get("net_edge") is None:
+        return errors
+    absent = [
+        field
+        for field in ("polymarket_ask", "conservative_probability")
+        if entry.get(field) is None
+    ]
+    if absent:
+        errors.append(
+            f"{label} records net_edge but not {', '.join(absent)}; net_edge is "
+            "conservative_probability minus polymarket_ask and cannot be checked "
+            "without both"
+        )
+        return errors
+
+    ask = entry.get("polymarket_ask")
+    conservative = entry.get("conservative_probability")
+    edge = entry.get("net_edge")
+    if not all(isinstance(value, dict) for value in (ask, conservative, edge)):
+        return errors
+    for side in ("away", "home"):
+        ask_side = ask.get(side)
+        conservative_side = conservative.get(side)
+        edge_side = edge.get(side)
+        if not _is_probability(ask_side) or not _is_probability(conservative_side):
+            continue
+        if not is_finite_number(edge_side):
+            continue
+        expected = float(conservative_side) - float(ask_side)
+        if abs(float(edge_side) - expected) > COHERENCE_TOLERANCE:
+            errors.append(
+                f"{label}.net_edge.{side} is {float(edge_side):.4f} but "
+                f"conservative_probability.{side} minus polymarket_ask.{side} is "
+                f"{expected:.4f}"
+            )
+    return errors
+
+
+def side_edges(entry: dict[str, Any]) -> dict[str, float]:
+    """Each side's conservative edge, RECOMPUTED from the read's own numbers.
+
+    One definition of "this read's edge on this side", read by the disposition
+    rail below and by ``mlb_eligibility_report``. Two copies of it would be two
+    answers to the question the whole slice exists to make answerable.
+
+    Recomputed and not read off ``net_edge``, for two reasons that point the
+    same way. A stored number is a claim and the subtraction is the fact —
+    ``mlb_runtime_policy.live_conservative_edge`` makes exactly this choice at
+    execution time. And a read may legally omit ``net_edge`` with a reason, so
+    keying the floor rail on the stored field would let a run escape the rail by
+    declining to write the number down. Where both exist they are equal:
+    ``_edge_trail_errors`` refuses the read otherwise.
+    """
+    edges: dict[str, float] = {}
+    ask = entry.get("polymarket_ask")
+    conservative = entry.get("conservative_probability")
+    if not isinstance(ask, dict) or not isinstance(conservative, dict):
+        return edges
+    for side in ("away", "home"):
+        ask_side = ask.get(side)
+        conservative_side = conservative.get(side)
+        if is_finite_number(ask_side) and is_finite_number(conservative_side):
+            edges[side] = float(conservative_side) - float(ask_side)
+    return edges
+
+
+def _disposition_number_errors(label: str, entry: dict[str, Any]) -> list[str]:
+    """The disposition has to agree with the numbers recorded beside it.
+
+    ``_disposition_errors`` already checks the disposition against its RAILS.
+    This checks it against the read's own arithmetic, which is the half that was
+    missing: the 2026-09-02 slate could have carded a game it never priced, or
+    written ``pass`` on a side clearing the floor, and every validator in this
+    repo would have passed it.
+
+    The floor itself is NOT here. It is policy, it is loaded, and it lives in
+    ``policy_disposition_errors`` so that a check depending on machine state
+    cannot masquerade as a property of the record.
+    """
+    errors: list[str] = []
+    disposition = entry.get("disposition")
+    if disposition not in ACCEPTING_DISPOSITIONS:
+        return errors
+    # You cannot card a game you did not price, and you cannot card one you did
+    # not handicap: the candidate the reviewer receives is built from exactly
+    # these numbers, and a card whose read carries none of them is a decision
+    # with no recorded basis at all.
+    missing = [
+        field
+        for field in ("polymarket_ask", *MODEL_TRAIL_FIELDS)
+        if entry.get(field) is None
+    ]
+    if missing:
+        errors.append(
+            f"{label}.disposition is {disposition!r} but the read records no "
+            f"{', '.join(missing)}; a game that was not priced and handicapped "
+            "cannot be carded"
+        )
+    return errors
+
+
 def _disposition_errors(label: str, entry: dict[str, Any]) -> list[str]:
     """The disposition and its rails have to agree about what happened."""
     errors: list[str] = []
@@ -500,8 +644,68 @@ def validate_read(entry: Any, index: int) -> list[str]:
         _identity_errors(label, entry)
         + _side_field_errors(label, entry)
         + _model_trail_errors(label, entry)
+        + _edge_trail_errors(label, entry)
         + _disposition_errors(label, entry)
+        + _disposition_number_errors(label, entry)
     )
+
+
+# The one rail this module cannot answer from the record alone: the edge floor
+# is policy, loaded from risk_limits.json, and a validator that guessed at it
+# would be the restated-constant defect three PRs in this repo have already
+# paid for. So the floor arrives as an argument and its ABSENCE is reported,
+# never skipped.
+PRICE_RAIL = "price_discipline"
+
+
+def policy_disposition_errors(schedule: Any, policy: Any) -> list[str]:
+    """``price_discipline`` may not be named on a side whose own edge clears the floor.
+
+    This is the rail that makes a refusal auditable rather than narrated. A read
+    saying "the price was not disciplined enough" while recording an edge at or
+    above ``min_conservative_edge`` is a record that contradicts itself, and it
+    is exactly the state the 2026-09-02 slate could not be checked for: the
+    rails were recorded and nothing compared them to the numbers.
+
+    ``policy`` is ``mlb_runtime_policy.MlbSelectionPolicy`` or ``None``. None is
+    what the loader returns when the policy block is missing or malformed — it
+    fails closed on purpose so no caller silently substitutes a hard-coded
+    floor, and this function keeps that promise: with no policy, a read naming
+    the price rail is UNCHECKABLE and says so. Reads that never name the rail
+    need no floor, so a day that does not turn on the policy is not blocked by
+    its absence.
+    """
+    errors: list[str] = []
+    if not isinstance(schedule, dict):
+        return errors
+    reads = schedule.get("game_reads")
+    if not isinstance(reads, list):
+        return errors
+    floor = getattr(policy, "min_conservative_edge", None)
+    for index, entry in enumerate(reads):
+        if not isinstance(entry, dict):
+            continue
+        rails = entry.get("refusing_rails")
+        if not isinstance(rails, list) or PRICE_RAIL not in rails:
+            continue
+        label = f"game_reads[{index}]"
+        if not is_finite_number(floor):
+            errors.append(
+                f"{label} names {PRICE_RAIL!r} and the MLB selection policy is "
+                "unavailable, so the claim cannot be checked against the edge "
+                "floor; a refusal nobody can check is the state this record exists "
+                "to end"
+            )
+            continue
+        for side, edge in sorted(side_edges(entry).items()):
+            if edge >= float(floor):
+                errors.append(
+                    f"{label} names {PRICE_RAIL!r} but its own "
+                    f"conservative_probability.{side} minus polymarket_ask.{side} is "
+                    f"{edge:.4f}, at or above the {float(floor):.4f} floor; the "
+                    "recorded rail and the recorded numbers disagree about this side"
+                )
+    return errors
 
 
 def denominator_games(schedule: dict[str, Any]) -> list[dict[str, Any]]:
@@ -795,16 +999,27 @@ def check_denominator(
     return DenominatorCheck(path, rows, errors, False)
 
 
-def validate_with_denominator(schedule_path: Path, schedule: Any) -> list[str]:
-    """``validate_game_reads`` plus the independent scan cross-check.
+def validate_with_denominator(
+    schedule_path: Path, schedule: Any, policy: Any
+) -> list[str]:
+    """``validate_game_reads`` plus the scan cross-check and the policy rail.
 
     This is what a caller wants whenever it holds a schedule PATH. The bare
     ``validate_game_reads`` can only see a MISSING record; a run that trimmed
     ``game_reads`` and ``slate_denominator`` together is self-consistent and
     passes it. Only the scan, which the run did not write, can see that.
+
+    ``policy`` is REQUIRED and has no default, deliberately. A default would be
+    either a load (making this validator's answer depend on the machine it runs
+    on, so the same schedule validates here and fails on the box) or a silent
+    None (retiring the price rail for every caller that forgot it — an optional
+    rail, which is the exact shape of defect this lane keeps paying for). Pass
+    ``mlb_runtime_policy.load_mlb_selection_policy()``, or ``None`` to state
+    that no policy was available and take the reported consequence.
     """
     errors = list(validate_game_reads(schedule))
     errors.extend(check_denominator(schedule_path, schedule).errors)
+    errors.extend(policy_disposition_errors(schedule, policy))
     return errors
 
 
@@ -829,6 +1044,12 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(str(exc))
 
     errors = validate_game_reads(schedule)
+    # The floor comes from the deployed policy, never from a constant here. A
+    # missing policy is reported by ``policy_disposition_errors`` rather than
+    # silently skipping the rail.
+    errors.extend(
+        policy_disposition_errors(schedule, mlb_runtime_policy.load_mlb_selection_policy())
+    )
     # The scan cross-check is not opt-in. When --denominator is omitted the
     # conventional artifact is required, and its ABSENCE is an error rather
     # than a skipped check: "nobody ran the scan" and "the scan agrees" must

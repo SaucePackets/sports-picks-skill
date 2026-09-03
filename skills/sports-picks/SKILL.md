@@ -155,6 +155,16 @@ Each `game_reads` entry — one per game in that roster — looks like this:
   than inventing a probability to fill them.
 - The count of `candidate` and `lineup_watchlist` reads must equal the number of
   `candidates` and `lineup_watchlist` entries on the schedule.
+- **The decision must agree with the numbers next to it.** `net_edge` is
+  `conservative_probability - polymarket_ask` per side; a card
+  (`candidate`/`lineup_watchlist`) requires a recorded ask and the full model
+  trail; and `price_discipline` may not be the rail on a game whose own edge
+  clears the deployed floor. Run
+  `python3 scripts/mlb_eligibility_report.py --draft <draft>` before landing —
+  it prints every game and side with its verdict, ceiling, rails and agreement,
+  and exits nonzero on a contradiction. It reports only; the decision stays
+  yours, and a `pass` on an eligible price is correct whenever a handicapping
+  gate is what refused it.
 
 `--land` runs `mlb_game_reads.py --validate` for you, before it writes: the
 writer calls the same validator, and a schedule it accepts is one the gate

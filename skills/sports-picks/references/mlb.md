@@ -343,6 +343,50 @@ the deployment gate segments rows by that string. A game that was never
 handicapped excuses the whole trail in `unavailable`; a game that was
 handicapped owes the whole trail.
 
+**The edge is arithmetic, not prose.** `net_edge` must equal
+`conservative_probability - polymarket_ask` on each side, within 0.001 — the
+same rule `conservative_probability = raw_probability - uncertainty_haircut`
+already follows one field over. Record it and you owe both operands: an edge
+with nothing to subtract is a number nobody can check. You may leave `net_edge`
+out and say why in `unavailable` — a game you priced and handicapped but never
+finished pricing out is a real state and the measurement lane counts it — but
+that buys nothing, because every rail below recomputes the edge from the two
+operands rather than reading the field.
+
+**A disposition has to agree with the numbers beside it.** Two rules, both
+checked by `mlb_game_reads` and both refusing the schedule:
+
+- `candidate` and `lineup_watchlist` require a recorded `polymarket_ask` and
+  the whole model trail. You cannot card a game you did not price and
+  handicap — the candidate the reviewer receives is built from exactly those
+  numbers.
+- `price_discipline` may not be named on a game whose own
+  `conservative_probability - polymarket_ask` is at or above the deployed
+  `min_conservative_edge` on either side. Refusing a price that clears the
+  floor is a record that contradicts itself. Refusing it on a *handicapping*
+  rail is not: name `starter_floor`, `bullpen_close_game_survival` or whichever
+  gate actually stopped it, and the record agrees again.
+
+The floor comes from the deployed policy (`mlb_policy.min_conservative_edge` in
+`risk_limits.json`), never from a number written here. When that policy cannot
+be loaded, a read naming `price_discipline` is reported as **uncheckable** —
+the claim is not accepted on trust.
+
+**Look at the eligibility report before you land.**
+`python3 scripts/mlb_eligibility_report.py --draft .picks/tmp/<date>-slate-draft.json`
+prints, for every game and both sides, the DK fair prior, the current ask, the
+raw and conservative probabilities, the recomputed edge, the executable
+`max_polymarket_price` ceiling, the verdict under the deployed floor, the rails
+you named, and whether your disposition agrees with your own numbers. It exits
+nonzero on a contradiction or a malformed read. It takes `--schedule` on a
+landed file and reports identically — the draft view and the landed view are
+the same rows.
+
+It reports; it does not decide. It never writes a disposition, promotes a
+model, moves the floor, or touches an order. A side reported `eligible` is not
+an instruction to bet it — the handicapping gates are yours to apply and a
+`pass` naming one of them is a complete and correct record.
+
 **Get the sides the right way round.** The reads carry `away` and `home` from
 the scan, and the outcome is joined from the MLB StatsAPI final. A transposed
 read produces a row that scores one club's handicap against the other club's

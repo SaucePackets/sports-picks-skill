@@ -24,7 +24,7 @@ def read(game_pk=823509, **overrides):
         "uncertainty_haircut": 0.02,
         "conservative_probability": {"away": 0.380, "home": 0.590},
         "model_version": "vig-mlb-market-v1",
-        "net_edge": {"away": -0.080, "home": 0.035},
+        "net_edge": {"away": -0.080, "home": 0.045},
         "refusing_rails": ["price_discipline"],
     }
     entry.update(overrides)

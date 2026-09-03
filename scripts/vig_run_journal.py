@@ -46,10 +46,30 @@ OUTCOME_NO_SCHEDULE = "no_schedule"   # nothing was collected for the day
 OUTCOME_NO_WORK = "no_work"           # a schedule exists, nothing to review
 OUTCOME_REVIEWED = "reviewed"         # a review completed and was persisted
 OUTCOME_ERROR = "error"               # the gate refused or failed closed
-OUTCOMES = (OUTCOME_NO_SCHEDULE, OUTCOME_NO_WORK, OUTCOME_REVIEWED, OUTCOME_ERROR)
+# A schedule exists, nothing was reviewable, AND the day's per-game record is
+# invalid. Its own outcome because the alternative was tested in production: on
+# 2026-09-02 the gate DETECTED the recorder gap forty-one times and journalled
+# it as `no_work`, the same word an honest empty card produces. The truth was in
+# `stage`, and every operational surface reads `outcome` — so a detected failure
+# and a quiet success were the same observation, which is the exact confusion
+# `mlb_slate_receipt`'s honest_zero/recorder_failed split already ended one
+# artifact over. The receipt's word is reused verbatim: two names for one state
+# is how the split gets lost again.
+OUTCOME_RECORDER_FAILED = "recorder_failed"
+OUTCOMES = (
+    OUTCOME_NO_SCHEDULE,
+    OUTCOME_NO_WORK,
+    OUTCOME_REVIEWED,
+    OUTCOME_ERROR,
+    OUTCOME_RECORDER_FAILED,
+)
 
 # A run that produced no card is a real, reportable outcome — not an absence.
 # Both of these are PASS days as far as reporting is concerned.
+#
+# `recorder_failed` is deliberately NOT here: the gate's exit code stays 0 (a
+# measurement defect must not take the reviewer offline) but a day whose
+# refusals went unrecorded is not a day that passed.
 PASS_OUTCOMES = (OUTCOME_NO_SCHEDULE, OUTCOME_NO_WORK)
 
 # Sources that can report an input as deferred or skipped. The source travels
