@@ -33,6 +33,12 @@ PROFILE_MANIFEST=(
   mlb_postgame_evidence.py
   mlb_probability_model.py
   mlb_runtime_policy.py
+  # Added 2026-09-03. A copy of this file had been sitting in the Vig profile
+  # scripts dir since 2026-09-01 without being in the manifest, so no deploy
+  # ever updated it: the deployed receipt was missing policy_disposition_errors
+  # and would have called a slate clean that the gate refused. The fix for an
+  # unmanaged copy of a repo script is to manage it.
+  mlb_slate_receipt.py
   mlb_stage2_scan.py
   numeric_util.py
   receipts_ledger_reconcile.py
