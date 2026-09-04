@@ -3601,6 +3601,42 @@ class PromotionCorroborationTests(DeterministicPolicyState, unittest.TestCase):
         self.assertEqual(len(errors), 1, errors)
         self.assertIn("no promoted watchlist entry corroborates it", errors[0])
 
+    def test_a_club_name_with_no_market_corroborates_nothing(self):
+        """A ``promoted_candidate`` that addresses no market is not evidence.
+
+        The entry below promotes TB/TEX but its ``promoted_candidate`` names
+        only the club, so the three market fields are absent — skipped, not
+        disagreed with. If a bare ``side`` could supply ``agree``, this entry
+        would corroborate a candidate for an ENTIRELY DIFFERENT market, and
+        the failure would be silent: ``normalize_review_routing`` records the
+        promotion against ``entry['game_pk']`` — the watchlist game's pk, not
+        the candidate's — so the wrong game's read is relabelled, the carded
+        game's read keeps what it said, and the reconciliation identity still
+        balances (candidates +1, candidate-reads +1, deferred -1). The count
+        that caught the 2026-09-03 defect is blind to this one.
+        """
+        before, after, _, promoted = self._promotion()
+        promoted["promoted_candidate"] = {"side": "Tampa Bay Rays"}
+        elsewhere = _promoted_candidate(
+            event_id="401899999",
+            polymarket_slug="aec-mlb-tb-nyy-2026-09-04",
+        )
+        # The premise: same club, different market, and nothing to stamp on.
+        self.assertEqual(elsewhere["side"], promoted["promoted_candidate"]["side"])
+        self.assertNotIn("watchlist_id", elsewhere)
+        after["candidates"] = [elsewhere]
+
+        errors = vig_review_gate_common.normalize_review_routing(
+            before, after, "MLB", mlb_standing_authorized=True
+        )
+
+        self.assertEqual(len(errors), 1, errors)
+        self.assertIn("no promoted watchlist entry corroborates it", errors[0])
+        self.assertNotEqual(elsewhere.get("execution_mode"), "standing_authorized")
+        # And the entry was not overwritten with the candidate it did not
+        # address — the laundering step that would erase the mismatch.
+        self.assertEqual(promoted["promoted_candidate"], {"side": "Tampa Bay Rays"})
+
     def test_a_candidate_two_promotions_corroborate_is_refused(self):
         """An ambiguous pairing has no fact to route on, so it fails closed."""
         candidate = _promoted_candidate()
@@ -3675,7 +3711,18 @@ class PromotionCorroborationTests(DeterministicPolicyState, unittest.TestCase):
         }
         cases = [
             ("same slug and side", dict(candidate), "agree"),
-            ("side only, matching", {"side": "Tampa Bay Rays"}, "agree"),
+            # A club name addresses no market. The same club plays every day,
+            # so a bare matching side is an absence of evidence, not agreement.
+            ("side only, matching", {"side": "Tampa Bay Rays"}, "unknown"),
+            (
+                "side matches but the only market field disagrees",
+                {"side": "Tampa Bay Rays", "polymarket_slug": "aec-mlb-nyy-bos-2026-09-03"},
+                "disagree",
+            ),
+            # Market without side still addresses a market, and the entry
+            # simply did not restate the side. That is corroboration.
+            ("slug only, matching", {"polymarket_slug": candidate["polymarket_slug"]}, "agree"),
+            ("event_id only, matching", {"event_id": candidate["event_id"]}, "agree"),
             ("slug matches, side differs", dict(candidate, side="Texas Rangers"), "disagree"),
             (
                 "slug differs, side matches",

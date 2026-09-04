@@ -1016,3 +1016,66 @@ def test_production_identity_paths_resolve_from_home():
         f"{fake_home}/.local/bin/hermes",
         f"{fake_home}/notes/Sports/picks/picks.json",
     ]
+
+
+STAGED_DIR = REPO_ROOT / "docs" / "staged"
+WIRING_DOC = REPO_ROOT / "docs" / "pipeline-wiring-2026-09-03.md"
+
+
+def test_staged_live_edit_fragments_match_the_hashes_the_procedure_declares():
+    """The procedure's apply step reads these files; the doc quotes them.
+
+    Two copies of one string agree only until one of them changes, and the
+    whole reason this lane exists is a rail keyed on a hand-copied field. The
+    doc declares a sha256 and a byte count for each staged fragment, so the
+    fragment and its declaration are pinned to each other here: edit the
+    routing block without re-deriving the hash and this reds, instead of an
+    operator installing a prompt nobody reviewed.
+    """
+    declared = {
+        name: (int(size), digest)
+        for name, size, digest in re.findall(
+            r"`docs/staged/([^`]+)` \| (\d+) \| `([0-9a-f]{64})`", WIRING_DOC.read_text()
+        )
+    }
+    assert declared, "the procedure declares no staged fragment hashes"
+    on_disk = sorted(p.name for p in STAGED_DIR.iterdir() if p.is_file())
+    # Both directions: an undeclared fragment is as bad as a stale hash.
+    assert on_disk == sorted(declared), (on_disk, sorted(declared))
+    for name, (size, digest) in declared.items():
+        raw = (STAGED_DIR / name).read_bytes()
+        assert len(raw) == size, name
+        assert hashlib.sha256(raw).hexdigest() == digest, name
+
+
+def test_the_staged_evening_prompt_transform_reaches_the_reviewed_hash():
+    """The apply step is pinned to an after-hash; that hash must be reachable.
+
+    Reproduces the procedure's transform against the recorded before-text and
+    asserts the same after-hash the doc tells the operator to require. Without
+    this the procedure could declare an after-hash nothing produces, and the
+    apply would abort in production with the prompt already half-migrated in
+    the operator's head.
+    """
+    before = (REPO_ROOT / "tests" / "fixtures" / "evening-slate-prompt-27087cc00dfa.txt").read_text()
+    assert (
+        hashlib.sha256(before.encode()).hexdigest()
+        == "dbae855c2e15de931739481e9174ee16d002459d972ff6b2526dded834c8fca4"
+    )
+    old = "[Discipline line. Total proposed exposure. Vig review pending. No automatic execution.]"
+    block = (STAGED_DIR / "evening-slate-routing-block.txt").read_text().rstrip("\n")
+    ageout = (STAGED_DIR / "evening-slate-ageout.txt").read_text().rstrip("\n")
+    task0 = [line for line in before.split("\n") if line.startswith("0. Read")][0]
+    assert before.count(old) == 1 and before.count(task0) == 1
+    after = before.replace(task0, task0 + ageout).replace(old, block)
+    assert (
+        hashlib.sha256(after.encode()).hexdigest()
+        == "decdf0e1e4b7f27ff34bc897f162b5ccfe75c8baac98754abb8efff64e2fcf4e"
+    )
+    assert len(after) == 17693
+    # The point of the edit. Note the phrase itself survives inside the
+    # routing block, which QUOTES it as forbidden output — so the assertion is
+    # on the retired template line, not on the words.
+    assert old not in after
+    assert "STANDING AUTHORIZATION" in after
+    assert "AGE-OUT:" in after

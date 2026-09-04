@@ -284,23 +284,32 @@ def promotion_address_agreement(
     means the two objects share no comparable field, which is an absence of
     evidence and must never be read as either.
 
-    ``side`` participates as an address field: a promoted entry for the other
-    side of the same market is a different bet, and a slug match alone would
-    call it corroborated.
+    ``side`` participates as an address field, but only as a veto. A promoted
+    entry for the other side of the same market is a different bet, and a slug
+    match alone would call it corroborated — so a disagreeing ``side``
+    contradicts. It cannot supply corroboration on its own, though: a side is a
+    club name, and the same club plays every day and appears in every market it
+    is priced in. An entry whose ``promoted_candidate`` carries only
+    ``side='Tampa Bay Rays'`` addresses no market, so it corroborates nothing.
+    ``agree`` therefore requires at least one of ``PROMOTION_ADDRESS_FIELDS``
+    — which market — to be present on both sides and equal. A side that agrees
+    while no market field is comparable is ``unknown``: an under-specified
+    ``promoted_candidate`` is the same transcription failure as a missing
+    ``watchlist_id``, and must not be laundered into evidence.
     """
     if not isinstance(promoted_candidate, dict):
         return UNKNOWN
-    agreed = False
+    market_agreed = False
     for field in (*PROMOTION_ADDRESS_FIELDS, "side"):
         mine = _address_value(candidate.get(field))
         theirs = _address_value(promoted_candidate.get(field))
         if mine is None or theirs is None:
             continue
-        if mine == theirs:
-            agreed = True
-        else:
+        if mine != theirs:
             return DISAGREE
-    return AGREE if agreed else UNKNOWN
+        if field != "side":
+            market_agreed = True
+    return AGREE if market_agreed else UNKNOWN
 
 
 def _promoted_entries(

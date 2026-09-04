@@ -1,0 +1,122 @@
+MLB EVENING SLATE PASS (4:30pm CT) — lineup-aware second scan. This is the SECOND daily pass; the 10:30am slate already ran. Its purpose: by late afternoon most evening games have posted starting lineups and confirmed starters, so candidates the morning pass had to haircut for unconfirmed lineups can now be judged on facts.
+
+SCOPE AND MERGE RULES (these override anything below that conflicts):
+- Scan ONLY games with first pitch at 5:30pm CT or later today that have not started. Never re-analyze finished or in-progress games.
+- FIRST read today's morning artifacts: `.picks/slate/YYYY-MM-DD.md` and `.picks/execute/YYYY-MM-DD-schedule.json`. Re-evaluate every evening game the morning pass PASSED, giving priority to its near-misses — with posted lineups the lineup haircut no longer applies; use confirmed lineups and announced starters.
+- NEVER duplicate: a game already in `candidates` or `lineup_watchlist` stays exactly as recorded — do not touch, re-add, or edit existing entries.
+- The daily volume rails span BOTH passes: at most 2 official MLB bets per day TOTAL (morning candidates count against it), probation small-bet cap counts the whole day.
+- Schedule file: MERGE into the existing `.picks/execute/YYYY-MM-DD-schedule.json` — keep the header fields and every existing entry byte-identical, append your new candidates/watchlist entries to the existing arrays. If the file is missing (morning run failed), create it with the full documented header.
+- Slate report: write your analysis to `.picks/slate/YYYY-MM-DD-evening.md` (do NOT overwrite the morning file), and append one line to `.picks/latest-action.md`: "YYYY-MM-DD evening: N new candidates; W new watchlist entries."
+- The postflight artifact gate below applies with these evening filenames; the schedule validator still runs against the merged `.picks/execute/YYYY-MM-DD-schedule.json`.
+- Final response: the evening report from `.picks/slate/YYYY-MM-DD-evening.md`. Open the exposure header with any morning candidates still pending review listed as existing exposure.
+
+MLB daily slate scan — proposed card plus lineup-dependent watchlist only.
+
+HARD BOUNDARY:
+- PROPOSED CARD ONLY. Do not place bets, call execution endpoints, create approval tokens, or schedule execution jobs.
+- All official candidates require Vig review. Every approval remains manual-only and becomes an awaiting_jerry reminder.
+- This cron and its reviewer must never auto-execute a bet.
+
+CONTEXT:
+- Read `.picks/references/mlb-data.md` (core gates + calibration reference), `.picks/mlb-data.md` (the NUMBERED DATA RULES learned from past losses — these are the postgame reflection loop's output; apply every applicable one as a binding gate refinement), and `skills/sports-picks/references/mlb.md` for data sources, team IDs, gate criteria, and the lineup-watchlist contract.
+- This is a cold-start cron. Be stricter than a chat session, not looser.
+- Sports-betting-markets and sports-data-apis skills are loaded.
+
+TASK:
+0. Read /home/sauce_packets/.hermes/agents/notifications/vig.jsonl if it exists; for unacknowledged entries, note any deployed fixes relevant to today's work in one line of the final report, then rewrite the file keeping only entries you could NOT act on (acknowledged entries are dropped).
+1. Determine today's Central date (YYYY-MM-DD).
+2. The mcp-sports-data MCP tools (mlb_schedule, mlb_pitcher_season, mlb_team_form, mlb_injuries) are the reliable data source — prefer them over curl/web for any gap. Run `python3 /home/sauce_packets/projects/sports-picks-runtime/scripts/mlb_stage2_scan.py` for today's data (hardened copy: retries, partial rows, boxscore cache). Fallback: ESPN scoreboard + Stats API.
+3. For each game: form (last 7 + RD), starter comparison (full ERA/WHIP/K-BB/IP/GS numbers), bullpen (L7 ERA/WHIP), lineup/injury state, and price read. Search Polymarket with search-moneyline for slug and ask price.
+4. PRICE MATH (deterministic, do this per candidate before any gate talk):
+   - DK implied for each side: imp = 100/(odds+100) for +odds, |odds|/(|odds|+100) for -odds.
+   - De-vigged fair probability: dk_fair_prob = imp_side / (imp_side + imp_opponent). NEVER quote single-side implied as "fair" — single-side implied includes ~2pts of vig.
+   - State YOUR win probability (win_probability, decimal e.g. 0.58) from the full handicap. If it differs from dk_fair_prob by more than 0.04, the thesis must explicitly say what the market is missing.
+   - net_edge = win_probability - polymarket_ask (Polymarket US charges ZERO trading fees — confirmed 0 bps on every executed receipt; do NOT subtract a phantom fee). A candidate is only cardable when net_edge >= 0.02 — your win probability must beat the Polymarket ask by at least 2 real points. "The ask is below DK implied" is NOT an edge statement.
+   - TWO-SIDED CHECK (every game — do NOT anchor only on the favorite): after you state your win_probability for the side your handicap favors, the opponent's win_probability is (1 - win_probability). Compute net_edge_opponent = (1 - win_probability) - opponent_polymarket_ask. Because the two Polymarket asks sum to ~1.0, at most ONE side can clear +0.02, so this costs nothing — but it stops you from passing a game where the DOG was the value just because the favorite had none. The cardable side is whichever team's net_edge >= 0.02; a game is a true pass only when NEITHER side clears the floor. (Retrospective Jul-Aug data: borderline favorites we leaned toward went ~48% and lost ~15% per unit while dog-side value was skipped.)
+
+   DATA-QUALITY RULES (scanner now provides these — use them):
+   - Starter quality: when FIP and ERA diverge by >0.75, trust FIP direction and say so (ERA is sequencing/defense noise at these sample sizes). K-BB% is the stable skill metric; cite it alongside ERA/WHIP.
+   - Park: cite park.run_factor for every card candidate. A park flag of "extreme hitter park" caps confidence at Medium per the existing park rule; factor <=96 strengthens under-total/pitcher-side reasoning.
+   - Offense quality: away_offense/home_offense carry season wOBA and xwOBA. A team whose wOBA trails xwOBA by >=0.010 is UNDERperforming its contact quality (fade the cold-offense narrative); wOBA >= xwOBA + 0.010 is running hot (discount recent scoring form).
+5. Apply the hard confidence gate:
+   - "Best side on a bad slate" = PASS
+   - "Lean/playable" = PASS
+   - Medium requires every gate passing with conviction
+   - Pick built from bullpen/form where opposing starter can erase edge = PASS
+   - Sizing tied to stated probability: Medium=$18 requires win_probability >= 0.55; High=$30 requires win_probability >= 0.60 AND every gate passing with conviction
+   - Small=$9 (0.5u), confidence "small": for a candidate that clears net_edge >= 0.02 AND every hard gate passes with conviction, but win_probability is 0.50-0.549 (below the Medium sizing floor). This bets a genuine 2%+ edge SMALL rather than passing it outright — a real edge that is not Medium-confident. It is NOT a way to force marginal reads: every hard gate must still pass; only the win-probability sizing threshold is relaxed. Never use Small when net_edge < 0.02 or any hard gate fails. Deterministic rails cap Small at $9 and at most 3 Small bets per day, so do not exceed that.
+6. A strong near-miss (PROVISIONAL net_edge >= 0.02) may enter the lineup watchlist when its ONLY open blockers are not-yet-PUBLISHED inputs — unconfirmed batting lineups and/or an opposing starter MLB has not announced yet:
+   - Lineups-only blocker: blocked_only_by=["lineups_unconfirmed"] with all six original gates true (as before).
+   - Opposing starter not yet announced: add "starter_unannounced" to blocked_only_by. You cannot handicap an unannounced starter, so leave original_gate_results.opposing_starter_shutdown_path and real_winner_conviction as null (NOT true, NOT false) and set every other gate true. Your win_probability, net_edge and price ceiling are PROVISIONAL — say so in the thesis. The pre-pitch recheck re-handicaps against the real announced starter and only promotes if net_edge >= 0.02 still holds at the live ask; otherwise it passes.
+   - Any OTHER blocker is a normal pass, never a watchlist entry: a starter that IS announced but fails the shutdown-path/floor read, an already-efficient price (provisional net_edge < 0.02), a thesis-breaking injury or scratch, an extreme-park confidence cap, or missing non-starter data. "Unannounced" means the probable pitcher is not yet posted — never "announced and bad".
+7. Write `.picks/slate/YYYY-MM-DD.md` with full game-by-game analysis.
+8. Write `.picks/execute/YYYY-MM-DD-schedule.json` as an object. ALWAYS include the top-level schema fields below, even on a full-pass day — never write a bare `{"candidates": [], "lineup_watchlist": []}` without them:
+   - `date`: today's Central date as "YYYY-MM-DD".
+   - `sport`: "MLB".
+   - `market_type`: "moneyline".
+   - `candidates`: official candidates only; empty if none. Fields: event_id, game, side, price, confidence, unit_size, win_probability, dk_fair_prob, net_edge, first_pitch_utc, first_pitch_ct, polymarket_slug, polymarket_ask, thesis, execution_mode="manual", manual_bet_status=null, executed=false, vig_review_needed=true, vig_approved=null, vig_notes=null. confidence is one of high/medium/small; set confidence="small" with unit_size=9 ONLY for a net_edge>=0.02 pick whose win_probability is 0.50-0.549. `side`/`price`/`polymarket_ask` may be EITHER team — use whichever side cleared the 2% net-edge floor in the two-sided check, not automatically the favorite.
+   - `lineup_watchlist`: qualifying lineup-only near-misses; empty if none. Each entry must include id, event_id, game, side, first_pitch_utc, recheck_due_utc (first pitch minus 75 minutes), game_pk (the MLB StatsAPI gamePk from the Stage 2 scan — REQUIRED for doubleheader-safe recheck resolution), polymarket_slug (the exact aec-mlb-{away}-{home}-YYYY-MM-DD slug you priced), blocked_only_by (a non-empty subset of ["lineups_unconfirmed", "starter_unannounced"]), original_gate_results (starter_floor, opposing_starter_shutdown_path, bullpen_close_game_survival, cold_fade_reset, price_discipline, real_winner_conviction all true and lineups_confirmed false — EXCEPT when blocked_only_by includes "starter_unannounced", in which case opposing_starter_shutdown_path and real_winner_conviction are null pending the recheck), original_price, bettable_to_price (provisional signed American odds when the starter is pending), thesis, and status="pending_lineup_recheck".
+   - `original_price` and `bettable_to_price` MUST be signed American-odds JSON numbers such as 119, 105, or -120. Never write descriptive strings or quoted values such as `"MIN +119 at DraftKings"` or `"+105"`; keep source prose in `thesis`.
+9. Validate the finished schedule with `python3 ~/.hermes/profiles/vig/scripts/mlb_lineup_watchlist.py .picks/execute/YYYY-MM-DD-schedule.json --validate`. If validation fails, do not report slate success: return the validator error so cron output exposes the failure.
+10. Write `.picks/latest-action.md`: "YYYY-MM-DD: Slate complete. N candidates pending Vig review; W lineup watchlist rechecks pending."
+
+Do all data gathering and file writing silently via tools. Do not comment on progress.
+
+IMPORTANT NOTES:
+- Passing the entire slate is valid and often correct.
+- Do not force a pick or watchlist entry because the slate is boring.
+- Write files before final output.
+
+CRITICAL FINAL RESPONSE DISCIPLINE:
+- Your final response is what Jerry sees in Buzz. It must be the human betting report, not a verification receipt.
+- Include every official candidate with starter numbers, form, bullpen, price, thesis, and gate count.
+- List lineup-dependent watchlist entries separately as pending rechecks, never as picks.
+- If the card is empty, include near-miss/pass notes so Jerry can see what was scanned.
+
+OUTPUT STYLE:
+# MLB Slate — [date]
+Yeah. [one sharp sentence on slate quality and number of reads].
+
+## Official card right now
+### [Team] ML [price] ([time] CT)
+**Starter:** [comparison]
+**Form:** [comparison]
+**Bullpen:** [comparison]
+**Price:** [DK line -> dk_fair_prob de-vigged | Polymarket ask | win_probability | net_edge]
+**Thesis:** [3-4 sentences]
+**Gate:** ✅/⚠️ [named gates]
+**Confidence:** [Medium/High] | **Sizing:** $[18/30]
+**Review:** Vig check; manual-only
+
+## Lineup watchlist — recheck ~75 minutes before first pitch (unconfirmed lineups and/or unannounced opposing starter)
+- [Team/game] — [lineups are the sole blocker; target recheck time]
+- If there are no qualifiers, write exactly: "None — no lineup-only near-misses. Every near-miss also fails a non-lineup gate (price/bullpen), so nothing is waiting on lineups today." Do NOT phrase it as "at least one blocker beyond unconfirmed batting orders" — that misreads as if rechecks are pending.
+
+## Sticks out, but pass
+- [Team ML price] — [specific blocker]
+
+## Full-slate pass notes
+- [Every other game, one-line decisive blocker]
+
+## Clean read
+[Discipline line. Total proposed exposure. Vig review pending. No automatic execution.]
+
+FINAL RESPONSE OVERRIDE:
+After writing `.picks/slate/YYYY-MM-DD-evening.md`, read it back and use that report as the final response. Verification is silent unless it fails. A zero-candidate slate still requires the full game-by-game read.
+
+VAULT POSTING: when you save an item to ~/notes, use the notes_write MCP tool (it enforces frontmatter: type, agent, date, title, tags) so the item is reliably retrievable; use notes_search/notes_get to find prior notes instead of terminal grep. See ~/notes/System/AGENT-VAULT-GUIDE.md for the folder map and schema.
+
+EXPOSURE HEADER (added 2026-08-13; ledger paths pinned 2026-08-23): open the slate post with a 3-4 line exposure summary before any candidates — pending unsettled picks (count + tickets), total open stake, week-to-date P/L, and remaining headroom vs limits. THE CANONICAL LEDGER IS `/home/sauce_packets/notes/Sports/picks/picks.json` (`.picks/picks.json` in the workdir is a symlink to the same file — do NOT report it as empty without reading it) with record counters in `/home/sauce_packets/notes/Sports/picks/record.json`; risk limits are `/home/sauce_packets/.hermes/vig/state/risk_limits.json`. Week-to-date P/L = sum of `pnl` over ledger rows with status "settled" and `game_date` in the current Mon-Sun week (state it as $X.XX, or $0.00 with "no settled picks this week" when none). If any limit is within 20% of its cap, say so plainly. Every proposal is read in this context; if the ledger or limits file is unreadable, say that and propose nothing.
+
+CLV GROUNDWORK (added 2026-08-13): for every proposed candidate, record in the pick row the exact market, line, price, book/source, and an as-of timestamp at proposal time. This is the input closing-line-value needs at settlement — a pick without a priced row cannot be graded for CLV and should not be proposed.
+
+POSTFLIGHT ARTIFACT GATE (mandatory, not advisory):
+- The run is NOT complete when the chat report is written. Before the final response, create and verify ALL of these absolute paths under the configured workdir `/home/sauce_packets/projects/sports-picks-runtime`:
+  1. `/home/sauce_packets/projects/sports-picks-runtime/.picks/slate/YYYY-MM-DD-evening.md`
+  2. `/home/sauce_packets/projects/sports-picks-runtime/.picks/execute/YYYY-MM-DD-schedule.json`
+  3. `/home/sauce_packets/projects/sports-picks-runtime/.picks/latest-action.md`
+- Use `write_file` for the slate and latest-action and a valid JSON write for the schedule; do not merely describe the contents in the response.
+- Immediately run: `test -s /home/sauce_packets/projects/sports-picks-runtime/.picks/slate/YYYY-MM-DD.md && test -s /home/sauce_packets/projects/sports-picks-runtime/.picks/execute/YYYY-MM-DD-schedule.json && test -s /home/sauce_packets/projects/sports-picks-runtime/.picks/latest-action.md && python3 /home/sauce_packets/projects/sports-picks-runtime/scripts/mlb_lineup_watchlist.py /home/sauce_packets/projects/sports-picks-runtime/.picks/execute/YYYY-MM-DD-schedule.json --validate`.
+- Read the finished slate file back after that command and use it as the final response.
+- If any write, existence check, or validator command fails, do NOT claim slate completion and do NOT emit a normal report; emit the exact failure and stop so cron records the run as failed. An empty slate is valid only when all required artifacts exist and validate.
+- Never substitute a report in the final response for a missing artifact.

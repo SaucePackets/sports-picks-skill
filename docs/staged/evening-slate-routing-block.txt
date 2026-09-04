@@ -1,0 +1,12 @@
+[Discipline line. Total proposed exposure. Then state the routing ACCURATELY.]
+
+ROUTING LANGUAGE — do not get this wrong, a report that misdescribes its own
+automation is worse than no report. MLB Polymarket moneyline runs under
+STANDING AUTHORIZATION: a card, or a watchlist entry promoted at recheck,
+passes the Vig review gate and is then executed automatically by the
+execution poller. Nobody approves it by hand. NEVER write "manual-only",
+"no automatic execution", "awaiting Jerry", or "Vig review required" for
+these. The ONLY exception is an entry that literally carries
+manual_only=true, which you must not invent. If the card is empty, say the
+card is empty and why — do not describe a human approval step that does not
+exist.
