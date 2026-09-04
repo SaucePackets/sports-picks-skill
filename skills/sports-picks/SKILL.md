@@ -101,10 +101,15 @@ goes to the executor unreviewed. What lands looks like this:
 "slate_denominator": {
   "source": "mlb_stage2_scan",
   "fetched_at_utc": "2026-08-22T15:30:00+00:00",
+  "scan_sha256": "3b1f…",
   "games": [{"game_pk": 823509, "event_id": "401816115",
              "away": "Toronto Blue Jays", "home": "New York Yankees"}]
 }
 ```
+
+`scan_sha256` is the digest of the scan artifact the roster came from. The
+writer records it; you never write it, for the same reason you never write the
+rest of this block.
 
 Each `game_reads` entry — one per game in that roster — looks like this:
 
@@ -190,6 +195,29 @@ on `recorder_failed`. Report the verdict in the slate summary. On 2026-09-01 a
 run reported "Slate complete" over a schedule carrying no reads at all, and
 nothing in this repository contradicted it; the receipt is the artifact that
 now does.
+
+**The receipt exists whether or not you run that command.** The scheduled review
+gate writes the same file on every MLB cycle, because on 2026-09-04 a run
+skipped the writer AND this command, and the day that most needed a verdict
+produced no receipt at all. Running it by hand is still the right move — it is
+how you get the verdict *now*, before you write the summary, rather than at the
+next quarter hour — but it is no longer what the receipt's existence depends on.
+
+**Quote the receipt's `scheduled_games`; do not count by hand.** The same 09-04
+writeup opened with "Fourteen games scanned" over a scan that enumerated
+sixteen, and then discussed sixteen of them. Three numbers for one slate, none
+of them reconciling, is a defect in the record even when every bet was right.
+The receipt's `scheduled_games` comes from the scan artifact — the one count
+nothing in the run authored — so it is the number the summary should carry.
+Nothing enforces this: no code reads `.picks/slate/<date>.md`. It is a rule you
+keep, not a rail that keeps you.
+
+The receipt also reports `writer_provenance` — `absent`, `corroborated`,
+`contradicted` or `unverifiable` — from a `scan_sha256` the writer records on
+`slate_denominator`. `absent` means the schedule did not come through
+`mlb_slate_writer.py`. Treat it as a signal to check, not as a verdict: it is
+diagnosis, it does not move the receipt's verdict, and the enforcement is still
+the content validation above.
 
 A day with no card is **not** exempt from any of this. Zero reads is only
 honest when the scan says the day had no games, and the receipt is what tells

@@ -47,6 +47,17 @@ half:
   wrong; it is now a file. The stub is deliberately *incomplete* — it names no
   disposition and no prices — so an unfilled skeleton cannot land either.
 
+- **The denominator names the bytes it came from.** ``slate_denominator``
+  carries ``scan_sha256``, the digest of the scan artifact this landing derived
+  the roster from — taken from the same bytes that were parsed, not from a
+  second read. ``mlb_slate_receipt`` re-hashes the scan still on disk and
+  reports whether the two agree. This is **diagnosis, not a rail**: a hand-built
+  schedule can carry a correct digest as easily as a correct roster, so a
+  present-and-matching digest proves nothing a determined bypass could not fake.
+  Its ABSENCE is the informative half — a schedule with no digest did not come
+  through here. Content validation stays the enforcement, and the receipt's
+  verdict is not a function of this field.
+
 **What this does not close.** Nothing here stops a run from writing
 ``.picks/execute/<date>-schedule.json`` by hand and skipping this module
 entirely. That case is not left open: it is exactly what the postflight receipt
@@ -63,6 +74,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import hashlib
 import json
 import os
 import re
@@ -160,16 +172,22 @@ def utc_iso(moment: dt.datetime) -> str:
     return moment.astimezone(dt.timezone.utc).replace(microsecond=0).isoformat()
 
 
-def load_scan(path: Path) -> list[Any]:
-    """The scan roster for this day, or a refusal.
+def load_scan(path: Path) -> tuple[list[Any], str]:
+    """The scan roster for this day and the digest of the bytes it came from.
 
     A MISSING scan is an error and never an empty slate. "Nobody ran the scan"
     and "the scan enumerated nothing" are different facts about the day, and
     only one of them makes a zero read count honest.
+
+    The digest is taken from the SAME bytes that were parsed, not from a second
+    read of the path. Hashing the file again after parsing it would produce a
+    digest of whatever the file said a moment later, which is precisely the
+    claim the digest is supposed to rule out.
     """
     try:
-        rows = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        raw = path.read_bytes()
+        rows = json.loads(raw.decode("utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise SlateWriteError(
             [
                 f"denominator scan not readable at {path}: {exc}; the slate's size "
@@ -179,7 +197,7 @@ def load_scan(path: Path) -> list[Any]:
         ) from exc
     if not isinstance(rows, list):
         raise SlateWriteError([f"denominator scan at {path} is not a JSON list of rows"])
-    return rows
+    return rows, hashlib.sha256(raw).hexdigest()
 
 
 def unresolved_scan_rows(rows: list[Any]) -> list[str]:
@@ -212,17 +230,28 @@ def unresolved_scan_rows(rows: list[Any]) -> list[str]:
     return problems
 
 
-def denominator_from_scan(rows: list[Any], fetched_at_utc: str) -> dict[str, Any]:
-    """The schedule's ``slate_denominator``, built from the scan and nothing else."""
+def denominator_from_scan(
+    rows: list[Any], fetched_at_utc: str, scan_sha256: str | None = None
+) -> dict[str, Any]:
+    """The schedule's ``slate_denominator``, built from the scan and nothing else.
+
+    ``scan_sha256`` names WHICH scan bytes this roster was derived from. It is
+    diagnosis, not a rail: see ``mlb_slate_receipt.writer_provenance`` for what
+    it can and cannot establish. Omitted entirely when unknown rather than
+    written as null, so its absence is one fact and not two.
+    """
     games = []
     for row in rows:
         source = row if isinstance(row, dict) else {}
         games.append({field: source.get(field) for field in DENOMINATOR_FIELDS})
-    return {
+    denominator: dict[str, Any] = {
         "source": DENOMINATOR_SOURCE,
         "fetched_at_utc": fetched_at_utc,
         "games": games,
     }
+    if scan_sha256 is not None:
+        denominator["scan_sha256"] = scan_sha256
+    return denominator
 
 
 def scan_fetched_at(path: Path) -> str:
@@ -488,7 +517,7 @@ def land(root: Path, day: str, draft: Any) -> tuple[Path, dict[str, Any]]:
     errors = draft_errors(draft, day)
     errors.extend(occupancy_errors(schedule_path))
     try:
-        rows = load_scan(scan_path)
+        rows, scan_digest = load_scan(scan_path)
     except SlateWriteError as exc:
         # A missing scan is fatal on its own, but a producer fixing one problem
         # at a time is a producer running this command five times: report the
@@ -500,7 +529,9 @@ def land(root: Path, day: str, draft: Any) -> tuple[Path, dict[str, Any]]:
         # errors over a draft with no reads would bury the one that matters.
         raise SlateWriteError(errors)
 
-    schedule = compose(draft, denominator_from_scan(rows, scan_fetched_at(scan_path)))
+    schedule = compose(
+        draft, denominator_from_scan(rows, scan_fetched_at(scan_path), scan_digest)
+    )
     errors.extend(record_errors(schedule_path, schedule))
     if errors:
         raise SlateWriteError(errors)
@@ -525,7 +556,7 @@ def skeleton(root: Path, day: str) -> dict[str, Any]:
     except ValueError as exc:
         raise SlateWriteError([f"day {exc}"]) from exc
     scan_path = denominator_output_path(day, root)
-    rows = load_scan(scan_path)
+    rows, _digest = load_scan(scan_path)
     reads: list[dict[str, Any]] = []
     for row in rows:
         source = row if isinstance(row, dict) else {}

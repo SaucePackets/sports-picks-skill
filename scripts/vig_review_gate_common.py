@@ -78,6 +78,7 @@ from vig_run_journal import (  # noqa: E402
     record_run,
 )
 import mlb_game_reads  # noqa: E402
+import mlb_slate_receipt  # noqa: E402
 
 HERMES = os.environ.get("HERMES_BIN") or shutil.which("hermes") or str(Path.home() / ".local/bin/hermes")
 
@@ -1569,8 +1570,66 @@ def _recorder_gap_already_reported(sport: str, day: str) -> bool:
     return False
 
 
+def write_slate_receipt(sport: str, day: str) -> str | None:
+    """Write today's slate receipt from gate code — never raise, never re-decide.
+
+    The receipt is the one artifact that carries a day's recording verdict in a
+    closed vocabulary, and until now it was written only when the slate run
+    remembered to run ``mlb_slate_receipt.py --write``. On 2026-09-04 the run
+    skipped the writer and skipped this too, so the day that most needed a
+    verdict produced no receipt at all: the artifact designed to catch a
+    producer failure depended on that same producer.
+
+    This gate is the natural owner. It is scheduled code with no agent in it, it
+    already runs the identical validation every cycle, and it runs whether or
+    not a slate was produced. Writing here does not make the receipt a second
+    opinion: ``build_receipt`` calls the same ``mlb_game_reads`` functions the
+    gate calls above, so the two cannot answer differently about one file.
+
+    Rewritten on every cycle rather than once, deliberately. The day's record
+    changes — a schedule lands, reads get filled, the reviewer rules — and a
+    receipt frozen at 00:15 would describe a day that had not happened yet. The
+    last cycle of the day is therefore the one that counts, and
+    ``recorded_at_utc`` says which cycle wrote it.
+
+    Failures are printed and swallowed, exactly like ``journal_gate_run``: the
+    gate's verdict is authoritative and taking the reviewer offline because a
+    measurement artifact could not be written would add an outage mode to the
+    lane whose actual problem is losing work silently. Returns the error text so
+    a test can assert on it without parsing stdout.
+
+    Writes silently on success, including on ``recorder_failed``. Disk is the
+    durable record and stdout is a delivery: the gap this receipt describes
+    already has exactly one notification per day from ``recorder_gap_notice``,
+    and a second line on each of the day's ninety-six cycles would be the
+    alarm-fatigue failure this lane has already paid for once — on the same
+    stdout the reviewer's own approval card is written to.
+    """
+    try:
+        receipt = mlb_slate_receipt.build_receipt(ROOT, day)
+        mlb_slate_receipt.write_receipt(ROOT, receipt)
+    except Exception as exc:  # defensive: the receipt must never fail a review
+        error = f"could not write slate receipt: {type(exc).__name__}: {exc}"
+        print(f"{sport} review gate RECEIPT CRITICAL: {error}")
+        return error
+    return None
+
+
 def run_gate(sport: str) -> int:
     day = schedule_day_now()
+    if sport != "MLB":
+        return _run_gate(sport, day)
+    # In a `finally`, so the receipt exists for the paths that return early and
+    # for the ones that raise. "No receipt" was the 2026-09-04 failure; a
+    # receipt that is written only on the happy path would reproduce it in a
+    # narrower form.
+    try:
+        return _run_gate(sport, day)
+    finally:
+        write_slate_receipt(sport, day)
+
+
+def _run_gate(sport: str, day: str) -> int:
     schedule_path = _schedule_path(sport, day)
     notices: list[str] = []
     if not schedule_path.exists():
@@ -1725,10 +1784,14 @@ def run_gate(sport: str) -> int:
         # commands nothing schedules would have reproduced this PR's own
         # diagnosis — a sentence in a prompt rather than a rail.
         #
-        # Via `mlb_game_reads`, deliberately: it is in deploy-runtime.sh's
-        # PROFILE_MANIFEST and `mlb_slate_receipt` is not, so importing the
-        # receipt here would pass every test in this repo and ImportError on
-        # the runtime's profile-local copies.
+        # Via `mlb_game_reads`, which is the function that owns this rule. The
+        # older reason for avoiding `mlb_slate_receipt` here — that it was not
+        # in deploy-runtime.sh's PROFILE_MANIFEST, so importing it would pass
+        # every test in this repo and ImportError on the runtime's profile-local
+        # copies — expired when it was added to the manifest on 2026-09-03. The
+        # gate now imports it at module scope to write the daily receipt; the
+        # test that keeps this honest is the one asserting every module this
+        # file imports is in the manifest, not this comment.
         #
         # The policy is loaded and PASSED, not defaulted. `price_discipline` is
         # the rail the slate refuses on most often and the only one whose truth
