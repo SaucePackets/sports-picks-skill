@@ -379,6 +379,22 @@ class SlateReceiptTests(unittest.TestCase):
         self.assertEqual(status, 0)
         self.assertEqual(json.loads(output.getvalue())["day"], "2042-07-08")
 
+    def test_schedule_day_uses_chicago_when_utc_is_already_next_day(self):
+        import datetime as dt
+
+        instant = dt.datetime(2026, 9, 5, 2, 0, tzinfo=dt.timezone.utc)
+        real_datetime = dt.datetime
+
+        class FrozenDateTime(real_datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return instant.astimezone(tz)
+
+        with mock.patch.object(mlb_slate_receipt.dt, "datetime", FrozenDateTime):
+            day = mlb_slate_receipt.schedule_day_now()
+
+        self.assertEqual(day, "2026-09-04")
+
     def test_policy_loader_failure_is_receipt_state_not_an_exception(self):
         self.rt.write_schedule(schedule([]))
         self.rt.write_scan([])
