@@ -10,6 +10,7 @@ non-empty ``model_version`` string because "a version exists" was standing in
 for "a model was deployed".
 """
 
+import hashlib
 import importlib
 import json
 import sys
@@ -25,6 +26,7 @@ from scripts import mlb_probability_chain_report
 from scripts import mlb_probability_model
 from scripts import mlb_runtime_policy
 from scripts import mlb_slate_receipt
+from scripts import mlb_slate_writer
 from scripts import mlb_stage2_scan
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -867,6 +869,173 @@ def _eligible_candidate():
         "current_ask": 0.55,
         "projected_edge_at_current_ask": 0.07,
     }
+
+
+class WriterProvenanceTests(unittest.TestCase):
+    """Whether the record names the bytes it was built from — and what that is worth.
+
+    This is DIAGNOSIS, not a rail, and the tests are written to hold that line.
+    A hand-authored schedule can copy a correct digest exactly as easily as a
+    correct roster, so ``corroborated`` is evidence of a consistent record and
+    not proof of a code path; the load-bearing value is ``absent``, which a
+    bypass cannot avoid without going to the trouble of forging one. The rule
+    this lane keeps re-learning is that a guard keyed on a field the producer
+    writes is measuring the producer's copy of itself — so the verdict stays
+    keyed on content validation and provenance is reported beside it.
+    """
+
+    def setUp(self):
+        import contextlib
+
+        self.stack = contextlib.ExitStack()
+        self.addCleanup(self.stack.close)
+        self.rt = Runtime(self.stack)
+        self.reads = [read(823509), read(824876)]
+
+    def _land(self):
+        """Land through the writer, the way the supported path does it."""
+        self.rt.write_scan(scan_rows(self.reads))
+        draft = {
+            "date": self.rt.day,
+            "sport": "MLB",
+            "market_type": "moneyline",
+            "candidates": [],
+            "lineup_watchlist": [],
+            "game_reads": self.reads,
+        }
+        return mlb_slate_writer.land(self.rt.root, self.rt.day, draft)
+
+    def test_a_landed_schedule_names_the_scan_bytes_it_derived_the_roster_from(self):
+        _path, schedule = self._land()
+        digest = hashlib.sha256(self.rt.scan_path.read_bytes()).hexdigest()
+        self.assertEqual(schedule["slate_denominator"]["scan_sha256"], digest)
+        receipt = mlb_slate_receipt.build_receipt(self.rt.root, self.rt.day)
+        self.assertEqual(
+            receipt["writer_provenance"], mlb_slate_receipt.PROVENANCE_CORROBORATED
+        )
+        self.assertEqual(receipt["scan_sha256_actual"], digest)
+        self.assertEqual(receipt["verdict"], mlb_slate_receipt.VERDICT_COMPLETE)
+
+    def test_a_hand_authored_schedule_is_absent_not_corroborated(self):
+        # The 2026-09-04 route: the schedule written directly, skipping the
+        # writer. Absence is the half that cannot be produced by accident, and
+        # it must never read as agreement.
+        self.rt.write_schedule(schedule(self.reads, date=self.rt.day))
+        self.rt.write_scan(scan_rows(self.reads))
+        receipt = mlb_slate_receipt.build_receipt(self.rt.root, self.rt.day)
+        self.assertEqual(
+            receipt["writer_provenance"], mlb_slate_receipt.PROVENANCE_ABSENT
+        )
+        self.assertIsNone(receipt["scan_sha256_recorded"])
+        # And the record is otherwise perfectly valid: the bypass is visible
+        # here and NOWHERE in the verdict, which is the intended split.
+        self.assertEqual(receipt["verdict"], mlb_slate_receipt.VERDICT_COMPLETE)
+
+    def test_a_scan_rewritten_after_landing_contradicts_the_recorded_digest(self):
+        # The denominator was derived from bytes a later reader will not find.
+        # The cross-check still runs — against different evidence than the one
+        # the roster came from, which is the fact worth surfacing.
+        self._land()
+        rows = scan_rows(self.reads)
+        rows[0] = dict(rows[0], away="Someone Else")
+        self.rt.write_scan(rows)
+        receipt = mlb_slate_receipt.build_receipt(self.rt.root, self.rt.day)
+        self.assertEqual(
+            receipt["writer_provenance"], mlb_slate_receipt.PROVENANCE_CONTRADICTED
+        )
+        self.assertNotEqual(
+            receipt["scan_sha256_recorded"], receipt["scan_sha256_actual"]
+        )
+
+    def test_a_reformatted_scan_contradicts_even_with_an_identical_roster(self):
+        # The digest is over BYTES, not over the parsed roster: re-serialising
+        # the same games with different whitespace is a different artifact, and
+        # a check that called this corroborated would be asserting something
+        # weaker than it claims.
+        self._land()
+        rows = json.loads(self.rt.scan_path.read_text(encoding="utf-8"))
+        self.rt.scan_path.write_text(json.dumps(rows, indent=4), encoding="utf-8")
+        receipt = mlb_slate_receipt.build_receipt(self.rt.root, self.rt.day)
+        self.assertEqual(
+            receipt["writer_provenance"], mlb_slate_receipt.PROVENANCE_CONTRADICTED
+        )
+
+    def test_a_missing_scan_is_unverifiable_and_never_contradicted(self):
+        # "The digest is wrong" and "the digest could not be judged" are
+        # different facts, and only one of them accuses the record. The missing
+        # scan is already reported as an error by check_denominator; this field
+        # must not report it a second time as a contradiction.
+        self._land()
+        self.rt.scan_path.unlink()
+        receipt = mlb_slate_receipt.build_receipt(self.rt.root, self.rt.day)
+        self.assertEqual(
+            receipt["writer_provenance"], mlb_slate_receipt.PROVENANCE_UNVERIFIABLE
+        )
+        self.assertIsNone(receipt["scan_sha256_actual"])
+
+    def test_a_non_string_digest_is_contradicted_rather_than_absent(self):
+        # A garbage value is not an absence. Reading it as one would let a
+        # record that claims provenance and cannot support it look exactly like
+        # a record that never claimed any.
+        self._land()
+        payload = json.loads(self.rt.schedule_path.read_text(encoding="utf-8"))
+        payload["slate_denominator"]["scan_sha256"] = {"sha256": "nope"}
+        self.rt.write_schedule(payload)
+        receipt = mlb_slate_receipt.build_receipt(self.rt.root, self.rt.day)
+        self.assertEqual(
+            receipt["writer_provenance"], mlb_slate_receipt.PROVENANCE_CONTRADICTED
+        )
+
+    def test_provenance_is_not_an_input_to_the_verdict(self):
+        # The property that keeps this diagnosis: strip the digest, or corrupt
+        # it, and the verdict and the error list must be byte-identical. If
+        # provenance ever starts moving the verdict, this is the test that says
+        # the docstring stopped being true.
+        _path, landed = self._land()
+        with_digest = mlb_slate_receipt.build_receipt(self.rt.root, self.rt.day)
+
+        stripped = json.loads(json.dumps(landed))
+        stripped["slate_denominator"].pop("scan_sha256")
+        self.rt.write_schedule(stripped)
+        without = mlb_slate_receipt.build_receipt(self.rt.root, self.rt.day)
+
+        corrupted = json.loads(json.dumps(landed))
+        corrupted["slate_denominator"]["scan_sha256"] = "0" * 64
+        self.rt.write_schedule(corrupted)
+        wrong = mlb_slate_receipt.build_receipt(self.rt.root, self.rt.day)
+
+        # Three different provenances, so the fixture genuinely varies the field
+        # the assertion is about — a same-provenance triple would prove nothing.
+        self.assertEqual(
+            [r["writer_provenance"] for r in (with_digest, without, wrong)],
+            [
+                mlb_slate_receipt.PROVENANCE_CORROBORATED,
+                mlb_slate_receipt.PROVENANCE_ABSENT,
+                mlb_slate_receipt.PROVENANCE_CONTRADICTED,
+            ],
+        )
+        for other in (without, wrong):
+            self.assertEqual(other["verdict"], with_digest["verdict"])
+            self.assertEqual(other["recorder_errors"], with_digest["recorder_errors"])
+            self.assertEqual(
+                other["scheduled_games"], with_digest["scheduled_games"]
+            )
+
+    def test_every_provenance_is_in_the_closed_vocabulary(self):
+        self.rt.write_schedule(schedule(self.reads, date=self.rt.day))
+        self.rt.write_scan(scan_rows(self.reads))
+        receipt = mlb_slate_receipt.build_receipt(self.rt.root, self.rt.day)
+        self.assertIn(receipt["writer_provenance"], mlb_slate_receipt.PROVENANCES)
+
+    def test_the_digest_is_of_the_bytes_the_roster_was_parsed_from(self):
+        # Not of a second read of the path. A writer that hashed the file again
+        # after parsing it would certify whatever the file said a moment later,
+        # which is exactly the substitution the digest exists to rule out.
+        raw = json.dumps(scan_rows(self.reads)).encode("utf-8")
+        self.rt.scan_path.write_bytes(raw)
+        rows, digest = mlb_slate_writer.load_scan(self.rt.scan_path)
+        self.assertEqual(len(rows), len(self.reads))
+        self.assertEqual(digest, hashlib.sha256(raw).hexdigest())
 
 
 if __name__ == "__main__":

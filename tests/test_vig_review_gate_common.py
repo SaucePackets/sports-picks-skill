@@ -25,6 +25,11 @@ import vig_run_journal
 # would give this test a DIFFERENT module object from the one the gate mutates
 # (the dual-import trap, PR #74).
 import mlb_game_reads
+# Bare, for the same reason: the gate imports `mlb_slate_receipt` off its own
+# sys.path entry, and `from scripts import ...` would give these tests a second
+# module object whose VERDICT_* constants are equal but whose patches land
+# somewhere the gate never looks.
+import mlb_slate_receipt
 
 from mlb_baseball_evidence import valid_baseball_evidence, valid_execution_checks
 from mlb_probability_model import valid_probability_components
@@ -4170,3 +4175,173 @@ def test_lineup_outage_prompt_defers_instead_of_failing_gate(monkeypatch):
     assert "keep status pending_lineup_recheck" in g.LINEUP_UNAVAILABLE_MARKER
     assert "Fail the lineup-confirmation gate" not in prompt
     assert eligible == {"watch-a"}
+
+
+class GateWritesTheSlateReceiptTests(DeterministicPolicyState, unittest.TestCase):
+    """The receipt must not depend on the component whose failure it catches.
+
+    On 2026-09-04 the producer skipped ``mlb_slate_writer.py`` and skipped
+    ``mlb_slate_receipt.py --write`` with it, so the day that most needed a
+    recording verdict — sixteen scanned games, no ``game_reads``, no
+    ``slate_denominator`` — ended with no receipt on disk at all. Every check in
+    the lane worked; the one artifact that carries the answer was written by the
+    same run that failed. These pin the ownership move, not the verdicts: what
+    a verdict MEANS is `test_mlb_recorder_wiring.SlateReceiptTests`.
+    """
+
+    @contextmanager
+    def _runtime(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            original_root = getattr(vig_review_gate_common, "ROOT")
+            try:
+                root = Path(tmp)
+                setattr(vig_review_gate_common, "ROOT", root)
+                # The gate's OWN day function, never a second clock call: two
+                # now() calls straddling Chicago midnight write one day's file
+                # and look for another's receipt.
+                yield root, vig_review_gate_common.schedule_day_now()
+            finally:
+                setattr(vig_review_gate_common, "ROOT", original_root)
+
+    def _receipt(self, root, day):
+        path = root / ".picks" / "journal" / f"{day}-slate-receipt.json"
+        self.assertTrue(path.exists(), f"no receipt written at {path}")
+        return json.loads(path.read_text(encoding="utf-8"))
+
+    def test_the_2026_09_04_shape_leaves_a_receipt_the_producer_did_not_write(self):
+        # The real artifact, reduced: a hand-authored schedule with no reads and
+        # no denominator, against a scan that enumerated the card. Nothing here
+        # runs mlb_slate_receipt.py — the gate cycle is the only actor.
+        with self._runtime() as (root, day):
+            schedule = root / ".picks" / "execute" / f"{day}-schedule.json"
+            schedule.parent.mkdir(parents=True)
+            schedule.write_text(json.dumps({
+                "date": day, "sport": "MLB", "market_type": "moneyline",
+                "candidates": [], "lineup_watchlist": [],
+            }))
+            scan = root / ".picks" / "tmp" / f"stage2-{day}.json"
+            scan.parent.mkdir(parents=True)
+            scan.write_text(json.dumps([
+                {"game_pk": 824424, "event_id": "401877193",
+                 "away": "Detroit Tigers", "home": "Cleveland Guardians"},
+                {"game_pk": 824387, "event_id": "401816801",
+                 "away": "Detroit Tigers", "home": "Cleveland Guardians"},
+            ]))
+
+            with redirect_stdout(StringIO()):
+                status = vig_review_gate_common.run_gate("MLB")
+
+            self.assertEqual(status, 0)
+            receipt = self._receipt(root, day)
+            self.assertEqual(
+                receipt["verdict"], mlb_slate_receipt.VERDICT_RECORDER_FAILED
+            )
+            # The count comes from the SCAN, which the run did not write. A
+            # denominator-shaped zero would have said 0 games and 0 reads.
+            self.assertEqual(receipt["scheduled_games"], 2)
+            self.assertEqual(receipt["reads_recorded"], 0)
+
+    def test_a_day_with_no_schedule_at_all_still_leaves_a_receipt(self):
+        # The early return. "The producer never ran" and "the producer ran and
+        # recorded nothing" are different days, and a receipt written only on
+        # the paths that reach the bottom of run_gate would leave the first one
+        # looking exactly like a machine that was switched off.
+        with self._runtime() as (root, day):
+            with redirect_stdout(StringIO()):
+                status = vig_review_gate_common.run_gate("MLB")
+
+            self.assertEqual(status, 0)
+            self.assertEqual(
+                self._receipt(root, day)["verdict"],
+                mlb_slate_receipt.VERDICT_NO_SCHEDULE,
+            )
+
+    def test_a_receipt_is_written_even_when_the_gate_raises(self):
+        # The `finally`, asserted through the MECHANISM rather than an outcome
+        # it shares with an ordinary cycle: the failure is injected inside
+        # _run_gate, so a receipt on disk here can only have come from the
+        # unwind path. An unexpected exception is exactly when a run leaves the
+        # least evidence, which is when the day's verdict is worth the most.
+        with self._runtime() as (root, day):
+            boom = RuntimeError("gate exploded mid-cycle")
+            with patch.object(
+                vig_review_gate_common, "_schedule_path", side_effect=boom
+            ):
+                with redirect_stdout(StringIO()):
+                    with self.assertRaises(RuntimeError):
+                        vig_review_gate_common.run_gate("MLB")
+
+            self.assertEqual(
+                self._receipt(root, day)["verdict"],
+                mlb_slate_receipt.VERDICT_NO_SCHEDULE,
+            )
+
+    def test_the_soccer_gate_does_not_write_an_mlb_receipt(self):
+        # The receipt is an MLB artifact keyed on the MLB schedule path. A
+        # soccer cycle writing one would file a no_schedule verdict against a
+        # sport whose schedule it never looked for, and it would do so ninety-six
+        # times a day over any MLB receipt already on disk.
+        with self._runtime() as (root, day):
+            with redirect_stdout(StringIO()):
+                status = vig_review_gate_common.run_gate("intl-soccer")
+
+            self.assertEqual(status, 0)
+            self.assertFalse(
+                (root / ".picks" / "journal" / f"{day}-slate-receipt.json").exists()
+            )
+
+    def test_a_receipt_that_cannot_be_written_does_not_fail_the_review(self):
+        # Same asymmetry as the run journal: the gate's verdict is
+        # authoritative, and taking the reviewer offline because a measurement
+        # artifact could not be persisted would add an outage mode to the lane
+        # whose actual problem is losing work silently.
+        with self._runtime() as (root, day):
+            output = StringIO()
+            with patch.object(
+                vig_review_gate_common.mlb_slate_receipt,
+                "write_receipt",
+                side_effect=OSError("read-only filesystem"),
+            ):
+                with redirect_stdout(output):
+                    status = vig_review_gate_common.run_gate("MLB")
+
+            self.assertEqual(status, 0)
+            self.assertIn("RECEIPT CRITICAL", output.getvalue())
+            self.assertIn("read-only filesystem", output.getvalue())
+            self.assertFalse(
+                (root / ".picks" / "journal" / f"{day}-slate-receipt.json").exists()
+            )
+
+    def test_the_receipt_and_the_journal_do_not_disagree_about_one_day(self):
+        # Two artifacts, one file, and they must not be a second opinion about
+        # each other: the gate journals `recorder_failed` from
+        # validate_with_denominator and the receipt reaches its verdict from the
+        # same functions. A day where the journal says the record is broken and
+        # the receipt says `complete` would leave a reader no way to decide
+        # which one to believe.
+        with self._runtime() as (root, day):
+            schedule = root / ".picks" / "execute" / f"{day}-schedule.json"
+            schedule.parent.mkdir(parents=True)
+            schedule.write_text(json.dumps({
+                "date": day, "sport": "MLB", "market_type": "moneyline",
+                "candidates": [], "lineup_watchlist": [],
+            }))
+            scan = root / ".picks" / "tmp" / f"stage2-{day}.json"
+            scan.parent.mkdir(parents=True)
+            scan.write_text(json.dumps([
+                {"game_pk": 823418, "event_id": "401816115",
+                 "away": "Philadelphia Phillies", "home": "New York Mets"},
+            ]))
+
+            with redirect_stdout(StringIO()):
+                vig_review_gate_common.run_gate("MLB")
+
+            records, _errors = vig_run_journal.read_records(
+                vig_run_journal.journal_path(root, day)
+            )
+            outcomes = {r.get("outcome") for r in records if r.get("sport") == "MLB"}
+            self.assertIn(vig_run_journal.OUTCOME_RECORDER_FAILED, outcomes)
+            self.assertEqual(
+                self._receipt(root, day)["verdict"],
+                mlb_slate_receipt.VERDICT_RECORDER_FAILED,
+            )

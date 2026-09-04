@@ -48,10 +48,11 @@ is not optional here either: a run that trimmed `game_reads` and
 check keyed on the schedule alone, and would otherwise journal a clean
 `no_reviewable_work` — the identical record the 09-01 run produced, reached by
 a different route. The gate reaches the cross-check through `mlb_game_reads`,
-which is in `deploy-runtime.sh`'s `PROFILE_MANIFEST`; `mlb_slate_receipt.py` is
-not, so a gate importing the receipt would pass every test here and
-`ImportError` on the runtime's profile-local copies. The notice prints once per
-day,
+which is in `deploy-runtime.sh`'s `PROFILE_MANIFEST`. (`mlb_slate_receipt.py`
+was not in that manifest when this was written, which is why the gate went
+through `mlb_game_reads`; it was added on 2026-09-03, and the gate now imports
+the receipt directly — see *Who writes the receipt* below.) The notice prints
+once per day,
 not on all ninety-six cycles — a repeating alarm is the same as no alarm, which
 this lane already paid to learn with the stuck watchlist entry. The gate's exit
 code is deliberately unchanged: a defect in a measurement artifact must not
@@ -134,6 +135,93 @@ regression pinning that a hand-written bare schedule still reads
 no longer *land* through the supported path, and the supported path is now the
 easier one.
 
+## What happened on 2026-09-04
+
+The writer was deployed, present in the runtime checkout and documented in the
+deployed `SKILL.md` at lines 78 and 87. The slate run did not use it. It
+hand-wrote a 1353-byte schedule with `candidates: []`, one watchlist entry, **no
+`game_reads` and no `slate_denominator`** — the 09-01 shape again, by the route
+the writer explicitly does not close.
+
+Everything downstream worked. `mlb_stage2_scan.py` had persisted
+`.picks/tmp/stage2-2026-09-04.json` with **16** entries, 16 distinct `game_pk`
+and 16 distinct `event_id` (including a legitimate Detroit–Cleveland
+doubleheader). The gate cross-checked against it on every cycle and journalled
+`recorder_failed` seven times, listing exactly 16 `scan lists game N but
+slate_denominator does not` errors.
+
+And there was **no receipt on disk at all**, because
+`mlb_slate_receipt.py --write` was another sentence in `SKILL.md` that the same
+run skipped. The one artifact designed to carry the day's verdict in a closed
+vocabulary depended on the cooperation of the component whose failure it exists
+to catch.
+
+Three numbers described one slate and none of them reconciled: the writeup's
+prose opened with "Fourteen games scanned" and then discussed 16, the scan said
+16, and the first report of the incident said 18. Nothing in the repository
+tied the count in the prose to the count in the record.
+
+## Who writes the receipt
+
+`vig_review_gate_common.run_gate` writes `.picks/journal/<date>-slate-receipt.json`
+on **every MLB cycle**, from `mlb_slate_receipt.build_receipt`. This is the
+natural owner: scheduled code with no agent in it, already running the identical
+validation every fifteen minutes, and running whether or not a slate was
+produced. Running `mlb_slate_receipt.py --write` by hand is still supported and
+is still what the slate summary should quote; it is no longer what the receipt's
+*existence* depends on.
+
+Three properties, each pinned by a test:
+
+- It is written in a `finally`, so a receipt exists for the paths that return
+  early (no schedule at all) and for the ones that raise. A receipt written only
+  on the happy path would reproduce the 09-04 failure in a narrower form.
+- It is not a second opinion. `build_receipt` calls the same `mlb_game_reads`
+  functions the gate calls, so the journal and the receipt cannot answer
+  differently about one file.
+- A receipt that cannot be written prints `RECEIPT CRITICAL` and is swallowed —
+  the same asymmetry as the run journal. Failing a review because a measurement
+  artifact could not be persisted would add an outage mode to the lane whose
+  actual problem is losing work silently.
+
+It writes silently on success, `recorder_failed` included. The gap already has
+exactly one stdout notification per day from `recorder_gap_notice`, and a second
+line on each of ninety-six cycles — on the same stdout the reviewer's approval
+card is written to — is the alarm-fatigue failure this lane has already paid
+for once.
+
+Rewritten each cycle rather than once: the day's record changes as a schedule
+lands and reads get filled, so the last cycle is the one that counts and
+`recorded_at_utc` says which cycle wrote it.
+
+## Writer provenance — diagnosis, not a rail
+
+`slate_denominator` now carries `scan_sha256`, the digest of the scan bytes the
+landing derived the roster from, taken from the same bytes that were parsed
+rather than from a second read of the path. The receipt re-hashes the scan still
+on disk and reports one of four values beside the verdict:
+
+| `writer_provenance` | meaning |
+|---|---|
+| `absent` | no digest recorded; the schedule did not come through the writer |
+| `corroborated` | the recorded digest equals the scan's |
+| `contradicted` | a digest is recorded and does not match, or is not a string |
+| `unverifiable` | a digest is recorded and the scan could not be hashed |
+
+**This is diagnosis and it is not enforcement.** A hand-authored schedule can
+copy a correct digest exactly as easily as a correct roster, so `corroborated`
+is evidence of a consistent record and not proof of a code path. The
+load-bearing value is `absent`, which is the one a bypass cannot avoid without
+going to the trouble of forging a digest — and even that only *suggests* the
+bypass, it does not prove one.
+
+Accordingly `writer_provenance` is **not an input to the verdict**, and a test
+pins that: strip the digest or corrupt it, and the verdict, the error list and
+the scheduled-game count are identical. Content validation against the scan
+stays the enforcement. A guard keyed on a field the producer writes is a guard
+measuring the producer's copy of itself, and this lane has paid for that lesson
+already.
+
 ## The deployment gap, and why it pointed the other way
 
 `load_model_deployment_policy` existed and was consulted in exactly one
@@ -201,3 +289,18 @@ applies a prompt norm ("when in doubt, use the market-only fallback") backed by
 a deployment gate that has never been both answerable and passing. Resolving
 that either way is a behaviour change and out of scope for this lane; it is
 recorded as an open question in `docs/model-evaluation.md`.
+
+**Nothing forces the producer through the writer.** That is unchanged by the
+09-04 work and stated here so nobody reads the receipt's new owner as a rail it
+is not. What changed is that the bypass can no longer also suppress the
+evidence: the gate writes the verdict, and `writer_provenance: absent` names the
+bypass on the receipt. Both are detection, after the fact. Structural forcing —
+making the schedule unwritable except through the writer — would be a behaviour
+change and belongs in its own lane.
+
+**The count in the prose is not tied to the count in the record.** On 09-04 the
+writeup said "Fourteen" over a 16-game scan. `SKILL.md` now instructs the run to
+quote the receipt's `scheduled_games` rather than count by hand, and that is
+*guidance only*: no code reads `.picks/slate/<date>.md`, so nothing enforces it.
+Enforcing it means parsing slate prose, which is its own
+lane.

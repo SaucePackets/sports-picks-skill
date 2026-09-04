@@ -26,6 +26,22 @@ why the denominator is read from the scan artifact rather than from the
 schedule's own copy of it — a run that trimmed its roster to match a short
 read set would otherwise certify itself ``complete``.
 
+**Who writes it.** Until 2026-09-04 this module only ran when the slate run
+remembered to run it, which made the one artifact carrying the day's verdict
+depend on the cooperation of the component whose failure it exists to catch. On
+2026-09-04 the producer skipped the writer AND this receipt, and the day ended
+with sixteen scanned games, no ``game_reads`` and no receipt at all. The
+scheduled review gate now writes it on every MLB cycle — no agent, no prompt,
+the same validation it was already running — so a receipt exists whether or not
+the producer cooperated. Running ``--write`` by hand is still supported and is
+still what the slate summary should quote; it is no longer what the receipt's
+existence depends on.
+
+Beside the verdict, the receipt reports ``writer_provenance``: whether the
+schedule names the scan bytes its denominator was built from, and whether that
+name survives re-hashing the scan on disk. That is DIAGNOSIS, not a rail — see
+``writer_provenance`` — and it is deliberately not an input to the verdict.
+
 Read-only with respect to everything except its own receipt file. No network,
 no order behaviour, no gate or policy input.
 """
@@ -66,6 +82,20 @@ VERDICTS = (
     VERDICT_NO_SCHEDULE,
 )
 
+# Whether the record says which scan bytes it was built from, and whether that
+# claim survives being checked against the scan still on disk. Reported beside
+# the verdict and deliberately NOT an input to it — see ``writer_provenance``.
+PROVENANCE_ABSENT = "absent"
+PROVENANCE_CORROBORATED = "corroborated"
+PROVENANCE_CONTRADICTED = "contradicted"
+PROVENANCE_UNVERIFIABLE = "unverifiable"
+PROVENANCES = (
+    PROVENANCE_ABSENT,
+    PROVENANCE_CORROBORATED,
+    PROVENANCE_CONTRADICTED,
+    PROVENANCE_UNVERIFIABLE,
+)
+
 
 def utc_now_iso() -> str:
     return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
@@ -98,6 +128,45 @@ def _scan_game_count(scan_rows: Any) -> int | None:
     return len(scan_rows)
 
 
+def writer_provenance(schedule: Any, scan_path: Path | None) -> tuple[str, Any, Any]:
+    """Did this schedule come through ``mlb_slate_writer``, as far as we can tell?
+
+    Returns ``(provenance, recorded, actual)``. Three-valued in the sense that
+    matters: ABSENCE is never read as agreement and never as contradiction.
+
+    - ``absent``       — no ``scan_sha256`` on the denominator. The schedule did
+      not come through the writer (or predates it). This is the only genuinely
+      load-bearing value, because it is the one a bypass cannot avoid without
+      going to the trouble of forging a digest.
+    - ``corroborated`` — the recorded digest equals the digest of the scan on
+      disk. Worth having and worth not over-reading: a hand-authored schedule
+      can copy a correct digest exactly as easily as a correct roster, so this
+      is evidence of a consistent record, not proof of a code path.
+    - ``contradicted`` — a digest is recorded and does not equal the scan's, or
+      is not a string at all. The roster was derived from bytes that are not the
+      ones a later reader will find, which makes the cross-check a comparison
+      against a different day's evidence.
+    - ``unverifiable`` — a digest is recorded and the scan could not be hashed
+      (missing or unreadable). The missing scan is already reported as an error
+      by ``check_denominator``; this says only that the digest could not be
+      judged, which is not the same as it being wrong.
+
+    Nothing here is an input to ``verdict``. A rail keyed on a field the
+    producer writes is a rail measuring the producer's copy of itself; the
+    verdict stays keyed on content validation against the scan.
+    """
+    denominator = schedule.get("slate_denominator") if isinstance(schedule, dict) else None
+    recorded = denominator.get("scan_sha256") if isinstance(denominator, dict) else None
+    if recorded is None:
+        return PROVENANCE_ABSENT, None, None
+    actual = _sha256(scan_path) if scan_path is not None else None
+    if actual is None:
+        return PROVENANCE_UNVERIFIABLE, recorded, None
+    if isinstance(recorded, str) and recorded == actual:
+        return PROVENANCE_CORROBORATED, recorded, actual
+    return PROVENANCE_CONTRADICTED, recorded, actual
+
+
 def build_receipt(root: Path, day: str) -> dict[str, Any]:
     """Compute the receipt for one day. Pure with respect to the filesystem read."""
     schedule_path = schedule_path_for(root, day)
@@ -111,6 +180,12 @@ def build_receipt(root: Path, day: str) -> dict[str, Any]:
         "scheduled_games": None,
         "reads_recorded": 0,
         "recorder_errors": [],
+        # Present on every receipt, including the paths that return early, so a
+        # consumer never has to tell "this run did not record provenance" apart
+        # from "this receipt predates the field".
+        "writer_provenance": PROVENANCE_ABSENT,
+        "scan_sha256_recorded": None,
+        "scan_sha256_actual": None,
         "verdict": VERDICT_NO_SCHEDULE,
         "detail": "no schedule file for this day",
     }
@@ -149,6 +224,15 @@ def build_receipt(root: Path, day: str) -> dict[str, Any]:
     errors.extend(check.errors)
     receipt["scheduled_games"] = _scan_game_count(check.rows)
     receipt["recorder_errors"] = errors
+
+    # Computed AFTER the errors are final and never folded into them: the
+    # verdict below reads `errors`, so keeping provenance out of that list is
+    # what makes "diagnosis, not a rail" a property of the code rather than a
+    # sentence in a docstring.
+    provenance, recorded, actual = writer_provenance(schedule, check.path)
+    receipt["writer_provenance"] = provenance
+    receipt["scan_sha256_recorded"] = recorded
+    receipt["scan_sha256_actual"] = actual
 
     scheduled = receipt["scheduled_games"]
     if scheduled == 0 and not errors:
