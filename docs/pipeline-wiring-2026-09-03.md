@@ -71,27 +71,42 @@ id, same side — and stamps `watchlist_id` from the entry it matched. The rail
 stays closed: a candidate no entry corroborates is still refused, and a
 candidate two entries corroborate is refused as ambiguous.
 
-`promotion_address_agreement` returns three answers, not two. `agree` needs at
-least one **market** field — `polymarket_slug`, `market_slug`, `event_id` —
-present on both sides and equal, with nothing disagreeing; `disagree` is a
-positive contradiction; `unknown` is an absence of evidence and never rounds to
+`promotion_address_agreement` returns three answers, not two. A bet is a market
+**and** a side, so `agree` needs both halves present on both sides and equal:
+at least one **market** field — `polymarket_slug`, `market_slug`, `event_id` —
+and `side`, with nothing disagreeing. `disagree` is a positive contradiction
+from either half; `unknown` is an absence of evidence and never rounds to
 either. A `watchlist_id` the reviewer *did* write is honoured
 but may not be contradicted by the entry it names — without that check a
 mis-stamp launders itself, because normalization overwrites the named entry's
 `promoted_candidate` with whatever candidate claimed it and the downstream
 equality check then compares the forgery against itself.
 
-The side is part of the address, but only as a veto. A slug match alone would
-call the other side of the same market a corroborated promotion, so a
-disagreeing `side` contradicts. It cannot supply corroboration on its own: a
-side is a club name, the same club plays every day, and an entry whose
-`promoted_candidate` carries only `side` addresses no market at all. Letting
-that agree would corroborate a candidate for a **different market**, and the
-failure would be silent — the promotion is then recorded against the watchlist
-entry's `game_pk`, so the wrong game's read is relabelled while the
-reconciliation identity still balances. An under-specified `promoted_candidate`
-is the same transcription failure as a missing `watchlist_id` and gets the same
-answer.
+**Neither half of the address is sufficient alone**, and the two failures are
+mirror images at the same money boundary.
+
+A bare `side` is a club name. The same club plays every day and appears in
+every market it is priced in, so an entry whose `promoted_candidate` carries
+only `side` addresses no market at all and would corroborate a candidate for a
+**different game**. That failure is silent: the promotion is recorded against
+the watchlist entry's `game_pk`, so the wrong game's read is relabelled while
+the reconciliation identity still balances.
+
+A bare market field is no better. `polymarket_slug`
+(`aec-mlb-tb-tex-2026-09-03`) and `event_id` (an ESPN game id) are both
+per-*game* — neither names a side — so a slug alone would corroborate the
+**opposite wager on the same game**. That one hides even better: `game_pk` is
+the *right* game, so the read that gets relabelled is the correct read and
+nothing anywhere is off by one; the only thing wrong is which side got routed
+to automatic execution. Nothing downstream catches it —
+`mlb_lineup_watchlist.validate_entry` never mentions `side` on
+`promoted_candidate` — and the `promoted_candidate` overwrite then leaves the
+entry asserting it promoted the side it did not promote.
+
+An under-specified `promoted_candidate` is the same transcription failure as a
+missing `watchlist_id` and gets the same answer. The premise of this lane is a
+reviewer that under-specifies, so the address it writes is trusted only when it
+is complete.
 
 **The refusal names the missing half, and the refused review is kept.**
 `persist_refused_review` writes the child's own output — snapshotted before

@@ -3637,6 +3637,56 @@ class PromotionCorroborationTests(DeterministicPolicyState, unittest.TestCase):
         # address — the laundering step that would erase the mismatch.
         self.assertEqual(promoted["promoted_candidate"], {"side": "Tampa Bay Rays"})
 
+    def test_a_market_with_no_side_does_not_corroborate_the_opposite_wager(self):
+        """The mirror of the club-name defect, and the better-hidden half.
+
+        Here the entry's ``promoted_candidate`` carries the slug, the event_id
+        and the watchlist_id but never restates the side. Both of those fields
+        are per-GAME — ``aec-mlb-tb-tex-2026-09-03`` and an ESPN game id name
+        the matchup, not the wager — so they address the Texas candidate exactly
+        as well as the Tampa Bay one the entry actually promoted.
+
+        Nothing downstream catches it, and unlike the club-name case nothing is
+        even off by one: ``entry['game_pk']`` is the RIGHT game, so the read
+        that gets relabelled is the correct read and the reconciliation
+        identity balances exactly. ``validate_entry`` never mentions ``side``
+        on ``promoted_candidate``. The only thing wrong is that the opposite
+        bet is the one routed to automatic execution.
+        """
+        before, after, candidate, promoted = self._promotion()
+        promoted["promoted_candidate"].pop("side")
+        # The premise: still a complete market address, and still stamped.
+        self.assertEqual(
+            promoted["promoted_candidate"]["polymarket_slug"],
+            "aec-mlb-tb-tex-2026-09-03",
+        )
+        self.assertEqual(
+            promoted["promoted_candidate"]["watchlist_id"], "LW20260903-TB-001"
+        )
+        self.assertNotIn("side", promoted["promoted_candidate"])
+        mirror = _promoted_candidate(side="Texas Rangers")
+        # Same game, other side, and nothing for the rail to fall back on.
+        self.assertEqual(mirror["polymarket_slug"], "aec-mlb-tb-tex-2026-09-03")
+        self.assertNotEqual(mirror["side"], candidate["side"])
+        self.assertNotIn("watchlist_id", mirror)
+        after["candidates"] = [mirror]
+
+        errors = vig_review_gate_common.normalize_review_routing(
+            before, after, "MLB", mlb_standing_authorized=True
+        )
+
+        self.assertEqual(len(errors), 1, errors)
+        self.assertIn("no promoted watchlist entry corroborates it", errors[0])
+        # Not routed, not stamped...
+        self.assertNotEqual(mirror.get("execution_mode"), "standing_authorized")
+        self.assertNotIn("watchlist_id", mirror)
+        # ...and the entry was NOT overwritten with the wager it did not
+        # promote. Without this the entry ends up asserting it promoted Texas.
+        self.assertNotIn("side", promoted["promoted_candidate"])
+        self.assertNotEqual(
+            promoted["promoted_candidate"].get("side"), "Texas Rangers"
+        )
+
     def test_a_candidate_two_promotions_corroborate_is_refused(self):
         """An ambiguous pairing has no fact to route on, so it fails closed."""
         candidate = _promoted_candidate()
@@ -3719,10 +3769,18 @@ class PromotionCorroborationTests(DeterministicPolicyState, unittest.TestCase):
                 {"side": "Tampa Bay Rays", "polymarket_slug": "aec-mlb-nyy-bos-2026-09-03"},
                 "disagree",
             ),
-            # Market without side still addresses a market, and the entry
-            # simply did not restate the side. That is corroboration.
-            ("slug only, matching", {"polymarket_slug": candidate["polymarket_slug"]}, "agree"),
-            ("event_id only, matching", {"event_id": candidate["event_id"]}, "agree"),
+            # A slug and an event_id are both per-GAME and name no side, so a
+            # market without a restated side is exactly as under-specified as a
+            # side without a market — it would corroborate the OPPOSITE wager
+            # on the same game.
+            ("slug only, matching", {"polymarket_slug": candidate["polymarket_slug"]}, "unknown"),
+            ("event_id only, matching", {"event_id": candidate["event_id"]}, "unknown"),
+            # Both halves present and equal is the only thing that agrees.
+            (
+                "market and side, no other field",
+                {"polymarket_slug": candidate["polymarket_slug"], "side": candidate["side"]},
+                "agree",
+            ),
             ("slug matches, side differs", dict(candidate, side="Texas Rangers"), "disagree"),
             (
                 "slug differs, side matches",
@@ -3742,12 +3800,26 @@ class PromotionCorroborationTests(DeterministicPolicyState, unittest.TestCase):
                 )
 
     def test_an_integer_event_id_addresses_the_same_game_as_its_string(self):
-        """The two vocabularies do not agree on the JSON type of an id."""
+        """The two vocabularies do not agree on the JSON type of an id.
+
+        The side is carried on both sides here only so the pair is a complete
+        address; the field under test is ``event_id`` and its type.
+        """
         self.assertEqual(
             vig_review_gate_common.promotion_address_agreement(
-                {"event_id": 401816794}, {"event_id": "401816794"}
+                {"event_id": 401816794, "side": "Tampa Bay Rays"},
+                {"event_id": "401816794", "side": "Tampa Bay Rays"},
             ),
             "agree",
+        )
+        # And the coercion is not doing the work of the side: drop the side and
+        # the same matching id is no longer an address.
+        self.assertEqual(
+            vig_review_gate_common.promotion_address_agreement(
+                {"event_id": 401816794, "side": "Tampa Bay Rays"},
+                {"event_id": "401816794"},
+            ),
+            "unknown",
         )
 
 

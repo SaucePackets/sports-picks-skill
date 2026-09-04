@@ -278,28 +278,36 @@ def promotion_address_agreement(
     """Does this promoted entry's own candidate address the same bet?
 
     Three answers, not two, and the distinction is the whole point. ``agree``
-    means at least one address field is present on both sides and equal, with
-    no present-on-both field disagreeing. ``disagree`` means some present-on-
-    both field differs — a positive contradiction, which is evidence. ``unknown``
-    means the two objects share no comparable field, which is an absence of
+    means the bet is fully addressed on both sides and every comparable field
+    matches. ``disagree`` means some present-on-both field differs — a positive
+    contradiction, which is evidence. ``unknown`` means the two objects do not
+    address the same bet completely enough to compare, which is an absence of
     evidence and must never be read as either.
 
-    ``side`` participates as an address field, but only as a veto. A promoted
-    entry for the other side of the same market is a different bet, and a slug
-    match alone would call it corroborated — so a disagreeing ``side``
-    contradicts. It cannot supply corroboration on its own, though: a side is a
-    club name, and the same club plays every day and appears in every market it
-    is priced in. An entry whose ``promoted_candidate`` carries only
-    ``side='Tampa Bay Rays'`` addresses no market, so it corroborates nothing.
-    ``agree`` therefore requires at least one of ``PROMOTION_ADDRESS_FIELDS``
-    — which market — to be present on both sides and equal. A side that agrees
-    while no market field is comparable is ``unknown``: an under-specified
-    ``promoted_candidate`` is the same transcription failure as a missing
-    ``watchlist_id``, and must not be laundered into evidence.
+    A bet is a market AND a side, so ``agree`` requires BOTH halves of that
+    address present on both sides and equal. Neither half is sufficient alone,
+    and the two insufficiencies are symmetric:
+
+    * A ``side`` is a club name. The same club plays every day and appears in
+      every market it is priced in, so ``side='Tampa Bay Rays'`` alone addresses
+      no market and could corroborate a candidate for a different game.
+    * A ``polymarket_slug`` (``aec-mlb-tb-tex-2026-09-03``) and an ``event_id``
+      (an ESPN game id) are both per-GAME. Neither names a side, so a slug alone
+      could corroborate the OPPOSITE side of the same game — the mirror wager,
+      at the same money boundary. This repo already says a bet needs both:
+      ``candidate_identity`` is ``polymarket_slug:…|side:…``.
+
+    A present-on-both field that DIFFERS still returns ``disagree`` on sight,
+    from either half — a positive contradiction is evidence regardless of what
+    else is comparable. Anything short of both halves agreeing is ``unknown``:
+    an under-specified ``promoted_candidate`` is the same transcription failure
+    as a missing ``watchlist_id``, and must not be laundered into evidence. The
+    premise of this lane is a reviewer that under-specifies.
     """
     if not isinstance(promoted_candidate, dict):
         return UNKNOWN
     market_agreed = False
+    side_agreed = False
     for field in (*PROMOTION_ADDRESS_FIELDS, "side"):
         mine = _address_value(candidate.get(field))
         theirs = _address_value(promoted_candidate.get(field))
@@ -307,9 +315,11 @@ def promotion_address_agreement(
             continue
         if mine != theirs:
             return DISAGREE
-        if field != "side":
+        if field == "side":
+            side_agreed = True
+        else:
             market_agreed = True
-    return AGREE if market_agreed else UNKNOWN
+    return AGREE if market_agreed and side_agreed else UNKNOWN
 
 
 def _promoted_entries(
