@@ -472,6 +472,26 @@ def _manifest_names() -> list[str]:
     return names
 
 
+def test_the_two_readers_of_the_manifest_read_the_same_manifest():
+    """``vig_runtime_verify`` parses the same shell array this test does.
+
+    Two parsers over ONE source is fine and worth keeping — they check each
+    other. Two parsers that quietly accept different sets is not: the drift
+    check would then verify a manifest the deploy does not install. So the
+    agreement is asserted rather than assumed.
+    """
+    import importlib.util
+
+    path = DEPLOY.parent / "vig_runtime_verify.py"
+    spec = importlib.util.spec_from_file_location("vig_runtime_verify_manifest", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    names, error = module.load_profile_manifest(DEPLOY)
+    assert error is None, error
+    assert names == _manifest_names()
+
+
 def test_the_profile_manifest_is_closed_under_sibling_imports():
     """A manifest module that imports a sibling the manifest omits is a dead profile.
 

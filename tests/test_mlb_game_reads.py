@@ -906,9 +906,126 @@ class CardReconciliationTests(unittest.TestCase):
         payload = schedule(reads=[read(disposition="lineup_watchlist", refusing_rails=[])])
         self.assertIn(
             "1 game_reads entries say 'lineup_watchlist' but the schedule carries 0 "
-            "lineup_watchlist",
+            "un-promoted lineup_watchlist entries",
             mlb_game_reads.validate_game_reads(payload),
         )
+
+    def test_a_promoted_entry_is_counted_on_the_card_not_as_a_deferral(self):
+        """A promoted game is in both lists and must be counted in one.
+
+        The entry stays on ``lineup_watchlist`` as its audit trail while the
+        game itself owns a ``candidates[]`` element. Counting it in both
+        populations made the identity unsatisfiable: whichever disposition the
+        promoted game's read carried, one of the two halves was wrong.
+        """
+        payload = schedule(reads=[read(disposition="candidate", refusing_rails=[])])
+        payload["candidates"] = [{"sport": "MLB"}]
+        payload["lineup_watchlist"] = [{"id": "LW-1", "status": "promoted"}]
+        self.assertEqual(mlb_game_reads.validate_game_reads(payload), [])
+
+    def test_a_passed_entry_is_still_a_deferral(self):
+        """``passed`` is a game the recheck dropped: it never reaches the card.
+
+        Keyed on ``promoted`` and not on "terminal", which would silently
+        swallow this case — the entry is finished, and it is still not a
+        candidate.
+        """
+        payload = schedule(reads=[read(disposition="lineup_watchlist", refusing_rails=[])])
+        payload["lineup_watchlist"] = [{"id": "LW-1", "status": "passed"}]
+        self.assertEqual(mlb_game_reads.validate_game_reads(payload), [])
+
+    def test_a_malformed_entry_stays_in_the_deferred_population(self):
+        """The count must not quietly shrink around junk it cannot read."""
+        payload = schedule(reads=[read(disposition="lineup_watchlist", refusing_rails=[])])
+        payload["lineup_watchlist"] = ["not an object"]
+        self.assertEqual(mlb_game_reads.validate_game_reads(payload), [])
+
+
+class PromotionRecordingTests(unittest.TestCase):
+    """``record_promotion_as_candidate``: the label change and its rails."""
+
+    def _payload(self, reads=None):
+        return schedule(
+            reads=reads
+            or [read(disposition="lineup_watchlist", refusing_rails=[])]
+        )
+
+    def test_the_two_accepting_dispositions_impose_identical_requirements(self):
+        """What makes the re-label a LABEL change and nothing else.
+
+        ``record_promotion_as_candidate`` rewrites one string on a read that
+        has already been validated as ``lineup_watchlist``. That is only safe
+        while the two accepting dispositions demand exactly the same things,
+        so the claim is pinned here rather than asserted in a docstring: add a
+        candidate-only requirement and this reds instead of the recorder
+        silently starting to write invalid reads.
+        """
+        self.assertEqual(
+            mlb_game_reads.ACCEPTING_DISPOSITIONS,
+            frozenset({"candidate", "lineup_watchlist"}),
+        )
+        for entry in (
+            read(disposition="lineup_watchlist", refusing_rails=[]),
+            # A read that is INVALID for reasons of its own must be equally
+            # invalid under both labels, or the equivalence is only true of
+            # well-formed reads and the recorder could still launder one.
+            read(disposition="lineup_watchlist", refusing_rails=["price_discipline"]),
+            read(disposition="lineup_watchlist", refusing_rails=[], polymarket_ask=None),
+        ):
+            with self.subTest(rails=entry.get("refusing_rails")):
+                as_watchlist = mlb_game_reads.validate_read(dict(entry), 0)
+                as_candidate = mlb_game_reads.validate_read(
+                    dict(entry, disposition="candidate"), 0
+                )
+                self.assertEqual(
+                    [message.replace("'candidate'", "'lineup_watchlist'") for message in as_candidate],
+                    as_watchlist,
+                )
+
+    def test_the_promoted_read_is_relabelled_and_stays_valid(self):
+        payload = self._payload()
+        self.assertEqual(
+            mlb_game_reads.record_promotion_as_candidate(
+                payload, label="promotion", game_pk=823509
+            ),
+            [],
+        )
+        self.assertEqual(payload["game_reads"][0]["disposition"], "candidate")
+        self.assertEqual(mlb_game_reads.validate_read(payload["game_reads"][0], 0), [])
+
+    def test_recording_the_same_promotion_twice_is_a_no_op(self):
+        """A re-run finds the read already moved; that is not a second defect."""
+        payload = self._payload()
+        mlb_game_reads.record_promotion_as_candidate(payload, label="p", game_pk=823509)
+        self.assertEqual(
+            mlb_game_reads.record_promotion_as_candidate(payload, label="p", game_pk=823509),
+            [],
+        )
+        self.assertEqual(payload["game_reads"][0]["disposition"], "candidate")
+
+    def test_a_promotion_with_no_identifier_cannot_be_recorded(self):
+        payload = self._payload()
+        errors = mlb_game_reads.record_promotion_as_candidate(payload, label="promotion")
+        self.assertEqual(len(errors), 1, errors)
+        self.assertIn("neither a game_pk nor an event_id", errors[0])
+        self.assertEqual(payload["game_reads"][0]["disposition"], "lineup_watchlist")
+
+    def test_a_blank_event_id_is_an_absent_one(self):
+        payload = self._payload()
+        errors = mlb_game_reads.record_promotion_as_candidate(
+            payload, label="promotion", event_id="   "
+        )
+        self.assertEqual(len(errors), 1, errors)
+        self.assertIn("neither a game_pk nor an event_id", errors[0])
+
+    def test_a_refusing_read_is_never_overwritten(self):
+        payload = schedule(reads=[read(disposition="pass")])
+        errors = mlb_game_reads.record_promotion_as_candidate(
+            payload, label="promotion", game_pk=823509
+        )
+        self.assertEqual(len(errors), 1, errors)
+        self.assertIn("that read says 'pass'", errors[0])
+        self.assertEqual(payload["game_reads"][0]["disposition"], "pass")
 
 
 class CliTests(unittest.TestCase):

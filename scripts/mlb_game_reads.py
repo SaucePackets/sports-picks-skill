@@ -73,6 +73,7 @@ if str(SCRIPT_DIR) not in sys.path:
 import mlb_runtime_policy  # noqa: E402
 from mlb_lineup_watchlist import (  # noqa: E402
     ALLOWED_BLOCKERS,
+    PROMOTED_STATUS,
     REQUIRED_ORIGINAL_GATES,
 )
 from numeric_util import is_finite_number  # noqa: E402
@@ -809,6 +810,34 @@ def coverage_errors(schedule: dict[str, Any]) -> list[str]:
     return errors
 
 
+def deferred_watchlist_entries(schedule: dict[str, Any]) -> list[Any]:
+    """Watchlist entries the card is still deferring, i.e. not promoted.
+
+    A promoted entry stays on ``lineup_watchlist`` forever — that is its audit
+    trail — but the game itself has moved onto the card and owns a
+    ``candidates[]`` element. Counting it in both populations is what made the
+    ``lineup_watchlist`` half of the reconciliation identity uncheckable: with
+    the promoted entry counted here, the read for that game could not say
+    ``candidate`` (the candidate half) and ``lineup_watchlist`` (this half) at
+    once, so one of the two counts had to be wrong no matter what the recorder
+    wrote.
+
+    ``promoted`` and not ``TERMINAL_STATUSES``: ``passed`` is a game the recheck
+    dropped, which never reaches ``candidates[]`` and is still a deferral in
+    the record, and nothing in this repo writes ``filled_manual`` at all.
+    """
+    entries = schedule.get("lineup_watchlist")
+    if not isinstance(entries, list):
+        return []
+    # A non-dict entry is malformed, not promoted; it stays in the deferred
+    # population so this count never quietly shrinks around junk.
+    return [
+        entry
+        for entry in entries
+        if not isinstance(entry, dict) or entry.get("status") != PROMOTED_STATUS
+    ]
+
+
 def card_reconciliation_errors(schedule: dict[str, Any]) -> list[str]:
     """The reads and the card must agree on how many games were taken.
 
@@ -816,25 +845,148 @@ def card_reconciliation_errors(schedule: dict[str, Any]) -> list[str]:
     candidate is not a recording detail — it means the record of the decision
     and the decision itself have come apart, and the record is what every later
     analysis will read.
+
+    Each half names its own POPULATION rather than a schedule key, because the
+    two are not the same list: ``candidates`` includes the games a review gate
+    promoted off the watchlist, and the watchlist half must therefore exclude
+    exactly those. On 2026-09-03 they were counted as both, and the identity
+    reported ``1 game_reads entries say 'candidate' but the schedule carries 2
+    candidates`` for a promotion whose read nothing had updated.
     """
     errors: list[str] = []
     reads = schedule.get("game_reads")
     if not isinstance(reads, list):
         return errors
-    for disposition, key in (("candidate", "candidates"), ("lineup_watchlist", "lineup_watchlist")):
+    candidates = schedule.get("candidates")
+    populations = (
+        ("candidate", "candidates", candidates if isinstance(candidates, list) else []),
+        (
+            "lineup_watchlist",
+            "un-promoted lineup_watchlist entries",
+            deferred_watchlist_entries(schedule),
+        ),
+    )
+    for disposition, label, population in populations:
         recorded = sum(
             1
             for entry in reads
             if isinstance(entry, dict) and entry.get("disposition") == disposition
         )
-        actual = schedule.get(key)
-        actual_count = len(actual) if isinstance(actual, list) else 0
-        if recorded != actual_count:
+        if recorded != len(population):
             errors.append(
                 f"{recorded} game_reads entries say {disposition!r} but the schedule carries "
-                f"{actual_count} {key}"
+                f"{len(population)} {label}"
             )
     return errors
+
+
+def _event_key(value: Any) -> str | None:
+    """A comparable ``event_id``, or None when the value addresses nothing.
+
+    ``normalize_event_id`` deliberately returns a blank or non-string value
+    UNCHANGED — refusing it belongs to ``_identity_errors``, which must name
+    what the producer wrote. A join key cannot inherit that: ``"   "`` is an
+    absent id here, not a value to match on, and an integer id must find the
+    string one, because the schedule and the read are written by different
+    producers that do not agree on the JSON type.
+    """
+    normalized = normalize_event_id(value)
+    if isinstance(normalized, str):
+        return normalized.strip() or None
+    if isinstance(normalized, int) and not isinstance(normalized, bool):
+        return str(normalized)
+    return None
+
+
+def _read_matches(
+    reads: list[Any], game_pk: Any, event_id: Any
+) -> tuple[list[int], str]:
+    """Indices of the reads for one game, and the key that selected them.
+
+    ``game_pk`` first and alone when it is present, because it is the only key
+    that separates a doubleheader's two games; ``event_id`` is the fallback for
+    a promotion whose entry was never stamped with a ``game_pk`` (the field is
+    optional on a watchlist entry). The two are different id spaces and are
+    never mixed into one match set: a read matching on one and a different read
+    matching on the other is an ambiguity, not two votes.
+    """
+    if isinstance(game_pk, int) and not isinstance(game_pk, bool):
+        return (
+            [
+                index
+                for index, entry in enumerate(reads)
+                if isinstance(entry, dict) and entry.get("game_pk") == game_pk
+            ],
+            f"game_pk {game_pk}",
+        )
+    wanted = _event_key(event_id)
+    if wanted is not None:
+        return (
+            [
+                index
+                for index, entry in enumerate(reads)
+                if isinstance(entry, dict)
+                and _event_key(entry.get("event_id")) == wanted
+            ],
+            f"event_id {wanted}",
+        )
+    return [], ""
+
+
+def record_promotion_as_candidate(
+    schedule: dict[str, Any], label: str, game_pk: Any = None, event_id: Any = None
+) -> list[str]:
+    """Re-label the promoted game's read from ``lineup_watchlist`` to ``candidate``.
+
+    The morning slate owns ``game_reads`` and writes each read once. When the
+    review gate promotes a watchlist entry the game moves onto the card and
+    nothing had ever updated its read, so the reconciliation identity above
+    broke every time a promotion succeeded — and it healed itself when the
+    candidate left the card, which is worse: a per-game record that is wrong
+    only while anyone would look at it.
+
+    The re-label is a LABEL change and nothing else. Both dispositions are in
+    ``ACCEPTING_DISPOSITIONS``, which is what makes that safe — they impose
+    exactly the same requirements on the read's numbers and rails, so a read
+    that was valid as ``lineup_watchlist`` is valid as ``candidate``. A test
+    pins that equivalence rather than trusting this sentence.
+
+    Fails closed, and returns errors instead of raising: no read for the
+    promoted game, more than one, or a read that says the card refused the game
+    are each a state where the record and the decision disagree, and a
+    promotion may not be accepted while they do.
+    """
+    reads = schedule.get("game_reads")
+    if not isinstance(reads, list):
+        # A schedule with no read set records nothing to reconcile, and
+        # ``card_reconciliation_errors`` is silent on it for the same reason.
+        # Refusing here would wedge every pre-recorder schedule.
+        return []
+    matches, key = _read_matches(reads, game_pk, event_id)
+    if not key:
+        return [
+            f"{label} carries neither a game_pk nor an event_id, so its game_reads "
+            "entry cannot be located; the promotion cannot be recorded"
+        ]
+    if len(matches) != 1:
+        return [
+            f"{label} matches {len(matches)} game_reads entries on {key}; exactly "
+            "one read must record the promoted game"
+        ]
+    entry = reads[matches[0]]
+    disposition = entry.get("disposition")
+    if disposition == "candidate":
+        # Idempotent: a re-run of the same promotion finds the read already
+        # moved. Not an error, and not a second write.
+        return []
+    if disposition != "lineup_watchlist":
+        return [
+            f"{label} matched game_reads[{matches[0]}] on {key}, but that read says "
+            f"{disposition!r}; a promoted game's read must have said "
+            "'lineup_watchlist' before the promotion"
+        ]
+    entry["disposition"] = "candidate"
+    return []
 
 
 def validate_game_reads(schedule: Any) -> list[str]:

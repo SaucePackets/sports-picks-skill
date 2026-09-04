@@ -20,6 +20,12 @@ spec.loader.exec_module(vig_review_gate_common)
 
 import vig_run_journal
 
+# The bare module, deliberately: `vig_review_gate_common` imports it as
+# `mlb_game_reads` off its own sys.path entry, and `from scripts import ...`
+# would give this test a DIFFERENT module object from the one the gate mutates
+# (the dual-import trap, PR #74).
+import mlb_game_reads
+
 from mlb_baseball_evidence import valid_baseball_evidence, valid_execution_checks
 from mlb_probability_model import valid_probability_components
 
@@ -195,7 +201,14 @@ def recorded_empty_card(**overrides):
     return payload
 
 
-class VigReviewGateCommonTests(unittest.TestCase):
+class DeterministicPolicyState:
+    """Temp ``VIG_STATE_DIR`` carrying the shared policy and standing auth.
+
+    Every routing test needs it, because ``normalize_review_routing`` fails
+    closed without a loadable policy — one setUp, so a second suite of routing
+    tests cannot quietly disagree with this one about the rails it runs under.
+    """
+
     def setUp(self):
         # Point the shared policy loader at a temp state dir with the PR 1
         # policy block so edge-floor and daily-cap rails are deterministic.
@@ -223,6 +236,8 @@ class VigReviewGateCommonTests(unittest.TestCase):
         self.env_patcher.stop()
         self.tmp.cleanup()
 
+
+class VigReviewGateCommonTests(DeterministicPolicyState, unittest.TestCase):
     def test_normalize_new_mlb_approval_repairs_manual_child_state_for_execution_gate(self):
         now = datetime(2026, 7, 19, 17, 0, tzinfo=timezone.utc)
         before = {
@@ -443,7 +458,10 @@ class VigReviewGateCommonTests(unittest.TestCase):
 
         self.assertEqual(
             errors,
-            ["candidate event_id:2|side:NYY was not a targeted candidate or watchlist promotion"],
+            [
+                "candidate event_id:2|side:NYY was not a targeted candidate and this "
+                "review promoted no watchlist entry, so nothing corroborates it"
+            ],
         )
         self.assertNotEqual(after["candidates"][1].get("execution_mode"), "standing_authorized")
 
@@ -2429,6 +2447,120 @@ class VigReviewGateCommonTests(unittest.TestCase):
             detail="routing normalization failed closed",
         )
 
+    def test_a_refused_review_is_archived_before_the_restore_destroys_it(self):
+        """The reviewed state a refusal throws away is the evidence about it.
+
+        Diagnosing the 2026-09-03 refusals meant reading Vig's agent session
+        database on the VPS, because ``_restore_pre_review_state`` had already
+        put the pre-review bytes back over the only copy of what the child
+        wrote and nothing under ``.picks`` recorded that a review had been
+        refused at all.
+
+        Both halves are asserted on the SAME run: the schedule really was
+        restored (so this is the destructive path, not a lucky no-op) and the
+        archive holds the reviewer's own object.
+        """
+        with self._temp_root() as root:
+            day = vig_review_gate_common.schedule_day_now()
+            self._schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
+            status, output, _, schedule_path = self._journalled_gate(
+                root,
+                json.dumps({"candidates": [self._ROUTABLE_CANDIDATE], "lineup_watchlist": []}),
+                run=self._approving_child(approved_polymarket_ask=_OMITTED),
+                extra_patches=[
+                    patch.object(
+                        vig_review_gate_common,
+                        "standing_authorization_enabled",
+                        return_value=True,
+                    )
+                ],
+            )
+            self.assertEqual(status, 1)
+            self.assertIn("pre-review schedule restored", output)
+            # The live file is the PRE-review state again: no decision on it.
+            restored = json.loads(schedule_path.read_text())
+            self.assertIsNone(restored["candidates"][0].get("vig_approved"))
+
+            archived = sorted((root / ".picks" / "refused").glob("*.json"))
+            self.assertEqual(len(archived), 1, archived)
+            payload = json.loads(archived[0].read_text())
+            self.assertEqual(payload["stage"], "routing_normalization")
+            self.assertIn("routing normalization failed closed", payload["detail"])
+            self.assertEqual(payload["day"], day)
+            self.assertEqual(payload["sport"], "MLB")
+            # The reviewer's decision — the thing the restore erased — is here.
+            self.assertIs(
+                payload["reviewed_schedule"]["candidates"][0]["vig_approved"], True
+            )
+            self.assertIn(str(archived[0]), output)
+
+    def test_the_archive_holds_the_child_output_not_a_normalized_copy(self):
+        """Archive what the reviewer wrote, because that is what is in question.
+
+        ``normalize_review_routing`` legitimately mutates the reviewed state
+        before some of its refusals — it stamps ``sport``/``market_type`` and
+        rewrites routable candidates — so archiving the live object would file
+        a half-normalized artifact under the name of the child's output and
+        make the gate look like it had written fields the child did not.
+        """
+        with self._temp_root() as root:
+            day = vig_review_gate_common.schedule_day_now()
+            self._schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
+            self._journalled_gate(
+                root,
+                json.dumps({"candidates": [self._ROUTABLE_CANDIDATE], "lineup_watchlist": []}),
+                run=self._approving_child(approved_polymarket_ask=_OMITTED),
+                extra_patches=[
+                    patch.object(
+                        vig_review_gate_common,
+                        "standing_authorization_enabled",
+                        return_value=True,
+                    )
+                ],
+            )
+            payload = json.loads(
+                sorted((root / ".picks" / "refused").glob("*.json"))[0].read_text()
+            )
+        reviewed = payload["reviewed_schedule"]
+        # The child wrote neither of these; normalization does, and it ran
+        # before this refusal was reported.
+        self.assertNotIn("sport", reviewed)
+        self.assertNotIn("market_type", reviewed)
+
+    def test_an_unwritable_archive_does_not_change_the_verdict(self):
+        """Observability that can fail the gate is a new failure mode (PR #60).
+
+        A refusal is a refusal whether or not it could be filed. The run must
+        still exit 1 for its own reason, still restore, and say plainly that
+        the artifact was lost rather than pretending it exists.
+        """
+        with self._temp_root() as root:
+            day = vig_review_gate_common.schedule_day_now()
+            self._schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
+            status, output, _, schedule_path = self._journalled_gate(
+                root,
+                json.dumps({"candidates": [self._ROUTABLE_CANDIDATE], "lineup_watchlist": []}),
+                run=self._approving_child(approved_polymarket_ask=_OMITTED),
+                extra_patches=[
+                    patch.object(
+                        vig_review_gate_common,
+                        "standing_authorization_enabled",
+                        return_value=True,
+                    ),
+                    patch.object(
+                        vig_review_gate_common.Path,
+                        "mkdir",
+                        side_effect=OSError("read-only file system"),
+                    ),
+                ],
+            )
+            self.assertEqual(status, 1)
+            self.assertIn("could not archive the refused review", output)
+            self.assertIn("routing normalization failed closed", output)
+            self.assertIn("pre-review schedule restored", output)
+            restored = json.loads(schedule_path.read_text())
+            self.assertIsNone(restored["candidates"][0].get("vig_approved"))
+
     # --- 2026-08-30 cron exit-1 regression pair (LW-20260830-PIT-001 and the
     # malformed Phillies candidate). The two failures shared one cron status
     # but are opposite cases: the Pittsburgh entry is DEAD state that must
@@ -3295,6 +3427,462 @@ class VigReviewGateCommonTests(unittest.TestCase):
         }
         item.update(overrides)
         return item
+
+
+def _promotion_watch_entry(**overrides):
+    """A pending watchlist entry in the shape the 2026-09-03 live one had."""
+    entry = {
+        "id": "LW20260903-TB-001",
+        "first_pitch_utc": "2026-09-04T00:05:00Z",
+        "recheck_due_utc": "2026-09-03T23:05:00Z",
+        "blocked_only_by": ["lineups_unconfirmed"],
+        "original_gate_results": {
+            "starter_floor": True,
+            "opposing_starter_shutdown_path": True,
+            "bullpen_close_game_survival": True,
+            "cold_fade_reset": True,
+            "price_discipline": True,
+            "real_winner_conviction": True,
+            "lineups_confirmed": False,
+        },
+        "original_price": -120,
+        "bettable_to_price": -125,
+        "status": "pending_lineup_recheck",
+        "slate_probability": {
+            "dk_fair_prob": 0.55,
+            "raw_probability": 0.57,
+            "uncertainty_haircut": 0.03,
+            "conservative_probability": 0.54,
+            "current_ask": 0.48,
+            "projected_edge_at_current_ask": 0.06,
+            "model_version": "vig-mlb-market-v1",
+        },
+    }
+    entry.update(overrides)
+    return entry
+
+
+def _promoted_candidate(**overrides):
+    """The reviewer's approved object, WITHOUT watchlist_id unless asked.
+
+    That omission is the defect: on 2026-09-03 the child wrote a complete
+    ``promoted_candidate`` carrying the id and then appended a ``candidates[]``
+    element that had no ``watchlist_id`` key at all.
+    """
+    candidate = {
+        "event_id": "401816794",
+        "game": "Tampa Bay Rays at Texas Rangers",
+        "side": "Tampa Bay Rays",
+        "polymarket_slug": "aec-mlb-tb-tex-2026-09-03",
+        **PROBABILITY_TRAIL,
+        "vig_approved": True,
+        "vig_notes": "All gates hold; both lineups confirmed.",
+        "approved_polymarket_ask": 0.48,
+        # The REFRESHED signed American price the recheck saw. Without it the
+        # promotion has no evidence the price was looked at again.
+        "supported_price": -120,
+    }
+    candidate.update(overrides)
+    return candidate
+
+
+def _promotion_recheck(candidate):
+    """The refresh audit a promoted entry owes, agreeing with its candidate."""
+    return {
+        "lineups_confirmed": True,
+        "key_injuries_refreshed": True,
+        "price_refreshed": True,
+        "all_original_gates_hold": True,
+        "material_changes": ["both batting orders moved to confirmed"],
+        "probability_change_reasons": {},
+        # Confirming the lineups the morning already assumed is a material
+        # change that moves no number, and the contract requires that be said
+        # rather than left to be inferred.
+        "probability_unchanged_justification": (
+            "Both orders confirmed exactly the assumed lineups; no component moved."
+        ),
+        "probability": {
+            field: candidate[field]
+            for field in (
+                "dk_fair_prob",
+                "raw_probability",
+                "uncertainty_haircut",
+                "conservative_probability",
+                "current_ask",
+                "projected_edge_at_current_ask",
+                "model_version",
+            )
+        },
+    }
+
+
+class PromotionCorroborationTests(DeterministicPolicyState, unittest.TestCase):
+    """The 2026-09-03 review-gate refusals, and the rail that replaces them.
+
+    The gate recognised a watchlist promotion only when the ``candidates[]``
+    element carried a ``watchlist_id`` — a string the child reviewer copies by
+    hand out of the entry it also hand-writes. Two cycles (22:46, 23:01) were
+    refused because it omitted the field and the third (23:16) passed because
+    it did not, same reviewer, same entry, same prompt.
+    """
+
+    @staticmethod
+    def _promotion(candidate=None, entry_overrides=None, watch_id="LW20260903-TB-001"):
+        candidate = _promoted_candidate() if candidate is None else candidate
+        entry = _promotion_watch_entry(id=watch_id)
+        promoted = _promotion_watch_entry(
+            id=watch_id,
+            status="promoted",
+            rechecked_at_utc="2026-09-03T22:50:00Z",
+            recheck_notes="Both orders confirmed; live ask inside the ceiling.",
+            recheck=_promotion_recheck(candidate),
+            promoted_candidate=dict(candidate, watchlist_id=watch_id),
+        )
+        promoted.update(entry_overrides or {})
+        before = {"candidates": [], "lineup_watchlist": [entry]}
+        after = {"candidates": [candidate], "lineup_watchlist": [promoted]}
+        return before, after, candidate, promoted
+
+    def test_a_promotion_missing_watchlist_id_is_corroborated_by_its_entry(self):
+        before, after, candidate, promoted = self._promotion()
+        # The premise: the reviewer really did omit the field the old rail
+        # keyed on. Without this the test could pass for the wrong reason.
+        self.assertNotIn("watchlist_id", candidate)
+
+        errors = vig_review_gate_common.normalize_review_routing(
+            before, after, "MLB", mlb_standing_authorized=True
+        )
+
+        self.assertEqual(errors, [])
+        self.assertEqual(candidate["watchlist_id"], "LW20260903-TB-001")
+        self.assertEqual(candidate["execution_mode"], "standing_authorized")
+        self.assertEqual(promoted["promoted_candidate"], candidate)
+        # And the transition validator — which demands exactly one candidate
+        # carrying the entry id, equal to promoted_candidate — now agrees. It
+        # refused this same pair on 2026-09-03 for the same missing field.
+        self.assertEqual(
+            vig_review_gate_common.validate_review_transition(
+                before, after, [], ["LW20260903-TB-001"], "MLB", True
+            ),
+            [],
+        )
+
+    def test_an_uncorroborated_candidate_is_still_refused(self):
+        """The rail stays CLOSED; only the evidence it reads has changed."""
+        injected = _promoted_candidate(
+            event_id="401899999",
+            polymarket_slug="aec-mlb-nyy-bos-2026-09-03",
+            side="New York Yankees",
+        )
+        before, after, _, _ = self._promotion()
+        after["candidates"] = [injected]
+
+        errors = vig_review_gate_common.normalize_review_routing(
+            before, after, "MLB", mlb_standing_authorized=True
+        )
+
+        self.assertEqual(len(errors), 1, errors)
+        self.assertIn("no promoted watchlist entry corroborates it", errors[0])
+        # The message names what WAS promoted — the half the old message left
+        # out, and the reason the live refusal took a session-database read to
+        # diagnose.
+        self.assertIn("aec-mlb-tb-tex-2026-09-03", errors[0])
+        self.assertNotEqual(injected.get("execution_mode"), "standing_authorized")
+
+    def test_a_candidate_on_the_other_side_of_the_same_market_is_refused(self):
+        """A slug match is not a bet match: the side is part of the address."""
+        before, after, candidate, _ = self._promotion()
+        after["candidates"] = [_promoted_candidate(side="Texas Rangers")]
+
+        errors = vig_review_gate_common.normalize_review_routing(
+            before, after, "MLB", mlb_standing_authorized=True
+        )
+
+        self.assertEqual(len(errors), 1, errors)
+        self.assertIn("no promoted watchlist entry corroborates it", errors[0])
+
+    def test_a_candidate_two_promotions_corroborate_is_refused(self):
+        """An ambiguous pairing has no fact to route on, so it fails closed."""
+        candidate = _promoted_candidate()
+        twin = _promotion_watch_entry(
+            id="LW20260903-TB-002",
+            status="promoted",
+            rechecked_at_utc="2026-09-03T22:50:00Z",
+            recheck_notes="Duplicate entry for the same game.",
+            promoted_candidate=dict(candidate, watchlist_id="LW20260903-TB-002"),
+        )
+        before, after, _, _ = self._promotion(candidate=candidate)
+        before["lineup_watchlist"].append(
+            _promotion_watch_entry(id="LW20260903-TB-002")
+        )
+        after["lineup_watchlist"].append(twin)
+
+        errors = vig_review_gate_common.normalize_review_routing(
+            before, after, "MLB", mlb_standing_authorized=True
+        )
+
+        self.assertEqual(len(errors), 1, errors)
+        self.assertIn("corroborated by more than one promoted watchlist entry", errors[0])
+        self.assertNotIn("watchlist_id", after["candidates"][0])
+
+    def test_a_stamped_watchlist_id_its_own_entry_contradicts_is_refused(self):
+        """A hand-copied id may not be trusted against positive contradiction.
+
+        Without this the mis-stamp launders itself: normalization overwrites
+        the named entry's ``promoted_candidate`` with whatever candidate
+        claimed it, so the equality check in ``validate_review_transition``
+        compares the forgery against itself and passes.
+        """
+        before, after, _, promoted = self._promotion()
+        after["candidates"] = [
+            _promoted_candidate(
+                watchlist_id="LW20260903-TB-001",
+                polymarket_slug="aec-mlb-nyy-bos-2026-09-03",
+                side="New York Yankees",
+                event_id="401899999",
+            )
+        ]
+
+        errors = vig_review_gate_common.normalize_review_routing(
+            before, after, "MLB", mlb_standing_authorized=True
+        )
+
+        self.assertEqual(len(errors), 1, errors)
+        self.assertIn("addresses a different bet", errors[0])
+        # And the entry was NOT overwritten with the contradicting candidate.
+        self.assertEqual(
+            promoted["promoted_candidate"]["polymarket_slug"],
+            "aec-mlb-tb-tex-2026-09-03",
+        )
+
+    def test_a_stamped_watchlist_id_naming_no_promotion_is_still_refused(self):
+        before, after, _, _ = self._promotion()
+        after["candidates"] = [_promoted_candidate(watchlist_id="LW20260903-XX-999")]
+
+        errors = vig_review_gate_common.normalize_review_routing(
+            before, after, "MLB", mlb_standing_authorized=True
+        )
+
+        self.assertEqual(len(errors), 1, errors)
+        self.assertIn("not a promoted entry this review created", errors[0])
+
+    def test_address_agreement_separates_absence_of_evidence_from_evidence(self):
+        """Three answers, not two — ``unknown`` is neither and never rounds."""
+        candidate = {
+            "polymarket_slug": "aec-mlb-tb-tex-2026-09-03",
+            "side": "Tampa Bay Rays",
+            "event_id": "401816794",
+        }
+        cases = [
+            ("same slug and side", dict(candidate), "agree"),
+            ("side only, matching", {"side": "Tampa Bay Rays"}, "agree"),
+            ("slug matches, side differs", dict(candidate, side="Texas Rangers"), "disagree"),
+            (
+                "slug differs, side matches",
+                dict(candidate, polymarket_slug="aec-mlb-nyy-bos-2026-09-03"),
+                "disagree",
+            ),
+            ("event_id differs alone", dict(candidate, event_id="401899999"), "disagree"),
+            ("no comparable field", {"game": "Tampa Bay Rays at Texas Rangers"}, "unknown"),
+            ("blank strings address nothing", {"polymarket_slug": "  ", "side": ""}, "unknown"),
+            ("not an object", None, "unknown"),
+        ]
+        for label, other, expected in cases:
+            with self.subTest(label):
+                self.assertEqual(
+                    vig_review_gate_common.promotion_address_agreement(candidate, other),
+                    expected,
+                )
+
+    def test_an_integer_event_id_addresses_the_same_game_as_its_string(self):
+        """The two vocabularies do not agree on the JSON type of an id."""
+        self.assertEqual(
+            vig_review_gate_common.promotion_address_agreement(
+                {"event_id": 401816794}, {"event_id": "401816794"}
+            ),
+            "agree",
+        )
+
+
+class PromotionRecordsItsGameReadTests(DeterministicPolicyState, unittest.TestCase):
+    """The other half of the 2026-09-03 pair: two candidates, one game_read.
+
+    ``card_reconciliation_errors`` reported ``1 game_reads entries say
+    'candidate' but the schedule carries 2 candidates`` at 23:30. The morning
+    slate owns ``game_reads`` and writes each read once; the promotion path
+    moved a game onto the card and nothing updated its read.
+    """
+
+    AWAY, HOME = "Tampa Bay Rays", "Texas Rangers"
+
+    def _read(self, **overrides):
+        entry = {
+            "game_pk": 824901,
+            "event_id": "401816794",
+            "away": self.AWAY,
+            "home": self.HOME,
+            "disposition": "lineup_watchlist",
+            "dk_fair_prob": {"away": 0.54, "home": 0.46},
+            "polymarket_ask": {"away": 0.54, "home": 0.47},
+            "raw_probability": {"away": 0.60, "home": 0.40},
+            "uncertainty_haircut": 0.0,
+            "conservative_probability": {"away": 0.60, "home": 0.40},
+            "model_version": "market-handicap-v1",
+            "net_edge": {"away": 0.06, "home": -0.07},
+            "refusing_rails": [],
+        }
+        entry.update(overrides)
+        return entry
+
+    def _carded_read(self, **overrides):
+        return self._read(
+            game_pk=824900,
+            event_id="401816700",
+            away="Toronto Blue Jays",
+            home="Cleveland Guardians",
+            disposition="candidate",
+            **overrides,
+        )
+
+    def _schedule(self, reads, entry_overrides=None, candidate=None):
+        candidate = _promoted_candidate() if candidate is None else candidate
+        entry = _promotion_watch_entry(game_pk=824901)
+        promoted = _promotion_watch_entry(
+            game_pk=824901,
+            status="promoted",
+            rechecked_at_utc="2026-09-03T22:50:00Z",
+            recheck_notes="Both orders confirmed.",
+            promoted_candidate=dict(candidate, watchlist_id="LW20260903-TB-001"),
+        )
+        promoted.update(entry_overrides or {})
+        morning_candidate = {"polymarket_slug": "aec-mlb-tor-cle-2026-09-03", "side": "Toronto Blue Jays"}
+        before = {
+            "candidates": [morning_candidate],
+            "lineup_watchlist": [entry],
+            "game_reads": reads,
+        }
+        after = {
+            "candidates": [morning_candidate, candidate],
+            "lineup_watchlist": [promoted],
+            "game_reads": reads,
+        }
+        return before, after
+
+    def test_the_live_defect_reproduces_without_the_recorder(self):
+        """Premise first: this is the message the 23:30 cron actually printed.
+
+        The corrected identity reports the promoted game twice — once for the
+        candidate it now is and once for the deferral it is no longer — and
+        both halves are the same un-updated read. On ``main`` only the first
+        was visible, because the promoted entry was counted as a deferral and
+        its stale ``lineup_watchlist`` read balanced that phantom.
+        """
+        _, after = self._schedule([self._carded_read(), self._read()])
+        errors = mlb_game_reads.card_reconciliation_errors(after)
+        self.assertIn(
+            "1 game_reads entries say 'candidate' but the schedule carries 2 candidates",
+            errors,
+        )
+        self.assertIn(
+            "1 game_reads entries say 'lineup_watchlist' but the schedule carries 0 "
+            "un-promoted lineup_watchlist entries",
+            errors,
+        )
+
+    def test_a_promotion_moves_its_read_onto_the_card(self):
+        before, after = self._schedule([self._carded_read(), self._read()])
+
+        errors = vig_review_gate_common.normalize_review_routing(
+            before, after, "MLB", mlb_standing_authorized=True
+        )
+
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            [entry["disposition"] for entry in after["game_reads"]],
+            ["candidate", "candidate"],
+        )
+        self.assertEqual(mlb_game_reads.card_reconciliation_errors(after), [])
+
+    def test_a_promotion_whose_read_is_missing_fails_closed(self):
+        before, after = self._schedule([self._carded_read()])
+
+        errors = vig_review_gate_common.normalize_review_routing(
+            before, after, "MLB", mlb_standing_authorized=True
+        )
+
+        self.assertEqual(len(errors), 1, errors)
+        self.assertIn("matches 0 game_reads entries", errors[0])
+
+    def test_a_promotion_whose_read_says_the_card_refused_it_fails_closed(self):
+        """A promoted game whose read says ``pass`` is two records disagreeing."""
+        before, after = self._schedule(
+            [self._carded_read(), self._read(disposition="pass", refusing_rails=["lineups_unconfirmed"])]
+        )
+
+        errors = vig_review_gate_common.normalize_review_routing(
+            before, after, "MLB", mlb_standing_authorized=True
+        )
+
+        self.assertEqual(len(errors), 1, errors)
+        self.assertIn("that read says 'pass'", errors[0])
+
+    def test_a_doubleheader_is_separated_by_game_pk_not_event_id(self):
+        """Same clubs, same day, two games: only ``game_pk`` tells them apart."""
+        other_game = self._read(game_pk=824902)
+        before, after = self._schedule([self._carded_read(), self._read(), other_game])
+        # Both reads carry the promoted game's event_id; the entry's stamped
+        # game_pk is what selects one.
+        self.assertEqual(other_game["event_id"], "401816794")
+
+        errors = vig_review_gate_common.normalize_review_routing(
+            before, after, "MLB", mlb_standing_authorized=True
+        )
+
+        self.assertEqual(errors, [])
+        self.assertEqual(after["game_reads"][1]["disposition"], "candidate")
+        self.assertEqual(after["game_reads"][2]["disposition"], "lineup_watchlist")
+
+    def test_an_unstamped_entry_falls_back_to_the_event_id(self):
+        """``game_pk`` is optional on a watchlist entry, so it cannot be required."""
+        before, after = self._schedule(
+            [self._carded_read(), self._read()],
+            entry_overrides={"game_pk": None},
+        )
+        before["lineup_watchlist"][0]["game_pk"] = None
+
+        errors = vig_review_gate_common.normalize_review_routing(
+            before, after, "MLB", mlb_standing_authorized=True
+        )
+
+        self.assertEqual(errors, [])
+        self.assertEqual(after["game_reads"][1]["disposition"], "candidate")
+
+    def test_an_ambiguous_event_id_fallback_fails_closed(self):
+        before, after = self._schedule(
+            [self._carded_read(), self._read(), self._read(game_pk=824902)],
+            entry_overrides={"game_pk": None},
+        )
+        before["lineup_watchlist"][0]["game_pk"] = None
+
+        errors = vig_review_gate_common.normalize_review_routing(
+            before, after, "MLB", mlb_standing_authorized=True
+        )
+
+        self.assertEqual(len(errors), 1, errors)
+        self.assertIn("matches 2 game_reads entries", errors[0])
+
+    def test_a_schedule_with_no_reads_still_promotes(self):
+        """Every schedule written before the recorder shipped carries none."""
+        before, after = self._schedule([])
+        del before["game_reads"]
+        del after["game_reads"]
+
+        self.assertEqual(
+            vig_review_gate_common.normalize_review_routing(
+                before, after, "MLB", mlb_standing_authorized=True
+            ),
+            [],
+        )
 
 
 if __name__ == "__main__":

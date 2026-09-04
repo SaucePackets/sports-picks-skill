@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import copy
 import fcntl
 import json
 import math
@@ -11,7 +12,7 @@ import re
 import shutil
 import subprocess
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -31,6 +32,7 @@ for _guard_dir in (
 
 from mlb_lineup_watchlist import (  # noqa: E402
     PENDING_STATUS,
+    PROMOTED_STATUS,
     WatchlistFormatError,
     build_recheck_prompt,
     due_entries,
@@ -249,6 +251,159 @@ def _watchlist_supported_price(
     return None
 
 
+# The fields that address a candidate at the market: which market, and which
+# side of it. A promotion is corroborated against these and never against a
+# free-text game name, because the two vocabularies (the slate's and the
+# reviewer's) are not guaranteed to spell a club the same way.
+PROMOTION_ADDRESS_FIELDS = ("polymarket_slug", "market_slug", "event_id")
+
+AGREE = "agree"
+DISAGREE = "disagree"
+UNKNOWN = "unknown"
+
+
+def _address_value(value: Any) -> str | None:
+    """A comparable address, or None when the field carries no address at all."""
+    if isinstance(value, str):
+        text = value.strip()
+        return text or None
+    if isinstance(value, int) and not isinstance(value, bool):
+        return str(value)
+    return None
+
+
+def promotion_address_agreement(
+    candidate: dict[str, Any], promoted_candidate: Any
+) -> str:
+    """Does this promoted entry's own candidate address the same bet?
+
+    Three answers, not two, and the distinction is the whole point. ``agree``
+    means at least one address field is present on both sides and equal, with
+    no present-on-both field disagreeing. ``disagree`` means some present-on-
+    both field differs — a positive contradiction, which is evidence. ``unknown``
+    means the two objects share no comparable field, which is an absence of
+    evidence and must never be read as either.
+
+    ``side`` participates as an address field: a promoted entry for the other
+    side of the same market is a different bet, and a slug match alone would
+    call it corroborated.
+    """
+    if not isinstance(promoted_candidate, dict):
+        return UNKNOWN
+    agreed = False
+    for field in (*PROMOTION_ADDRESS_FIELDS, "side"):
+        mine = _address_value(candidate.get(field))
+        theirs = _address_value(promoted_candidate.get(field))
+        if mine is None or theirs is None:
+            continue
+        if mine == theirs:
+            agreed = True
+        else:
+            return DISAGREE
+    return AGREE if agreed else UNKNOWN
+
+
+def _promoted_entries(
+    after: dict[str, Any], eligible_ids: set[Any]
+) -> list[dict[str, Any]]:
+    return [
+        entry
+        for entry in after.get("lineup_watchlist", [])
+        if isinstance(entry, dict)
+        and entry.get("status") == PROMOTED_STATUS
+        and entry.get("id") in eligible_ids
+    ]
+
+
+def resolve_promotion(
+    candidate: dict[str, Any], promoted: list[dict[str, Any]]
+) -> tuple[dict[str, Any] | None, list[str]]:
+    """Pair a newly approved candidate with the watchlist entry it came from.
+
+    The defect this replaces: the gate recognised a promotion only when the
+    ``candidates[]`` element carried a ``watchlist_id``, and that field is
+    hand-copied by the child reviewer from the entry it also hand-writes. On
+    2026-09-03 the same reviewer wrote a complete ``promoted_candidate``
+    carrying ``LW20260903-TB-001`` and then appended a ``candidates[]`` element
+    with no ``watchlist_id`` at all — twice, at 22:46 and 23:01, both refused —
+    and got it right on the third pass at 23:16. Nothing raced; a rail was
+    keyed on a transcription.
+
+    So the pairing is done by CORROBORATION instead: the promoted entry's own
+    ``promoted_candidate`` already carries the slug and the side, and those
+    address the same bet or they do not. The rail stays closed — a candidate no
+    entry corroborates is still refused — it just no longer depends on a string
+    being copied twice.
+
+    A ``watchlist_id`` the reviewer DID write is honoured, but it may not be
+    positively contradicted by the entry it names: without that check a
+    mis-stamped id would launder itself, because ``normalize_review_routing``
+    overwrites the named entry's ``promoted_candidate`` with the candidate it
+    matched. An entry that shares no comparable field is neither corroboration
+    nor contradiction, so a stamped id survives it; an UNSTAMPED candidate
+    needs positive corroboration and ``unknown`` is not enough.
+    """
+    claimed = candidate.get("watchlist_id")
+    identity = candidate_identity(candidate)
+    if claimed not in (None, ""):
+        named = [entry for entry in promoted if entry.get("id") == claimed]
+        if not named:
+            return None, [
+                f"candidate {identity} names watchlist_id {claimed!r}, which is not a "
+                "promoted entry this review created"
+            ]
+        entry = named[0]
+        if promotion_address_agreement(
+            candidate, entry.get("promoted_candidate")
+        ) == DISAGREE:
+            return None, [
+                f"candidate {identity} names watchlist_id {claimed!r}, but that entry's "
+                "promoted_candidate addresses a different bet "
+                f"({_promotion_address_label(entry.get('promoted_candidate'))})"
+            ]
+        return entry, []
+
+    corroborating = [
+        entry
+        for entry in promoted
+        if promotion_address_agreement(candidate, entry.get("promoted_candidate")) == AGREE
+    ]
+    if len(corroborating) == 1:
+        return corroborating[0], []
+    if not corroborating:
+        if not promoted:
+            return None, [
+                f"candidate {identity} was not a targeted candidate and this review "
+                "promoted no watchlist entry, so nothing corroborates it"
+            ]
+        return None, [
+            f"candidate {identity} was not a targeted candidate and no promoted "
+            "watchlist entry corroborates it; this review promoted "
+            + ", ".join(
+                f"{entry.get('id')!r} "
+                f"({_promotion_address_label(entry.get('promoted_candidate'))})"
+                for entry in promoted
+            )
+        ]
+    return None, [
+        f"candidate {identity} is corroborated by more than one promoted watchlist "
+        "entry ("
+        + ", ".join(repr(entry.get("id")) for entry in corroborating)
+        + "); an ambiguous promotion has no fact to route on"
+    ]
+
+
+def _promotion_address_label(promoted_candidate: Any) -> str:
+    if not isinstance(promoted_candidate, dict):
+        return "no promoted_candidate"
+    parts = [
+        f"{field}={_address_value(promoted_candidate.get(field))!r}"
+        for field in (*PROMOTION_ADDRESS_FIELDS, "side")
+        if _address_value(promoted_candidate.get(field)) is not None
+    ]
+    return ", ".join(parts) or "no addressable fields"
+
+
 def normalize_review_routing(
     before: dict[str, Any],
     after: dict[str, Any],
@@ -282,13 +437,7 @@ def normalize_review_routing(
         for entry in before.get("lineup_watchlist", [])
         if isinstance(entry, dict) and entry.get("id")
     }
-    promoted_watchlist_ids = {
-        entry.get("id")
-        for entry in after.get("lineup_watchlist", [])
-        if isinstance(entry, dict)
-        and entry.get("status") == "promoted"
-        and entry.get("id") in before_watchlist_ids
-    }
+    promoted_entries = _promoted_entries(after, before_watchlist_ids)
     newly_approved = [
         candidate
         for candidate in after_candidates
@@ -300,15 +449,26 @@ def normalize_review_routing(
     # the agreement check above — the executable ceiling below is policy-
     # derived, never the ask.)
     routable: list[dict[str, Any]] = []
+    # The watchlist entry each routable promotion came from, paired by
+    # corroboration above. Kept so the read recorder below knows WHICH game was
+    # promoted without re-deriving the pairing from the stamped id it just wrote.
+    promotion_of: list[tuple[dict[str, Any], dict[str, Any]]] = []
     errors: list[str] = []
     for candidate in newly_approved:
         identity = candidate_identity(candidate)
         original = before_by_id.get(identity)
-        if original is None and candidate.get("watchlist_id") not in promoted_watchlist_ids:
-            errors.append(
-                f"candidate {identity} was not a targeted candidate or watchlist promotion"
-            )
-            continue
+        promotion: dict[str, Any] | None = None
+        if original is None:
+            promotion, promotion_errors = resolve_promotion(candidate, promoted_entries)
+            if promotion_errors:
+                errors.extend(promotion_errors)
+                continue
+            # Stamp the corroborated id so every downstream consumer — the
+            # promoted_candidate sync below, validate_review_transition's
+            # entry-to-candidate map, the report — reads one field instead of
+            # re-deriving the pairing three times.
+            candidate["watchlist_id"] = promotion.get("id")
+            identity = candidate_identity(candidate)
         # Regular card approvals and lineup promotions carry the SAME price
         # contract: the reviewer must stamp the explicit approved ask.
         ask = _strict_approved_ask(candidate)
@@ -326,6 +486,8 @@ def normalize_review_routing(
                 )
             else:
                 routable.append(candidate)
+                if promotion is not None:
+                    promotion_of.append((candidate, promotion))
         # Probability contract at ROUTING time: a standing-authorized candidate
         # must already carry the full numeric probability trail with a live
         # recomputed edge. NaN/Inf fields are rejected here (not just at the
@@ -446,6 +608,27 @@ def normalize_review_routing(
         )
         candidate.pop("manual_bet_status", None)
 
+    # A promoted game is now on the card, so its per-game read must say so.
+    # The slate writes each read once and nothing had ever updated one on
+    # promotion, which is why 2026-09-03's 23:30 recorder check reported "1
+    # game_reads entries say 'candidate' but the schedule carries 2
+    # candidates". Recorded here, in the same step that routes the promotion,
+    # because a record written by a later job is a record that can be skipped.
+    # Fails closed: the promotion is refused when the read cannot be found or
+    # says the card refused the game.
+    read_errors: list[str] = []
+    for candidate, entry in promotion_of:
+        read_errors.extend(
+            mlb_game_reads.record_promotion_as_candidate(
+                after,
+                label=f"promoted candidate {candidate_identity(candidate)}",
+                game_pk=entry.get("game_pk"),
+                event_id=candidate.get("event_id") or entry.get("event_id"),
+            )
+        )
+    if read_errors:
+        return read_errors
+
     normalized_by_watchlist_id = {
         candidate.get("watchlist_id"): candidate
         for candidate in routable
@@ -455,7 +638,7 @@ def normalize_review_routing(
         if not isinstance(entry, dict):
             continue
         normalized = normalized_by_watchlist_id.get(entry.get("id"))
-        if normalized is not None and entry.get("status") == "promoted":
+        if normalized is not None and entry.get("status") == PROMOTED_STATUS:
             entry["promoted_candidate"] = dict(normalized)
     return []
 
@@ -1027,6 +1210,55 @@ def _schedule_path(sport: str, day: str) -> Path:
     if sport == "MLB":
         return ROOT / ".picks" / "execute" / f"{day}-schedule.json"
     return ROOT / ".picks" / "execute" / "intl-soccer" / f"{day}-schedule.json"
+
+
+def refused_review_path(sport: str, day: str, stamp: str) -> Path:
+    return ROOT / ".picks" / "refused" / f"{day}-{sport.lower()}-{stamp}.json"
+
+
+def persist_refused_review(
+    sport: str,
+    day: str,
+    reviewed: dict[str, Any],
+    stage: str,
+    detail: str,
+    now: datetime | None = None,
+) -> Path | None:
+    """Keep the reviewed state a refusal is about to throw away.
+
+    ``_restore_pre_review_state`` overwrites the schedule with the pre-review
+    copy, which is right — a rejected review must not stay live where the
+    execution poller reads it — but it was also the only copy. Diagnosing the
+    2026-09-03 refusals meant reading an agent session database on the VPS to
+    recover what the reviewer had actually written, and nothing in ``.picks``
+    recorded that a review had been refused at all. The journal records the
+    refusal; this records the ARTIFACT, which is the half you need to tell a
+    reviewer mistake from a gate defect.
+
+    Never raises and never changes the verdict: a refusal that could not be
+    archived is still a refusal, and an observability write that can fail the
+    gate is a new failure mode bolted onto an old one (PR #60).
+    """
+    stamp = (now or datetime.now(timezone.utc)).strftime("%Y%m%dT%H%M%SZ")
+    path = refused_review_path(sport, day, stamp)
+    payload = {
+        "day": day,
+        "sport": sport.upper(),
+        "stage": stage,
+        "detail": detail,
+        "refused_at_utc": stamp,
+        # The reviewed state as written, unrepaired. It is evidence, not a
+        # schedule: nothing reads this back into the pipeline.
+        "reviewed_schedule": reviewed,
+    }
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_suffix(".json.tmp")
+        temporary.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        temporary.replace(path)
+    except (OSError, TypeError, ValueError):
+        return None
+    return path
 
 
 def _plural(count: int, singular: str, plural: str | None = None) -> str:
@@ -1643,6 +1875,25 @@ def run_gate(sport: str) -> int:
         print(f"{sport} review gate ERROR: reviewed schedule must remain an object")
         _journal_failure("reviewed_state_type", "reviewed schedule must remain an object")
         return 1
+    # The reviewer's own output, snapshotted before any normalization touches
+    # it. Diagnosing a refusal means reading what the CHILD wrote, not a
+    # half-normalized copy of it, and normalize_review_routing legitimately
+    # mutates `updated` before some of its refusals.
+    reviewed_as_written = copy.deepcopy(updated)
+
+    def _archive_refused(stage: str, detail: str) -> None:
+        """Archive BEFORE the restore, because the restore is what destroys it."""
+        archived = persist_refused_review(
+            sport, day, reviewed_as_written, stage, detail
+        )
+        if archived is not None:
+            print(f"{sport} review gate: refused review archived to {archived}")
+        else:
+            print(
+                f"{sport} review gate: could not archive the refused review; the "
+                "reviewed state is about to be replaced and will not be recoverable"
+            )
+
     def _restore_pre_review_state(reason: str) -> None:
         """A rejected review must not stay live on disk where the poller reads it."""
         try:
@@ -1662,6 +1913,10 @@ def run_gate(sport: str) -> int:
             f"{sport} review gate ERROR: routing normalization failed closed: "
             f"{'; '.join(normalization_errors)}"
         )
+        _archive_refused(
+            "routing_normalization",
+            f"routing normalization failed closed: {'; '.join(normalization_errors)}",
+        )
         _restore_pre_review_state("normalization failure")
         _journal_failure(
             "routing_normalization",
@@ -1679,6 +1934,10 @@ def run_gate(sport: str) -> int:
     )
     if transition_errors:
         print(f"{sport} review gate ERROR: invalid review transition: {'; '.join(transition_errors)}")
+        _archive_refused(
+            "review_transition",
+            f"invalid review transition: {'; '.join(transition_errors)}",
+        )
         _restore_pre_review_state("transition validation failure")
         _journal_failure(
             "review_transition",

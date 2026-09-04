@@ -38,7 +38,15 @@ from mlb_baseball_evidence import (  # noqa: E402
 MIN_MINUTES_BEFORE_FIRST_PITCH = 35
 MAX_MINUTES_BEFORE_FIRST_PITCH = 90
 PENDING_STATUS = "pending_lineup_recheck"
-TERMINAL_STATUSES = {"promoted", "passed", "filled_manual"}
+# The one status that puts the game on the card: a promoted entry owns exactly
+# one ``candidates[]`` element (``validate_review_transition`` requires it), so
+# every consumer that has to decide "is this watchlist game also a candidate"
+# asks about this string. Named rather than repeated, because it is now read
+# outside this module — ``mlb_game_reads`` counts on it to tell a deferred game
+# from a carded one, and a fourth spelling of a status literal is how two
+# counts over one source come apart.
+PROMOTED_STATUS = "promoted"
+TERMINAL_STATUSES = {PROMOTED_STATUS, "passed", "filled_manual"}
 # Expired is terminal in the "never changes again" sense but is deliberately
 # NOT in TERMINAL_STATUSES: that set means "a recheck concluded" and demands
 # rechecked_at_utc, while expired means the opposite — the recheck window
