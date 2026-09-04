@@ -188,6 +188,12 @@ scheduled review gate runs the same validation, cross-check included, on every
 cycle, and journals `recorder_missing` when it fails. A schedule written by hand
 does not escape the check — it only finds out later, from the gate.
 
+The stored morning and evening producer contracts require this exact sequence:
+run Stage 2, create a pass-specific draft with `--skeleton`, fill every existing
+`game_reads` stub, and use `--land`. Never create, overwrite, merge, or edit
+`.picks/execute/<date>-schedule.json` directly, and never fall back to a direct
+write when `--land` refuses. Return the writer's errors and fail the run.
+
 Then run `python3 scripts/mlb_slate_receipt.py --write`. It writes
 `.picks/journal/<date>-slate-receipt.json` with one verdict from a closed set —
 `complete`, `honest_zero`, `recorder_failed`, `no_schedule` — and exits nonzero
@@ -214,10 +220,13 @@ keep, not a rail that keeps you.
 
 The receipt also reports `writer_provenance` — `absent`, `corroborated`,
 `contradicted` or `unverifiable` — from a `scan_sha256` the writer records on
-`slate_denominator`. `absent` means the schedule did not come through
-`mlb_slate_writer.py`. Treat it as a signal to check, not as a verdict: it is
-diagnosis, it does not move the receipt's verdict, and the enforcement is still
-the content validation above.
+`slate_denominator`. `absent` means a parsed schedule carried no writer digest;
+a missing or unreadable schedule is `unverifiable`, because no code inspected a
+record from which absence could be inferred. Treat provenance as a signal to
+check, not as a verdict: it is diagnosis, it does not move the receipt's verdict,
+and the enforcement is still the content validation above. `policy_status` and
+`policy_warning` separately say whether the deployed selection policy was
+available while the receipt checked any `price_discipline` disposition.
 
 A day with no card is **not** exempt from any of this. Zero reads is only
 honest when the scan says the day had no games, and the receipt is what tells

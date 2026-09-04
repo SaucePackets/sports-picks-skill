@@ -42,8 +42,9 @@ schedule names the scan bytes its denominator was built from, and whether that
 name survives re-hashing the scan on disk. That is DIAGNOSIS, not a rail — see
 ``writer_provenance`` — and it is deliberately not an input to the verdict.
 
-Read-only with respect to everything except its own receipt file. No network,
-no order behaviour, no gate or policy input.
+Read-only with respect to everything except its own receipt file. It reads the
+deployed policy only to apply the gate's existing disposition check and report
+whether that policy was available. No network and no order behaviour.
 """
 
 from __future__ import annotations
@@ -52,9 +53,12 @@ import argparse
 import datetime as dt
 import hashlib
 import json
+import os
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
@@ -96,9 +100,25 @@ PROVENANCES = (
     PROVENANCE_UNVERIFIABLE,
 )
 
+POLICY_NOT_CHECKED = "not_checked"
+POLICY_AVAILABLE = "available"
+POLICY_UNAVAILABLE = "unavailable"
+POLICY_ERROR = "error"
+POLICY_STATUSES = (
+    POLICY_NOT_CHECKED,
+    POLICY_AVAILABLE,
+    POLICY_UNAVAILABLE,
+    POLICY_ERROR,
+)
+
 
 def utc_now_iso() -> str:
     return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
+
+
+def schedule_day_now() -> str:
+    """The Chicago calendar day shared by the receipt CLI and review gate."""
+    return dt.datetime.now(ZoneInfo("America/Chicago")).date().isoformat()
 
 
 def schedule_path_for(root: Path, day: str) -> Path:
@@ -162,9 +182,35 @@ def writer_provenance(schedule: Any, scan_path: Path | None) -> tuple[str, Any, 
     actual = _sha256(scan_path) if scan_path is not None else None
     if actual is None:
         return PROVENANCE_UNVERIFIABLE, recorded, None
-    if isinstance(recorded, str) and recorded == actual:
+    if recorded == actual:
         return PROVENANCE_CORROBORATED, recorded, actual
     return PROVENANCE_CONTRADICTED, recorded, actual
+
+
+def load_policy_for_receipt() -> tuple[Any, str, str | None]:
+    """Load policy without turning a recorder receipt into a repeating alarm.
+
+    The review gate owns policy enforcement independently. The receipt still
+    passes an unavailable policy into ``policy_disposition_errors`` so a read
+    that names ``price_discipline`` remains honestly uncheckable, but the
+    loader's state is also recorded explicitly and never escapes this boundary.
+    """
+    try:
+        policy = mlb_runtime_policy.load_mlb_selection_policy()
+    except Exception as exc:  # defensive: a receipt must still be writable
+        return (
+            None,
+            POLICY_ERROR,
+            f"MLB selection policy load raised {type(exc).__name__}: {exc}",
+        )
+    if policy is None:
+        return (
+            None,
+            POLICY_UNAVAILABLE,
+            "MLB selection policy is missing or malformed; price_discipline reads "
+            "cannot be checked against the deployed edge floor",
+        )
+    return policy, POLICY_AVAILABLE, None
 
 
 def build_receipt(root: Path, day: str) -> dict[str, Any]:
@@ -183,9 +229,14 @@ def build_receipt(root: Path, day: str) -> dict[str, Any]:
         # Present on every receipt, including the paths that return early, so a
         # consumer never has to tell "this run did not record provenance" apart
         # from "this receipt predates the field".
-        "writer_provenance": PROVENANCE_ABSENT,
+        # Absence is a claim about a schedule we parsed. Before that boundary,
+        # including no-schedule and unreadable-schedule paths, provenance is
+        # unverifiable rather than absent.
+        "writer_provenance": PROVENANCE_UNVERIFIABLE,
         "scan_sha256_recorded": None,
         "scan_sha256_actual": None,
+        "policy_status": POLICY_NOT_CHECKED,
+        "policy_warning": None,
         "verdict": VERDICT_NO_SCHEDULE,
         "detail": "no schedule file for this day",
     }
@@ -208,9 +259,10 @@ def build_receipt(root: Path, day: str) -> dict[str, Any]:
     # receipt that called a slate `complete` while the gate reported a defect
     # would be a second opinion about what a valid record is, which is what the
     # shared validator exists to prevent.
-    errors.extend(
-        policy_disposition_errors(schedule, mlb_runtime_policy.load_mlb_selection_policy())
-    )
+    policy, policy_status, policy_warning = load_policy_for_receipt()
+    receipt["policy_status"] = policy_status
+    receipt["policy_warning"] = policy_warning
+    errors.extend(policy_disposition_errors(schedule, policy))
 
     # Against the SCAN, not against the schedule's own copy of it.
     # validate_game_reads checks the reads against `slate_denominator`, which
@@ -259,7 +311,18 @@ def build_receipt(root: Path, day: str) -> dict[str, Any]:
 def write_receipt(root: Path, receipt: dict[str, Any]) -> Path:
     path = receipt_path_for(root, receipt["day"])
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    payload = json.dumps(receipt, indent=2, sort_keys=True) + "\n"
+    fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.tmp-", dir=path.parent)
+    tmp = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp, path)
+    finally:
+        if tmp.exists():
+            tmp.unlink()
     return path
 
 
@@ -277,7 +340,11 @@ def _default_root() -> Path:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--day", default=None, help="slate date YYYY-MM-DD (default: today)")
+    parser.add_argument(
+        "--day",
+        default=None,
+        help="slate date YYYY-MM-DD (default: current America/Chicago day)",
+    )
     parser.add_argument("--root", type=Path, default=None)
     parser.add_argument(
         "--write",
@@ -286,7 +353,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     root = (args.root or _default_root()).resolve()
-    day = args.day or dt.date.today().isoformat()
+    day = args.day or schedule_day_now()
     receipt = build_receipt(root, day)
     if args.write:
         receipt["receipt_path"] = str(write_receipt(root, receipt))

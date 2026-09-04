@@ -8,6 +8,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 
 SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "vig_review_gate_common.py"
@@ -1405,7 +1406,7 @@ class VigReviewGateCommonTests(DeterministicPolicyState, unittest.TestCase):
             try:
                 root = Path(tmp)
                 setattr(vig_review_gate_common, "ROOT", root)
-                chicago = vig_review_gate_common.ZoneInfo("America/Chicago")
+                chicago = ZoneInfo("America/Chicago")
                 # The gate's own function, so the day this test writes and the
                 # day the gate reads cannot straddle Chicago midnight.
                 day = vig_review_gate_common.schedule_day_now()
@@ -1471,7 +1472,7 @@ class VigReviewGateCommonTests(DeterministicPolicyState, unittest.TestCase):
             try:
                 root = Path(tmp)
                 setattr(vig_review_gate_common, "ROOT", root)
-                chicago = vig_review_gate_common.ZoneInfo("America/Chicago")
+                chicago = ZoneInfo("America/Chicago")
                 day = vig_review_gate_common.schedule_day_now()
                 today = date.fromisoformat(day)
                 schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"
@@ -1550,7 +1551,7 @@ class VigReviewGateCommonTests(DeterministicPolicyState, unittest.TestCase):
             try:
                 root = Path(tmp)
                 setattr(vig_review_gate_common, "ROOT", root)
-                chicago = vig_review_gate_common.ZoneInfo("America/Chicago")
+                chicago = ZoneInfo("America/Chicago")
                 day = vig_review_gate_common.schedule_day_now()
                 today = date.fromisoformat(day)
                 schedule_path = root / ".picks" / "execute" / f"{day}-schedule.json"

@@ -514,6 +514,15 @@ def test_the_profile_manifest_is_closed_under_sibling_imports():
     assert "vig_run_journal.py" in import_closure.sibling_imports(
         "vig_review_gate_common.py"
     )
+    writer_edges = import_closure.sibling_imports("mlb_slate_writer.py")
+    assert "mlb_slate_writer.py" in manifest
+    assert {
+        "mlb_game_reads.py",
+        "mlb_lineup_watchlist.py",
+        "mlb_runtime_policy.py",
+        "mlb_slate_receipt.py",
+        "mlb_stage2_scan.py",
+    } <= writer_edges
 
     missing = sorted(reached - manifest)
     assert not missing, (

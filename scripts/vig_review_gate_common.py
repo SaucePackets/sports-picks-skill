@@ -15,7 +15,6 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-from zoneinfo import ZoneInfo
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
@@ -1482,7 +1481,7 @@ def schedule_day_now() -> str:
     file and read another, which is a rare flake that looks like a gate bug
     (Reviewer, PR #57; pre-existing from #56).
     """
-    return datetime.now(ZoneInfo("America/Chicago")).date().isoformat()
+    return mlb_slate_receipt.schedule_day_now()
 
 
 def journal_gate_run(

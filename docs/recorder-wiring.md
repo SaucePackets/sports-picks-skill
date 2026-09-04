@@ -126,14 +126,16 @@ it is not a supported artifact:
   rechecked are refused on the same principle. There is no override flag,
   because an optional rail is the shape of defect this lane keeps paying for.
 
-**What it does not close, stated plainly.** Nothing here stops a run from
-writing `.picks/execute/<date>-schedule.json` by hand and skipping the writer.
-That case is not left open — it is exactly what the postflight receipt and the
-scheduled gate catch, and both are deliberately unchanged by this work, with a
-regression pinning that a hand-written bare schedule still reads
-`recorder_failed`. The claim here is the narrower one: an incomplete record can
-no longer *land* through the supported path, and the supported path is now the
-easier one.
+**What it does not close, stated plainly.** Repository code cannot stop an agent
+from writing `.picks/execute/<date>-schedule.json` by hand. The two stored live
+producer prompts now forbid that route and require Stage 2 -> `--skeleton` ->
+fill draft -> `--land`, but this remains a prompt contract rather than a system
+call interceptor. A bypass is still caught by the postflight receipt and the
+scheduled gate, and a regression pins that a hand-written bare schedule reads
+`recorder_failed`. The claim is narrower: both supported producers use the only
+path that cannot land an incomplete record, and no supported fallback writes the
+schedule directly. See `docs/producer-writer-contract-2026-09-04.md` for the
+hash-pinned stored-prompt migration.
 
 ## What happened on 2026-09-04
 
@@ -207,6 +209,21 @@ on disk and reports one of four values beside the verdict:
 | `corroborated` | the recorded digest equals the scan's |
 | `contradicted` | a digest is recorded and does not match, or is not a string |
 | `unverifiable` | a digest is recorded and the scan could not be hashed |
+
+`absent` is only reported after a schedule was parsed and found to carry no
+digest. A missing or unreadable schedule is `unverifiable`: no receipt should
+claim the writer was bypassed when it could not inspect the record.
+
+Receipt writes use a flushed and fsynced sibling temporary file followed by
+`os.replace`, so a quarter-hour reader sees the previous valid JSON or the next
+valid JSON, never an in-place partial write. The CLI and the review gate also
+share the same `America/Chicago` schedule-day helper.
+
+Every parseable-schedule receipt carries `policy_status` (`available`,
+`unavailable`, or `error`) plus `policy_warning`. A loader failure is recorded
+inside the receipt rather than escaping into a `RECEIPT CRITICAL` line on every
+cycle. Passing `None` to the shared disposition check remains fail-closed for a
+read that names `price_discipline`; the warning does not retire that rail.
 
 **This is diagnosis and it is not enforcement.** A hand-authored schedule can
 copy a correct digest exactly as easily as a correct roster, so `corroborated`
@@ -290,13 +307,14 @@ a deployment gate that has never been both answerable and passing. Resolving
 that either way is a behaviour change and out of scope for this lane; it is
 recorded as an open question in `docs/model-evaluation.md`.
 
-**Nothing forces the producer through the writer.** That is unchanged by the
-09-04 work and stated here so nobody reads the receipt's new owner as a rail it
-is not. What changed is that the bypass can no longer also suppress the
-evidence: the gate writes the verdict, and `writer_provenance: absent` names the
-bypass on the receipt. Both are detection, after the fact. Structural forcing —
-making the schedule unwritable except through the writer — would be a behaviour
-change and belongs in its own lane.
+**The producer route is prompt-enforced, not mechanically intercepted.** Both
+supported stored producers now require the writer and forbid a direct schedule
+write, but repository code cannot make the schedule path unwritable to the
+agent. What the downstream gate guarantees is that a bypass cannot also
+suppress the evidence: it writes the receipt even when the producer does not.
+Provenance is supporting diagnosis, not proof of which call path ran, because a
+hand-written record could copy the digest. Structural forcing at the filesystem
+or tool boundary would be a separate behaviour change.
 
 **The count in the prose is not tied to the count in the record.** On 09-04 the
 writeup said "Fourteen" over a 16-game scan. `SKILL.md` now instructs the run to

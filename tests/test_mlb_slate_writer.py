@@ -828,6 +828,47 @@ class SameRuleAsTheGateTests(WriterTestCase):
 
 
 class PostflightUnchangedTests(WriterTestCase):
+    def test_live_shaped_skeleton_fill_and_land_records_every_scan_game(self):
+        rows = [
+            scan_row(823509),
+            scan_row(823510, away="New York Mets", home="Chicago Cubs"),
+        ]
+        scan_path = self.write_scan(rows)
+        draft_path = self.root / ".picks" / "tmp" / f"{DAY}-morning-slate-draft.json"
+
+        self.assertEqual(
+            mlb_slate_writer.main(
+                [
+                    "--skeleton",
+                    "--day",
+                    DAY,
+                    "--root",
+                    str(self.root),
+                    "--out",
+                    str(draft_path),
+                ]
+            ),
+            0,
+        )
+        draft = json.loads(draft_path.read_text())
+        for stub, row in zip(draft["game_reads"], rows):
+            stub.update(read_for(row))
+        draft_path.write_text(json.dumps(draft), encoding="utf-8")
+
+        self.assertEqual(
+            mlb_slate_writer.main(
+                ["--land", str(draft_path), "--day", DAY, "--root", str(self.root)]
+            ),
+            0,
+        )
+        written = json.loads(self.schedule_path().read_text())
+        self.assertEqual(len(written["game_reads"]), len(rows))
+        self.assertEqual(len(written["slate_denominator"]["games"]), len(rows))
+        self.assertEqual(
+            written["slate_denominator"]["scan_sha256"],
+            __import__("hashlib").sha256(scan_path.read_bytes()).hexdigest(),
+        )
+
     def test_a_landed_schedule_reads_complete_to_the_receipt(self):
         rows = [scan_row(823509), scan_row(823510, away="New York Mets", home="Chicago Cubs")]
         self.write_scan(rows)
@@ -1087,6 +1128,24 @@ class CliTests(WriterTestCase):
             1,
         )
         self.assertFalse(self.schedule_path().exists())
+
+    def test_refused_cli_landing_keeps_the_previous_schedule_byte_identical(self):
+        rows = [scan_row(823509), scan_row(823510, away="New York Mets", home="Chicago Cubs")]
+        self.write_scan(rows)
+        mlb_slate_writer.land(self.root, DAY, draft_for(rows))
+        before = self.schedule_path().read_bytes()
+        draft_path = self.root / "incomplete.json"
+        incomplete = draft_for(rows)
+        incomplete["game_reads"] = incomplete["game_reads"][:1]
+        draft_path.write_text(json.dumps(incomplete), encoding="utf-8")
+
+        self.assertEqual(
+            mlb_slate_writer.main(
+                ["--land", str(draft_path), "--day", DAY, "--root", str(self.root)]
+            ),
+            1,
+        )
+        self.assertEqual(self.schedule_path().read_bytes(), before)
 
     def test_a_malformed_day_is_a_usage_error_not_a_finding(self):
         """Every path below ``--day`` is built from it.
