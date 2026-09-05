@@ -39,6 +39,7 @@ PROFILE_MANIFEST=(
   # and would have called a slate clean that the gate refused. The fix for an
   # unmanaged copy of a repo script is to manage it.
   mlb_slate_receipt.py
+  mlb_slate_writer.py
   mlb_stage2_scan.py
   numeric_util.py
   receipts_ledger_reconcile.py

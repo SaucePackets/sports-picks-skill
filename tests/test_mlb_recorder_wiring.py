@@ -277,6 +277,19 @@ class SlateReceiptTests(unittest.TestCase):
     def test_no_schedule_is_its_own_verdict(self):
         receipt = mlb_slate_receipt.build_receipt(self.rt.root, "2026-09-02")
         self.assertEqual(receipt["verdict"], mlb_slate_receipt.VERDICT_NO_SCHEDULE)
+        self.assertEqual(
+            receipt["writer_provenance"], mlb_slate_receipt.PROVENANCE_UNVERIFIABLE
+        )
+
+    def test_an_unreadable_schedule_has_unverifiable_not_absent_provenance(self):
+        self.rt.schedule_path.write_text('{"slate_denominator": {"scan_sha')
+
+        receipt = mlb_slate_receipt.build_receipt(self.rt.root, self.rt.day)
+
+        self.assertEqual(receipt["verdict"], mlb_slate_receipt.VERDICT_RECORDER_FAILED)
+        self.assertEqual(
+            receipt["writer_provenance"], mlb_slate_receipt.PROVENANCE_UNVERIFIABLE
+        )
 
     def test_exit_codes_separate_the_two_zeros(self):
         import contextlib
@@ -309,6 +322,112 @@ class SlateReceiptTests(unittest.TestCase):
         path = mlb_slate_receipt.write_receipt(self.rt.root, receipt)
         self.assertEqual(path.parent, self.rt.root / ".picks" / "journal")
         self.assertEqual(json.loads(path.read_text())["verdict"], receipt["verdict"])
+
+    def test_write_flushes_and_fsyncs_before_replacing_the_receipt(self):
+        self.rt.write_schedule(schedule([]))
+        self.rt.write_scan([])
+        receipt = mlb_slate_receipt.build_receipt(self.rt.root, self.rt.day)
+        real_replace = mlb_slate_receipt.os.replace
+        events = []
+
+        def fsync(fd):
+            events.append("fsync")
+
+        def replace(source, destination):
+            events.append("replace")
+            real_replace(source, destination)
+
+        with mock.patch.object(mlb_slate_receipt.os, "fsync", side_effect=fsync), \
+                mock.patch.object(mlb_slate_receipt.os, "replace", side_effect=replace):
+            path = mlb_slate_receipt.write_receipt(self.rt.root, receipt)
+
+        self.assertEqual(events, ["fsync", "replace"])
+        self.assertEqual(json.loads(path.read_text())["verdict"], receipt["verdict"])
+        self.assertEqual(
+            [item for item in path.parent.iterdir() if item.name != path.name], []
+        )
+
+    def test_failed_atomic_replace_keeps_the_previous_receipt(self):
+        path = mlb_slate_receipt.receipt_path_for(self.rt.root, self.rt.day)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        before = b'{"verdict": "previous"}\n'
+        path.write_bytes(before)
+        receipt = {"day": self.rt.day, "verdict": "complete"}
+
+        with mock.patch.object(
+            mlb_slate_receipt.os,
+            "replace",
+            side_effect=OSError("replace refused"),
+        ):
+            with self.assertRaisesRegex(OSError, "replace refused"):
+                mlb_slate_receipt.write_receipt(self.rt.root, receipt)
+
+        self.assertEqual(path.read_bytes(), before)
+        self.assertEqual(
+            [item for item in path.parent.iterdir() if item.name != path.name], []
+        )
+
+    def test_cli_default_uses_the_shared_chicago_schedule_day(self):
+        import contextlib
+        import io
+
+        with mock.patch.object(
+            mlb_slate_receipt, "schedule_day_now", return_value="2042-07-08"
+        ), contextlib.redirect_stdout(io.StringIO()) as output:
+            status = mlb_slate_receipt.main(["--root", str(self.rt.root)])
+
+        self.assertEqual(status, 0)
+        self.assertEqual(json.loads(output.getvalue())["day"], "2042-07-08")
+
+    def test_schedule_day_uses_chicago_when_utc_is_already_next_day(self):
+        import datetime as dt
+
+        instant = dt.datetime(2026, 9, 5, 2, 0, tzinfo=dt.timezone.utc)
+        real_datetime = dt.datetime
+
+        class FrozenDateTime(real_datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return instant.astimezone(tz)
+
+        with mock.patch.object(mlb_slate_receipt.dt, "datetime", FrozenDateTime):
+            day = mlb_slate_receipt.schedule_day_now()
+
+        self.assertEqual(day, "2026-09-04")
+
+    def test_policy_loader_failure_is_receipt_state_not_an_exception(self):
+        self.rt.write_schedule(schedule([]))
+        self.rt.write_scan([])
+
+        with mock.patch.object(
+            mlb_slate_receipt.mlb_runtime_policy,
+            "load_mlb_selection_policy",
+            side_effect=RuntimeError("policy store unavailable"),
+        ):
+            receipt = mlb_slate_receipt.build_receipt(self.rt.root, self.rt.day)
+
+        self.assertEqual(receipt["verdict"], mlb_slate_receipt.VERDICT_HONEST_ZERO)
+        self.assertEqual(receipt["policy_status"], mlb_slate_receipt.POLICY_ERROR)
+        self.assertIn("RuntimeError", receipt["policy_warning"])
+        self.assertIn(receipt["policy_status"], mlb_slate_receipt.POLICY_STATUSES)
+
+    def test_missing_policy_stays_explicit_and_keeps_the_price_rail_closed(self):
+        self.rt.write_schedule(schedule())
+        self.rt.write_scan(scan_rows([read()]))
+
+        with mock.patch.object(
+            mlb_slate_receipt.mlb_runtime_policy,
+            "load_mlb_selection_policy",
+            return_value=None,
+        ):
+            receipt = mlb_slate_receipt.build_receipt(self.rt.root, self.rt.day)
+
+        self.assertEqual(receipt["policy_status"], mlb_slate_receipt.POLICY_UNAVAILABLE)
+        self.assertEqual(receipt["verdict"], mlb_slate_receipt.VERDICT_RECORDER_FAILED)
+        self.assertTrue(
+            any("policy is unavailable" in error for error in receipt["recorder_errors"]),
+            receipt["recorder_errors"],
+        )
 
 
 class DeploymentRailTests(unittest.TestCase):
@@ -1032,10 +1151,23 @@ class WriterProvenanceTests(unittest.TestCase):
         # after parsing it would certify whatever the file said a moment later,
         # which is exactly the substitution the digest exists to rule out.
         raw = json.dumps(scan_rows(self.reads)).encode("utf-8")
+        replacement = json.dumps(scan_rows([read(999999)])).encode("utf-8")
         self.rt.scan_path.write_bytes(raw)
-        rows, digest = mlb_slate_writer.load_scan(self.rt.scan_path)
+        real_loads = json.loads
+
+        def parse_then_replace(payload):
+            rows = real_loads(payload)
+            self.rt.scan_path.write_bytes(replacement)
+            return rows
+
+        with mock.patch.object(
+            mlb_slate_writer.json, "loads", side_effect=parse_then_replace
+        ):
+            rows, digest = mlb_slate_writer.load_scan(self.rt.scan_path)
+
         self.assertEqual(len(rows), len(self.reads))
         self.assertEqual(digest, hashlib.sha256(raw).hexdigest())
+        self.assertNotEqual(digest, hashlib.sha256(replacement).hexdigest())
 
 
 if __name__ == "__main__":
