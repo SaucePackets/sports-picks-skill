@@ -50,8 +50,9 @@ returns the digest of a canonical bundle. It does not issue a receipt. Call
 `store.append('attempts', record)` for each receipt/no-receipt attempt. The record
 has `game_id`, `family`, `bundle_digest`, and `receipt` (null if absent).
 
-A game contains nonempty string `game_id`, `away_id`, `home_id` (distinct teams),
-and timezone-aware `first_pitch`. Sources corroborate all four against the
+A game contains nonempty, unpadded string `game_id`, `away_id`, `home_id` (distinct teams),
+and timezone-aware string `first_pitch`. Padded IDs are rejected, never silently
+normalized; this applies before distinct-team and unique-game checks. Sources corroborate all four against the
 supplied schedule, and contain `source_id` and timezone-aware `observed_at`.
 A market source contains `odds` with `book`,
 `market: "full_game_moneyline_including_extras"`, `away_decimal`, `home_decimal`.
@@ -69,7 +70,9 @@ version migration is reviewed. Specification hashes are derived from `SPECS`.
 
 Append outcome sources separately with
 `store.append('finals', {'source_digest': store.put(original_bytes)})`.
-Final sources contain the corroborated game, source identity/time, `status: Final`,
+Final and closing sources require the same nonempty-string source identity as
+pregame sources. Invalid timestamp types are rejected as invalid artifacts without
+suppressing the schedule coverage rows. Final sources contain the corroborated game, source identity/time, `status: Final`,
 nonnegative integer away/home scores, and must be observed after first pitch.
 Ties, mismatched teams, and multiple distinct finals are rejected. The evaluated
 side is always away. “Verified” means structural consistency of these retained

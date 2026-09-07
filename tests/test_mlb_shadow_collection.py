@@ -179,6 +179,64 @@ class ShadowTest(unittest.TestCase):
         self.assertEqual(self.row()['closings']['status'], 'unavailable')
         self.assertEqual(self.row()['finals']['status'], 'invalid')
 
+    def test_padded_identifiers_rejected(self):
+        for field, value in (('game_id', ' 42 '), ('away_id', ' 10 '),
+                             ('home_id', ' 10 ')):
+            with self.subTest(field=field):
+                game = dict(self.game, **{field: value})
+                with self.assertRaisesRegex(ValueError, 'invalid identity'):
+                    s.report(self.store, [self.game, game], [self.key])
+                with self.assertRaisesRegex(ValueError, 'invalid identity'):
+                    s.capture(self.store, game, s.canonical(dict(self.source, game=game)),
+                              'market', '11' * 32, '2026-09-01T00:00:00Z')
+        # Forging a correctly hashed/signed padded same-team bundle cannot pass.
+        bundle = json.loads(self.store.get(self.bundle()))
+        bundle['game']['home_id'] = ' 10 '
+        source = copy.deepcopy(self.source)
+        source['game']['home_id'] = ' 10 '
+        bundle['source_digest'] = self.store.put(s.canonical(source))
+        self.add(self.attempt(self.store.put(s.canonical(bundle))))
+        self.assertEqual(self.row()['state'], 'invalid')
+        self.assertFalse(self.row()['fixture_contract_pass'])
+
+    def test_bad_timestamp_types_preserve_attempt_denominator(self):
+        for value in (123, None, [], {}, True):
+            with self.subTest(value=value), tempfile.TemporaryDirectory() as root:
+                self.store = s.Store(root)
+                bundle = json.loads(self.store.get(self.bundle()))
+                source = copy.deepcopy(self.source)
+                source['observed_at'] = value
+                bundle['observed_at'] = value
+                bundle['source_digest'] = self.store.put(s.canonical(source))
+                self.add(self.attempt(self.store.put(s.canonical(bundle))))
+                result = s.report(self.store, [self.game, dict(self.game, game_id='43')], [self.key])
+                self.assertEqual(len(result['rows']), 6)
+                self.assertEqual(result['rows'][0]['state'], 'invalid')
+                self.assertFalse(result['rows'][0]['fixture_contract_pass'])
+
+    def test_bad_outcome_timestamps_preserve_report(self):
+        for kind in ('finals', 'closings'):
+            for value in (123, None, [], {}, True):
+                with self.subTest(kind=kind, value=value), tempfile.TemporaryDirectory() as root:
+                    self.store = s.Store(root)
+                    self.add(self.attempt())
+                    self.observation(kind, observed_at=value)
+                    result = s.report(self.store, [self.game, dict(self.game, game_id='43')], [self.key])
+                    self.assertEqual(len(result['rows']), 6)
+                    self.assertEqual(result['rows'][0][kind]['status'], 'invalid')
+                    self.assertTrue(result['rows'][0]['fixture_contract_pass'])
+
+    def test_outcome_source_identity_requires_nonempty_string(self):
+        for kind in ('finals', 'closings'):
+            for value in ('   ', '', 123, True, [], {}, None):
+                with self.subTest(kind=kind, value=value), tempfile.TemporaryDirectory() as root:
+                    self.store = s.Store(root)
+                    self.add(self.attempt())
+                    self.observation(kind, source_id=value)
+                    result = s.report(self.store, [self.game], [self.key])
+                    self.assertEqual(len(result['rows']), 3)
+                    self.assertEqual(result['rows'][0][kind]['status'], 'invalid')
+
     def test_denominator(self):
         self.add(self.attempt())
         result = s.report(self.store, [self.game, dict(self.game, game_id='43')])

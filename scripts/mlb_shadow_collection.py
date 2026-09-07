@@ -27,7 +27,13 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def nonempty_string(value):
+    return isinstance(value, str) and bool(value.strip())
+
+
 def timestamp(value):
+    if not isinstance(value, str):
+        raise ValueError('timestamp must be a string')
     result = datetime.fromisoformat(value.replace('Z', '+00:00'))
     if result.tzinfo is None:
         raise ValueError('timezone required')
@@ -36,7 +42,7 @@ def timestamp(value):
 
 def identity(game):
     result = tuple(game[k] for k in ('game_id', 'away_id', 'home_id'))
-    if any(not isinstance(x, str) or not x.strip() for x in result) or result[1] == result[2]:
+    if any(not nonempty_string(x) or x != x.strip() for x in result) or result[1] == result[2]:
         raise ValueError('invalid identity')
     timestamp(game['first_pitch'])
     return result
@@ -120,7 +126,7 @@ def capture(store, game, source_bytes, family, producer_key, training_cutoff):
     source = json.loads(source_bytes)
     if not same_game(game, source['game']):
         raise ValueError('source identity mismatch')
-    if not isinstance(source['source_id'], str) or not source['source_id'].strip():
+    if not nonempty_string(source['source_id']):
         raise ValueError('missing source identity')
     timestamp(source['observed_at'])
     timestamp(training_cutoff)
@@ -178,7 +184,7 @@ def assess(store, attempt, game, family, trusted_keys):
                 bundle['spec_digest'] != digest(canonical(SPECS[family])) or
                 bundle['artifact_digest'] != digest(Path(__file__).read_bytes())):
             raise ValueError('unknown_model')
-        if not isinstance(source['source_id'], str) or not source['source_id'].strip():
+        if not nonempty_string(source['source_id']):
             raise ValueError('missing_source_identity')
         producer = bundle['producer_key']
         if not isinstance(producer, str) or len(producer) != 64 or any(c not in '0123456789abcdef' for c in producer):
@@ -210,7 +216,7 @@ def join_observation(store, records, game, kind, bundle, capture_time):
         source = json.loads(store.get(record['source_digest']))
         if source.get('game', {}).get('game_id') != game['game_id']:
             continue
-        if not same_game(game, source['game']) or not source.get('source_id'):
+        if not same_game(game, source['game']) or not nonempty_string(source.get('source_id')):
             return {'status': 'invalid', 'reason': 'identity_or_source_mismatch'}
         observed = timestamp(source['observed_at'])
         if kind == 'finals':
