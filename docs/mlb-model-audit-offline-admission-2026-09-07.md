@@ -117,18 +117,22 @@ The three-family historical replay and full feature acceptance remain open.
 
 ## Reproduce the field and probability census
 
-Run this inspection recipe from the repository root with the retained files
-at `../../RESEARCH/MLB_MODEL_AUDIT_2026_09_07/execute`. It verifies the exact
-inventory before counting. It reads files and prints only aggregate evidence.
+Run this inspection recipe from any checkout's repository root. Set
+`MLB_AUDIT_SNAPSHOT_ROOT` to the absolute path of the retained `execute`
+directory (in the Buzz workspace, `RESEARCH/MLB_MODEL_AUDIT_2026_09_07/execute`).
+The environment variable is required, so detached worktrees need no assumed
+relative layout. The recipe verifies the exact inventory before counting.
+It reads files and prints only aggregate evidence.
 
 ```python
 import collections
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
 
-root = Path("../../RESEARCH/MLB_MODEL_AUDIT_2026_09_07/execute")
+root = Path(os.environ["MLB_AUDIT_SNAPSHOT_ROOT"])
 inventory = json.loads(Path("docs/mlb-model-audit-2026-09-07-inventory.json").read_text())
 reads, keys = [], collections.Counter()
 
@@ -156,17 +160,24 @@ for item in inventory["rows"]:
     visit(schedule)
     reads.extend(schedule.get("game_reads", []))
 
+trail_fields = ("dk_fair_prob", "raw_probability", "conservative_probability")
+trails = [row for row in reads if all(paired(row, field) for field in trail_fields)]
 print("reads", len(reads))
-for field in ("dk_fair_prob", "raw_probability", "conservative_probability", "polymarket_ask"):
-    print(field, sum(paired(row, field) for row in reads))
+print("joint_probability_trails", len(trails))
+print("trails_with_paired_asks", sum(paired(row, "polymarket_ask") for row in trails))
 print("raw_equals_market", sum(
-    paired(row, "raw_probability") and paired(row, "dk_fair_prob") and
     all(abs(row["raw_probability"][side] - row["dk_fair_prob"][side]) < 1e-9
-        for side in ("away", "home")) for row in reads))
+        for side in ("away", "home")) for row in trails))
 print("recursive_keys", sorted(keys))
 ```
 
-Expected counts in order: 66, 50, 50, 50, 49, 41. Key inspection is a schema
+Expected counts in order: 66, 50, 49, 41. The three-field trail predicate is
+evaluated on each row; matching marginal counts cannot establish this joint
+population. Both ask coverage and raw-equals-market use that same population.
+Moving a conservative pair from an equal-to-market complete row to a
+trail-empty row after digest validation reduces joint trails to 49 and
+raw-equals-market to 40, even though the individual field counts stay at 50.
+Key inspection is a schema
 census, not a semantic validator of arbitrary prose or a general-purpose
 admission tool. No executable repository tooling or selection behavior was
 changed for this pass.
