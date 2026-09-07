@@ -237,6 +237,32 @@ class ShadowTest(unittest.TestCase):
                     self.assertEqual(len(result['rows']), 3)
                     self.assertEqual(result['rows'][0][kind]['status'], 'invalid')
 
+    def test_observation_object_shapes_preserve_denominator(self):
+        for kind in ('finals', 'closings'):
+            for field in ('record', 'source', 'game', 'odds'):
+                if field == 'odds' and kind != 'closings':
+                    continue
+                for value in ([], None, 123, True, 'not-an-object'):
+                    with self.subTest(kind=kind, field=field, value=value), tempfile.TemporaryDirectory() as root:
+                        self.store = s.Store(root)
+                        self.add(self.attempt())
+                        source = copy.deepcopy(self.source)
+                        source.update(status='Final', away_score=3, home_score=1,
+                                      observed_at='2026-09-08T23:00:00Z' if kind == 'finals' else '2026-09-08T19:50:00Z')
+                        if field == 'source':
+                            source = value
+                        elif field in ('game', 'odds'):
+                            source[field] = value
+                        record = {'source_digest': self.store.put(s.canonical(source))}
+                        self.store.append(kind, value if field == 'record' else record)
+                        result = s.report(self.store, [self.game, dict(self.game, game_id='43')], [self.key])
+                        self.assertEqual(len(result['rows']), 6)
+                        row = result['rows'][0]
+                        self.assertEqual(row[kind]['status'], 'invalid')
+                        self.assertEqual(row[kind]['reason'], 'malformed_observation')
+                        self.assertTrue(row['fixture_contract_pass'])
+                        self.assertFalse(any(r['eligible'] for r in result['rows']))
+
     def test_denominator(self):
         self.add(self.attempt())
         result = s.report(self.store, [self.game, dict(self.game, game_id='43')])

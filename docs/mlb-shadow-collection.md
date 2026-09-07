@@ -71,7 +71,11 @@ version migration is reviewed. Specification hashes are derived from `SPECS`.
 Append outcome sources separately with
 `store.append('finals', {'source_digest': store.put(original_bytes)})`.
 Final and closing sources require the same nonempty-string source identity as
-pregame sources. Invalid timestamp types are rejected as invalid artifacts without
+pregame sources. Observation records, decoded sources and their game fields must
+be JSON objects; closing odds, when supplied, must also be an object. Malformed
+shapes invalidate the collection join instead of suppressing coverage. A source
+without a usable game cannot be attributed and is conservatively invalid for
+each attempted join of that collection. Invalid timestamp types are rejected as invalid artifacts without
 suppressing the schedule coverage rows. Final sources contain the corroborated game, source identity/time, `status: Final`,
 nonnegative integer away/home scores, and must be observed after first pitch.
 Ties, mismatched teams, and multiple distinct finals are rejected. The evaluated

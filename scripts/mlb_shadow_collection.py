@@ -212,9 +212,17 @@ def assess(store, attempt, game, family, trusted_keys):
 def join_observation(store, records, game, kind, bundle, capture_time):
     matched = []
     for record in records:
+        # Reject malformed shapes before any mapping access. A source without
+        # a game cannot be safely attributed, so invalidate this collection.
+        if not isinstance(record, dict):
+            raise ValueError('observation record must be an object')
         # All bytes rehashed; identities and first pitch corroborate schedule.
         source = json.loads(store.get(record['source_digest']))
-        if source.get('game', {}).get('game_id') != game['game_id']:
+        if not isinstance(source, dict) or not isinstance(source.get('game'), dict):
+            raise ValueError('observation source and game must be objects')
+        if kind == 'closings' and not isinstance(source.get('odds', {}), dict):
+            raise ValueError('closing odds must be an object')
+        if source['game'].get('game_id') != game['game_id']:
             continue
         if not same_game(game, source['game']) or not nonempty_string(source.get('source_id')):
             return {'status': 'invalid', 'reason': 'identity_or_source_mismatch'}
