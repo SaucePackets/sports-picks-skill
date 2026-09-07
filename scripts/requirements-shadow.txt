@@ -1,0 +1,2 @@
+# Offline fixture receipt verification only; not installed into runtime.
+cryptography==50.0.1
