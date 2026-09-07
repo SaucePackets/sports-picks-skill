@@ -1,0 +1,75 @@
+{
+  "schema": "mlb-benchmark-fixture-v1",
+  "evidence_kind": "synthetic",
+  "training_cutoff": "2026-04-02T12:00:00Z",
+  "training": [
+    {
+      "game": {
+        "game_id": "train-1",
+        "away_id": "A",
+        "home_id": "B",
+        "first_pitch": "2026-04-01T18:00:00Z"
+      },
+      "source_id": "synthetic-final",
+      "observed_at": "2026-04-01T22:00:00Z",
+      "completed_at": "2026-04-01T21:00:00Z",
+      "status": "Final",
+      "away_score": 5,
+      "home_score": 2
+    }
+  ],
+  "schedule": [
+    {
+      "game_id": "eval-1",
+      "away_id": "A",
+      "home_id": "B",
+      "first_pitch": "2026-04-03T18:00:00Z"
+    },
+    {
+      "game_id": "eval-2",
+      "away_id": "A",
+      "home_id": "B",
+      "first_pitch": "2026-04-04T18:00:00Z"
+    },
+    {
+      "game_id": "eval-3",
+      "away_id": "C",
+      "home_id": "B",
+      "first_pitch": "2026-04-04T18:00:00Z"
+    }
+  ],
+  "markets": [
+    {
+      "game": {
+        "game_id": "eval-1",
+        "away_id": "A",
+        "home_id": "B",
+        "first_pitch": "2026-04-03T18:00:00Z"
+      },
+      "source_id": "synthetic-book",
+      "observed_at": "2026-04-03T17:00:00Z",
+      "odds": {
+        "book": "fixture-book",
+        "market": "full_game_moneyline_including_extras",
+        "away_decimal": 2,
+        "home_decimal": 2
+      }
+    }
+  ],
+  "finals": [
+    {
+      "game": {
+        "game_id": "eval-1",
+        "away_id": "A",
+        "home_id": "B",
+        "first_pitch": "2026-04-03T18:00:00Z"
+      },
+      "source_id": "synthetic-final",
+      "observed_at": "2026-04-03T22:00:00Z",
+      "completed_at": "2026-04-03T21:00:00Z",
+      "status": "Final",
+      "away_score": 5,
+      "home_score": 2
+    }
+  ]
+}
