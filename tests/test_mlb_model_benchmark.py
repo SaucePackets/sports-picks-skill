@@ -1,5 +1,6 @@
 """Negative-path and known-answer tests for synthetic benchmark mechanics."""
 import copy
+import hashlib
 import json
 import math
 import subprocess
@@ -96,6 +97,41 @@ class BenchmarkTests(unittest.TestCase):
             data = copy.deepcopy(self.data)
             data['markets'][0][field] = value
             self.assertEqual(benchmark.evaluate(data)['rows'][0]['missing']['market'], ['invalid_market'])
+
+    def test_book_and_market_contract_with_valid_control(self):
+        valid = benchmark.evaluate(self.data)['rows'][0]
+        self.assertEqual(valid['predictions']['market'], .5)
+        self.assertEqual(valid['missing']['market'], [])
+        for field, value in (('book', ''), ('book', '   '),
+                             ('book', ' fixture-book'), ('book', 'fixture-book '),
+                             ('market', 'first_five_innings_moneyline')):
+            with self.subTest(field=field, value=value):
+                data = copy.deepcopy(self.data)
+                data['markets'][0]['odds'][field] = value
+                report = benchmark.evaluate(data)
+                row = report['rows'][0]
+                self.assertEqual(len(report['rows']), len(self.data['schedule']))
+                self.assertIsNone(row['predictions']['market'])
+                self.assertEqual(row['missing']['market'], ['invalid_market'])
+                self.assertEqual(row['predictions']['team_strength'],
+                                 valid['predictions']['team_strength'])
+
+    def test_emitted_hashes_bind_spec_and_implementation_bytes(self):
+        report = benchmark.evaluate(self.data)
+        spec_bytes = json.dumps(report['spec'], sort_keys=True, separators=(',', ':'),
+                                allow_nan=False).encode()
+        self.assertEqual(report['spec_sha256'], hashlib.sha256(spec_bytes).hexdigest())
+        self.assertEqual(report['implementation_sha256'],
+                         hashlib.sha256(Path(benchmark.__file__).read_bytes()).hexdigest())
+
+    def test_unavailable_counts_are_null_for_every_family(self):
+        report = benchmark.evaluate(self.data)
+        self.assertEqual(set(report['synthetic_mechanics']),
+                         {'team_strength', 'market', 'pitcher_context'})
+        for family, result in report['synthetic_mechanics'].items():
+            for field in ('qualifying_pick_count', 'candidate_count', 'review_approved_count'):
+                with self.subTest(family=family, field=field):
+                    self.assertIsNone(result[field])
 
     def test_final_identity_and_time_are_corroborated(self):
         for mutate in ('swap', 'time', 'bool'):
