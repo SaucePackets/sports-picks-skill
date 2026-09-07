@@ -1,0 +1,31 @@
+{
+  "schema": "mlb-historical-admission-v1",
+  "mode": "retained-recovery-feasibility-only",
+  "manifest_sha256": "8ef152bbb24bd62291a8a47b0fa1bb321af01d042e86c2f95e645bb69ede455e",
+  "recovery_rules_sha256": "4b9d0a5ab406ca7543103fefbb8e41030021279969f89785009ea2adfd91ffce",
+  "source_adapter": "retained-recovery-2026-09-07-v1",
+  "source_provider_version": null,
+  "source_authentication": "unestablished; archive hashes prove retained integrity only",
+  "split": {
+    "declaration": "retrospective feasibility split frozen before this checkpoint; not before historical outcomes",
+    "timezone": "UTC",
+    "training_start": "2026-05-19",
+    "training_end": "2026-08-30",
+    "training_cutoff": "2026-08-31T00:00:00Z",
+    "heldout_start": "2026-09-02",
+    "heldout_end": "2026-09-07",
+    "rules": "No overlapping IDs or UTC dates; actual completion and source availability strictly before cutoff; heldout outcomes never enter training. No tuning or scoring in this slice."
+  },
+  "required_gates": [
+    "authenticated_source_and_version",
+    "complete_schedule_with_corrections",
+    "corroborated_game_team_identity",
+    "actual_first_pitch_and_completion",
+    "asof_training_availability",
+    "pregame_byte_binding_receipt",
+    "same_book_market_and_observation",
+    "joined_verified_final"
+  ],
+  "admission_policy": "All required gates must be established from source evidence. This pinned adapter imports candidates only; it cannot admit a scored cohort. New source adapters require separate review.",
+  "scoring_enabled": false
+}

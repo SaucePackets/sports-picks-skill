@@ -1,0 +1,406 @@
+{
+  "admitted_game_ids": [],
+  "contract_sha256": "7b789a2a36c9510b29e31770124b236c31cb2bcdbf89998f3c55de2b85f78748",
+  "coverage": {
+    "authenticated_same_book_pregame_rows": 0,
+    "complete_heldout_schedule_games": null,
+    "heldout_dates_without_scan_in_this_adapter": [
+      "2026-09-03"
+    ],
+    "missing_scan_dates": 4,
+    "observed_scan_rows": 15,
+    "reason_counts_nonexclusive": {
+      "actual_first_pitch_unavailable": 15,
+      "joined_verified_final_unavailable": 15,
+      "pregame_byte_binding_receipt_unavailable": 15,
+      "same_book_observation_unavailable": 15,
+      "schedule_completeness_unestablished": 15,
+      "source_version_unestablished": 15,
+      "stable_team_ids_unavailable": 15,
+      "two_sided_price_missing_or_invalid": 6
+    },
+    "refused_scan_rows": 15,
+    "schedule_coverage_fraction": null,
+    "two_sided_raw_price_rows": 9
+  },
+  "eligible": false,
+  "feasible": false,
+  "gates": {
+    "actual_first_pitch_and_completion": {
+      "status": "unavailable"
+    },
+    "asof_training_availability": {
+      "status": "unavailable"
+    },
+    "authenticated_source_and_version": {
+      "status": "unavailable"
+    },
+    "complete_schedule_with_corrections": {
+      "status": "unavailable"
+    },
+    "corroborated_game_team_identity": {
+      "status": "unavailable"
+    },
+    "joined_verified_final": {
+      "status": "unavailable"
+    },
+    "pregame_byte_binding_receipt": {
+      "status": "unavailable"
+    },
+    "same_book_market_and_observation": {
+      "status": "unavailable"
+    }
+  },
+  "historical_performance": null,
+  "implementation_sha256": "70e874776ebb59ce8252586313b69d45d31baccd56789c1870f56617de3c9b7a",
+  "inventory": {
+    "all_blobs_verified": true,
+    "file_instances": 2753,
+    "roots": 15,
+    "unique_file_digests": 1314
+  },
+  "manifest_sha256": "8ef152bbb24bd62291a8a47b0fa1bb321af01d042e86c2f95e645bb69ede455e",
+  "missing_scan_hash_matches": {
+    "1b01c9ed8a6294862ec0d0182f6ec644c235c1a5bc3e5cf0848c033202aef5e0": 0,
+    "5aed13452819d1cb1496b1690935edcd21e647b61c1f797920cf4cbc7dce98c4": 0,
+    "d1e35bebcbd796a059ef98e55aec1e4e2bb8c232a8d5dc9a8b72468919db8273": 0,
+    "fae8adc3a92de900c0a3f4845bbd97dd2dff6073dc280483ed79eb439b457670": 0
+  },
+  "mode": "retained-recovery-feasibility-only",
+  "next_step": "Missing source gates require separately reviewed evidence; no scoring or expanded search.",
+  "normalized_outcome_candidates_sha256": "93aa3239fc3320e8f7bba5b22e1cd200f4661ca00c44119650c4dc2d20ce7e44",
+  "outcome_candidates": {
+    "admitted_training_games": 0,
+    "final_score_conflict_game_ids": 14,
+    "identity_or_start_conflict_game_ids": 15,
+    "reason_counts_nonexclusive": {
+      "actual_completion_unavailable": 1287,
+      "asof_training_availability_unestablished": 1287,
+      "source_version_unestablished": 1287
+    },
+    "refused_unique_games": 1287,
+    "retrieved_at_or_after_training_cutoff_occurrences": 0,
+    "timestamp_semantics": "retrieval is not completion or pregame availability"
+  },
+  "recovered": {
+    "game_occurrences": 1302,
+    "ledger_rows": 45,
+    "ledger_rows_with_model_version": 0,
+    "ledger_rows_with_win_and_dk_probabilities": 8,
+    "receipt_json_files": 463,
+    "result_cache_files": 99,
+    "september_2_scan_rows": 15,
+    "september_2_scan_rows_with_two_sided_odds_and_fair": 9,
+    "unique_game_ids": 1287,
+    "unique_game_ids_with_final_status": 1274
+  },
+  "retained_schedule_denominators": {
+    "2026-09-04": {
+      "complete_schedule_established": false,
+      "reason": "retained_scan_payload_missing",
+      "refused_game_count": 16,
+      "supplied_game_count": 16
+    },
+    "2026-09-05": {
+      "complete_schedule_established": false,
+      "reason": "retained_scan_payload_missing",
+      "refused_game_count": 15,
+      "supplied_game_count": 15
+    },
+    "2026-09-06": {
+      "complete_schedule_established": false,
+      "reason": "retained_scan_payload_missing",
+      "refused_game_count": 15,
+      "supplied_game_count": 15
+    },
+    "2026-09-07": {
+      "complete_schedule_established": false,
+      "reason": "retained_scan_payload_missing",
+      "refused_game_count": 11,
+      "supplied_game_count": 11
+    }
+  },
+  "rows": [
+    {
+      "admitted": false,
+      "game_id": "824470",
+      "pointer": "/0",
+      "raw_price_pair_present": false,
+      "reasons": [
+        "source_version_unestablished",
+        "schedule_completeness_unestablished",
+        "stable_team_ids_unavailable",
+        "actual_first_pitch_unavailable",
+        "pregame_byte_binding_receipt_unavailable",
+        "same_book_observation_unavailable",
+        "joined_verified_final_unavailable",
+        "two_sided_price_missing_or_invalid"
+      ],
+      "scheduled_start": "2026-09-02T16:40:00+00:00",
+      "source_sha256": "a719e91d1611d96f5f28e4ff719042c4e8f46dc33fbdad9140f16475c82c6a54"
+    },
+    {
+      "admitted": false,
+      "game_id": "822686",
+      "pointer": "/1",
+      "raw_price_pair_present": false,
+      "reasons": [
+        "source_version_unestablished",
+        "schedule_completeness_unestablished",
+        "stable_team_ids_unavailable",
+        "actual_first_pitch_unavailable",
+        "pregame_byte_binding_receipt_unavailable",
+        "same_book_observation_unavailable",
+        "joined_verified_final_unavailable",
+        "two_sided_price_missing_or_invalid"
+      ],
+      "scheduled_start": "2026-09-02T17:05:00+00:00",
+      "source_sha256": "a719e91d1611d96f5f28e4ff719042c4e8f46dc33fbdad9140f16475c82c6a54"
+    },
+    {
+      "admitted": false,
+      "game_id": "822851",
+      "pointer": "/2",
+      "raw_price_pair_present": false,
+      "reasons": [
+        "source_version_unestablished",
+        "schedule_completeness_unestablished",
+        "stable_team_ids_unavailable",
+        "actual_first_pitch_unavailable",
+        "pregame_byte_binding_receipt_unavailable",
+        "same_book_observation_unavailable",
+        "joined_verified_final_unavailable",
+        "two_sided_price_missing_or_invalid"
+      ],
+      "scheduled_start": "2026-09-02T18:35:00+00:00",
+      "source_sha256": "a719e91d1611d96f5f28e4ff719042c4e8f46dc33fbdad9140f16475c82c6a54"
+    },
+    {
+      "admitted": false,
+      "game_id": "824312",
+      "pointer": "/3",
+      "raw_price_pair_present": false,
+      "reasons": [
+        "source_version_unestablished",
+        "schedule_completeness_unestablished",
+        "stable_team_ids_unavailable",
+        "actual_first_pitch_unavailable",
+        "pregame_byte_binding_receipt_unavailable",
+        "same_book_observation_unavailable",
+        "joined_verified_final_unavailable",
+        "two_sided_price_missing_or_invalid"
+      ],
+      "scheduled_start": "2026-09-02T19:10:00+00:00",
+      "source_sha256": "a719e91d1611d96f5f28e4ff719042c4e8f46dc33fbdad9140f16475c82c6a54"
+    },
+    {
+      "admitted": false,
+      "game_id": "825037",
+      "pointer": "/4",
+      "raw_price_pair_present": false,
+      "reasons": [
+        "source_version_unestablished",
+        "schedule_completeness_unestablished",
+        "stable_team_ids_unavailable",
+        "actual_first_pitch_unavailable",
+        "pregame_byte_binding_receipt_unavailable",
+        "same_book_observation_unavailable",
+        "joined_verified_final_unavailable",
+        "two_sided_price_missing_or_invalid"
+      ],
+      "scheduled_start": "2026-09-02T19:40:00+00:00",
+      "source_sha256": "a719e91d1611d96f5f28e4ff719042c4e8f46dc33fbdad9140f16475c82c6a54"
+    },
+    {
+      "admitted": false,
+      "game_id": "824717",
+      "pointer": "/5",
+      "raw_price_pair_present": false,
+      "reasons": [
+        "source_version_unestablished",
+        "schedule_completeness_unestablished",
+        "stable_team_ids_unavailable",
+        "actual_first_pitch_unavailable",
+        "pregame_byte_binding_receipt_unavailable",
+        "same_book_observation_unavailable",
+        "joined_verified_final_unavailable",
+        "two_sided_price_missing_or_invalid"
+      ],
+      "scheduled_start": "2026-09-02T20:10:00+00:00",
+      "source_sha256": "a719e91d1611d96f5f28e4ff719042c4e8f46dc33fbdad9140f16475c82c6a54"
+    },
+    {
+      "admitted": false,
+      "game_id": "822931",
+      "pointer": "/6",
+      "raw_price_pair_present": true,
+      "reasons": [
+        "source_version_unestablished",
+        "schedule_completeness_unestablished",
+        "stable_team_ids_unavailable",
+        "actual_first_pitch_unavailable",
+        "pregame_byte_binding_receipt_unavailable",
+        "same_book_observation_unavailable",
+        "joined_verified_final_unavailable"
+      ],
+      "scheduled_start": "2026-09-02T22:40:00+00:00",
+      "source_sha256": "a719e91d1611d96f5f28e4ff719042c4e8f46dc33fbdad9140f16475c82c6a54"
+    },
+    {
+      "admitted": false,
+      "game_id": "823339",
+      "pointer": "/7",
+      "raw_price_pair_present": true,
+      "reasons": [
+        "source_version_unestablished",
+        "schedule_completeness_unestablished",
+        "stable_team_ids_unavailable",
+        "actual_first_pitch_unavailable",
+        "pregame_byte_binding_receipt_unavailable",
+        "same_book_observation_unavailable",
+        "joined_verified_final_unavailable"
+      ],
+      "scheduled_start": "2026-09-02T22:40:00+00:00",
+      "source_sha256": "a719e91d1611d96f5f28e4ff719042c4e8f46dc33fbdad9140f16475c82c6a54"
+    },
+    {
+      "admitted": false,
+      "game_id": "824390",
+      "pointer": "/8",
+      "raw_price_pair_present": true,
+      "reasons": [
+        "source_version_unestablished",
+        "schedule_completeness_unestablished",
+        "stable_team_ids_unavailable",
+        "actual_first_pitch_unavailable",
+        "pregame_byte_binding_receipt_unavailable",
+        "same_book_observation_unavailable",
+        "joined_verified_final_unavailable"
+      ],
+      "scheduled_start": "2026-09-02T22:40:00+00:00",
+      "source_sha256": "a719e91d1611d96f5f28e4ff719042c4e8f46dc33fbdad9140f16475c82c6a54"
+    },
+    {
+      "admitted": false,
+      "game_id": "823660",
+      "pointer": "/9",
+      "raw_price_pair_present": true,
+      "reasons": [
+        "source_version_unestablished",
+        "schedule_completeness_unestablished",
+        "stable_team_ids_unavailable",
+        "actual_first_pitch_unavailable",
+        "pregame_byte_binding_receipt_unavailable",
+        "same_book_observation_unavailable",
+        "joined_verified_final_unavailable"
+      ],
+      "scheduled_start": "2026-09-02T23:40:00+00:00",
+      "source_sha256": "a719e91d1611d96f5f28e4ff719042c4e8f46dc33fbdad9140f16475c82c6a54"
+    },
+    {
+      "admitted": false,
+      "game_id": "824068",
+      "pointer": "/10",
+      "raw_price_pair_present": true,
+      "reasons": [
+        "source_version_unestablished",
+        "schedule_completeness_unestablished",
+        "stable_team_ids_unavailable",
+        "actual_first_pitch_unavailable",
+        "pregame_byte_binding_receipt_unavailable",
+        "same_book_observation_unavailable",
+        "joined_verified_final_unavailable"
+      ],
+      "scheduled_start": "2026-09-02T23:40:00+00:00",
+      "source_sha256": "a719e91d1611d96f5f28e4ff719042c4e8f46dc33fbdad9140f16475c82c6a54"
+    },
+    {
+      "admitted": false,
+      "game_id": "824634",
+      "pointer": "/11",
+      "raw_price_pair_present": true,
+      "reasons": [
+        "source_version_unestablished",
+        "schedule_completeness_unestablished",
+        "stable_team_ids_unavailable",
+        "actual_first_pitch_unavailable",
+        "pregame_byte_binding_receipt_unavailable",
+        "same_book_observation_unavailable",
+        "joined_verified_final_unavailable"
+      ],
+      "scheduled_start": "2026-09-02T23:40:00+00:00",
+      "source_sha256": "a719e91d1611d96f5f28e4ff719042c4e8f46dc33fbdad9140f16475c82c6a54"
+    },
+    {
+      "admitted": false,
+      "game_id": "824147",
+      "pointer": "/12",
+      "raw_price_pair_present": true,
+      "reasons": [
+        "source_version_unestablished",
+        "schedule_completeness_unestablished",
+        "stable_team_ids_unavailable",
+        "actual_first_pitch_unavailable",
+        "pregame_byte_binding_receipt_unavailable",
+        "same_book_observation_unavailable",
+        "joined_verified_final_unavailable"
+      ],
+      "scheduled_start": "2026-09-03T00:10:00+00:00",
+      "source_sha256": "a719e91d1611d96f5f28e4ff719042c4e8f46dc33fbdad9140f16475c82c6a54"
+    },
+    {
+      "admitted": false,
+      "game_id": "823983",
+      "pointer": "/13",
+      "raw_price_pair_present": true,
+      "reasons": [
+        "source_version_unestablished",
+        "schedule_completeness_unestablished",
+        "stable_team_ids_unavailable",
+        "actual_first_pitch_unavailable",
+        "pregame_byte_binding_receipt_unavailable",
+        "same_book_observation_unavailable",
+        "joined_verified_final_unavailable"
+      ],
+      "scheduled_start": "2026-09-03T01:38:00+00:00",
+      "source_sha256": "a719e91d1611d96f5f28e4ff719042c4e8f46dc33fbdad9140f16475c82c6a54"
+    },
+    {
+      "admitted": false,
+      "game_id": "823906",
+      "pointer": "/14",
+      "raw_price_pair_present": true,
+      "reasons": [
+        "source_version_unestablished",
+        "schedule_completeness_unestablished",
+        "stable_team_ids_unavailable",
+        "actual_first_pitch_unavailable",
+        "pregame_byte_binding_receipt_unavailable",
+        "same_book_observation_unavailable",
+        "joined_verified_final_unavailable"
+      ],
+      "scheduled_start": "2026-09-03T02:10:00+00:00",
+      "source_sha256": "a719e91d1611d96f5f28e4ff719042c4e8f46dc33fbdad9140f16475c82c6a54"
+    }
+  ],
+  "rules_sha256": "4b9d0a5ab406ca7543103fefbb8e41030021279969f89785009ea2adfd91ffce",
+  "schema": "mlb-historical-admission-v1",
+  "scoring_enabled": false,
+  "selected_ledger": {
+    "denominator_kind": "selected_rows_not_schedule",
+    "reason_counts_nonexclusive": {
+      "pregame_probability_byte_binding_unavailable": 45
+    },
+    "refused_rows": 45
+  },
+  "split": {
+    "declaration": "retrospective feasibility split frozen before this checkpoint; not before historical outcomes",
+    "heldout_end": "2026-09-07",
+    "heldout_start": "2026-09-02",
+    "rules": "No overlapping IDs or UTC dates; actual completion and source availability strictly before cutoff; heldout outcomes never enter training. No tuning or scoring in this slice.",
+    "timezone": "UTC",
+    "training_cutoff": "2026-08-31T00:00:00Z",
+    "training_end": "2026-08-30",
+    "training_start": "2026-05-19"
+  }
+}
