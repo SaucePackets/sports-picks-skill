@@ -263,6 +263,25 @@ class ShadowTest(unittest.TestCase):
                         self.assertTrue(row['fixture_contract_pass'])
                         self.assertFalse(any(r['eligible'] for r in result['rows']))
 
+    def test_malformed_other_game_closing_is_isolated(self):
+        self.add(self.attempt())
+        self.observation('closings')
+        other = dict(self.game, game_id='43')
+        source = dict(self.source, game=other)
+        key = s.capture(self.store, other, s.canonical(source), 'market',
+                        '11' * 32, '2026-09-01T00:00:00Z')
+        attempt = self.attempt(key)
+        attempt['game_id'] = '43'
+        self.add(attempt)
+        self.observation('closings', game=other, odds=[])
+        result = s.report(self.store, [self.game, other], [self.key])
+        self.assertEqual(len(result['rows']), 6)
+        market = {row['game_id']: row for row in result['rows'] if row['family'] == 'market'}
+        self.assertEqual(market['42']['closings']['status'], 'joined')
+        self.assertEqual(market['43']['closings']['status'], 'invalid')
+        self.assertEqual(market['43']['closings']['reason'], 'malformed_observation')
+        self.assertTrue(all(row['fixture_contract_pass'] for row in market.values()))
+
     def test_denominator(self):
         self.add(self.attempt())
         result = s.report(self.store, [self.game, dict(self.game, game_id='43')])

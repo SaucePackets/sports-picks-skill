@@ -220,10 +220,10 @@ def join_observation(store, records, game, kind, bundle, capture_time):
         source = json.loads(store.get(record['source_digest']))
         if not isinstance(source, dict) or not isinstance(source.get('game'), dict):
             raise ValueError('observation source and game must be objects')
-        if kind == 'closings' and not isinstance(source.get('odds', {}), dict):
-            raise ValueError('closing odds must be an object')
         if source['game'].get('game_id') != game['game_id']:
             continue
+        if kind == 'closings' and not isinstance(source.get('odds', {}), dict):
+            raise ValueError('closing odds must be an object')
         if not same_game(game, source['game']) or not nonempty_string(source.get('source_id')):
             return {'status': 'invalid', 'reason': 'identity_or_source_mismatch'}
         observed = timestamp(source['observed_at'])
