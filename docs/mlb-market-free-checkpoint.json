@@ -1,0 +1,1591 @@
+{
+  "asof_snapshot_verified": false,
+  "blockers": [],
+  "checkpoint_complete": true,
+  "eligible": false,
+  "empirical_training_home_wins": 53,
+  "evidence_kind": "historical_reconstruction",
+  "historical_performance": null,
+  "implementation_sha256": "4262df5fa1da4af727b60394dec9889e0c0b4e050db18a958a9b6ab1bea5f9a7",
+  "manifest_sha256": "ba8a123e89efbbbf7bf4e4fc62b3a6c1d4452fe8bc31f59425c312af186c1e70",
+  "original_pregame_predictions": false,
+  "predictions": [
+    {
+      "away_id": "158",
+      "elo_away_probability": 0.5124819814473888,
+      "elo_refusals": [],
+      "empirical_home_probability": 0.6136363636363636,
+      "empirical_refusals": [],
+      "game_id": "778094",
+      "home_id": "145",
+      "schedule_sha256": "da52c33a1993ff8174f09c91a63ddb3e4b11a5c5eb85a5d4b181fe1bd46b98c3",
+      "scheduled_start": "2025-05-01T18:10:00Z",
+      "source_pointer": "/dates/0/games/5",
+      "status": "predicted",
+      "team_feature_lineage": {
+        "away": {
+          "prior_games": 7,
+          "rating": 1473.5398430166597,
+          "team_id": "158",
+          "training_game_ids": [
+            "778226",
+            "778210",
+            "778198",
+            "778194",
+            "778184",
+            "778164",
+            "778150"
+          ]
+        },
+        "home": {
+          "prior_games": 6,
+          "rating": 1464.8646715310817,
+          "team_id": "145",
+          "training_game_ids": [
+            "778238",
+            "778216",
+            "778201",
+            "778178",
+            "778165",
+            "778149"
+          ]
+        }
+      }
+    },
+    {
+      "away_id": "111",
+      "elo_away_probability": 0.5663512915890763,
+      "elo_refusals": [],
+      "empirical_home_probability": 0.6136363636363636,
+      "empirical_refusals": [],
+      "game_id": "778095",
+      "home_id": "141",
+      "schedule_sha256": "da52c33a1993ff8174f09c91a63ddb3e4b11a5c5eb85a5d4b181fe1bd46b98c3",
+      "scheduled_start": "2025-05-01T23:07:00Z",
+      "source_pointer": "/dates/0/games/8",
+      "status": "predicted",
+      "team_feature_lineage": {
+        "away": {
+          "prior_games": 6,
+          "rating": 1518.609612565255,
+          "team_id": "111",
+          "training_game_ids": [
+            "778238",
+            "778224",
+            "778207",
+            "778196",
+            "778169",
+            "778157"
+          ]
+        },
+        "home": {
+          "prior_games": 5,
+          "rating": 1472.2304773414014,
+          "team_id": "141",
+          "training_game_ids": [
+            "778231",
+            "778217",
+            "778200",
+            "778185",
+            "778156"
+          ]
+        }
+      }
+    },
+    {
+      "away_id": "133",
+      "elo_away_probability": 0.5509085647542029,
+      "elo_refusals": [],
+      "empirical_home_probability": 0.6136363636363636,
+      "empirical_refusals": [],
+      "game_id": "778096",
+      "home_id": "140",
+      "schedule_sha256": "da52c33a1993ff8174f09c91a63ddb3e4b11a5c5eb85a5d4b181fe1bd46b98c3",
+      "scheduled_start": "2025-05-01T18:35:00Z",
+      "source_pointer": "/dates/0/games/6",
+      "status": "predicted",
+      "team_feature_lineage": {
+        "away": {
+          "prior_games": 6,
+          "rating": 1516.8098697781372,
+          "team_id": "133",
+          "training_game_ids": [
+            "778213",
+            "778197",
+            "778192",
+            "778178",
+            "778165",
+            "778149"
+          ]
+        },
+        "home": {
+          "prior_games": 6,
+          "rating": 1481.311969120866,
+          "team_id": "140",
+          "training_game_ids": [
+            "778213",
+            "778197",
+            "778192",
+            "778171",
+            "778159",
+            "778151"
+          ]
+        }
+      }
+    },
+    {
+      "away_id": "118",
+      "elo_away_probability": 0.48736684317318524,
+      "elo_refusals": [],
+      "empirical_home_probability": 0.6136363636363636,
+      "empirical_refusals": [],
+      "game_id": "778097",
+      "home_id": "139",
+      "schedule_sha256": "da52c33a1993ff8174f09c91a63ddb3e4b11a5c5eb85a5d4b181fe1bd46b98c3",
+      "scheduled_start": "2025-05-01T17:10:00Z",
+      "source_pointer": "/dates/0/games/3",
+      "status": "predicted",
+      "team_feature_lineage": {
+        "away": {
+          "prior_games": 5,
+          "rating": 1528.4575996779283,
+          "team_id": "118",
+          "training_game_ids": [
+            "778215",
+            "778190",
+            "778187",
+            "778167",
+            "778152"
+          ]
+        },
+        "home": {
+          "prior_games": 6,
+          "rating": 1537.2378848798407,
+          "team_id": "139",
+          "training_game_ids": [
+            "778212",
+            "778199",
+            "778188",
+            "778172",
+            "778160",
+            "778146"
+          ]
+        }
+      }
+    },
+    {
+      "away_id": "115",
+      "elo_away_probability": 0.39522829726634884,
+      "elo_refusals": [],
+      "empirical_home_probability": 0.6136363636363636,
+      "empirical_refusals": [],
+      "game_id": "778098",
+      "home_id": "137",
+      "schedule_sha256": "da52c33a1993ff8174f09c91a63ddb3e4b11a5c5eb85a5d4b181fe1bd46b98c3",
+      "scheduled_start": "2025-05-02T01:45:00Z",
+      "source_pointer": "/dates/0/games/10",
+      "status": "predicted",
+      "team_feature_lineage": {
+        "away": {
+          "prior_games": 5,
+          "rating": 1453.1629222670194,
+          "team_id": "115",
+          "training_game_ids": [
+            "778215",
+            "778190",
+            "778181",
+            "778161",
+            "778148"
+          ]
+        },
+        "home": {
+          "prior_games": 7,
+          "rating": 1527.0602946684887,
+          "team_id": "137",
+          "training_game_ids": [
+            "778226",
+            "778210",
+            "778198",
+            "778194",
+            "778171",
+            "778159",
+            "778151"
+          ]
+        }
+      }
+    },
+    {
+      "away_id": "120",
+      "elo_away_probability": 0.5477913118675212,
+      "elo_refusals": [],
+      "empirical_home_probability": 0.6136363636363636,
+      "empirical_refusals": [],
+      "game_id": "778099",
+      "home_id": "143",
+      "schedule_sha256": "da52c33a1993ff8174f09c91a63ddb3e4b11a5c5eb85a5d4b181fe1bd46b98c3",
+      "scheduled_start": "2025-05-01T22:45:00Z",
+      "source_pointer": "/dates/0/games/7",
+      "status": "predicted",
+      "team_feature_lineage": {
+        "away": {
+          "prior_games": 6,
+          "rating": 1519.3972588692438,
+          "team_id": "120",
+          "training_game_ids": [
+            "778222",
+            "778204",
+            "778193",
+            "778183",
+            "778173",
+            "778153"
+          ]
+        },
+        "home": {
+          "prior_games": 6,
+          "rating": 1486.0867637128292,
+          "team_id": "143",
+          "training_game_ids": [
+            "778225",
+            "778223",
+            "778203",
+            "778182",
+            "778174",
+            "778158"
+          ]
+        }
+      }
+    },
+    {
+      "away_id": "112",
+      "elo_away_probability": 0.5136793560542026,
+      "elo_refusals": [],
+      "empirical_home_probability": 0.6136363636363636,
+      "empirical_refusals": [],
+      "game_id": "778100",
+      "home_id": "134",
+      "schedule_sha256": "da52c33a1993ff8174f09c91a63ddb3e4b11a5c5eb85a5d4b181fe1bd46b98c3",
+      "scheduled_start": "2025-05-01T16:35:00Z",
+      "source_pointer": "/dates/0/games/0",
+      "status": "predicted",
+      "team_feature_lineage": {
+        "away": {
+          "prior_games": 5,
+          "rating": 1505.026791261913,
+          "team_id": "112",
+          "training_game_ids": [
+            "778220",
+            "778205",
+            "778182",
+            "778174",
+            "778158"
+          ]
+        },
+        "home": {
+          "prior_games": 6,
+          "rating": 1495.5190284436517,
+          "team_id": "134",
+          "training_game_ids": [
+            "778211",
+            "778202",
+            "778191",
+            "778176",
+            "778163",
+            "778145"
+          ]
+        }
+      }
+    },
+    {
+      "away_id": "116",
+      "elo_away_probability": 0.5887426882919173,
+      "elo_refusals": [],
+      "empirical_home_probability": 0.6136363636363636,
+      "empirical_refusals": [],
+      "game_id": "778101",
+      "home_id": "108",
+      "schedule_sha256": "da52c33a1993ff8174f09c91a63ddb3e4b11a5c5eb85a5d4b181fe1bd46b98c3",
+      "scheduled_start": "2025-05-02T01:38:00Z",
+      "source_pointer": "/dates/0/games/9",
+      "status": "predicted",
+      "team_feature_lineage": {
+        "away": {
+          "prior_games": 5,
+          "rating": 1527.8933342952741,
+          "team_id": "116",
+          "training_game_ids": [
+            "778228",
+            "778221",
+            "778209",
+            "778168",
+            "778155"
+          ]
+        },
+        "home": {
+          "prior_games": 6,
+          "rating": 1465.5685765858414,
+          "team_id": "108",
+          "training_game_ids": [
+            "778211",
+            "778202",
+            "778191",
+            "778186",
+            "778166",
+            "778144"
+          ]
+        }
+      }
+    },
+    {
+      "away_id": "109",
+      "elo_away_probability": 0.450565076922785,
+      "elo_refusals": [],
+      "empirical_home_probability": 0.6136363636363636,
+      "empirical_refusals": [],
+      "game_id": "778103",
+      "home_id": "121",
+      "schedule_sha256": "da52c33a1993ff8174f09c91a63ddb3e4b11a5c5eb85a5d4b181fe1bd46b98c3",
+      "scheduled_start": "2025-05-01T17:10:00Z",
+      "source_pointer": "/dates/0/games/2",
+      "status": "predicted",
+      "team_feature_lineage": {
+        "away": {
+          "prior_games": 6,
+          "rating": 1482.7621151201593,
+          "team_id": "109",
+          "training_game_ids": [
+            "778212",
+            "778199",
+            "778188",
+            "778177",
+            "778162",
+            "778147"
+          ]
+        },
+        "home": {
+          "prior_games": 6,
+          "rating": 1517.225608625581,
+          "team_id": "121",
+          "training_game_ids": [
+            "778225",
+            "778223",
+            "778203",
+            "778183",
+            "778173",
+            "778153"
+          ]
+        }
+      }
+    },
+    {
+      "away_id": "138",
+      "elo_away_probability": 0.4697970208769107,
+      "elo_refusals": [],
+      "empirical_home_probability": 0.6136363636363636,
+      "empirical_refusals": [],
+      "game_id": "778107",
+      "home_id": "113",
+      "schedule_sha256": "da52c33a1993ff8174f09c91a63ddb3e4b11a5c5eb85a5d4b181fe1bd46b98c3",
+      "scheduled_start": "2025-05-01T16:40:00Z",
+      "source_pointer": "/dates/0/games/1",
+      "status": "predicted",
+      "team_feature_lineage": {
+        "away": {
+          "prior_games": 6,
+          "rating": 1498.0878931939856,
+          "team_id": "138",
+          "training_game_ids": [
+            "778233",
+            "778229",
+            "778214",
+            "778184",
+            "778164",
+            "778150"
+          ]
+        },
+        "home": {
+          "prior_games": 6,
+          "rating": 1519.1006552634135,
+          "team_id": "113",
+          "training_game_ids": [
+            "778230",
+            "778219",
+            "778208",
+            "778181",
+            "778161",
+            "778148"
+          ]
+        }
+      }
+    },
+    {
+      "away_id": "142",
+      "elo_away_probability": 0.5807980685828774,
+      "elo_refusals": [],
+      "empirical_home_probability": 0.6136363636363636,
+      "empirical_refusals": [],
+      "game_id": "778108",
+      "home_id": "114",
+      "schedule_sha256": "da52c33a1993ff8174f09c91a63ddb3e4b11a5c5eb85a5d4b181fe1bd46b98c3",
+      "scheduled_start": "2025-05-01T17:10:00Z",
+      "source_pointer": "/dates/0/games/4",
+      "status": "predicted",
+      "team_feature_lineage": {
+        "away": {
+          "prior_games": 5,
+          "rating": 1544.987359446341,
+          "team_id": "142",
+          "training_game_ids": [
+            "778216",
+            "778201",
+            "778186",
+            "778166",
+            "778144"
+          ]
+        },
+        "home": {
+          "prior_games": 5,
+          "rating": 1488.3466040327814,
+          "team_id": "114",
+          "training_game_ids": [
+            "778227",
+            "778218",
+            "778206",
+            "778169",
+            "778157"
+          ]
+        }
+      }
+    }
+  ],
+  "report_bytes": 2060164,
+  "report_sha256": "1a1993c45fc17668fc0e4b85d5ca06da4a91403ef7fa0d55e8e9b6c741ff0bda",
+  "savant_summary": {
+    "joined_count": 2211,
+    "row_count": 2211,
+    "status": "complete"
+  },
+  "schedule_completeness": "current_source_census_only",
+  "schedule_counts": {
+    "2025-04-21": 8,
+    "2025-04-22": 15,
+    "2025-04-23": 15,
+    "2025-04-24": 9,
+    "2025-04-25": 15,
+    "2025-04-26": 17,
+    "2025-04-27": 16,
+    "2025-05-01": 11
+  },
+  "schema": "mlb-market-free-checkpoint-v1",
+  "scoring_enabled": false,
+  "source_adapter_sha256": "ad3925128f9b847e27adb63248716be3f11788ace65eb06145ade382e472165b",
+  "sources": [
+    {
+      "body_sha256": "43b2450389307f7b050ffbe603c1dae9e5c62404f508619617c1149be4a8a990",
+      "failure": null,
+      "http_status": 200,
+      "key": "2025-04-21",
+      "kind": "schedule",
+      "retrieved_at_local": "2026-09-08T01:18:29.071565+00:00",
+      "size": 35163,
+      "url": "https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=2025-04-21&hydrate=linescore"
+    },
+    {
+      "body_sha256": "e914d964321bcf13c209da5767503b355c428843663dd091f4a0369739ae7bc9",
+      "failure": null,
+      "http_status": 200,
+      "key": "2025-04-22",
+      "kind": "schedule",
+      "retrieved_at_local": "2026-09-08T01:18:29.320617+00:00",
+      "size": 66868,
+      "url": "https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=2025-04-22&hydrate=linescore"
+    },
+    {
+      "body_sha256": "dbd4ffe0b44a6c603ad790043001165f995bb62baff229fbfac944f1061aba08",
+      "failure": null,
+      "http_status": 200,
+      "key": "2025-04-23",
+      "kind": "schedule",
+      "retrieved_at_local": "2026-09-08T01:18:29.610066+00:00",
+      "size": 63972,
+      "url": "https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=2025-04-23&hydrate=linescore"
+    },
+    {
+      "body_sha256": "39b1090f072e5895461cc0054c9e6e43efbe818c0eff2a7ab8fc745d3bb62037",
+      "failure": null,
+      "http_status": 200,
+      "key": "2025-04-24",
+      "kind": "schedule",
+      "retrieved_at_local": "2026-09-08T01:18:29.908116+00:00",
+      "size": 40438,
+      "url": "https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=2025-04-24&hydrate=linescore"
+    },
+    {
+      "body_sha256": "a916f250fc63cfa0a17edf1530ca0422ab9e02c4ff1bbd6a5d0e323618ca1119",
+      "failure": null,
+      "http_status": 200,
+      "key": "2025-04-25",
+      "kind": "schedule",
+      "retrieved_at_local": "2026-09-08T01:18:30.125361+00:00",
+      "size": 59842,
+      "url": "https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=2025-04-25&hydrate=linescore"
+    },
+    {
+      "body_sha256": "e6efbb523447195f51e395dbd328e0f88458f93a456861444cff35a1224d7aa0",
+      "failure": null,
+      "http_status": 200,
+      "key": "2025-04-26",
+      "kind": "schedule",
+      "retrieved_at_local": "2026-09-08T01:18:30.387526+00:00",
+      "size": 72437,
+      "url": "https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=2025-04-26&hydrate=linescore"
+    },
+    {
+      "body_sha256": "b1be65827746184c89cb9b4f64b670fee5949b17d640c3fb955272b7a31ec7fb",
+      "failure": null,
+      "http_status": 200,
+      "key": "2025-04-27",
+      "kind": "schedule",
+      "retrieved_at_local": "2026-09-08T01:18:30.641750+00:00",
+      "size": 71354,
+      "url": "https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=2025-04-27&hydrate=linescore"
+    },
+    {
+      "body_sha256": "da52c33a1993ff8174f09c91a63ddb3e4b11a5c5eb85a5d4b181fe1bd46b98c3",
+      "failure": null,
+      "http_status": 200,
+      "key": "2025-05-01",
+      "kind": "schedule",
+      "retrieved_at_local": "2026-09-08T01:18:30.901390+00:00",
+      "size": 48831,
+      "url": "https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=2025-05-01&hydrate=linescore"
+    },
+    {
+      "body_sha256": "ddf932223a5c9fb96ac21778e02879011b340056d5bce3f5e643d7c2228ef8d4",
+      "failure": null,
+      "http_status": 200,
+      "key": "778136",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:31.168703+00:00",
+      "size": 808806,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778136/feed/live"
+    },
+    {
+      "body_sha256": "ccdafb9151227d1fd009144e1e7aac1f8340251f8ab88636c30624c02e7a3160",
+      "failure": null,
+      "http_status": 200,
+      "key": "778144",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:31.169042+00:00",
+      "size": 739259,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778144/feed/live"
+    },
+    {
+      "body_sha256": "2d1447aebb6ec1ae0c8d7dd2ef551a0bbcafaf89b960b283edea2fe8da913545",
+      "failure": null,
+      "http_status": 200,
+      "key": "778145",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:31.170070+00:00",
+      "size": 815423,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778145/feed/live"
+    },
+    {
+      "body_sha256": "5970203fbf6cf6ae2bfb59c536fab5343587f55a7d39829ecb650842dea9c705",
+      "failure": null,
+      "http_status": 200,
+      "key": "778146",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:31.452653+00:00",
+      "size": 759064,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778146/feed/live"
+    },
+    {
+      "body_sha256": "6d4b49ff868f7e66087c701547b43a4d879ddec76884fd88e51d4bab6c2df5e1",
+      "failure": null,
+      "http_status": 200,
+      "key": "778147",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:31.478827+00:00",
+      "size": 801183,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778147/feed/live"
+    },
+    {
+      "body_sha256": "5d29dc503e60dcf7142bd01fd5353f70804eb4a273f3a0a932b9fcf632ca5ede",
+      "failure": null,
+      "http_status": 200,
+      "key": "778148",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:31.500386+00:00",
+      "size": 772547,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778148/feed/live"
+    },
+    {
+      "body_sha256": "9109fc5915e9813dc8af5cf207dfe29b8a47e9e20209ea5f1145ad3620e71e82",
+      "failure": null,
+      "http_status": 200,
+      "key": "778149",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:31.753862+00:00",
+      "size": 762357,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778149/feed/live"
+    },
+    {
+      "body_sha256": "3e1cc04d9d4330a7480776b356d9d8ec94e081055117a0aa78ca982b70be4ceb",
+      "failure": null,
+      "http_status": 200,
+      "key": "778150",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:31.780741+00:00",
+      "size": 815131,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778150/feed/live"
+    },
+    {
+      "body_sha256": "9fa8c368d4a63355534b86439fa9b1cccd745d18b5c7678b28e109fada74102b",
+      "failure": null,
+      "http_status": 200,
+      "key": "778151",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:31.792907+00:00",
+      "size": 765838,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778151/feed/live"
+    },
+    {
+      "body_sha256": "4e784827bddade96144af8e2ef120fbb67cd0ef2fe176e5ecdea41683550b0b4",
+      "failure": null,
+      "http_status": 200,
+      "key": "778152",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:32.051742+00:00",
+      "size": 810272,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778152/feed/live"
+    },
+    {
+      "body_sha256": "d4b374c31a5f17ad8bf4f710421abcf97143f608c9b98e8b9289584a56d0f9dc",
+      "failure": null,
+      "http_status": 200,
+      "key": "778153",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:32.070595+00:00",
+      "size": 865387,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778153/feed/live"
+    },
+    {
+      "body_sha256": "4147b775458c8a5ad80d30a18fa93bb6019e15dab778bee1eacc0b802433f141",
+      "failure": null,
+      "http_status": 200,
+      "key": "778154",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:32.113448+00:00",
+      "size": 834706,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778154/feed/live"
+    },
+    {
+      "body_sha256": "35f6584996355ae23e5558b6a76761a93b9d5aea4d468e1ed0157eb76d174bc5",
+      "failure": null,
+      "http_status": 200,
+      "key": "778155",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:32.352707+00:00",
+      "size": 738692,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778155/feed/live"
+    },
+    {
+      "body_sha256": "cb79c3852ecafca84a7919e92e442bf9e2064aec4c46f712f07456da42370ca6",
+      "failure": null,
+      "http_status": 200,
+      "key": "778156",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:32.392024+00:00",
+      "size": 869880,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778156/feed/live"
+    },
+    {
+      "body_sha256": "0ad29495fde76cc9a458edd1d55b81e29ae159fec80d942bc6e94c8fffbdbe71",
+      "failure": null,
+      "http_status": 200,
+      "key": "778157",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:32.431044+00:00",
+      "size": 873919,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778157/feed/live"
+    },
+    {
+      "body_sha256": "0127670e79b2f195dc457f816389362c1d7daf21c7d5e77da03107aec34e15ab",
+      "failure": null,
+      "http_status": 200,
+      "key": "778158",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:32.630799+00:00",
+      "size": 764884,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778158/feed/live"
+    },
+    {
+      "body_sha256": "afd4090d5fad6fb28b664b8bbe0e7f618ca40856640839673a38abe27b130bf8",
+      "failure": null,
+      "http_status": 200,
+      "key": "778159",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:32.729999+00:00",
+      "size": 762076,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778159/feed/live"
+    },
+    {
+      "body_sha256": "c942344a1ab9e19b9e1750f5698f059a17ce6dbc3af496397c2b264a628206df",
+      "failure": null,
+      "http_status": 200,
+      "key": "778160",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:32.736046+00:00",
+      "size": 804853,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778160/feed/live"
+    },
+    {
+      "body_sha256": "0760c925a79f115c72cf711e2e26044ff72b0082b2a1e1d4a211642675ece935",
+      "failure": null,
+      "http_status": 200,
+      "key": "778161",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:32.962555+00:00",
+      "size": 829197,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778161/feed/live"
+    },
+    {
+      "body_sha256": "003915f8e825a8bea272d2663a89119b5fe6cbd8d4d006de82bba30c8cf45770",
+      "failure": null,
+      "http_status": 200,
+      "key": "778162",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:33.031314+00:00",
+      "size": 838436,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778162/feed/live"
+    },
+    {
+      "body_sha256": "afa0b5d810726f05a431128e292f79720db89595c528699eaa667fcbe18f7237",
+      "failure": null,
+      "http_status": 200,
+      "key": "778163",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:33.038265+00:00",
+      "size": 865595,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778163/feed/live"
+    },
+    {
+      "body_sha256": "bb28375f8894c8a7909bdf576e88fe5cf4e84065cc655f603cdb4aff7e05b49a",
+      "failure": null,
+      "http_status": 200,
+      "key": "778164",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:33.315275+00:00",
+      "size": 823900,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778164/feed/live"
+    },
+    {
+      "body_sha256": "cc0d63feae71a8767c76512f9ce1d2c6461fc427faae3fc5da5d3aa451313599",
+      "failure": null,
+      "http_status": 200,
+      "key": "778165",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:33.342701+00:00",
+      "size": 788275,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778165/feed/live"
+    },
+    {
+      "body_sha256": "036539f75cfddfcb59d7fbec5dc071a6cec9280d343556c342c4c7e524dec566",
+      "failure": null,
+      "http_status": 200,
+      "key": "778166",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:33.359060+00:00",
+      "size": 796997,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778166/feed/live"
+    },
+    {
+      "body_sha256": "5090c734e2f81d9c40e4aad17932cb38b9d2b6c2136f20464fe3a9147d8d2f2d",
+      "failure": null,
+      "http_status": 200,
+      "key": "778167",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:33.614998+00:00",
+      "size": 660137,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778167/feed/live"
+    },
+    {
+      "body_sha256": "4e51bed4cb9810bbc7286326c10c11213a068bd9f81620c5294634fdbe3cda14",
+      "failure": null,
+      "http_status": 200,
+      "key": "778168",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:33.625451+00:00",
+      "size": 846606,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778168/feed/live"
+    },
+    {
+      "body_sha256": "d40d47d27d5040436dd3a6546312ce2c2df20a0beaadf4f8dd09b8426828dff1",
+      "failure": null,
+      "http_status": 200,
+      "key": "778169",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:33.652062+00:00",
+      "size": 800285,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778169/feed/live"
+    },
+    {
+      "body_sha256": "74567e7b8ca6643ea3e15daafd4ba8720392539a01c35ab57b01d38eae4491a3",
+      "failure": null,
+      "http_status": 200,
+      "key": "778170",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:33.895755+00:00",
+      "size": 756936,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778170/feed/live"
+    },
+    {
+      "body_sha256": "8e7fda3d77f0455d0ea709eb11ec6871f87c1cebf65fa6fd6b319b6e506606a3",
+      "failure": null,
+      "http_status": 200,
+      "key": "778171",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:33.930274+00:00",
+      "size": 730706,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778171/feed/live"
+    },
+    {
+      "body_sha256": "1ed35a1fb2eb1f3ded50dfd904df24e3c19b27656f3581208efbf94103e6a0de",
+      "failure": null,
+      "http_status": 200,
+      "key": "778172",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:33.938314+00:00",
+      "size": 734851,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778172/feed/live"
+    },
+    {
+      "body_sha256": "77624e1043c4c4791a64ee654e3ccc6dff1f13b8e1fd56ea493fe24951900893",
+      "failure": null,
+      "http_status": 200,
+      "key": "778173",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:34.221463+00:00",
+      "size": 791624,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778173/feed/live"
+    },
+    {
+      "body_sha256": "ae6fa3b834ee6962c9488ffc730c5dfb07e1c6b87798de4b42d876965f30a1c1",
+      "failure": null,
+      "http_status": 200,
+      "key": "778174",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:34.221668+00:00",
+      "size": 870865,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778174/feed/live"
+    },
+    {
+      "body_sha256": "adc518600af892f8b9c733a1e1e63f9c997ed14a1bb70f990bd6ee61425c43e3",
+      "failure": null,
+      "http_status": 200,
+      "key": "778175",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:34.249341+00:00",
+      "size": 729932,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778175/feed/live"
+    },
+    {
+      "body_sha256": "bce08c58822aa9336f8be894b926d3e4acb29dbaff3b9dbdf0d138b8ab12969a",
+      "failure": null,
+      "http_status": 200,
+      "key": "778176",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:34.630100+00:00",
+      "size": 798428,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778176/feed/live"
+    },
+    {
+      "body_sha256": "ad83fc05a51e4fa2bc7760fe1289f52696db39dda7321d37157f752227cda2e1",
+      "failure": null,
+      "http_status": 200,
+      "key": "778177",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:34.651739+00:00",
+      "size": 886949,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778177/feed/live"
+    },
+    {
+      "body_sha256": "6745af6fa4d7867b2840768b31c89d85b3d21c4e59c6b187e86dfef980caf479",
+      "failure": null,
+      "http_status": 200,
+      "key": "778178",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:34.652243+00:00",
+      "size": 761643,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778178/feed/live"
+    },
+    {
+      "body_sha256": "0d83db0668c7236fbab451b7c770013f165e7d812238323523d193fba50da905",
+      "failure": null,
+      "http_status": 200,
+      "key": "778179",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:34.959623+00:00",
+      "size": 805826,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778179/feed/live"
+    },
+    {
+      "body_sha256": "7d1083c3ce918aac654a9719e2fb2abcab4e0fd67dfb368220a59e617c222970",
+      "failure": null,
+      "http_status": 200,
+      "key": "778180",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:34.971909+00:00",
+      "size": 842230,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778180/feed/live"
+    },
+    {
+      "body_sha256": "5f3407e1f6feebc52825af8b999efa0e1c9c9f0c18b8746cd006a3fa5e710106",
+      "failure": null,
+      "http_status": 200,
+      "key": "778181",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:34.981522+00:00",
+      "size": 899409,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778181/feed/live"
+    },
+    {
+      "body_sha256": "d871add9e3ed60b7cefab1c7a4e6b2fcab553c5088b79557d407843d02385470",
+      "failure": null,
+      "http_status": 200,
+      "key": "778182",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:35.264620+00:00",
+      "size": 864898,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778182/feed/live"
+    },
+    {
+      "body_sha256": "11afc78e2cb641617cc4f815e1952ba7d8497293bd9db7739c990c1b8b18c6e3",
+      "failure": null,
+      "http_status": 200,
+      "key": "778183",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:35.317882+00:00",
+      "size": 786975,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778183/feed/live"
+    },
+    {
+      "body_sha256": "fa893baef4fb020e38c8798d9a97122266711c538c5bb5404fdd7af4a0ce82d7",
+      "failure": null,
+      "http_status": 200,
+      "key": "778184",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:35.328045+00:00",
+      "size": 761024,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778184/feed/live"
+    },
+    {
+      "body_sha256": "00081ea4fbf6f7093a9ac872a6521211c8bafb911558fb8f500283a74caaa6a0",
+      "failure": null,
+      "http_status": 200,
+      "key": "778185",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:35.574735+00:00",
+      "size": 782086,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778185/feed/live"
+    },
+    {
+      "body_sha256": "a23f4b7c494399ff3570ba035cf605da8708557a364e12bbaacae00f7b24ecc7",
+      "failure": null,
+      "http_status": 200,
+      "key": "778186",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:35.595900+00:00",
+      "size": 857772,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778186/feed/live"
+    },
+    {
+      "body_sha256": "a620f3adad7c9a66d1bb0dc0467ccf7c24e33709056db2c1611a8ca741f726f6",
+      "failure": null,
+      "http_status": 200,
+      "key": "778187",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:35.598178+00:00",
+      "size": 659015,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778187/feed/live"
+    },
+    {
+      "body_sha256": "82bf3740e39505179095d7a2762990f9cb556bbcb0b8be3c641ff2a3e490177e",
+      "failure": null,
+      "http_status": 200,
+      "key": "778188",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:35.867342+00:00",
+      "size": 859228,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778188/feed/live"
+    },
+    {
+      "body_sha256": "55414c3c2aa37053b5df268b56ef61bf7c4b2ad3788cd4c398b80548930d4485",
+      "failure": null,
+      "http_status": 200,
+      "key": "778189",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:35.879483+00:00",
+      "size": 705387,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778189/feed/live"
+    },
+    {
+      "body_sha256": "0fcc03fe565677e64e3ed576313cead99b4c788d415a286d24702d4f9e1c7cd2",
+      "failure": null,
+      "http_status": 200,
+      "key": "778190",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:35.879991+00:00",
+      "size": 766547,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778190/feed/live"
+    },
+    {
+      "body_sha256": "0a6ec6955953936d0677ee4f7005b8bf0513e855bb87a9d6d27d4809db445eb4",
+      "failure": null,
+      "http_status": 200,
+      "key": "778191",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:36.165398+00:00",
+      "size": 763066,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778191/feed/live"
+    },
+    {
+      "body_sha256": "c5d9dd2e618dbcf663aef1c387e68a38dc8750f9c16651785ffca7164716645c",
+      "failure": null,
+      "http_status": 200,
+      "key": "778192",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:36.177202+00:00",
+      "size": 803516,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778192/feed/live"
+    },
+    {
+      "body_sha256": "eb83c998c80e4b55f93e948e9483f57d63dc85a1ae71717642e4f82568d9d755",
+      "failure": null,
+      "http_status": 200,
+      "key": "778193",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:36.193686+00:00",
+      "size": 717386,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778193/feed/live"
+    },
+    {
+      "body_sha256": "f08c3731d506d1725a22834ada83cf1ec9fe0d547e27376c96060f61791ea04c",
+      "failure": null,
+      "http_status": 200,
+      "key": "778194",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:36.469302+00:00",
+      "size": 845367,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778194/feed/live"
+    },
+    {
+      "body_sha256": "de5e8ff0b3aafbe6beb650710e331b0f4651118d2ae2da3ff578da7ad4bdd9d6",
+      "failure": null,
+      "http_status": 200,
+      "key": "778195",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:36.489456+00:00",
+      "size": 783950,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778195/feed/live"
+    },
+    {
+      "body_sha256": "cf3f6fe13dcb22159590ed0b3ba0be96576795d9d111aa4edfad370fe88a59d7",
+      "failure": null,
+      "http_status": 200,
+      "key": "778196",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:36.492584+00:00",
+      "size": 828210,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778196/feed/live"
+    },
+    {
+      "body_sha256": "d70e9ba16b04fc1d8d2d508c1bc0bf1e3629243158cb1091d2a3617c3a54411d",
+      "failure": null,
+      "http_status": 200,
+      "key": "778197",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:36.786793+00:00",
+      "size": 792393,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778197/feed/live"
+    },
+    {
+      "body_sha256": "5e7fccdf181ac8ce1aa5e3523caed15e1df730bb79f925ddea4a243648a652d4",
+      "failure": null,
+      "http_status": 200,
+      "key": "778198",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:36.788308+00:00",
+      "size": 813999,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778198/feed/live"
+    },
+    {
+      "body_sha256": "70491542955053e9428dfed38c4629ae448fbd7724e1b3dbd530c9fd38eac859",
+      "failure": null,
+      "http_status": 200,
+      "key": "778199",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:36.817018+00:00",
+      "size": 958195,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778199/feed/live"
+    },
+    {
+      "body_sha256": "018e6dcd4cd2f6f8940a67969924e2cbc82b656049a771ffcb4ba7db0bb75ca8",
+      "failure": null,
+      "http_status": 200,
+      "key": "778200",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:37.120187+00:00",
+      "size": 745425,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778200/feed/live"
+    },
+    {
+      "body_sha256": "1757a2165aba1f273cdeebe234b93f6fbaf1b9acf36d43021faeadf89d75a1b5",
+      "failure": null,
+      "http_status": 200,
+      "key": "778201",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:37.125870+00:00",
+      "size": 847725,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778201/feed/live"
+    },
+    {
+      "body_sha256": "4a41b38d1231f43c8264f39191d981140f51f46135cd42e6d87d28e6abcc034e",
+      "failure": null,
+      "http_status": 200,
+      "key": "778202",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:37.145715+00:00",
+      "size": 748769,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778202/feed/live"
+    },
+    {
+      "body_sha256": "969629d251f3d54334d648df571b2e17537489941d6f35cc1d9bfedf29c1b3f5",
+      "failure": null,
+      "http_status": 200,
+      "key": "778203",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:37.399586+00:00",
+      "size": 879621,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778203/feed/live"
+    },
+    {
+      "body_sha256": "35f0b49fa05a82255481cf9a31fa149e5769f13c6925844dcbb48c6f5a744af4",
+      "failure": null,
+      "http_status": 200,
+      "key": "778204",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:37.435545+00:00",
+      "size": 783221,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778204/feed/live"
+    },
+    {
+      "body_sha256": "ce70086376170f62a3833edf51cfeae2cb577b3e42aa895d3ded55661c91bf2b",
+      "failure": null,
+      "http_status": 200,
+      "key": "778205",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:37.440817+00:00",
+      "size": 774150,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778205/feed/live"
+    },
+    {
+      "body_sha256": "7467b1aabab51c2e0a753969287ae73d400ab312d653e45848e52ca63ec5b8e6",
+      "failure": null,
+      "http_status": 200,
+      "key": "778206",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:37.693364+00:00",
+      "size": 815621,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778206/feed/live"
+    },
+    {
+      "body_sha256": "a434bebfe7993147280b461ee92a5eed3fe3d7537a96fe2e388d25336fbae993",
+      "failure": null,
+      "http_status": 200,
+      "key": "778207",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:37.714775+00:00",
+      "size": 879052,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778207/feed/live"
+    },
+    {
+      "body_sha256": "7a5c2254458dd3055fb9186d54e4fc688887b3ea7c7613c9d6424792e2aae1de",
+      "failure": null,
+      "http_status": 200,
+      "key": "778208",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:37.722948+00:00",
+      "size": 802404,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778208/feed/live"
+    },
+    {
+      "body_sha256": "bb4f2fa072a9e3b6ac9a172555f5a95013a69ddf6ffaa5dc9da2cfa7512b283e",
+      "failure": null,
+      "http_status": 200,
+      "key": "778209",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:37.972037+00:00",
+      "size": 700891,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778209/feed/live"
+    },
+    {
+      "body_sha256": "8819186a315b498b640e8b85489a9246f1d81ac50764251009fd149d6cca397d",
+      "failure": null,
+      "http_status": 200,
+      "key": "778210",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:38.043696+00:00",
+      "size": 847842,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778210/feed/live"
+    },
+    {
+      "body_sha256": "fbb58e6cbb34bec96e636cdf78ed8402f3db7c16d9de1937d101377da51f6d71",
+      "failure": null,
+      "http_status": 200,
+      "key": "778211",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:38.077265+00:00",
+      "size": 877854,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778211/feed/live"
+    },
+    {
+      "body_sha256": "b3a1df1c2ac790ea92fa4a5907feac64e5f55410c04d0f23bc6713c786e55955",
+      "failure": null,
+      "http_status": 200,
+      "key": "778212",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:38.226704+00:00",
+      "size": 729342,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778212/feed/live"
+    },
+    {
+      "body_sha256": "e91a6e804a7c4ec156613877d3719d6bdd37dda265eda5d91fda354f285a11a0",
+      "failure": null,
+      "http_status": 200,
+      "key": "778213",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:38.328038+00:00",
+      "size": 831394,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778213/feed/live"
+    },
+    {
+      "body_sha256": "f2060cfed0b95e56284625dac066c32a7f9e76abbceb3cba4169723b9ad3b5af",
+      "failure": null,
+      "http_status": 200,
+      "key": "778214",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:38.404508+00:00",
+      "size": 767392,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778214/feed/live"
+    },
+    {
+      "body_sha256": "2650683218e680336f8182341cd527de9e8d2c5d8b179d1b83c0f20cc15fd499",
+      "failure": null,
+      "http_status": 200,
+      "key": "778215",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:38.485094+00:00",
+      "size": 835813,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778215/feed/live"
+    },
+    {
+      "body_sha256": "3958a58f763d5c18efe9a306c6e227af6b930686a9aa5535c62d51e9d552b778",
+      "failure": null,
+      "http_status": 200,
+      "key": "778216",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:38.649982+00:00",
+      "size": 776103,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778216/feed/live"
+    },
+    {
+      "body_sha256": "ea07c9b9db4db8bea94c8f676ef3fff50659e7031aa8f1a00a6403e591a20081",
+      "failure": null,
+      "http_status": 200,
+      "key": "778217",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:38.695270+00:00",
+      "size": 726277,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778217/feed/live"
+    },
+    {
+      "body_sha256": "182cf1c56808e02d99c47564af13b2c87510df2238348d0093c1fc16ec9314dd",
+      "failure": null,
+      "http_status": 200,
+      "key": "778218",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:38.787807+00:00",
+      "size": 748199,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778218/feed/live"
+    },
+    {
+      "body_sha256": "0f28f62463c69a089db58d18462e08e08c476e1e5f52d099364fccadf85d4edb",
+      "failure": null,
+      "http_status": 200,
+      "key": "778219",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:38.997834+00:00",
+      "size": 751246,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778219/feed/live"
+    },
+    {
+      "body_sha256": "7c20d5d4f011a49f9e6da7bc87e20475928769d1365d7454f2b3f1f22dd4eee9",
+      "failure": null,
+      "http_status": 200,
+      "key": "778220",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:39.000080+00:00",
+      "size": 921041,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778220/feed/live"
+    },
+    {
+      "body_sha256": "5f102fa5b1f4dbafeccc7866c2141d97cee445a513dfd8e2584aed3ca288ab66",
+      "failure": null,
+      "http_status": 200,
+      "key": "778221",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:39.067462+00:00",
+      "size": 707298,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778221/feed/live"
+    },
+    {
+      "body_sha256": "b3f99996bf0866621174d51c0d5b8ab0883c978a5b90ced76f12107d44998a76",
+      "failure": null,
+      "http_status": 200,
+      "key": "778222",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:39.314988+00:00",
+      "size": 738885,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778222/feed/live"
+    },
+    {
+      "body_sha256": "2cfa9b145ba4c27f3ba696511a5bedfad46de9a641081387e0691293f368a3d8",
+      "failure": null,
+      "http_status": 200,
+      "key": "778223",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:39.316240+00:00",
+      "size": 836305,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778223/feed/live"
+    },
+    {
+      "body_sha256": "30e9daecd544a8a7615a99111b1c416516a9ab13a63c9024e22abe7379f7f516",
+      "failure": null,
+      "http_status": 200,
+      "key": "778224",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:39.363037+00:00",
+      "size": 889990,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778224/feed/live"
+    },
+    {
+      "body_sha256": "b4934da3e4550642734b9d815fc1418833bb0a95d3b9e713153de4fe6e50d75d",
+      "failure": null,
+      "http_status": 200,
+      "key": "778225",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:39.620690+00:00",
+      "size": 749057,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778225/feed/live"
+    },
+    {
+      "body_sha256": "b2bf6de6967ad3dc6635be2f24465a40b8781dd6ff08453f314ceeadea082798",
+      "failure": null,
+      "http_status": 200,
+      "key": "778226",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:39.715033+00:00",
+      "size": 777888,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778226/feed/live"
+    },
+    {
+      "body_sha256": "6ceba8fea4a393fa9d1b7df353c0ef872827ae942b5f3eaeb59c24d1a5cc421e",
+      "failure": null,
+      "http_status": 200,
+      "key": "778227",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:39.761494+00:00",
+      "size": 774806,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778227/feed/live"
+    },
+    {
+      "body_sha256": "99102ec2e025c174bb8772279f5f4e55cfb073b0dab80dd3ebcb7bf734c8cc74",
+      "failure": null,
+      "http_status": 200,
+      "key": "778228",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:39.937691+00:00",
+      "size": 813641,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778228/feed/live"
+    },
+    {
+      "body_sha256": "9982b42e77c2a9cc131be752ff87f8e32eb820284edb10ed75cf1f7c8ef41910",
+      "failure": null,
+      "http_status": 200,
+      "key": "778229",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:40.000939+00:00",
+      "size": 885571,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778229/feed/live"
+    },
+    {
+      "body_sha256": "6c50ff73f6529a10d97f21616bd35a159ebb7e5d3a18ac8dc9c61c5beb874ab9",
+      "failure": null,
+      "http_status": 200,
+      "key": "778230",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:40.035255+00:00",
+      "size": 786586,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778230/feed/live"
+    },
+    {
+      "body_sha256": "dd020641ff3fc9099df41450a33016aa16474dce94d00b23a0ace5e41e6d064a",
+      "failure": null,
+      "http_status": 200,
+      "key": "778231",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:40.264965+00:00",
+      "size": 727930,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778231/feed/live"
+    },
+    {
+      "body_sha256": "25c133fa226be58a8496f3d63066b1cad4a0f21d1c56e449683baec2c46cb2d9",
+      "failure": null,
+      "http_status": 200,
+      "key": "778233",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:40.310848+00:00",
+      "size": 729674,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778233/feed/live"
+    },
+    {
+      "body_sha256": "63769ef67ce14df36adc21d70263be8a2d709c9a9b907b5a84fb70bdb53c5bc1",
+      "failure": null,
+      "http_status": 200,
+      "key": "778238",
+      "kind": "feed",
+      "retrieved_at_local": "2026-09-08T01:18:40.368766+00:00",
+      "size": 730903,
+      "url": "https://statsapi.mlb.com/api/v1.1/game/778238/feed/live"
+    },
+    {
+      "body_sha256": "5d5fba50bfb48ee8febc5cfeae0eb1f59259002cfd5ab1f02fa85a3b4b36a5b7",
+      "failure": null,
+      "http_status": 200,
+      "key": "2025-04-21",
+      "kind": "savant",
+      "retrieved_at_local": "2026-09-08T01:18:40.650078+00:00",
+      "size": 1512767,
+      "url": "https://baseballsavant.mlb.com/statcast_search/csv?all=true&type=details&player_type=pitcher&hfGT=R%7C&game_date_gt=2025-04-21&game_date_lt=2025-04-21&group_by=name&min_pitches=0&min_results=0"
+    }
+  ],
+  "spec": {
+    "cutoff": "2025-04-30T00:00:00Z",
+    "empirical_home": "(home_wins+1)/(n+2)",
+    "evaluation_date": "2025-05-01",
+    "home_offset": 0,
+    "initial": 1500,
+    "k": 20,
+    "minimum_prior": 1,
+    "savant_date": "2025-04-21",
+    "savant_features": [],
+    "scale": 400,
+    "tie_break": "numeric_game_id",
+    "training_dates": [
+      "2025-04-21",
+      "2025-04-22",
+      "2025-04-23",
+      "2025-04-24",
+      "2025-04-25",
+      "2025-04-26",
+      "2025-04-27"
+    ],
+    "version": 1
+  },
+  "spec_sha256": "12c71c7e80accae955dd4ae6af32e61f3412628f906827b0bef2e5bf0bdc955e",
+  "training_accepted": 86,
+  "training_refused": [
+    {
+      "feed_sha256": "de5e8ff0b3aafbe6beb650710e331b0f4651118d2ae2da3ff578da7ad4bdd9d6",
+      "game_id": "778195",
+      "reason": "repeated_game_across_source_dates",
+      "schedule_pointer": "/dates/0/games/14",
+      "schedule_sha256": "dbd4ffe0b44a6c603ad790043001165f995bb62baff229fbfac944f1061aba08",
+      "source_date": "2025-04-23",
+      "status": "refused"
+    },
+    {
+      "feed_sha256": "55414c3c2aa37053b5df268b56ef61bf7c4b2ad3788cd4c398b80548930d4485",
+      "game_id": "778189",
+      "reason": "final_not_complete_in_both_sources",
+      "schedule_pointer": "/dates/0/games/0",
+      "schedule_sha256": "39b1090f072e5895461cc0054c9e6e43efbe818c0eff2a7ab8fc745d3bb62037",
+      "source_date": "2025-04-24",
+      "status": "refused"
+    },
+    {
+      "feed_sha256": "de5e8ff0b3aafbe6beb650710e331b0f4651118d2ae2da3ff578da7ad4bdd9d6",
+      "game_id": "778195",
+      "reason": "repeated_game_across_source_dates",
+      "schedule_pointer": "/dates/0/games/3",
+      "schedule_sha256": "39b1090f072e5895461cc0054c9e6e43efbe818c0eff2a7ab8fc745d3bb62037",
+      "source_date": "2025-04-24",
+      "status": "refused"
+    },
+    {
+      "feed_sha256": "7d1083c3ce918aac654a9719e2fb2abcab4e0fd67dfb368220a59e617c222970",
+      "game_id": "778180",
+      "reason": "repeated_game_across_source_dates",
+      "schedule_pointer": "/dates/0/games/13",
+      "schedule_sha256": "a916f250fc63cfa0a17edf1530ca0422ab9e02c4ff1bbd6a5d0e323618ca1119",
+      "source_date": "2025-04-25",
+      "status": "refused"
+    },
+    {
+      "feed_sha256": "0d83db0668c7236fbab451b7c770013f165e7d812238323523d193fba50da905",
+      "game_id": "778179",
+      "reason": "repeated_game_across_source_dates",
+      "schedule_pointer": "/dates/0/games/14",
+      "schedule_sha256": "a916f250fc63cfa0a17edf1530ca0422ab9e02c4ff1bbd6a5d0e323618ca1119",
+      "source_date": "2025-04-25",
+      "status": "refused"
+    },
+    {
+      "feed_sha256": "0d83db0668c7236fbab451b7c770013f165e7d812238323523d193fba50da905",
+      "game_id": "778179",
+      "reason": "repeated_game_across_source_dates",
+      "schedule_pointer": "/dates/0/games/0",
+      "schedule_sha256": "e6efbb523447195f51e395dbd328e0f88458f93a456861444cff35a1224d7aa0",
+      "source_date": "2025-04-26",
+      "status": "refused"
+    },
+    {
+      "feed_sha256": "7d1083c3ce918aac654a9719e2fb2abcab4e0fd67dfb368220a59e617c222970",
+      "game_id": "778180",
+      "reason": "repeated_game_across_source_dates",
+      "schedule_pointer": "/dates/0/games/3",
+      "schedule_sha256": "e6efbb523447195f51e395dbd328e0f88458f93a456861444cff35a1224d7aa0",
+      "source_date": "2025-04-26",
+      "status": "refused"
+    },
+    {
+      "feed_sha256": "74567e7b8ca6643ea3e15daafd4ba8720392539a01c35ab57b01d38eae4491a3",
+      "game_id": "778170",
+      "reason": "repeated_game_across_source_dates",
+      "schedule_pointer": "/dates/0/games/16",
+      "schedule_sha256": "e6efbb523447195f51e395dbd328e0f88458f93a456861444cff35a1224d7aa0",
+      "source_date": "2025-04-26",
+      "status": "refused"
+    },
+    {
+      "feed_sha256": "74567e7b8ca6643ea3e15daafd4ba8720392539a01c35ab57b01d38eae4491a3",
+      "game_id": "778170",
+      "reason": "repeated_game_across_source_dates",
+      "schedule_pointer": "/dates/0/games/2",
+      "schedule_sha256": "b1be65827746184c89cb9b4f64b670fee5949b17d640c3fb955272b7a31ec7fb",
+      "source_date": "2025-04-27",
+      "status": "refused"
+    }
+  ]
+}
