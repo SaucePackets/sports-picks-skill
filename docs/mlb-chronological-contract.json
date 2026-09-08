@@ -1,0 +1,23 @@
+{
+  "schema": "mlb-chronological-contract-v1",
+  "evidence_kind": "historical_reconstruction",
+  "date_semantics": "MLB officialDate, inclusive endpoints; UTC event cutoffs",
+  "splits": {
+    "warmup": ["2025-03-01", "2025-03-17"],
+    "train": ["2025-03-18", "2025-04-30"],
+    "validation": ["2025-05-01", "2025-05-31"],
+    "test": ["2025-06-01", "2025-06-30"]
+  },
+  "training_completion_cutoff": "2025-05-01T00:00:00Z",
+  "prediction_cutoff": "scheduled_start minus 60 minutes",
+  "features": ["home_minus_away_last10_team_win_fraction", "home_minus_away_last3_starter_strikeout_fraction", "home_minus_away_last3_starter_walk_fraction"],
+  "team_minimum_games": 10,
+  "starter_minimum_appearances": 3,
+  "missing_data": "refuse; no imputation or fallback challenger",
+  "baselines": {"elo_initial": 1500, "elo_k": 20, "elo_scale": 400, "elo_home_offset": 0, "minimum_prior_games": 1, "empirical_home": "(home_wins+1)/(n+2)", "freeze": "training_completion_cutoff"},
+  "challenger": {"family": "logistic_regression", "intercept": true, "l2_lambda": 1.0, "objective": "mean binary log loss + lambda/2 * sum(non-intercept coefficients squared)", "standardization": "training mean and population standard deviation only; zero variance -> zero", "tuning": "none; no validation or test refit"},
+  "measures": {"orientation": "home_win", "primary": "brier", "secondary": "log_loss", "log_loss_clip": 1e-15, "calibration_bins": 10, "coverage_denominator": "all supplied regular-season schedule occurrences per split", "paired_comparison": "intersection of labeled games predicted by all three models"},
+  "fitting_enabled": false,
+  "scoring_enabled": false,
+  "eligible": false
+}
