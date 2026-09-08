@@ -1,0 +1,166 @@
+{
+  "acquisition_failures": 0,
+  "adapters": {
+    "mlb_chronological_acquire.py": {
+      "bytes": 3626,
+      "sha256": "bc3009bc48bd6d5c26d8ff5ce0f4b473da949ff9a44304f8b2b76811580d0dcc"
+    },
+    "mlb_chronological_admission.py": {
+      "bytes": 12707,
+      "sha256": "90519414af4c5649793547ffced81deb87a4c44678d6764cd494a0db9aaf13b3"
+    },
+    "mlb_chronological_starter_probe.py": {
+      "bytes": 6177,
+      "sha256": "1fd61e9b5735ea96875091d6ca4299cf5b0a5b904fc0271c50e60ca657c69a59"
+    },
+    "mlb_market_free_checkpoint.py": {
+      "bytes": 17831,
+      "sha256": "6b8f82a47ef966e4e30a5a41e39c06117bc9ecabd53aa30c254c2eafc316fd33"
+    },
+    "mlb_real_shadow_capture.py": {
+      "bytes": 14106,
+      "sha256": "ad3925128f9b847e27adb63248716be3f11788ace65eb06145ade382e472165b"
+    }
+  },
+  "admission_report": {
+    "bytes": 22749806,
+    "sha256": "ade264ee082fc4f09fd42f1c4011cb4704b2a50fcb08eee82c851da95f21c30c"
+  },
+  "base_commit": "bdf055093a9233bd130af17c7385b821f13b6f64",
+  "eligible": false,
+  "fitting_enabled": false,
+  "historical_performance": null,
+  "manifest": {
+    "bytes": 2109368,
+    "sha256": "d8983606ce75093d924d53caffe73c31b9fdbd404c0ca086ad3873d73f2dc7aa"
+  },
+  "raw_source_bytes": 1016644874,
+  "raw_source_count": 1393,
+  "schema": "mlb-chronological-admission-receipt-v1",
+  "scoring_enabled": false,
+  "starter_feasibility_report": {
+    "bytes": 12563,
+    "sha256": "539647311ec56a996680182a77633586cf997bd987502b4f5f9d3298b99fc09f"
+  },
+  "starter_samples": [
+    {
+      "reason": "no_regular_season_occurrence_in_split",
+      "split": "warmup",
+      "status": "blocked"
+    },
+    {
+      "cutoff": "2025-03-18T09:10:00+00:00",
+      "game_id": "778563",
+      "pitcher_pointer": "/gameData/probablePitchers",
+      "probable_pitcher_ids": {
+        "away": "808967",
+        "home": "684007"
+      },
+      "reason": null,
+      "schedule_pointer": "/dates/0/games/0",
+      "schedule_sha256": "0a205fefadfd3c79e7b5c341d8f252826aff51ee17057383b03e0e0b2ec29219",
+      "source_date": "2025-03-18",
+      "split": "train",
+      "status": "provider_historical_candidate",
+      "timecode": "20250318_060807",
+      "timestamp_pointer": "/metaData/timeStamp"
+    },
+    {
+      "cutoff": "2025-05-01T17:10:00+00:00",
+      "game_id": "778094",
+      "pitcher_pointer": "/gameData/probablePitchers",
+      "probable_pitcher_ids": {
+        "away": "694477",
+        "home": "680732"
+      },
+      "reason": null,
+      "schedule_pointer": "/dates/0/games/5",
+      "schedule_sha256": "da52c33a1993ff8174f09c91a63ddb3e4b11a5c5eb85a5d4b181fe1bd46b98c3",
+      "source_date": "2025-05-01",
+      "split": "validation",
+      "status": "provider_historical_candidate",
+      "timecode": "20250501_160657",
+      "timestamp_pointer": "/metaData/timeStamp"
+    },
+    {
+      "cutoff": "2025-06-01T17:10:00+00:00",
+      "game_id": "777677",
+      "pitcher_pointer": "/gameData/probablePitchers",
+      "probable_pitcher_ids": {
+        "away": "672456",
+        "home": "663460"
+      },
+      "reason": null,
+      "schedule_pointer": "/dates/0/games/8",
+      "schedule_sha256": "e70c7c4782a3f158dceaf69ce65f39b3ca012fecd7d045c3ba40a1a6df5090ba",
+      "source_date": "2025-06-01",
+      "split": "test",
+      "status": "provider_historical_candidate",
+      "timecode": "20250601_150219",
+      "timestamp_pointer": "/metaData/timeStamp"
+    }
+  ],
+  "summary": {
+    "test": {
+      "challenger_rows_admitted": 0,
+      "expected_dates": 30,
+      "known_dates": 30,
+      "occurrences": 402,
+      "outcome_refusals": {
+        "final_not_complete_in_both_sources": 1,
+        "official_date_moved": 1,
+        "play_chronology": 2,
+        "repeated_game_across_source_dates": 8
+      },
+      "outcomes_admitted": 390,
+      "regular_season_occurrences": 402,
+      "team_history_pairs_admitted": 393,
+      "training_labels_admitted": 0
+    },
+    "train": {
+      "challenger_rows_admitted": 0,
+      "expected_dates": 44,
+      "known_dates": 44,
+      "occurrences": 576,
+      "outcome_refusals": {
+        "final_not_complete_in_both_sources": 2,
+        "not_regular_season": 109,
+        "official_date_moved": 2,
+        "play_chronology": 1,
+        "repeated_game_across_source_dates": 14
+      },
+      "outcomes_admitted": 448,
+      "regular_season_occurrences": 467,
+      "team_history_pairs_admitted": 295,
+      "training_labels_admitted": 438
+    },
+    "validation": {
+      "challenger_rows_admitted": 0,
+      "expected_dates": 31,
+      "known_dates": 31,
+      "occurrences": 422,
+      "outcome_refusals": {
+        "final_not_complete_in_both_sources": 1,
+        "official_date_moved": 2,
+        "repeated_game_across_source_dates": 18
+      },
+      "outcomes_admitted": 401,
+      "regular_season_occurrences": 422,
+      "team_history_pairs_admitted": 402,
+      "training_labels_admitted": 0
+    },
+    "warmup": {
+      "challenger_rows_admitted": 0,
+      "expected_dates": 17,
+      "known_dates": 17,
+      "occurrences": 257,
+      "outcome_refusals": {
+        "not_regular_season": 257
+      },
+      "outcomes_admitted": 0,
+      "regular_season_occurrences": 0,
+      "team_history_pairs_admitted": 0,
+      "training_labels_admitted": 0
+    }
+  }
+}
