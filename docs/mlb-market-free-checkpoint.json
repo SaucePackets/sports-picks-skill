@@ -6,7 +6,7 @@
   "empirical_training_home_wins": 53,
   "evidence_kind": "historical_reconstruction",
   "historical_performance": null,
-  "implementation_sha256": "4262df5fa1da4af727b60394dec9889e0c0b4e050db18a958a9b6ab1bea5f9a7",
+  "implementation_sha256": "6b8f82a47ef966e4e30a5a41e39c06117bc9ecabd53aa30c254c2eafc316fd33",
   "manifest_sha256": "ba8a123e89efbbbf7bf4e4fc62b3a6c1d4452fe8bc31f59425c312af186c1e70",
   "original_pregame_predictions": false,
   "predictions": [
@@ -458,7 +458,7 @@
     }
   ],
   "report_bytes": 2060164,
-  "report_sha256": "1a1993c45fc17668fc0e4b85d5ca06da4a91403ef7fa0d55e8e9b6c741ff0bda",
+  "report_sha256": "8a90400f9bfac8eb037c91c3ad5578eaa562fac4a37700cd1de8220b63ea6c8f",
   "savant_summary": {
     "joined_count": 2211,
     "row_count": 2211,
