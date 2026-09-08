@@ -115,9 +115,14 @@ model contract, or pinned replay implementation were altered.
 Python 3.14.7; isolated test environment with pytest 9.1.1, cryptography 50.0.1,
 polymarket-us 0.1.2, and httpx 0.28.1. Full `python -m pytest -q` comparison:
 base `bdf0550`: 1,462 passed, 1 skipped, 632 subtests passed, 4 failed;
-this change: 1,472 passed, 1 skipped, 632 subtests passed, the same 4 failed.
+this change: 1,473 passed, 1 skipped, 634 subtests passed, the same 4 failed.
 The existing failures are the execution lock test and three lineup-watchlist
 policy expectations. They are not changed here; the repository suite is not green.
-The ten new adversarial tests pass, covering strict training/history cutoffs,
+The eleven new adversarial tests pass, covering strict training/history cutoffs,
 unknown census, source corruption, cross-split duplicates, outcome corroboration,
 target-final independence, and historical snapshot identity/time/state checks.
+
+Review controls additionally prove that a recent same-day game would enter the
+last ten without the date predicate, and that a corrupt feed belonging to a
+refused repeated ID is integrity-checked before outcome construction. Removing
+either the date predicate or feed-only digest/size verification fails its control.

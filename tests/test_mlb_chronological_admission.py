@@ -75,6 +75,29 @@ class AdmissionTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'source_integrity'):
                 m.admission(root)
 
+    def test_corrupted_unused_feed_is_rejected_before_outcome_construction(self):
+        with tempfile.TemporaryDirectory() as root:
+            g = game('2025-04-30')
+            b = Bundle(root, [g])
+            # Repeated IDs are refused before outcome() reads their feed.
+            moved = game('2025-05-01')
+            b.add('schedule', '2025-05-01', schedule('2025-05-01', [moved])); b.save()
+            with patch.object(m, 'outcome', side_effect=AssertionError('unused feed parsed')):
+                baseline = m.admission(root)
+                self.assertEqual([r['outcome_refusal'] for r in baseline['occurrences']],
+                                 ['repeated_game_across_source_dates'] * 2)
+                s = next(s for s in b.sources if s['kind'] == 'feed')
+                path = Path(root) / 'objects' / s['body_sha256']
+                original = path.read_bytes()
+                # Exercise digest and size independently, preserving valid JSON.
+                for body in (original.replace(b'"season": "2025"', b'"season": "2024"'),
+                             original + b' '):
+                    with self.subTest(size=len(body)):
+                        self.assertNotEqual(body, original)
+                        path.write_bytes(body)
+                        with self.assertRaisesRegex(ValueError, '^source_integrity$'):
+                            m.admission(root)
+
     def test_repeated_id_preserves_both_occurrences_across_splits(self):
         with tempfile.TemporaryDirectory() as root:
             g = game('2025-04-30')
@@ -103,7 +126,8 @@ class AdmissionTests(unittest.TestCase):
         cutoff = m.instant('2025-05-02T16:00:00Z')
         history = [dict(game_id=str(i), source_date='2025-04-30', away_id='1', home_id='2', home_won=i % 2,
                         completed_at=f'2025-05-01T12:{i:02}:00Z') for i in range(1, 12)]
-        excluded = [dict(history[0], game_id='99', source_date='2025-05-02'),
+        excluded = [dict(history[0], game_id='99', source_date='2025-05-02',
+                         completed_at=(cutoff - timedelta(seconds=1)).isoformat()),
                     dict(history[0], game_id='98', completed_at=cutoff.isoformat()),
                     dict(history[0], game_id='97', completed_at=(cutoff + timedelta(seconds=1)).isoformat())]
         r = m.team_history(g, history + excluded, cutoff, True)
