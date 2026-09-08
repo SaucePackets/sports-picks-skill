@@ -20,8 +20,12 @@ The owner-retained workspace directory is
 `RESEARCH/MLB_MARKET_FREE_BENCHMARK_2026_09_07/ACQUISITION`. It contains
 `manifest.json`, individual acquisition receipts, and `objects/<sha256>` with
 exact response-body bytes. Adjacent `CHECKPOINT_REPORT.json` retains the full
-normalized report. Public [checkpoint metadata](mlb-market-free-checkpoint.json)
+normalized original report. The status-guard correction retains its regenerated
+report in `STATUS_GUARD_CORRECTION/CHECKPOINT_REPORT.json` and preserves the
+original report and metadata. Public [checkpoint metadata](mlb-market-free-checkpoint.json)
 binds the manifest, every source body, complete report, and implementation by hash.
+The corrected replay changes only the implementation hash in the full report;
+accepted rows, refusals, predictions and source hashes remain identical.
 Raw source bytes and full report are retained in the workspace, not bundled in
 this public code repository. A reviewer needs that retained bundle for exact
 reproduction; downloading current responses does not reproduce the snapshot.
@@ -76,7 +80,10 @@ their source date and original pointers even when the official date moved.
 Duplicate IDs within a date abort; IDs repeated across dates refuse every training
 occurrence. Feed IDs alone never corroborate a game: both sides, dates, start,
 status and scores must agree. Last-play score and completion chronology are also
-checked. Resumed/suspended evidence is excluded. Missing inputs retain refusals;
+checked. Resumed/suspended evidence is excluded, including textual values in
+either schedule or feed status objects (also nested details), even when both
+sources still label the game Final. Existing resume/suspend key and chronology
+checks remain in force. Missing inputs retain refusals;
 a missing daily response makes that denominator unknown rather than zero.
 
 Schedule responses and feeds are from the same provider, not independent witnesses.

@@ -125,6 +125,40 @@ class ReconstructionTests(unittest.TestCase):
         self.assertEqual(len(r['training']),0); self.assertEqual(len(r['training_refusals']),2)
         self.assertEqual({x['reason'] for x in r['training_refusals']},{'repeated_game_across_source_dates'})
 
+    def test_status_values_refuse_schedule_feed_and_matching_evidence(self):
+        for source in ('schedule', 'feed', 'both'):
+            for reason in ('Suspended game resumed later the same day',
+                           'SUSPENDED', 'Resumed', {'description': ['Suspension']}):
+                with self.subTest(source=source, reason=reason):
+                    s = fixture()
+                    if source in ('schedule', 'both'):
+                        g = game(); g['status']['reason'] = reason
+                        b = schedule('2025-04-21', [g])
+                        s['schedule', '2025-04-21'] = ({'body_sha256': m.sha(b)}, b)
+                    if source in ('feed', 'both'):
+                        replace_feed(s, lambda d: d['gameData']['status'].update(reason=reason))
+                    r = run(s)
+                    self.assertEqual(r['training'], [])
+                    self.assertEqual([x['reason'] for x in r['training_refusals']],
+                                     ['resumed_or_suspended'])
+                    self.assertEqual(r['team_ratings'], {})
+                    self.assertEqual(r['training_update_order'], [])
+                    self.assertFalse(r['checkpoint_complete'])
+                    self.assertIsNone(r['predictions'][0]['elo_away_probability'])
+                    self.assertIsNone(r['predictions'][0]['empirical_home_probability'])
+
+    def test_ordinary_status_values_remain_admissible(self):
+        s = fixture()
+        g = game(); g['status'].update(reason='Completed', codedGameState='F')
+        b = schedule('2025-04-21', [g])
+        s['schedule', '2025-04-21'] = ({'body_sha256': m.sha(b)}, b)
+        replace_feed(s, lambda d: d['gameData']['status'].update(
+            reason=None, codedGameState='F', abstractGameCode='F'))
+        r = run(s)
+        self.assertEqual(len(r['training']), 1)
+        self.assertEqual(r['team_ratings'], run(fixture())['team_ratings'])
+        self.assertTrue(r['checkpoint_complete'])
+
     def test_missing_training_feed_and_savant_are_preserved(self):
         s=fixture(); del s['feed','100']; s['savant','2025-04-21']=({'body_sha256':None},None)
         r=run(s); self.assertFalse(r['checkpoint_complete']); self.assertEqual(len(r['training_refusals']),1)

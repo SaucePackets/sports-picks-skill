@@ -99,6 +99,17 @@ def schedule_census(raw, day):
     return games
 
 
+def interrupted_status(value):
+    """Inspect structured status text only, including nested provider details."""
+    if isinstance(value, str):
+        return 'resum' in value.lower() or 'suspend' in value.lower() or 'suspension' in value.lower()
+    if isinstance(value, dict):
+        return any(interrupted_status(v) for v in value.values())
+    if isinstance(value, list):
+        return any(interrupted_status(v) for v in value)
+    return False
+
+
 def training_row(game, feed):
     """Admit reconstructed final facts only; do not forge a historical observed_at."""
     result = final_candidate(feed, game)
@@ -109,6 +120,8 @@ def training_row(game, feed):
     require(gd['game']['season'] == '2025', 'wrong_season')
     require(not any('resum' in k.lower() or 'suspend' in k.lower()
                     for obj in (gd['datetime'], game['raw_game']) for k in obj), 'resumed_or_suspended')
+    require(not any(interrupted_status(status) for status in
+                    (gd['status'], game['raw_game']['status'])), 'resumed_or_suspended')
     require(gd['datetime'].get('originalDate', gd['datetime']['officialDate']) == gd['datetime']['officialDate'], 'changed_original_date')
     require(bool(plays), 'missing_plays')
     last = plays[-1]
