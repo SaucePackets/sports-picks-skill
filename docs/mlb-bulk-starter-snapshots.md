@@ -116,3 +116,21 @@ boundaries, deterministic network-free replay, missing daily coverage, duplicate
 and moved games, strict training/time cutoffs, failed and oversized responses,
 receipt removal and integrity, identity/state/metadata, independent appearance
 missingness, symlinks, interrupted acquisition, and cached-selection conflicts.
+
+
+## Review revision: cached receipt contract
+
+Resume now validates every cached receipt before workers start and repeats the
+same validation before sealing and during offline replay. Both local timestamps
+must parse with timezones and completion must be at or after retrieval start.
+Sizes must be nonnegative integers, agree with actual object sizes, and remain
+within the configured response ceiling. The only allowed ceiling-plus-one byte
+body is an explicitly refused `response_size_limit_exceeded` prefix; it cannot
+become evidence. HTTP status, headers, failure and absent-body metadata are
+validated too. The shared admission loader still checks identity, paths and hashes.
+The retained acquisition bytes and original acquisition hash are unchanged.
+
+Resume regressions cover valid receipts, oversized indexes and snapshots, missing,
+malformed, timezone-free, null and backwards completion metadata, and invalid
+sizes. Offline replay also rejects missing completion even if manifest bindings
+are recomputed. Tests separately retain the bounded oversized-prefix refusal.

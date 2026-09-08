@@ -7,6 +7,7 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import re
 import urllib.error
 import urllib.request
 
@@ -118,6 +119,45 @@ def fetch(root, kind, gid, url):
     return receipt
 
 
+def validated_snapshots(root):
+    """Enforce this acquirer's receipt contract before loading any cached bodies."""
+    root = Path(root)
+    require(root.is_dir() and not root.is_symlink() and not (root / 'objects').is_symlink(),
+            'snapshot_root_invalid')
+    for path in sorted(root.glob('*.json')):
+        if not path.name.startswith(('timestamps-', 'snapshot-')):
+            continue
+        require(not path.is_symlink(), 'snapshot_receipt_symlink')
+        r = decode(path.read_bytes())
+        require(isinstance(r, dict), 'acquisition_receipt_schema')
+        started = instant(r['retrieved_at_local'])
+        completed = instant(r['completed_at_local'])
+        require(started <= completed, 'acquisition_completion_before_start')
+        require(isinstance(r['headers'], dict)
+                and all(isinstance(k, str) and isinstance(v, str) for k, v in r['headers'].items()),
+                'acquisition_headers')
+        status, failure, size = r['http_status'], r['failure'], r['size']
+        require(status is None or (type(status) is int and 100 <= status <= 599), 'acquisition_http_status')
+        require(failure is None or (isinstance(failure, str) and bool(failure)), 'acquisition_failure')
+        require(type(size) is int and size >= 0, 'acquisition_size')
+        # fetch retains one sentinel byte beyond the ceiling only as a refused prefix.
+        if failure == 'response_size_limit_exceeded':
+            require(size == LIMITS['response_bytes'] + 1 and status is not None,
+                    'acquisition_oversize_prefix')
+        else:
+            require(size <= LIMITS['response_bytes'], 'acquisition_response_size_limit')
+        digest = r['body_sha256']
+        if digest is None:
+            require(size == 0 and failure is not None, 'acquisition_missing_body')
+        else:
+            require(isinstance(digest, str) and re.fullmatch('[0-9a-f]{64}', digest), 'snapshot_digest')
+            obj = root / 'objects' / digest
+            require(not obj.is_symlink(), 'snapshot_object_symlink')
+            require(obj.stat().st_size == size, 'snapshot_integrity')
+        require(failure is not None or (status == 200 and digest is not None), 'acquisition_success')
+    return snapshots(root)
+
+
 def acquire(bundle, root):
     root = Path(root)
     expected, _, _ = plan(bundle)
@@ -134,7 +174,7 @@ def acquire(bundle, root):
         with plan_path.open('xb') as stream:
             stream.write(encoded(expected))
     require(not (root / 'manifest.json').is_symlink(), 'snapshot_manifest_symlink')
-    cached, _ = snapshots(root)
+    cached, _ = validated_snapshots(root)
     allowed = {r['game_id'] for r in expected['targets'] if r['refusal'] is None}
     require(all(gid in allowed for _, gid in cached), 'receipt_outside_plan')
     cutoffs = {r['game_id']: r['cutoff'] for r in expected['targets'] if r['refusal'] is None}
@@ -161,7 +201,7 @@ def acquire(bundle, root):
 
     with ThreadPoolExecutor(max_workers=LIMITS['workers']) as pool:
         list(pool.map(one, expected['targets']))
-    _, bindings = snapshots(root)
+    _, bindings = validated_snapshots(root)
     manifest = dict(schema='mlb-bulk-starter-snapshots-v1', plan_sha256=sha(encoded(expected)),
                     acquisition_sha256=sha(Path(__file__).read_bytes()), receipts=bindings,
                     sealed_at_local=datetime.now(timezone.utc).isoformat())
@@ -181,7 +221,7 @@ def replay(bundle, root):
     require(manifest['schema'] == 'mlb-bulk-starter-snapshots-v1'
             and manifest['plan_sha256'] == sha(encoded(expected)), 'snapshot_manifest_identity')
     instant(manifest['sealed_at_local'])
-    retained, bindings = snapshots(root)
+    retained, bindings = validated_snapshots(root)
     require(manifest['receipts'] == bindings, 'snapshot_manifest_receipts_changed')
     wanted, rows, appearance_rows = set(), [], []
     counts = Counter(g['game_id'] for g in games)

@@ -7,8 +7,28 @@ from unittest.mock import patch
 
 from test_mlb_chronological_admission import Bundle
 from test_mlb_market_free_checkpoint import game, raw, schedule
-from test_mlb_bulk_starter_admission import pitching_feed, retain, target_snapshot
+from test_mlb_bulk_starter_admission import pitching_feed, retain as legacy_retain, target_snapshot as legacy_target_snapshot
 import mlb_bulk_starter_snapshots as m
+
+
+def complete_receipts(root):
+    for path in root.glob('*.json'):
+        if path.name.startswith(('timestamps-', 'snapshot-')):
+            r = m.decode(path.read_bytes())
+            r['completed_at_local'] = r['retrieved_at_local']
+            path.write_bytes(m.encoded(r))
+
+
+def retain(root, *args, **kwargs):
+    result = legacy_retain(root, *args, **kwargs)
+    complete_receipts(root)
+    return result
+
+
+def target_snapshot(root, *args, **kwargs):
+    result = legacy_target_snapshot(root, *args, **kwargs)
+    complete_receipts(root)
+    return result
 
 
 class SnapshotTests(unittest.TestCase):
@@ -203,3 +223,58 @@ class SnapshotTests(unittest.TestCase):
         with patch.object(m, 'fetch', side_effect=AssertionError('network')):
             with self.assertRaisesRegex(ValueError, 'cached_snapshot_selection'):
                 m.acquire(self.bundle, self.snap)
+
+
+    def test_resume_receipt_boundaries_reject_before_workers_or_sealing(self):
+        self.acquired()
+        (self.snap / 'manifest.json').unlink()
+        path = self.snap / 'timestamps-100.json'
+        original = path.read_bytes()
+        cases = [
+            ('missing', lambda r: r.pop('completed_at_local')),
+            ('malformed', lambda r: r.update(completed_at_local='bad')),
+            ('naive', lambda r: r.update(completed_at_local='2026-09-08T00:00:00')),
+            ('backwards', lambda r: r.update(completed_at_local='2026-09-07T23:59:59Z')),
+            ('null', lambda r: r.update(completed_at_local=None)),
+            ('bool_size', lambda r: r.update(size=True)),
+        ]
+        for name, mutate in cases:
+            with self.subTest(name=name):
+                r = m.decode(original); mutate(r); path.write_bytes(m.encoded(r))
+                with patch.object(m, 'fetch', side_effect=AssertionError('network')):
+                    with self.assertRaises((ValueError, KeyError)):
+                        m.acquire(self.bundle, self.snap)
+                self.assertFalse((self.snap / 'manifest.json').exists())
+        path.write_bytes(original)
+        # Reproduce the reviewer's ceiling bypass with an otherwise valid plan/cache.
+        snapshot_size = m.decode((self.snap / 'snapshot-100.json').read_bytes())['size']
+        for ceiling in (10, snapshot_size - 1):
+            with self.subTest(ceiling=ceiling), patch.dict(m.LIMITS, response_bytes=ceiling):
+                (self.snap / 'plan.json').write_bytes(m.encoded(m.plan(self.bundle)[0]))
+                with patch.object(m, 'fetch', side_effect=AssertionError('network')):
+                    with self.assertRaisesRegex(ValueError, 'acquisition_response_size_limit'):
+                        m.acquire(self.bundle, self.snap)
+                self.assertFalse((self.snap / 'manifest.json').exists())
+
+    def test_replay_checks_completion_even_with_rebound_manifest(self):
+        self.acquired()
+        path = self.snap / 'snapshot-100.json'
+        r = m.decode(path.read_bytes()); r.pop('completed_at_local')
+        path.write_bytes(m.encoded(r)); self.reseal()
+        with self.assertRaises(KeyError):
+            m.replay(self.bundle, self.snap)
+
+    def test_refused_oversize_prefix_is_bounded_and_never_evidence(self):
+        self.snap.mkdir(); (self.snap / 'objects').mkdir()
+        with patch.dict(m.LIMITS, response_bytes=10):
+            retain(self.snap, 'timestamps', '100', 'x' * 20)
+            path = self.snap / 'timestamps-100.json'
+            r = m.decode(path.read_bytes()); r.update(failure='response_size_limit_exceeded')
+            path.write_bytes(m.encoded(r))
+            with self.assertRaisesRegex(ValueError, 'acquisition_oversize_prefix'):
+                m.validated_snapshots(self.snap)
+            body = b'x' * 11; digest = m.sha(body)
+            (self.snap / 'objects' / digest).write_bytes(body)
+            r.update(size=11, body_sha256=digest); path.write_bytes(m.encoded(r))
+            sources, _ = m.validated_snapshots(self.snap)
+            self.assertIsNone(sources['timestamps', '100'][1])

@@ -2,7 +2,7 @@
   "acquisition_sha256": "92acda65ff2e925c593917be55d3776c61875cf162d26b5e602e59cabbf7c182",
   "adapter_sha256": {
     "mlb_bulk_starter_admission.py": "ece7c8c0d85577de8a2e6d8179bd4b09412487aea56a9f2e686fa92823896a75",
-    "mlb_bulk_starter_snapshots.py": "4c852b7bf54a0bd47214905e3defe233e1ae36972927dd7700dfc527b4f4e3bd",
+    "mlb_bulk_starter_snapshots.py": "8b0e190df66ea7e05e8df1a156cef929b4feeb5d0c23e2ee63e8469772fcf63f",
     "mlb_chronological_admission.py": "90519414af4c5649793547ffced81deb87a4c44678d6764cd494a0db9aaf13b3",
     "mlb_chronological_checkpoint.py": "e4f38993b4d57c5c383710ded265cfbb0d7f47a79e9204ed292eeef16ff64ab5",
     "mlb_chronological_starter_probe.py": "1fd61e9b5735ea96875091d6ca4299cf5b0a5b904fc0271c50e60ca657c69a59",
@@ -21,7 +21,7 @@
   "plan_sha256": "a0b47bb663a165848146193dd9fcb7bdc18dab74ac944237f7791c5ef0b0f300",
   "prior_appearance_census_unresolved": 326,
   "replay_bytes": 2627833,
-  "replay_sha256": "e16ef4080d499f1dbcd8e00ba8999822c8c7d34347c1163cc3259919a08ec871",
+  "replay_sha256": "8ed8cd4807c59a27eec2eceb9aaeec6008307878fb04d76fcbae627c8d3f1302",
   "schema": "mlb-bulk-starter-snapshots-checkpoint-v1",
   "scoring_enabled": false,
   "summary": {
