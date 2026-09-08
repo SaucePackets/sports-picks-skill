@@ -1,0 +1,62 @@
+{
+  "description": "Minimal retained event projection; used inside a synthetic corroborated game envelope.",
+  "game_id": "778554",
+  "source_date": "2025-03-27",
+  "feed_sha256": "636a98005b31a482c0cdc0517e12301166ec126d1d72f3f7eb34b61ad9748a0a",
+  "source_pointer": "/liveData/plays/allPlays/64",
+  "pitcher_id": 670032,
+  "event_type": "walk",
+  "playEvents": [
+    {
+      "isPitch": true,
+      "details": {
+        "eventType": null
+      }
+    },
+    {
+      "isPitch": false,
+      "details": {
+        "eventType": "mound_visit"
+      }
+    },
+    {
+      "isPitch": false,
+      "details": {
+        "eventType": "pitching_substitution"
+      },
+      "player": {
+        "id": 670032
+      }
+    },
+    {
+      "isPitch": true,
+      "details": {
+        "eventType": null
+      }
+    },
+    {
+      "isPitch": true,
+      "details": {
+        "eventType": null
+      }
+    },
+    {
+      "isPitch": true,
+      "details": {
+        "eventType": null
+      }
+    },
+    {
+      "isPitch": true,
+      "details": {
+        "eventType": null
+      }
+    },
+    {
+      "isPitch": true,
+      "details": {
+        "eventType": null
+      }
+    }
+  ]
+}
