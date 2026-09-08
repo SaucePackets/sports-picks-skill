@@ -133,6 +133,16 @@ def appearances(game, body):
                 'unsupported_plate_appearance_event')
         pid = positive_id(play['matchup']['pitcher']['id'])
         positive_id(play['matchup']['batter']['id'])
+        events = play['playEvents']
+        require(isinstance(events, list) and bool(events), 'missing_play_events')
+        pitch_seen = False
+        for event in events:
+            require(type(event['isPitch']) is bool and isinstance(event['details'], dict),
+                    'invalid_play_event')
+            if event['details'].get('eventType') == 'pitching_substitution':
+                require(not pitch_seen, 'ambiguous_mid_appearance_pitcher_substitution')
+                require(positive_id(event['player']['id']) == pid, 'substitution_pitcher_mismatch')
+            pitch_seen = pitch_seen or event['isPitch']
         require(pid in records, 'play_pitcher_not_in_box')
         record = records[pid]
         require(record['side'] == ('home' if about['isTopInning'] else 'away'), 'play_pitcher_team_mismatch')
@@ -151,7 +161,7 @@ def appearances(game, body):
 def history(game, pid, records, gaps, cutoff, census_complete):
     # Never skip a recent appearance that fails completion to select an older one.
     prior = sorted((r for r in records if r['pitcher_id'] == pid and r['source_date'] < game['source_date']),
-                   key=lambda r: (instant(r['scheduled_start']), int(r['game_id'])))[-3:]
+                   key=lambda r: (instant(r['completed_at']), int(r['game_id'])))[-3:]
     relevant_gaps = [g for g in gaps if g['source_date'] < game['source_date']]
     reason = ('schedule_census_unknown' if not census_complete else
               'prior_appearance_census_unresolved' if relevant_gaps else

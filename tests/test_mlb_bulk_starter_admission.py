@@ -18,6 +18,7 @@ def pitching_feed(g):
         p['about'].update(atBatIndex=len(plays), isTopInning=top)
         p['result'].update(type='atBat', eventType=event)
         p['matchup']['pitcher']['id'] = pid
+        p['playEvents'] = [{'isPitch': True, 'details': {}}]
         plays.append(p)
         boxes[side] = {'team': {'id': g['teams'][side]['team']['id']}, 'pitchers': [pid],
             'players': {'ID'+str(pid): {'person': {'id': pid}, 'stats': {'pitching': {
@@ -200,3 +201,67 @@ class BulkTests(unittest.TestCase):
             result = m.history(g,'10',changed,[],cutoff,True)
             self.assertEqual(result['refusal'], None if end.endswith('15:59:59Z') else 'prior_completion_at_or_after_cutoff')
         self.assertEqual(m.history(g,'10',records[:2],[],cutoff,True)['refusal'], 'fewer_than_three_prior_appearances')
+
+    def test_mid_pa_substitution_refuses_whole_game(self):
+        with tempfile.TemporaryDirectory() as root, tempfile.TemporaryDirectory() as snap:
+            b, games = setup(root, Path(snap))
+            f = pitching_feed(games[1])
+            play = f['liveData']['plays']['allPlays'][0]
+            change = {'isPitch': False, 'details': {'eventType': 'pitching_substitution'},
+                      'player': {'id': 10}}
+            # Before the first pitch is unambiguous and still admits both pitchers.
+            play['playEvents'] = [change, {'isPitch': True, 'details': {}}]
+            b.add('feed', '23', raw(f)); b.save()
+            self.assertTrue(m.admission(root, snap)['occurrences'][-1]['features_admitted'])
+            # Same terminal matchup and matching BF/K/BB, but pitches on both sides
+            # of a substitution make attributing the complete PA unsafe.
+            play['playEvents'].insert(0, {'isPitch': True, 'details': {}})
+            b.add('feed', '23', raw(f)); b.save()
+            report = m.admission(root, snap)
+            refused = next(r for r in report['appearance_games'] if r['game_id'] == '23')
+            self.assertEqual(refused['refusal'], 'ambiguous_mid_appearance_pitcher_substitution')
+            self.assertEqual(refused['appearances'], [])
+            self.assertFalse(report['occurrences'][-1]['features_admitted'])
+            self.assertEqual(report['occurrences'][-1]['histories']['away']['refusal'],
+                             'prior_appearance_census_unresolved')
+            # Missing events cannot prove absence of an ambiguous substitution.
+            del play['playEvents']
+            b.add('feed', '23', raw(f)); b.save()
+            self.assertFalse(m.admission(root, snap)['occurrences'][-1]['features_admitted'])
+
+    def test_completion_order_disagrees_with_scheduled_order(self):
+        records = [dict(pitcher_id='10', game_id=str(i), source_date='2025-04-21',
+            scheduled_start=f'2025-04-21T0{i}:00:00Z',
+            completed_at=f'2025-04-21T{end:02}:00:00Z',
+            plate_appearances=i, strikeouts=1, walks=0)
+            for i, end in ((1, 6), (2, 5), (3, 7), (4, 7))]
+        result = m.history({'source_date': '2025-04-22'}, '10', list(reversed(records)), [],
+                           m.instant('2025-04-22T16:00:00Z'), True)
+        self.assertEqual([r['game_id'] for r in result['appearances']], ['1', '3', '4'])
+        self.assertEqual(result['plate_appearances'], 8)
+        self.assertEqual(result['strikeout_fraction'], 3/8)
+
+    def test_retained_778554_event_projection(self):
+        fixture = m.decode((Path(__file__).parent / 'fixtures/mlb_778554_mid_pa_substitution.json').read_bytes())
+        self.assertEqual(fixture['game_id'], '778554')
+        self.assertEqual(fixture['source_pointer'], '/liveData/plays/allPlays/64')
+        self.assertTrue(fixture['playEvents'][0]['isPitch'])
+        self.assertEqual(fixture['playEvents'][2]['details']['eventType'], 'pitching_substitution')
+        self.assertTrue(fixture['playEvents'][3]['isPitch'])
+        g = game(fixture['source_date'], gid=778554)
+        parsed = m.schedule_census(schedule(g['officialDate'], [g]), g['officialDate'])[0]
+        parsed['schedule_sha256'] = 'a'*64
+        f = pitching_feed(g)
+        pid = fixture['pitcher_id']
+        box = f['liveData']['boxscore']['teams']['away']
+        box['pitchers'] = [pid]
+        player = box['players'].pop('ID10'); player['person']['id'] = pid
+        box['players']['ID'+str(pid)] = player
+        play = f['liveData']['plays']['allPlays'][0]
+        play['matchup']['pitcher']['id'] = pid
+        play['result']['eventType'] = fixture['event_type']
+        # Box totals and terminal matchup agree; the events alone discriminate.
+        self.assertEqual(len(m.appearances(parsed, raw(f))), 2)
+        play['playEvents'] = fixture['playEvents']
+        with self.assertRaisesRegex(ValueError, '^ambiguous_mid_appearance_pitcher_substitution$'):
+            m.appearances(parsed, raw(f))

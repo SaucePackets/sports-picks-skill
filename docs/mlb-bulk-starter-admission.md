@@ -36,7 +36,10 @@ metadata remains independently unverified historical availability evidence.
 Prior appearances require the existing schedule/final/completion checks, plus
 boxscore team/person IDs, unique pitcher lists, completed sequential plate
 appearances, top/bottom defensive side, and per-game batters-faced, strikeout and
-walk totals. Every counted play retains a source pointer. Unknown/non-PA events,
+walk totals. Every counted play retains a source pointer. The complete play-event
+list must be present; a pitching substitution after any pitch refuses the whole
+game as ambiguous, even when terminal matchup and boxscore counts agree. A
+pre-first-pitch substitution must match the terminal pitcher identity. Unknown/non-PA events,
 zero-completed-PA pitching appearances, before-scheduled-start plays, and count
 conflicts refuse the entire game's appearance set. These are conservative parser
 limits, not claims that those games lacked legitimate pitching appearances.
@@ -44,7 +47,7 @@ This adapter corroborates within retained MLB feeds/boxscores; it does not claim
 independent Savant validation or use present-day season totals.
 
 Histories select each pitcher's last three regular-season appearances in the
-fixed window, ordered by scheduled start and numeric game ID. Official dates must
+fixed window, ordered by final completion and numeric game ID. Official dates must
 be strictly earlier than the target date. Each selected game's completion must
 be strictly before the observation cutoff: a too-late recent appearance refuses
 the history rather than being skipped for an older one. The denominator is the
@@ -81,10 +84,14 @@ There are 1,243 missing retained starter-source refusals, 40 duplicate-ID
 occurrences, five target identity refusals, and three pitcher-history refusals
 among regular-season targets. Only the existing three snapshots are retained;
 this run does not claim bulk snapshot acquisition. Of 1,291 regular appearance
-game occurrences, 984 yield 8,307 corroborated pitcher appearances. Refusals:
-223 unsupported/non-PA events, 40 repeated IDs, 22 before-scheduled-start plays,
-seven pitching-count conflicts, five schedule mismatches, four nonfinal sources,
-three play-chronology conflicts, and three zero-completed-PA appearances.
+game occurrences, 965 yield 8,128 corroborated pitcher appearances. Refusals:
+221 unsupported/non-PA events, 40 repeated IDs, 28 ambiguous mid-appearance
+pitcher substitutions, 22 before-scheduled-start plays, five schedule mismatches,
+four nonfinal sources, three play-chronology conflicts, two substitution-pitcher
+identity mismatches, and one zero-completed-PA appearance. Refusal reasons report
+the first failing gate; the new checks reclassify some previously refused games.
+Nineteen previously admitted games are now refused, including game `778554`,
+whose retained at-bat 64 has pitches both before and after the substitution.
 Missing bulk snapshots and unresolved appearance census are the remaining data
 blockers. Fitting/scoring/eligibility stay false and performance stays null.
 
@@ -114,11 +121,18 @@ duplicates, invalid identities and counts, target-final independence, and corrup
 unused/failed receipts and symlink/traversal rejection. Synthetic fixtures only
 validate the parser; the separate retained replay establishes the counts above.
 
-Full-suite comparison in the same isolated environment (pytest 9.1.1,
-cryptography 50.0.1, polymarket-us 0.1.2, httpx 0.28.1): assigned base
-`9a8f4e0ef60f9739fd3bc21aeab8ac7b6a06cc68` has 1,473 passed, one skipped,
-634 subtests passed and four failed; the implementation has 1,484 passed with
-the same skip/subtests and four failures. All eleven new tests pass. The shared
-failures are `test_acquire_lock_refuses_when_candidate_already_locked` and the
-three lineup-watchlist policy expectations listed in the retained full logs.
-The suite is **not green**; these failures are unchanged by this slice.
+Full-suite comparison after review fixes in the same isolated environment
+(pytest 9.1.1, cryptography 50.0.1, polymarket-us 0.1.2, httpx 0.28.1): assigned
+base `9a8f4e0ef60f9739fd3bc21aeab8ac7b6a06cc68` has 1,471 passed, one skipped,
+634 subtests passed and six failed; the revision has 1,485 passed with the same
+skip/subtests and six failures. All fourteen feature tests pass. The failures
+are the execution-lock test, three lineup-watchlist policy expectations, and
+the two Central-time-window execution-prompt tests, all reproduced on base.
+The initial runs occurred before those time-window tests began failing and
+reported four failures; both full logs are retained. The suite is **not green**.
+
+Review revision: the event projection in
+`tests/fixtures/mlb_778554_mid_pa_substitution.json` pins the retained feed digest
+and play pointer and is exercised in a synthetic game envelope. A separate
+ordering fixture forces scheduled-start and completion order to disagree and
+checks the numeric-ID tie-break. These controls catch both reviewed defects.

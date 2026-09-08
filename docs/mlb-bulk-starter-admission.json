@@ -1,6 +1,6 @@
 {
   "adapter_sha256": {
-    "mlb_bulk_starter_admission.py": "1806b503203e494c4c3290ee4049e78f48b1a557bc2d2d91c624823380547c33",
+    "mlb_bulk_starter_admission.py": "ece7c8c0d85577de8a2e6d8179bd4b09412487aea56a9f2e686fa92823896a75",
     "mlb_chronological_admission.py": "90519414af4c5649793547ffced81deb87a4c44678d6764cd494a0db9aaf13b3",
     "mlb_chronological_checkpoint.py": "e4f38993b4d57c5c383710ded265cfbb0d7f47a79e9204ed292eeef16ff64ab5",
     "mlb_chronological_starter_probe.py": "1fd61e9b5735ea96875091d6ca4299cf5b0a5b904fc0271c50e60ca657c69a59",
@@ -11,8 +11,8 @@
   "eligible": false,
   "fitting_enabled": false,
   "manifest_sha256": "d8983606ce75093d924d53caffe73c31b9fdbd404c0ca086ad3873d73f2dc7aa",
-  "report_bytes": 11553981,
-  "report_sha256": "3aa166ad4de6360134cb861333edb2780ea853bc0357aa2815a8e2c3a88be8b1",
+  "report_bytes": 11355290,
+  "report_sha256": "e8b9143f5b158ec0cb9000e5f036054116a2dfe4fc6fe517f739987a2be0309f",
   "schema": "mlb-bulk-starter-admission-v1",
   "scoring_enabled": false,
   "snapshot_receipts_sha256": "ebd2afac30bfe2466fff917f1b7c107c7d93764e82ea6e5ff55d11c9c8478883",
