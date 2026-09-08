@@ -34,7 +34,9 @@ The new command verifies the manifest against the committed checkpoint metadata,
 verifies both adapter files, revalidates all source bytes through the existing
 adapter, and compares the complete serialized replay with the pinned byte count
 and SHA-256. Expected replay SHA-256:
-`1a1993c45fc17668fc0e4b85d5ca06da4a91403ef7fa0d55e8e9b6c741ff0bda`.
+`8a90400f9bfac8eb037c91c3ad5578eaa562fac4a37700cd1de8220b63ea6c8f`.
+This hash matches the corrected PR #92 checkpoint metadata after structured
+resumed/suspended-status refusal was added; the retained manifest is unchanged.
 The old checkpoint's baseline reconstruction is the only calculation replayed.
 The new command cannot admit a different bundle or enable fitting/scoring.
 
@@ -144,3 +146,12 @@ The checkpoint reports exact missing schedule dates and always leaves longer
 admission, fitting, scoring and eligibility false; historical performance is null.
 New evidence admission and its parser require a later reviewed checkpoint.
 No odds, runtime, deployment, bets, pick-policy or floor changes are made.
+
+## Subsequent admission checkpoint
+
+The original stop-condition section above describes this document's first
+checkpoint. The [bounded source admission](mlb-chronological-admission.md) now
+records the full daily census, reconstructed outcomes, last-10 team histories,
+and a sampled historical starter-source feasibility check. Pitcher-feature
+admission, fitting, scoring, and eligibility remain blocked. The original
+`mlb_chronological_checkpoint.py` continues to replay only the old bundle.
