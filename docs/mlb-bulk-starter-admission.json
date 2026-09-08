@@ -1,0 +1,75 @@
+{
+  "adapter_sha256": {
+    "mlb_bulk_starter_admission.py": "1806b503203e494c4c3290ee4049e78f48b1a557bc2d2d91c624823380547c33",
+    "mlb_chronological_admission.py": "90519414af4c5649793547ffced81deb87a4c44678d6764cd494a0db9aaf13b3",
+    "mlb_chronological_checkpoint.py": "e4f38993b4d57c5c383710ded265cfbb0d7f47a79e9204ed292eeef16ff64ab5",
+    "mlb_chronological_starter_probe.py": "1fd61e9b5735ea96875091d6ca4299cf5b0a5b904fc0271c50e60ca657c69a59",
+    "mlb_market_free_checkpoint.py": "6b8f82a47ef966e4e30a5a41e39c06117bc9ecabd53aa30c254c2eafc316fd33",
+    "mlb_real_shadow_capture.py": "ad3925128f9b847e27adb63248716be3f11788ace65eb06145ade382e472165b"
+  },
+  "contract_sha256": "4883378257b6f6d2834945a38f96fc8c8c57b71366bda45c42c4c838d88432bf",
+  "eligible": false,
+  "fitting_enabled": false,
+  "manifest_sha256": "d8983606ce75093d924d53caffe73c31b9fdbd404c0ca086ad3873d73f2dc7aa",
+  "report_bytes": 11553981,
+  "report_sha256": "3aa166ad4de6360134cb861333edb2780ea853bc0357aa2815a8e2c3a88be8b1",
+  "schema": "mlb-bulk-starter-admission-v1",
+  "scoring_enabled": false,
+  "snapshot_receipts_sha256": "ebd2afac30bfe2466fff917f1b7c107c7d93764e82ea6e5ff55d11c9c8478883",
+  "summary": {
+    "test": {
+      "expected_dates": 30,
+      "feature_pairs_admitted": 0,
+      "known_dates": 30,
+      "occurrences": 402,
+      "refusals": {
+        "pitcher_history_refused": 1,
+        "repeated_game_across_source_dates": 8,
+        "retained_starter_source_unavailable": 392,
+        "target_schedule_identity_refused": 1
+      },
+      "regular_season_occurrences": 402,
+      "starter_candidates": 1
+    },
+    "train": {
+      "expected_dates": 44,
+      "feature_pairs_admitted": 0,
+      "known_dates": 44,
+      "occurrences": 576,
+      "refusals": {
+        "not_regular_season": 109,
+        "pitcher_history_refused": 1,
+        "repeated_game_across_source_dates": 14,
+        "retained_starter_source_unavailable": 450,
+        "target_schedule_identity_refused": 2
+      },
+      "regular_season_occurrences": 467,
+      "starter_candidates": 1
+    },
+    "validation": {
+      "expected_dates": 31,
+      "feature_pairs_admitted": 0,
+      "known_dates": 31,
+      "occurrences": 422,
+      "refusals": {
+        "pitcher_history_refused": 1,
+        "repeated_game_across_source_dates": 18,
+        "retained_starter_source_unavailable": 401,
+        "target_schedule_identity_refused": 2
+      },
+      "regular_season_occurrences": 422,
+      "starter_candidates": 1
+    },
+    "warmup": {
+      "expected_dates": 17,
+      "feature_pairs_admitted": 0,
+      "known_dates": 17,
+      "occurrences": 257,
+      "refusals": {
+        "not_regular_season": 257
+      },
+      "regular_season_occurrences": 0,
+      "starter_candidates": 0
+    }
+  }
+}
