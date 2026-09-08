@@ -1,0 +1,92 @@
+{
+  "admitted_game_ids": [],
+  "dry_run_pass": false,
+  "eligible": false,
+  "final_reason_counts": {
+    "final_authentication_unestablished": 8,
+    "final_source_unavailable": 3
+  },
+  "game_ids": [
+    "823415",
+    "823820",
+    "824715",
+    "824793",
+    "824062",
+    "823742",
+    "824229",
+    "823254",
+    "823175",
+    "823902",
+    "824958"
+  ],
+  "implementation_sha256": "ad3925128f9b847e27adb63248716be3f11788ace65eb06145ade382e472165b",
+  "manifest_sha256": "eb81bcd11819e47a84d080a84aeb34c588a5211453b05b0e55515d14e3d91046",
+  "market_reason_counts": {
+    "cross_provider_id_mapping_unestablished": 11
+  },
+  "mode": "real_source_refusal_only",
+  "refused_games": 11,
+  "report_sha256": "1ebe6fcafb3cbc18d59fe85fda6f2c0def08fb780cbbd18cc67c0a60ac822b54",
+  "schedule_status": "source_census_only",
+  "scheduled_games": 11,
+  "schema": 1,
+  "scoring_enabled": false,
+  "slate_date": "2026-09-07",
+  "source_objects": [
+    {
+      "body_sha256": "78352f084a33b107eb09fb0ea834553a556fc2a773e7c8e5a89ded87e7bdae8a",
+      "game_id": null,
+      "kind": "schedule"
+    },
+    {
+      "body_sha256": "b76399dca693cbcf021e14b39f1c2e6cf8e0a1db9b2bbec94620e689a84017e8",
+      "game_id": null,
+      "kind": "markets"
+    },
+    {
+      "body_sha256": null,
+      "game_id": null,
+      "kind": "timestamp"
+    },
+    {
+      "body_sha256": "f5341c3fcb7b7e90b546def4c9074911abc34a27ccc60aede989becd3ee4e4e3",
+      "game_id": "823254",
+      "kind": "final"
+    },
+    {
+      "body_sha256": "375ec0d9e2b0b0c8a906780b66994cc3ec801aa3a7b13029f7861754a0ec4212",
+      "game_id": "823415",
+      "kind": "final"
+    },
+    {
+      "body_sha256": "abd9adbdb2cf7ba4ad4831fdcef46d25ff9a9457fa8e265b9797593f3a76d7c8",
+      "game_id": "823742",
+      "kind": "final"
+    },
+    {
+      "body_sha256": "b802c587bf0c34f9f37a4f0065b3bd5e912d00b05be9a299267897d4cd23cfad",
+      "game_id": "823820",
+      "kind": "final"
+    },
+    {
+      "body_sha256": "0ba352937a8ec8839671c93855495c8674854d832d1bcbf17a1a344d491c996d",
+      "game_id": "824062",
+      "kind": "final"
+    },
+    {
+      "body_sha256": "36324c48c4759ee9d091065e6fc922bbbcc40f9e8fbd9dc739741ea78c7a40c3",
+      "game_id": "824229",
+      "kind": "final"
+    },
+    {
+      "body_sha256": "7965da45f70df3c124b10cbd19573160fe3997385f6e8ac31e3dd47d51d1bd4b",
+      "game_id": "824715",
+      "kind": "final"
+    },
+    {
+      "body_sha256": "9c2cbff4e02a05dfaabd9df5cbf58f8c89bca519d95e7c93ffc393c63a812d30",
+      "game_id": "824793",
+      "kind": "final"
+    }
+  ]
+}
