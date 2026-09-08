@@ -75,7 +75,14 @@ class RealShadowTests(unittest.TestCase):
         self.assertFalse(row['eligible'])
         self.assertEqual(row['final']['status'], 'structurally_corroborated_only')
         self.assertEqual(row['market']['status'], 'candidate_only')
-        self.assertTrue(set(capture.BASE_REFUSALS) <= set(row['refusals']))
+        required_refusals = {
+            'provider_authentication_unestablished',
+            'complete_slate_provenance_unestablished',
+            'pregame_asof_unestablished',
+            'independent_timestamp_trust_unestablished',
+        }
+        self.assertTrue(required_refusals <= set(result['refusals']))
+        self.assertTrue(required_refusals <= set(row['refusals']))
 
     def test_absent_schedule_is_unknown_not_zero(self):
         self.manifest['sources'][0].update(body_sha256=None, failure='fetch_failed')
@@ -177,6 +184,17 @@ class RealShadowTests(unittest.TestCase):
         self.market['events'] *= 2
         self.change(1, self.market)
         self.assertEqual(self.row()['market']['reason'], 'market_identity_missing_or_ambiguous')
+
+    def test_invalid_market_event_ids_are_refused(self):
+        for event_id in ('', ' ', ' espn-123', 'espn-123 ', None, True, 123, [], {}):
+            with self.subTest(event_id=event_id):
+                self.market['events'][0]['id'] = event_id
+                self.change(1, self.market)
+                row = self.row()
+                self.assertEqual(row['market']['status'], 'refused')
+                self.assertEqual(row['market']['reason'], 'invalid_market_source')
+                self.assertNotIn('event_id', row['market'])
+                self.assertFalse(row['eligible'])
 
     def test_market_time_mismatch_not_joined_by_name(self):
         self.market['events'][0]['competitions'][0]['date'] = '2026-09-07T23:00Z'

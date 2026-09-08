@@ -19,14 +19,14 @@
     "823902",
     "824958"
   ],
-  "implementation_sha256": "60d9f9bde2133522d91d33a22e3d9656bb8c7c1be05be104f6916c7c98ad7a9e",
+  "implementation_sha256": "ad3925128f9b847e27adb63248716be3f11788ace65eb06145ade382e472165b",
   "manifest_sha256": "eb81bcd11819e47a84d080a84aeb34c588a5211453b05b0e55515d14e3d91046",
   "market_reason_counts": {
     "cross_provider_id_mapping_unestablished": 11
   },
   "mode": "real_source_refusal_only",
   "refused_games": 11,
-  "report_sha256": "0ee051dc7df506d02a12dfc3be28077450776ba17efdf027861b46a2b78a99e6",
+  "report_sha256": "1ebe6fcafb3cbc18d59fe85fda6f2c0def08fb780cbbd18cc67c0a60ac822b54",
   "schedule_status": "source_census_only",
   "scheduled_games": 11,
   "schema": 1,

@@ -66,7 +66,8 @@ Markets: `espn_scoreboard`, version `v2`, exact URL
 `https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard?dates=YYYYMMDD&limit=100`.
 Only a unique exact away/home-name and scheduled-time match is exposed as a
 **candidate**, with its original JSON pointer and event ID. Missing, duplicate,
-malformed and mismatched matches remain refused. This is not corroborated numeric
+malformed and mismatched matches remain refused. Event IDs must be nonempty,
+unpadded strings; malformed IDs refuse the source. This is not corroborated numeric
 ID equivalence across providers. Raw odds bytes are retained; this slice does not
 interpret `close` as a pregame quote, authenticate same-book market rules, or emit
 prices/probabilities. `odds_present` is presence only, never usable-price coverage.

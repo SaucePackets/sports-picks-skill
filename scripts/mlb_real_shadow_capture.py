@@ -135,6 +135,9 @@ def market_candidate(raw, game):
         raise ValueError('invalid_market_source')
     matches = []
     for i, event in enumerate(data['events']):
+        event_id = event['id']
+        if not isinstance(event_id, str) or not event_id.strip() or event_id != event_id.strip():
+            raise ValueError('invalid_market_event_id')
         for j, comp in enumerate(event['competitions']):
             sides = comp['competitors']
             if len(sides) != 2 or {s['homeAway'] for s in sides} != {'away', 'home'}:
@@ -144,7 +147,7 @@ def market_candidate(raw, game):
                 continue
             if instant(comp['date']) != instant(game['scheduled_start']):
                 continue
-            matches.append({'event_id': event['id'], 'source_pointer': f'/events/{i}/competitions/{j}',
+            matches.append({'event_id': event_id, 'source_pointer': f'/events/{i}/competitions/{j}',
                             'odds_present': bool(comp.get('odds'))})
     if len(matches) != 1:
         return {'status': 'refused', 'reason': 'market_identity_missing_or_ambiguous', 'candidates': matches}
