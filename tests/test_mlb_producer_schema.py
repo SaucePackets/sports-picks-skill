@@ -35,7 +35,8 @@ def test_bound_prompt_matches_exact_schema_and_preserves_original_text(job_id):
         job_id, legacy_prompt(evening=job_id == prompts.EVENING_JOB_ID)
     )
     bound = prompts.bind_schema_contract(job_id, original)
-    assert bound.startswith(original)
+    flag = " --schema-sha256 " + reads.producer_schema()["sha256"]
+    assert bound.split(prompts.SCHEMA_START)[0].replace(flag, "") == original
     assert prompts.schema_contract_errors(job_id, bound) == []
     assert prompts.bind_schema_contract(job_id, bound) == bound
     assert reads.producer_schema()["sha256"] in bound
@@ -154,3 +155,63 @@ class ProducerSchemaLandingTests(WriterTestCase):
         self.assertEqual(
             len(json.loads(self.schedule_path().read_text())["game_reads"]), 15
         )
+
+
+@pytest.mark.parametrize("job_id", [prompts.MORNING_JOB_ID, prompts.EVENING_JOB_ID])
+@pytest.mark.parametrize("index", [0, 1, 2])
+@pytest.mark.parametrize(
+    "replacement",
+    ["", " --schema-sha256 stale", " --schema-sha256 stale --schema-sha256 {digest}"],
+)
+def test_every_bound_invocation_rejects_missing_stale_or_duplicate_flag(
+    tmp_path, job_id, index, replacement
+):
+    original = prompts.transform_prompt(
+        job_id, legacy_prompt(evening=job_id == prompts.EVENING_JOB_ID)
+    )
+    bound = prompts.bind_schema_contract(job_id, original)
+    digest = reads.producer_schema()["sha256"]
+    invocations = list(prompts.WRITER_COMMAND.finditer(bound))
+    assert len(invocations) == 3
+    assert "--skeleton" in invocations[0].group(1)
+    assert all("--land" in match.group(1) for match in invocations[1:])
+    assert all(
+        match.group(1).endswith(" --schema-sha256 " + digest) for match in invocations
+    )
+    match = invocations[index]
+    broken_command = match.group(1).replace(
+        " --schema-sha256 " + digest, replacement.format(digest=digest)
+    )
+    broken = bound[: match.start(1)] + broken_command + bound[match.end(1) :]
+    assert prompts.schema_contract() in broken  # Prose alone is insufficient.
+    assert prompts.schema_contract_errors(job_id, broken)
+    with pytest.raises(prompts.ProducerPromptError):
+        prompts.bind_schema_contract(job_id, broken)
+    path = tmp_path / "prompt.txt"
+    path.write_text(broken)
+    assert (
+        prompts.main(
+            ["--bind-schema", "--check", "--job-id", job_id, "--input", str(path)]
+        )
+        == 1
+    )
+    path.write_text(bound)
+    assert (
+        prompts.main(
+            ["--bind-schema", "--check", "--job-id", job_id, "--input", str(path)]
+        )
+        == 0
+    )
+
+
+def test_extra_or_non_inline_writer_invocation_is_not_ignored():
+    job = prompts.MORNING_JOB_ID
+    original = prompts.transform_prompt(job, legacy_prompt(evening=False))
+    bound = prompts.bind_schema_contract(job, original)
+    for extra in (
+        f"\npython3 {prompts.WRITER} --skeleton",
+        f"\n`python3 {prompts.WRITER} --skeleton`",
+    ):
+        assert prompts.schema_contract_errors(job, bound + extra)
+    # Existing unbound prompt preparation/check remains available separately.
+    assert prompts.writer_contract_errors(job, original) == []

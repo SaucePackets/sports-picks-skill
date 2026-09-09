@@ -11,6 +11,7 @@ selection, review, and execution language are left byte-for-byte unchanged.
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -123,6 +124,50 @@ def schema_contract() -> str:
     )
 
 
+# Bound prompts use only these emitted inline command forms. Refuse unexpected
+# shell syntax rather than pretending a prose digest protects its execution.
+WRITER_COMMAND = re.compile(r"`([^`\n]*mlb_slate_writer\.py[^`\n]*)`")
+
+
+def _writer_invocations(job_id: str, prompt: str, *, bind: bool = False) -> str:
+    spec = PROMPT_SPECS[job_id]
+    expected = {
+        f"python3 {WRITER} --skeleton --day YYYY-MM-DD --out {spec.draft}": 1,
+        f"python3 {WRITER} --land {spec.draft} --day YYYY-MM-DD": 2,
+    }
+    flag = f" --schema-sha256 {mlb_game_reads.producer_schema()['sha256']}"
+    matches = list(WRITER_COMMAND.finditer(prompt))
+    if len(matches) != prompt.count("mlb_slate_writer.py"):
+        raise ProducerPromptError(
+            "writer invocation outside supported inline command form"
+        )
+    seen = dict.fromkeys(expected, 0)
+    replacements = []
+    for index, match in enumerate(matches):
+        command = match.group(1)
+        original = next(
+            (
+                item
+                for item in expected
+                if command == item + flag or (bind and command == item)
+            ),
+            None,
+        )
+        if original is None:
+            raise ProducerPromptError(
+                f"writer invocation {index + 1} missing current schema digest or has stale/unsupported arguments"
+            )
+        seen[original] += 1
+        replacements.append((match.start(1), match.end(1), original + flag))
+    if seen != expected:
+        raise ProducerPromptError(
+            "expected one bound skeleton and two bound land invocations"
+        )
+    for start, end, command in reversed(replacements):
+        prompt = prompt[:start] + command + prompt[end:]
+    return prompt
+
+
 def bind_schema_contract(job_id: str, prompt: str) -> str:
     """Bind an already valid writer prompt without changing its policy text."""
     errors = writer_contract_errors(job_id, prompt)
@@ -137,7 +182,8 @@ def bind_schema_contract(job_id: str, prompt: str) -> str:
             raise ProducerPromptError(
                 "producer schema block differs from current validator; explicit migration required"
             )
-        return prompt
+        return _writer_invocations(job_id, prompt)
+    prompt = _writer_invocations(job_id, prompt, bind=True)
     return prompt + ("" if prompt.endswith("\n") else "\n") + schema_contract() + "\n"
 
 
@@ -151,6 +197,11 @@ def schema_contract_errors(job_id: str, prompt: str) -> list[str]:
         errors.append(
             "producer schema contract missing or mismatched with current validator"
         )
+    if job_id in PROMPT_SPECS:
+        try:
+            _writer_invocations(job_id, prompt)
+        except ProducerPromptError as exc:
+            errors.append(str(exc))
     return errors
 
 

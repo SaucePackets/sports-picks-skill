@@ -8,14 +8,16 @@ vocabulary. Its 15-row draft carried `extreme_park_confidence_cap`,
 Use `mlb_producer_prompt_contract.py --bind-schema --job-id <id> --input <prompt>
 --output <new-prompt>` to prepare a separate schema-bound prompt from an existing,
 valid writer-contract prompt. `--bind-schema --check` verifies the full generated
-block against the current validator. This operation appends the block without
-changing existing policy prose; a stale or edited block requires explicit migration
+block against the current validator. This operation adds the current digest to each of the one skeleton and two land
+commands and appends the block without changing existing policy prose; a stale or edited block requires explicit migration
 and is refused rather than silently replaced. This source change installs nothing.
 
 The block publishes `REFUSAL_RAILS`, `EXPLAINABLE_FIELDS` and a deterministic
 fingerprint derived from those vocabularies, dispositions, schema version, and the
-validator source digest. It instructs both skeleton and landing calls to supply
-`--schema-sha256 <digest>`. A mismatch returns failure before draft or schedule I/O.
+validator source digest. It renders both skeleton and landing calls with
+`--schema-sha256 <digest>`. Bound-prompt checks inspect every invocation and reject
+omitted, stale, duplicate, or unsupported command arguments even when the schema
+block is intact. Unexpected or non-inline writer commands also fail closed. A mismatch returns failure before draft or schedule I/O.
 The flag is opt-in for backward compatibility: unbound legacy calls do not gain
 this check. The digest is compatibility evidence, not proof a producer read the
 prompt, and does not bind external runtime policy files or the whole import closure.
