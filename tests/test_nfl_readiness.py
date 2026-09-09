@@ -20,8 +20,8 @@ def forecast():
                    "wind_gusts_10m": [10]*5, "precipitation": [0]*5, "snowfall": [0]*5}}
 
 
-def roster():
-    return {"season": {"year": 2026}, "timestamp": "2026-09-09T18:00Z", "athletes": [{"items": [
+def roster(team_id="17"):
+    return {"team": {"id": team_id}, "season": {"year": 2026}, "timestamp": "2026-09-09T18:00Z", "athletes": [{"items": [
         {"id": str(i), "displayName": f"Player {i}", "position": {"abbreviation": "QB" if i == 1 else "OL"},
          "status": {"name": "Active"}, "injuries": [{"status": "Questionable", "type": "injury",
          "date": "2026-09-09T17:00Z", "details": {"type": "Ankle"}, "longComment": "Limited practice"}]}
@@ -35,7 +35,7 @@ def depth():
 
 def provider(url):
     if "/roster" in url:
-        return roster()
+        return roster("26" if "/26/" in url else "17")
     if "/depthcharts" in url:
         return depth()
     if "/summary" in url:
@@ -66,10 +66,10 @@ def test_depth_rank_active_roster_never_confirm_qb():
 
 
 @pytest.mark.parametrize("payload,status", [
-    ({"season": {"year": 2026}, "athletes": []}, "unavailable"),
+    ({"team": {"id": "17"}, "season": {"year": 2026}, "athletes": []}, "unavailable"),
     ({}, "collector_failure"),
-    ({"season": {"year": 2025}, "athletes": []}, "collector_failure"),
-    ({"season": {"year": 2026}, "athletes": None}, "collector_failure"),
+    ({"team": {"id": "17"}, "season": {"year": 2025}, "athletes": []}, "collector_failure"),
+    ({"team": {"id": "17"}, "season": {"year": 2026}, "athletes": None}, "collector_failure"),
 ])
 def test_absence_schema_and_stale_roster_distinguished(payload, status):
     with patch.object(scan, "get", return_value=payload):
@@ -237,3 +237,31 @@ def test_geocoding_cache_avoids_repeated_stadium_requests():
         second = c.weather_evidence(VENUE, KICKOFF)
     assert first["status"] == second["status"] == "retrieved"
     assert sum("nominatim" in call.args[0] for call in get.call_args_list) == 1
+
+
+@pytest.mark.parametrize("team", [None, {}, {"id": "26"}])
+def test_roster_team_missing_or_mismatched_cannot_be_relabelled(team):
+    payload = roster()
+    if team is None:
+        del payload["team"]
+    else:
+        payload["team"] = team
+    with patch.object(scan, "get", return_value=payload):
+        collector = scan.NflSlateCollector(2026, 1)
+        result = collector.roster_evidence("17")
+        injuries = collector.injury_evidence("17")
+    assert result["status"] == "collector_failure"
+    assert "team" in result["error"]
+    assert result["players"] == []
+    assert injuries["status"] == "collector_failure"
+    assert injuries["items"] == []
+    blockers = scan.readiness_blockers({"away_injury_evidence": injuries})
+    assert any(b["component"] == "away_injuries" and b["category"] == "collector_failure" for b in blockers)
+
+
+@pytest.mark.parametrize("team_id", ["17", 17])
+def test_matching_response_team_identity_is_accepted(team_id):
+    with patch.object(scan, "get", return_value=roster(team_id)):
+        result = scan.NflSlateCollector(2026, 1).roster_evidence("17")
+    assert result["status"] == "retrieved"
+    assert all(p["team_id"] == "17" for p in result["players"])

@@ -242,6 +242,9 @@ class NflSlateCollector:
         try:
             if (data.get("season") or {}).get("year") != self.season:
                 raise ValueError("roster season mismatch or missing")
+            response_team_id = (data.get("team") or {}).get("id")
+            if response_team_id is None or str(response_team_id) != str(team_id):
+                raise ValueError("roster team mismatch or missing")
             if not isinstance(data["athletes"], list):
                 raise ValueError("roster athletes must be a list")
             for group in data["athletes"]:
