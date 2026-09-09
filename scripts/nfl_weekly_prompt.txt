@@ -1,0 +1,74 @@
+NFL weekly slate — evidence collection, assessment, then validated proposed card.
+
+HARD BOUNDARY: NFL manual-only. No bets, execution endpoints, approval tokens,
+execution jobs, or runtime configuration changes. Never borrow MLB standing
+authorization. A candidate is not an approved bet. Read the NFL reference in
+full: skills/sports-picks/references/nfl.md and docs/nfl-card-writer.md.
+
+Use the job's configured working directory as the single OUTPUT_ROOT. Do not
+substitute a remembered checkout, copy outputs into a different root, or use
+shared /tmp filenames. Resolve the configured root once and pass it explicitly
+to every nfl_card_writer.py command. Before collecting, check that the approved
+collector/finalizer versions are present. If absent, report runtime mismatch;
+do not improvise a replacement script or call an old run successful.
+
+1. Determine today's Central date, NFL season, week and season type. Create a
+   unique RUN_ID and a run-specific staging directory beneath OUTPUT_ROOT.
+   Capture the current collector output:
+   python3 scripts/nfl_stage2_scan.py --season YEAR --week WEEK --seasontype TYPE
+   Save its complete stdout as SCAN_JSON. This is context, not a final decision.
+   Rows must have context_version=1 and collector_only=true. Preserve every game.
+2. Generate the assessment skeleton, saving stdout to DRAFT_JSON:
+   python3 scripts/nfl_card_writer.py --root OUTPUT_ROOT --scan SCAN_JSON --skeleton --run-id RUN_ID --date CENTRAL_DATE
+   The skeleton is deliberately incomplete and cannot be published as a card.
+3. For every event, follow the NFL Data Pull Order and complete the structured
+   assessment. Reuse fresh retrieved roster, depth-chart and stadium weather;
+   do not describe these as missing. QB1/roster Active is not confirmation.
+   Obtain official practice/game-day QB and relevant player-status evidence.
+   When a source does not supply something, record the attempted source/time
+   and unavailable reason; if no retrieval happened, leave the gate unknown.
+   Gather efficiency, backup/roster/coaching changes, rest/travel and the full
+   football case. In Weeks 1–4, use flagged discounted priors and explicitly
+   review offseason changes; current-season n=0 alone is not a failed gate.
+   Week 1 confidence cannot exceed Medium.
+4. Refresh both sportsbook moneylines separately from the scanner snapshot.
+   Supply event/team/kickoff-bound source evidence and actual observed times.
+   Attempt an exact exchange-contract match. No match is unavailable evidence;
+   no attempt is unknown. Never fabricate an ask or use zero for missing price.
+   State your own probability from the handicap, not from sportsbook fair.
+   Explain disagreement greater than 0.04. The finalizer computes de-vig fair
+   and net edge; >=0.02 is required along with every existing football gate.
+5. Fill every gate pass/fail/unknown with reasoning and references. Each pass
+   means the named condition is cleared, including inverse-named danger gates.
+   Subjective judgments require supporting evidence; never turn a missing
+   inquiry into a completed failure to make the output look finished.
+   Only a sole unresolved official QB/inactives gate may enter the watchlist;
+   any second blocker prevents it. Do not supply output decision or execution
+   fields; the finalizer derives manual/awaiting_jerry and executed=false only
+   for validated candidates.
+6. Diagnose the complete inputs:
+   python3 scripts/nfl_card_writer.py --root OUTPUT_ROOT --scan SCAN_JSON --draft DRAFT_JSON --diagnose
+   Exit 2 or analysis_status=incomplete means no completed slate. Complete the
+   missing work, or return an explicitly INCOMPLETE/no-pick diagnostic report.
+   Do not write a replacement schedule or claim a completed zero-card.
+7. Only when all assessments are complete, write the immutable run bundle:
+   python3 scripts/nfl_card_writer.py --root OUTPUT_ROOT --scan SCAN_JSON --draft DRAFT_JSON --write
+   It writes .picks/nfl/runs/RUN_ID/{scan.json,assessment.json,schedule.json,slate.md,receipt.json}
+   beneath OUTPUT_ROOT. It refuses to overwrite an existing run. New evidence
+   needs a new run ID. These are the sole canonical outputs for this contract;
+   do not copy them to a second root or update legacy dated paths by hand.
+8. REQUIRED TERMINAL CHECK, before claiming success or publishing a final card:
+   python3 scripts/nfl_card_writer.py --root OUTPUT_ROOT --verify --run-id RUN_ID
+   Require exit 0 and matching root/run/event coverage. This independently
+   recomputes the report/schedule from saved inputs and checks freshness. Missing
+   finalizer receipt, stale evidence or inconsistent bytes is failure, even if
+   the agent or cron process otherwise finishes normally.
+9. Read back slate.md from that exact verified bundle for the human final
+   response. Name the run ID and bundle-relative path. A failed/incomplete run
+   must say so, with outstanding evidence, and must not call itself a final PASS
+   card. A verified zero-candidate card explains the actual evaluated gates.
+
+Consumers/reviewers must repeat step 8 before accepting a completed handoff.
+This prompt does not itself prevent bypass; the receipt verifier is the supported
+acceptance boundary. This repository change does not install the live cron prompt
+or change its readers; activation and consumer wiring require separate verification.

@@ -185,14 +185,14 @@ def test_diagnostics_distinguish_three_causes_and_preserve_exchange_null():
     r = {"away_injury_evidence": {"status": "collector_failure"},
          "home_injury_evidence": {"status": "unavailable"},
          "exchange": {"status": "not_retrieved", "ask": None, "net_edge": None}}
-    b = {x["component"]: x for x in scan.readiness_blockers(r)}
+    b = {x["component"]: x for x in scan.readiness_tasks(r)}
     assert b["away_injuries"]["category"] == "collector_failure"
     assert b["home_injuries"]["category"] == "upstream_missing"
-    assert b["exchange"]["category"] == "hard_gate"
+    assert b["exchange"]["category"] == "collection_required"
     assert r["exchange"]["ask"] is None
 
 
-def test_build_row_wires_all_collectors_and_stays_pass():
+def test_build_row_wires_collectors_without_final_decisions():
     event = {"id": "game", "name": "Away at Home", "date": KICKOFF, "competitions": [{
         "venue": VENUE, "competitors": [{"homeAway": side, "team": {"id": tid, "displayName": side}}
         for side, tid in [("away", "17"), ("home", "26")]]}]}
@@ -208,8 +208,10 @@ def test_build_row_wires_all_collectors_and_stays_pass():
     assert r["weather"]["status"] == "retrieved"
     assert r["away_injuries"][0]["position"] == "QB"
     assert r["home_qb"]["depth_chart"]["status"] == "retrieved"
-    assert r["candidates"] == [] and r["assessment"] == "PASS" and r["official_pick_allowed"] is False
-    assert any(b["component"] == "exchange" for b in r["blockers"])
+    assert r["collector_only"] is True and r["context_version"] == 1
+    assert r["away_id"] == "17" and r["home_id"] == "26"
+    assert not {"candidates", "assessment", "official_pick_allowed", "blockers"} & r.keys()
+    assert any(b["component"] == "exchange" for b in r["analysis_tasks"])
 
 
 def test_mixed_current_prior_form_retains_current_weight():
@@ -255,7 +257,7 @@ def test_roster_team_missing_or_mismatched_cannot_be_relabelled(team):
     assert result["players"] == []
     assert injuries["status"] == "collector_failure"
     assert injuries["items"] == []
-    blockers = scan.readiness_blockers({"away_injury_evidence": injuries})
+    blockers = scan.readiness_tasks({"away_injury_evidence": injuries})
     assert any(b["component"] == "away_injuries" and b["category"] == "collector_failure" for b in blockers)
 
 
