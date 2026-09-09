@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Collect NFL weekly slate context for proposed-card analysis.
 
-Outputs JSON rows with ESPN event/odds, last-5 team form, rest days and
-short-week flags, best-effort ESPN injuries, and venue/indoor context.
+Outputs JSON rows with ESPN event/odds, discounted early-season form, rest,
+roster/injury/QB evidence, stadium weather, and explicit readiness blockers.
 No betting orders. No prediction-market calls.
 
 Hardening (same contract as mlb_stage2_scan.py):
@@ -20,7 +20,10 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import math
+from urllib.parse import urlencode
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -35,9 +38,11 @@ CORE_API = "https://sports.core.api.espn.com/v2/sports/football/leagues/nfl"
 
 # A normal NFL week is 7 days of rest (Sunday to Sunday = 6 full days between).
 SHORT_WEEK_REST_DAYS = 6
+# Conservative evidence weight, not a calibrated win-probability model.
+PRIOR_SEASON_WEIGHT = 0.5
 
 
-def get(url: str) -> dict[str, Any]:
+def get(url: str) -> Any:
     """Fetch JSON with retries/backoff via the shared helper."""
     return fetch_json(url, timeout=25, headers={"User-Agent": "HermesSportsPicks/1.0"})
 
@@ -97,6 +102,9 @@ class NflSlateCollector:
         self.season = season
         self.week = week
         self.seasontype = seasontype
+        self._geocode_cache: dict[str, Any] = {}
+        self._last_geocode = 0.0
+        self._evidence_cache: dict[str, dict[str, Any]] = {}
         self._schedule_cache: dict[tuple[int, int], list[dict[str, Any]]] = {}
 
     def team_schedule_events(self, team_id: str | int, season: int) -> list[dict[str, Any]]:
@@ -110,6 +118,11 @@ class NflSlateCollector:
         """Completed regular/post-season results before the slate date, oldest first."""
         games: list[tuple[dt.date, dict[str, Any]]] = []
         for event in self.team_schedule_events(team_id, season):
+            season_type = event.get("seasonType") or {}
+            if season_type.get("type", 2) not in (2, 3):
+                continue
+            if (event.get("season") or {}).get("year", season) != season:
+                continue
             competition = (event.get("competitions") or [{}])[0]
             status_type = ((competition.get("status") or {}).get("type") or {})
             if not status_type.get("completed"):
@@ -121,20 +134,22 @@ class NflSlateCollector:
                 continue
             games.append((game_date, competition))
         games.sort(key=lambda pair: pair[0])
-        return [dict(competition, _game_date=game_date.isoformat()) for game_date, competition in games]
+        return [dict(competition, _game_date=game_date.isoformat(), _season=season) for game_date, competition in games]
 
     def team_form(self, team_id: str | int, before: dt.date | None, limit: int = 5) -> dict[str, Any]:
         completed = self.completed_games(team_id, self.season, before)
         prior_games = 0
-        # Weeks 1-2 have little/no current-season data; backfill from the prior
-        # season so the row still carries a form read (flagged for discounting).
-        if len(completed) < 3:
-            prior = self.completed_games(team_id, self.season - 1, None)
+        # Early regular-season weeks may need a prior-season baseline; preserve
+        # its origin and discount its contribution instead of relabelling it.
+        if self.seasontype == 2 and 1 <= self.week <= 4 and len(completed) < 3:
+            prior = self.completed_games(team_id, self.season - 1, before)
             prior_games = min(limit - len(completed), len(prior))
             completed = prior[len(prior) - prior_games:] + completed
         completed = completed[-limit:]
 
         wins = losses = ties = pf = pa = 0
+        prior_games = 0
+        weighted_pf = weighted_pa = effective_n = 0.0
         last_game_date: str | None = None
         for competition in completed:
             competitors = {c.get("homeAway"): c for c in competition.get("competitors", [])}
@@ -150,6 +165,12 @@ class NflSlateCollector:
             opp_score = score_value(opp.get("score"))
             if my_score is None or opp_score is None:
                 continue
+            prior_game = competition.get("_season") == self.season - 1
+            prior_games += int(prior_game)
+            weight = PRIOR_SEASON_WEIGHT if prior_game else 1.0
+            weighted_pf += my_score * weight
+            weighted_pa += opp_score * weight
+            effective_n += weight
             pf += my_score
             pa += opp_score
             if my_score > opp_score:
@@ -169,6 +190,21 @@ class NflSlateCollector:
             "n": wins + losses + ties,
             "prior_season_games": prior_games,
             "last_game_date": last_game_date,
+            "current_season_games": wins + losses + ties - prior_games,
+            "prior_season_weight": PRIOR_SEASON_WEIGHT if prior_games else None,
+            "discounted": bool(prior_games),
+            "form_label": ("Early season — prior-season baseline, discounted."
+                           if prior_games else "Current-season form"),
+            "weighted_pf": weighted_pf,
+            "weighted_pa": weighted_pa,
+            "weighted_pd": weighted_pf - weighted_pa,
+            "effective_n": effective_n,
+            # Use raw n here: dividing by effective_n would cancel discount
+            # entirely in Week 1 when every game is from the prior season.
+            "discounted_pd_per_game": ((weighted_pf - weighted_pa) / (wins + losses + ties)
+                                       if wins + losses + ties else None),
+            "confidence_cap": "Medium" if self.week == 1 else None,
+            "offseason_adjustment_required": bool(prior_games),
         }
 
     def rest_days(self, team_id: str | int, event_date: dt.date | None) -> int | None:
@@ -183,26 +219,194 @@ class NflSlateCollector:
             return None
         return (event_date - last).days
 
-    def injuries(self, espn_team_id: str | int) -> list[dict[str, Any]]:
+    def evidence(self, url: str, key: str) -> dict[str, Any]:
+        """Keep transport/schema failures distinct from a successful empty feed."""
+        if url not in self._evidence_cache:
+            result = {"source": url, "retrieved_at": dt.datetime.now(dt.timezone.utc).isoformat()}
+            try:
+                data = get(url)
+                if not isinstance(data, dict) or key not in data:
+                    raise ValueError(f"missing {key} in response")
+                result.update(status="retrieved", data=data, source_timestamp=data.get("timestamp"))
+            except Exception as exc:
+                result.update(status="collector_failure", error=f"{type(exc).__name__}: {exc}")
+            self._evidence_cache[url] = result
+        return dict(self._evidence_cache[url])
+
+    def roster_evidence(self, team_id: str | int) -> dict[str, Any]:
+        result = self.evidence(f"{SITE_API}/teams/{team_id}/roster?season={self.season}", "athletes")
+        data = result.pop("data", {})
+        result["players"] = []
+        if result["status"] != "retrieved":
+            return result
         try:
-            data = get(f"{CORE_API}/teams/{espn_team_id}/injuries?lang=en&region=us&limit=50")
-            out = []
-            for item in data.get("items", [])[:10]:
-                ref = item.get("$ref")
-                if not ref:
-                    continue
-                detail = get(ref.replace("http://", "https://"))
-                name = "Unknown"
-                athlete_ref = detail.get("athlete", {}).get("$ref")
-                if athlete_ref:
-                    try:
-                        name = get(athlete_ref.replace("http://", "https://")).get("displayName", "Unknown")
-                    except Exception:
-                        pass
-                out.append({"name": name, "status": detail.get("status"), "type": detail.get("type")})
-            return out
-        except Exception:
-            return []
+            if (data.get("season") or {}).get("year") != self.season:
+                raise ValueError("roster season mismatch or missing")
+            response_team_id = (data.get("team") or {}).get("id")
+            if response_team_id is None or str(response_team_id) != str(team_id):
+                raise ValueError("roster team mismatch or missing")
+            if not isinstance(data["athletes"], list):
+                raise ValueError("roster athletes must be a list")
+            for group in data["athletes"]:
+                for player in group["items"]:
+                    if not player.get("id") or not player.get("displayName") or not (player.get("position") or {}).get("abbreviation"):
+                        raise ValueError("roster athlete identity or position missing")
+                    if not isinstance(player.get("injuries"), list) or any(not isinstance(i, dict) for i in player.get("injuries", [])):
+                        raise ValueError("malformed roster injury rows")
+                    result["players"].append({
+                        "athlete_id": player.get("id"), "name": player.get("displayName"),
+                        "position": (player.get("position") or {}).get("abbreviation"),
+                        "team_id": str(team_id), "status": player.get("status"),
+                        "injuries": player.get("injuries", []),
+                    })
+            if not result["players"]:
+                result["status"] = "unavailable"
+        except (TypeError, KeyError, ValueError, AttributeError) as exc:
+            result.update(status="collector_failure", error=str(exc))
+        return result
+
+    def injury_evidence(self, team_id: str | int) -> dict[str, Any]:
+        # Roster feed retains position and injury detail without truncating the
+        # team report to ten players or silently losing failed athlete lookups.
+        roster = self.roster_evidence(team_id)
+        result = {k: v for k, v in roster.items() if k != "players"}
+        result["items"] = []
+        for player in roster["players"]:
+            for injury in player["injuries"]:
+                result["items"].append({
+                    "name": player["name"], "athlete_id": player["athlete_id"],
+                    "position": player["position"], "team_id": str(team_id),
+                    "status": injury.get("status"), "type": injury.get("type"),
+                    "detail": injury.get("details"), "description": injury.get("longComment"),
+                    "source_timestamp": injury.get("date"), "source": roster["source"],
+                    "retrieved_at": roster["retrieved_at"],
+                })
+        # A successful empty roster injury list is not an official clean bill
+        # of health. Official practice/inactives review remains a hard gate.
+        return result
+
+    def injuries(self, espn_team_id: str | int) -> list[dict[str, Any]]:
+        """Compatibility list; build_row also exposes collection status."""
+        return self.injury_evidence(espn_team_id)["items"]
+
+    def qb_evidence(self, team_id: str | int, event_id: str) -> dict[str, Any]:
+        roster = self.roster_evidence(team_id)
+        depth = self.evidence(f"{SITE_API}/teams/{team_id}/depthcharts?season={self.season}", "depthchart")
+        data = depth.pop("data", {})
+        depth["quarterbacks"] = []
+        if depth["status"] == "retrieved":
+            try:
+                if (data.get("season") or {}).get("year") != self.season:
+                    raise ValueError("depth-chart season mismatch or missing")
+                if str((data.get("team") or {}).get("id")) != str(team_id):
+                    raise ValueError("depth-chart team mismatch")
+                players = {str(p["athlete_id"]): p for p in roster["players"]}
+                for chart in data["depthchart"]:
+                    for position in chart["positions"].values():
+                        if position["position"].get("abbreviation") != "QB":
+                            continue
+                        for rank, athlete in enumerate(position["athletes"], 1):
+                            matched = players.get(str(athlete.get("id")))
+                            depth["quarterbacks"].append({
+                                "athlete_id": athlete.get("id"), "name": athlete.get("displayName"),
+                                "depth_rank": rank, "roster_match": bool(matched and matched["position"] == "QB"),
+                                "roster_status": matched.get("status") if matched else None,
+                                "injuries": matched.get("injuries") if matched else None,
+                            })
+                if not depth["quarterbacks"]:
+                    depth["status"] = "unavailable"
+            except (TypeError, KeyError, ValueError, AttributeError) as exc:
+                depth.update(status="collector_failure", error=str(exc))
+        summary = self.evidence(f"{SITE_API}/summary?event={event_id}", "header")
+        summary_data = summary.pop("data", {})
+        if summary["status"] == "retrieved" and str(summary_data["header"].get("id")) != str(event_id):
+            summary.update(status="collector_failure", error="summary event mismatch")
+        # ESPN's pregame summary does not supply official starting-QB
+        # confirmation. Never promote depth rank or roster Active to confirmed.
+        confirmation = {**summary, "status": ("unavailable" if summary["status"] == "retrieved"
+                                              else summary["status"]),
+                        "confirmed": False, "event_id": str(event_id), "team_id": str(team_id),
+                        "reason": "official_game_day_qb_confirmation_not_supplied"}
+        return {"roster": roster, "depth_chart": depth, "confirmation": confirmation,
+                "official_inactives": {"status": "not_retrieved", "reason": "separate_official_report_required"}}
+
+    def weather_evidence(self, venue: dict[str, Any], kickoff: str) -> dict[str, Any]:
+        result: dict[str, Any] = {"status": "not_retrieved", "venue": venue,
+                                  "kickoff": kickoff, "forecast_issued_at": None}
+        if venue.get("indoor") is True:
+            return {**result, "status": "not_applicable", "reason": "venue_marked_indoor"}
+        if venue.get("indoor") is not False:
+            return {**result, "status": "unavailable", "reason": "indoor_outdoor_unknown"}
+        try:
+            start = dt.datetime.fromisoformat(kickoff.replace("Z", "+00:00"))
+            if start.tzinfo is None:
+                raise ValueError("kickoff requires timezone")
+            start = start.astimezone(dt.timezone.utc).replace(minute=0, second=0, microsecond=0)
+            end = start + dt.timedelta(hours=4)
+            address = venue.get("address") or {}
+            name, city = venue.get("fullName"), address.get("city")
+            if not name or not city:
+                return {**result, "status": "unavailable", "reason": "venue_identity_missing"}
+            geo_url = "https://nominatim.openstreetmap.org/search?" + urlencode({
+                "q": ", ".join(filter(None, [name, city, address.get("state"), address.get("country")])),
+                "format": "jsonv2", "addressdetails": 1, "limit": 5})
+            # Exact venue and city matching prevents a generic city forecast
+            # from silently being labelled stadium weather.
+            if geo_url not in self._geocode_cache:
+                time.sleep(max(0, 1.1 - (time.monotonic() - self._last_geocode)))
+                try:
+                    self._geocode_cache[geo_url] = get(geo_url)
+                finally:
+                    self._last_geocode = time.monotonic()
+            matches = self._geocode_cache[geo_url]
+            if not isinstance(matches, list):
+                raise ValueError("invalid geocoder response")
+            matches = [m for m in matches if m.get("name", "").casefold() == name.casefold()
+                       and city.casefold() in [str(v).casefold() for k, v in (m.get("address") or {}).items()
+                                             if k in ("city", "town", "village", "municipality")]]
+            if len(matches) != 1:
+                return {**result, "status": "unavailable", "reason": "venue_coordinates_missing_or_ambiguous",
+                        "coordinate_source": geo_url}
+            lat, lon = float(matches[0]["lat"]), float(matches[0]["lon"])
+            if not (math.isfinite(lat) and math.isfinite(lon) and -90 <= lat <= 90 and -180 <= lon <= 180):
+                raise ValueError("invalid stadium coordinates")
+            result.update(latitude=lat, longitude=lon, coordinate_source=geo_url,
+                          coordinate_attribution="© OpenStreetMap contributors, ODbL 1.0",
+                          coordinate_license="https://www.openstreetmap.org/copyright")
+            fields = ["temperature_2m", "wind_speed_10m", "wind_gusts_10m", "precipitation", "snowfall"]
+            url = "https://api.open-meteo.com/v1/forecast?" + urlencode({
+                "latitude": lat, "longitude": lon, "hourly": ",".join(fields), "timezone": "GMT",
+                "temperature_unit": "fahrenheit", "wind_speed_unit": "mph", "precipitation_unit": "inch",
+                "start_hour": start.strftime("%Y-%m-%dT%H:%M"), "end_hour": end.strftime("%Y-%m-%dT%H:%M")})
+            result.update(source=url, retrieved_at=dt.datetime.now(dt.timezone.utc).isoformat())
+            forecast = get(url)
+            if forecast.get("utc_offset_seconds") != 0:
+                raise ValueError("forecast must use UTC")
+            hourly = forecast["hourly"]
+            units = forecast["hourly_units"]
+            if any(units.get(k) != v for k, v in {"temperature_2m": "°F", "wind_speed_10m": "mp/h",
+                                                  "wind_gusts_10m": "mp/h", "precipitation": "inch",
+                                                  "snowfall": "inch"}.items()):
+                raise ValueError("unexpected forecast units")
+            expected = [(start + dt.timedelta(hours=i)).strftime("%Y-%m-%dT%H:%M") for i in range(5)]
+            if hourly["time"] != expected:
+                return {**result, "status": "unavailable", "reason": "kickoff_window_incomplete"}
+            samples = []
+            for i, hour in enumerate(expected):
+                sample = {"time_utc": hour + "Z"}
+                for key in fields:
+                    value = hourly[key][i]
+                    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+                        raise ValueError(f"invalid forecast {key}")
+                    if key != "temperature_2m" and value < 0:
+                        raise ValueError(f"negative forecast {key}")
+                    sample[key] = value
+                samples.append(sample)
+            return {**result, "status": "retrieved", "units": units, "samples": samples,
+                    "weather_thesis_review_required": True,
+                    "wind_at_least_15_mph": any(s["wind_speed_10m"] >= 15 for s in samples)}
+        except Exception as exc:
+            return {**result, "status": "collector_failure", "error": f"{type(exc).__name__}: {exc}"}
 
     def build_row(self, event: dict[str, Any]) -> dict[str, Any]:
         competition = event["competitions"][0]
@@ -224,7 +428,9 @@ class NflSlateCollector:
             records = competitor.get("records") or []
             return records[0].get("summary") if records else None
 
-        return {
+        away_injuries = self.injury_evidence(away_id)
+        home_injuries = self.injury_evidence(home_id)
+        row = {
             "event_id": event["id"],
             "event": event["name"],
             "time": event["date"],
@@ -249,10 +455,24 @@ class NflSlateCollector:
             "home_rest_days": home_rest,
             "away_short_week": away_rest is not None and away_rest < SHORT_WEEK_REST_DAYS,
             "home_short_week": home_rest is not None and home_rest < SHORT_WEEK_REST_DAYS,
-            "away_injuries": self.injuries(away_id),
-            "home_injuries": self.injuries(home_id),
-            "venue": {"name": venue.get("fullName"), "indoor": venue.get("indoor")},
+            "away_injuries": away_injuries["items"],
+            "away_injury_evidence": away_injuries,
+            "away_qb": self.qb_evidence(away_id, event["id"]),
+            "home_injuries": home_injuries["items"],
+            "home_injury_evidence": home_injuries,
+            "home_qb": self.qb_evidence(home_id, event["id"]),
+            "venue": {"name": venue.get("fullName"), "indoor": venue.get("indoor"),
+                      "id": venue.get("id"), "address": venue.get("address")},
+            "weather": self.weather_evidence(venue, event["date"]),
+            "exchange": {"status": "not_retrieved", "reason": "sportsbook_only_collector",
+                         "ask": None, "net_edge": None},
         }
+
+        row["blockers"] = readiness_blockers(row)
+        row["assessment"] = "PASS"
+        row["candidates"] = []
+        row["official_pick_allowed"] = False
+        return row
 
     def collect(self) -> list[dict[str, Any]]:
         scoreboard = get(
@@ -271,9 +491,43 @@ class NflSlateCollector:
                         "event": event.get("name") if isinstance(event, dict) else None,
                         "time": event.get("date") if isinstance(event, dict) else None,
                         "error": f"{type(exc).__name__}: {exc}",
+                        "assessment": "PASS", "candidates": [], "official_pick_allowed": False,
+                        "blockers": [{"component": "game", "category": "collector_failure",
+                                      "reason": "row_collection_failed"}],
                     }
                 )
         return rows
+
+
+def readiness_blockers(row: dict[str, Any]) -> list[dict[str, str]]:
+    """Collection diagnostics, not an implementation of the full handicap gate."""
+    blockers = []
+
+    def check(component: str, evidence: dict[str, Any]) -> None:
+        status = evidence.get("status", "not_retrieved")
+        if status in ("retrieved", "not_applicable"):
+            return
+        category = {"unavailable": "upstream_missing", "collector_failure": "collector_failure"}.get(status, "hard_gate")
+        blockers.append({"component": component, "category": category,
+                         "reason": evidence.get("reason", status)})
+
+    for side in ("away", "home"):
+        check(f"{side}_injuries", row.get(f"{side}_injury_evidence", {}))
+        qb = row.get(f"{side}_qb", {})
+        for part in ("roster", "depth_chart", "confirmation", "official_inactives"):
+            check(f"{side}_qb_{part}", qb.get(part, {}))
+        form = row.get(f"{side}_form", {})
+        if not form.get("n"):
+            blockers.append({"component": f"{side}_form", "category": "upstream_missing", "reason": "no_completed_form"})
+        if form.get("prior_season_games"):
+            blockers.append({"component": f"{side}_form", "category": "hard_gate", "reason": "offseason_changes_require_review"})
+    check("weather", row.get("weather", {}))
+    check("exchange", row.get("exchange", {}))
+    if row.get("away_fair") is None or row.get("home_fair") is None:
+        blockers.append({"component": "sportsbook", "category": "upstream_missing", "reason": "two_sided_price_missing"})
+    blockers.append({"component": "analysis", "category": "hard_gate",
+                     "reason": "full_nfl_handicap_and_lock_gate_required"})
+    return blockers
 
 
 def main() -> None:
