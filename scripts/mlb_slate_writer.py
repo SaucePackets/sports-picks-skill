@@ -198,6 +198,12 @@ def load_scan(path: Path) -> tuple[list[Any], str]:
         raise SlateWriteError(
             [f"denominator scan at {path} is not a JSON list of rows"]
         )
+    if path.with_suffix(".coverage.json").exists() or any(
+        isinstance(row, dict) and "data_completeness" in row for row in rows
+    ):
+        from mlb_data_completeness import coverage_for_scan
+        if not coverage_for_scan(path, rows, scan_bytes=raw)["reconciled"]:
+            raise SlateWriteError(["scan coverage cannot reconcile to the verified MLB schedule"])
     return rows, hashlib.sha256(raw).hexdigest()
 
 
@@ -694,6 +700,9 @@ def land(
         # draft's defects alongside it rather than only the first wall hit.
         raise SlateWriteError(errors + exc.errors) from exc
     errors.extend(unresolved_scan_rows(rows))
+    if isinstance(draft, dict) and isinstance(draft.get("game_reads"), list):
+        from mlb_data_completeness import read_disposition_errors
+        errors.extend(read_disposition_errors(draft["game_reads"], rows))
     if not isinstance(draft, dict) or not isinstance(draft.get("game_reads"), list):
         # Nothing further is checkable without a read list, and reporting field
         # errors over a draft with no reads would bury the one that matters.

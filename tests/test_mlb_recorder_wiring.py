@@ -150,9 +150,11 @@ class DenominatorIsNotOptionalTests(unittest.TestCase):
         ) as collector, mock.patch.object(sys, "argv", ["x", "--date", self.rt.day]), \
                 mock.patch.dict("os.environ", {"SPORTS_PICKS_ROOT": str(self.rt.root)}):
             collector.return_value.collect.return_value = rows
+            collector.return_value.coverage = {"reconciled": True}
             mlb_stage2_scan.main()
         self.assertTrue(self.rt.scan_path.exists())
         self.assertEqual(json.loads(self.rt.scan_path.read_text()), rows)
+        self.assertTrue(self.rt.scan_path.with_suffix(".coverage.json").exists())
 
     def test_a_missing_scan_is_an_error_not_a_skipped_check(self):
         # This is the whole defect: without the flag the check silently did

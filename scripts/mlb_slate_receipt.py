@@ -275,6 +275,11 @@ def build_receipt(root: Path, day: str) -> dict[str, Any]:
     receipt["denominator_path"] = str(check.path) if check.path is not None else None
     errors.extend(check.errors)
     receipt["scheduled_games"] = _scan_game_count(check.rows)
+    from mlb_data_completeness import coverage_for_scan, read_disposition_errors
+    if isinstance(check.rows, list):
+        receipt["data_coverage"] = coverage_for_scan(check.path, check.rows)
+        if isinstance(reads, list):
+            errors.extend(read_disposition_errors(reads, check.rows))
     receipt["recorder_errors"] = errors
 
     # Computed AFTER the errors are final and never folded into them: the

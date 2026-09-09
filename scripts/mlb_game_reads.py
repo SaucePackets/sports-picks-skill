@@ -110,12 +110,12 @@ REFUSAL_RAILS = frozenset(REQUIRED_ORIGINAL_GATES) | frozenset(ALLOWED_BLOCKERS)
 # What the run decided about the game. ``not_priced`` is deliberately distinct
 # from ``pass``: a game nobody could price was never handicapped, and folding
 # the two would recreate the drought report's own collapsed-class defect.
-DISPOSITIONS = frozenset({"candidate", "lineup_watchlist", "pass", "not_priced"})
+DISPOSITIONS = frozenset({"candidate", "lineup_watchlist", "pass", "not_priced", "incomplete_input_data"})
 
 # A disposition that means "the card refused this game" must name at least one
 # rail; a disposition that means "the card took it" must name none. Anything
 # else is a read that does not say what happened.
-REFUSING_DISPOSITIONS = frozenset({"pass", "not_priced"})
+REFUSING_DISPOSITIONS = frozenset({"pass", "not_priced", "incomplete_input_data"})
 ACCEPTING_DISPOSITIONS = frozenset({"candidate", "lineup_watchlist"})
 
 # Per-side probability fields. Each is either a two-sided object of usable
@@ -656,6 +656,8 @@ def _disposition_errors(label: str, entry: dict[str, Any]) -> list[str]:
         errors.append(
             f"{label}.disposition is {disposition!r} but names refusing rails {sorted(rails)}"
         )
+    if disposition == "incomplete_input_data" and "incomplete_input_data" not in rails:
+        errors.append(f"{label}: incomplete_input_data disposition requires its named rail")
     return errors
 
 

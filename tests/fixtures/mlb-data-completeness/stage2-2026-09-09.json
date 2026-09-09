@@ -1,0 +1,4349 @@
+[
+  {
+    "away": "Minnesota Twins",
+    "away_abbr": "MIN",
+    "away_bullpen": {
+      "bb": 13,
+      "era": 4.413461538461538,
+      "hr": 4,
+      "ip": 34.666666666666664,
+      "k": 41,
+      "whip": 1.2692307692307694
+    },
+    "away_fair": null,
+    "away_form": {
+      "l": 4,
+      "n": 7,
+      "ra": 38,
+      "rd": -2,
+      "rf": 36,
+      "w": 3
+    },
+    "away_injuries": [
+      {
+        "name": "Austin Martin",
+        "status": "10-Day-IL",
+        "type": {
+          "abbreviation": "IL10",
+          "description": "10-day IL",
+          "id": "14",
+          "name": "INJURY_STATUS_10DAYIL"
+        }
+      },
+      {
+        "name": "Kendry Rojas",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Byron Buxton",
+        "status": "10-Day-IL",
+        "type": {
+          "abbreviation": "IL10",
+          "description": "10-day IL",
+          "id": "14",
+          "name": "INJURY_STATUS_10DAYIL"
+        }
+      },
+      {
+        "name": "Jay Thomason",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Tanner Hall",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Mike Paredes",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Cole Sands",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "David Festa",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Charlee Soto",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Mick Abel",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      }
+    ],
+    "away_ml": null,
+    "away_offense": {
+      "woba": 0.32,
+      "xwoba": 0.313
+    },
+    "away_starter": "Zebby Matthews",
+    "away_starter_stats": {
+      "bb": 34,
+      "era": 4.81,
+      "fip": 5.01,
+      "hr": 23,
+      "ip": "118.0",
+      "k": 97,
+      "k_bb_pct": 12.8,
+      "record": "9-9",
+      "starts": 21,
+      "whip": 1.25
+    },
+    "event": "Minnesota Twins at Detroit Tigers",
+    "event_id": "401816872",
+    "game_pk": 824226,
+    "home": "Detroit Tigers",
+    "home_abbr": "DET",
+    "home_bullpen": {
+      "bb": 9,
+      "era": 1.975609756097561,
+      "hr": 2,
+      "ip": 27.333333333333332,
+      "k": 23,
+      "whip": 0.8414634146341464
+    },
+    "home_fair": null,
+    "home_form": {
+      "l": 4,
+      "n": 7,
+      "ra": 27,
+      "rd": 8,
+      "rf": 35,
+      "w": 3
+    },
+    "home_injuries": [
+      {
+        "name": "Jack Flaherty",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Matt Vierling",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Kerry Carpenter",
+        "status": "10-Day-IL",
+        "type": {
+          "abbreviation": "IL10",
+          "description": "10-day IL",
+          "id": "14",
+          "name": "INJURY_STATUS_10DAYIL"
+        }
+      },
+      {
+        "name": "Kash Mayfield",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Wenceel Perez",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Will Vest",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Justin Verlander",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Burch Smith",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Franyerber Montilla",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Jack Penney",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      }
+    ],
+    "home_ml": null,
+    "home_offense": {
+      "woba": 0.312,
+      "xwoba": 0.317
+    },
+    "home_starter": "Keider Montero",
+    "home_starter_stats": {
+      "bb": 33,
+      "era": 3.48,
+      "fip": 3.96,
+      "hr": 15,
+      "ip": "145.0",
+      "k": 97,
+      "k_bb_pct": 11.0,
+      "record": "9-8",
+      "starts": 24,
+      "whip": 1.02
+    },
+    "park": {
+      "data_status": "available",
+      "flag": null,
+      "run_factor": 99,
+      "venue": "Comerica Park"
+    },
+    "time": "2026-09-09T17:10Z"
+  },
+  {
+    "away": "Toronto Blue Jays",
+    "away_abbr": "TOR",
+    "away_bullpen": {
+      "bb": 11,
+      "era": 0.6749999999999999,
+      "hr": 1,
+      "ip": 26.666666666666668,
+      "k": 28,
+      "whip": 0.8999999999999999
+    },
+    "away_fair": null,
+    "away_form": {
+      "l": 2,
+      "n": 7,
+      "ra": 22,
+      "rd": 18,
+      "rf": 40,
+      "w": 5
+    },
+    "away_injuries": [
+      {
+        "name": "George Springer",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Anthony Santander",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Trey Yesavage",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Cody Ponce",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Patrick Corbin",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Shane Bieber",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Jameson Taillon",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Jonatan Clase",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Yimi Garcia",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Hedbert Perez",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      }
+    ],
+    "away_ml": null,
+    "away_offense": {
+      "woba": 0.305,
+      "xwoba": 0.297
+    },
+    "away_starter": "Braydon Fisher",
+    "away_starter_stats": {
+      "bb": 38,
+      "era": 3.15,
+      "fip": 4.22,
+      "hr": 7,
+      "ip": "71.1",
+      "k": 69,
+      "k_bb_pct": 10.7,
+      "record": "3-4",
+      "starts": 9,
+      "whip": 1.22
+    },
+    "event": "Toronto Blue Jays at Athletics Athletics",
+    "event_id": "401816881",
+    "game_pk": 824956,
+    "home": "Athletics",
+    "home_abbr": "ATH",
+    "home_bullpen": {
+      "bb": 11,
+      "era": 1.5882352941176472,
+      "hr": 1,
+      "ip": 28.333333333333332,
+      "k": 31,
+      "whip": 1.2
+    },
+    "home_fair": null,
+    "home_form": {
+      "l": 2,
+      "n": 7,
+      "ra": 25,
+      "rd": 12,
+      "rf": 37,
+      "w": 5
+    },
+    "home_injuries": [
+      {
+        "name": "Jamie Arnold",
+        "status": "Out",
+        "type": {
+          "abbreviation": "O",
+          "description": "out",
+          "id": "4",
+          "name": "INJURY_STATUS_OUT"
+        }
+      },
+      {
+        "name": "Leo De Vries",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Shea Langeliers",
+        "status": "10-Day-IL",
+        "type": {
+          "abbreviation": "IL10",
+          "description": "10-day IL",
+          "id": "14",
+          "name": "INJURY_STATUS_10DAYIL"
+        }
+      },
+      {
+        "name": "J.T. Ginn",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Joshua Kuroda-Grauer",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Shotaro Morii",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Henry Baez",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Jacob Wilson",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Nick Kurtz",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Tyler Soderstrom",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      }
+    ],
+    "home_ml": null,
+    "home_offense": {
+      "woba": 0.318,
+      "xwoba": 0.311
+    },
+    "home_starter": "Brady Basso",
+    "home_starter_stats": {
+      "bb": 6,
+      "era": 4.19,
+      "fip": 3.35,
+      "hr": 3,
+      "ip": "34.1",
+      "k": 25,
+      "k_bb_pct": 12.8,
+      "record": "1-2",
+      "starts": 5,
+      "whip": 1.4
+    },
+    "park": {
+      "data_status": "available",
+      "flag": null,
+      "run_factor": 104,
+      "venue": "Sutter Health Park"
+    },
+    "time": "2026-09-09T19:05Z"
+  },
+  {
+    "away": "St. Louis Cardinals",
+    "away_abbr": "STL",
+    "away_bullpen": {
+      "bb": 13,
+      "era": 4.78125,
+      "hr": 4,
+      "ip": 32.0,
+      "k": 37,
+      "whip": 1.5
+    },
+    "away_fair": 0.5270012302210156,
+    "away_form": {
+      "l": 4,
+      "n": 7,
+      "ra": 40,
+      "rd": -1,
+      "rf": 39,
+      "w": 3
+    },
+    "away_injuries": [
+      {
+        "name": "Peter Strzelecki",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "JJ Wetherholt",
+        "status": "10-Day-IL",
+        "type": {
+          "abbreviation": "IL10",
+          "description": "10-day IL",
+          "id": "14",
+          "name": "INJURY_STATUS_10DAYIL"
+        }
+      },
+      {
+        "name": "Hunter Dobbins",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Ixan Henderson",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Tai Peete",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Won-Bin Cho",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Blaze Jordan",
+        "status": "10-Day-IL",
+        "type": {
+          "abbreviation": "IL10",
+          "description": "10-day IL",
+          "id": "14",
+          "name": "INJURY_STATUS_10DAYIL"
+        }
+      },
+      {
+        "name": "Everson Pereira",
+        "status": "10-Day-IL",
+        "type": {
+          "abbreviation": "IL10",
+          "description": "10-day IL",
+          "id": "14",
+          "name": "INJURY_STATUS_10DAYIL"
+        }
+      },
+      {
+        "name": "Tekoah Roby",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Max Rajcic",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      }
+    ],
+    "away_ml": "-123",
+    "away_offense": {
+      "woba": 0.31,
+      "xwoba": 0.32
+    },
+    "away_starter": "Andre Pallante",
+    "away_starter_stats": {
+      "bb": 45,
+      "era": 3.51,
+      "fip": 3.77,
+      "hr": 10,
+      "ip": "141.0",
+      "k": 98,
+      "k_bb_pct": 9.1,
+      "record": "12-6",
+      "starts": 25,
+      "whip": 1.24
+    },
+    "event": "St. Louis Cardinals at San Francisco Giants",
+    "event_id": "401816879",
+    "game_pk": 823172,
+    "home": "San Francisco Giants",
+    "home_abbr": "SF",
+    "home_bullpen": {
+      "bb": 16,
+      "era": 5.333333333333333,
+      "hr": 4,
+      "ip": 27.0,
+      "k": 14,
+      "whip": 1.7037037037037037
+    },
+    "home_fair": 0.4729987697789844,
+    "home_form": {
+      "l": 3,
+      "n": 7,
+      "ra": 33,
+      "rd": -2,
+      "rf": 31,
+      "w": 4
+    },
+    "home_injuries": [
+      {
+        "name": "Carson Whisenhunt",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Victor Bericoto",
+        "status": "10-Day-IL",
+        "type": {
+          "abbreviation": "IL10",
+          "description": "10-day IL",
+          "id": "14",
+          "name": "INJURY_STATUS_10DAYIL"
+        }
+      },
+      {
+        "name": "Marcelo Mayer",
+        "status": "10-Day-IL",
+        "type": {
+          "abbreviation": "IL10",
+          "description": "10-day IL",
+          "id": "14",
+          "name": "INJURY_STATUS_10DAYIL"
+        }
+      },
+      {
+        "name": "JT Brubaker",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Jesus Rodriguez",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Keaton Winn",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Adrian Houser",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Matt Gage",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Sam Hentges",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Casey Schmitt",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      }
+    ],
+    "home_ml": "+102",
+    "home_offense": {
+      "woba": 0.313,
+      "xwoba": 0.311
+    },
+    "home_starter": "Blade Tidwell",
+    "home_starter_stats": {
+      "bb": 18,
+      "era": 4.43,
+      "fip": 4.46,
+      "hr": 5,
+      "ip": "42.2",
+      "k": 36,
+      "k_bb_pct": 10.2,
+      "record": "0-2",
+      "starts": 6,
+      "whip": 1.24
+    },
+    "park": {
+      "data_status": "available",
+      "flag": "strong pitcher park",
+      "run_factor": 96,
+      "venue": "Oracle Park"
+    },
+    "time": "2026-09-09T19:45Z"
+  },
+  {
+    "away": "Texas Rangers",
+    "away_abbr": "TEX",
+    "away_bullpen": {
+      "bb": 13,
+      "era": 5.11578947368421,
+      "hr": 6,
+      "ip": 31.666666666666668,
+      "k": 26,
+      "whip": 1.5789473684210527
+    },
+    "away_fair": 0.42837235708018645,
+    "away_form": {
+      "l": 3,
+      "n": 7,
+      "ra": 38,
+      "rd": 5,
+      "rf": 43,
+      "w": 4
+    },
+    "away_injuries": [
+      {
+        "name": "Josh Jung",
+        "status": "10-Day-IL",
+        "type": {
+          "abbreviation": "IL10",
+          "description": "10-day IL",
+          "id": "14",
+          "name": "INJURY_STATUS_10DAYIL"
+        }
+      },
+      {
+        "name": "Nathan Eovaldi",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Jack Leiter",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Caden Scarborough",
+        "status": "Out",
+        "type": {
+          "abbreviation": "O",
+          "description": "out",
+          "id": "4",
+          "name": "INJURY_STATUS_OUT"
+        }
+      },
+      {
+        "name": "Kyle Higashioka",
+        "status": "10-Day-IL",
+        "type": {
+          "abbreviation": "IL10",
+          "description": "10-day IL",
+          "id": "14",
+          "name": "INJURY_STATUS_10DAYIL"
+        }
+      },
+      {
+        "name": "Cole Winn",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Peyton Gray",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Carter Baumler",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Hector Osorio",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Izack Tiger",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      }
+    ],
+    "away_ml": "+123",
+    "away_offense": {
+      "woba": 0.317,
+      "xwoba": 0.309
+    },
+    "away_starter": "Cody Bradford",
+    "away_starter_stats": {
+      "bb": 7,
+      "era": 4.45,
+      "fip": 4.6,
+      "hr": 4,
+      "ip": "30.1",
+      "k": 16,
+      "k_bb_pct": 6.7,
+      "record": "0-4",
+      "starts": 6,
+      "whip": 1.58
+    },
+    "event": "Texas Rangers at Seattle Mariners",
+    "event_id": "401816880",
+    "game_pk": 823090,
+    "home": "Seattle Mariners",
+    "home_abbr": "SEA",
+    "home_bullpen": {
+      "bb": 5,
+      "era": 6.287671232876713,
+      "hr": 6,
+      "ip": 24.333333333333332,
+      "k": 25,
+      "whip": 1.4383561643835616
+    },
+    "home_fair": 0.5716276429198135,
+    "home_form": {
+      "l": 4,
+      "n": 7,
+      "ra": 39,
+      "rd": -3,
+      "rf": 36,
+      "w": 3
+    },
+    "home_injuries": [
+      {
+        "name": "Nick Davila",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Matt Brash",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Brendan Donovan",
+        "status": "7-Day IL",
+        "type": {
+          "abbreviation": "IL7",
+          "description": "7-day IL",
+          "id": "13",
+          "name": "INJURY_STATUS_7DAYIL"
+        }
+      },
+      {
+        "name": "Brennen Davis",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Colt Emerson",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Emerson Hancock",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Luke Raley",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Cole Wilcox",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Chia-Shi Shen",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Jacob Nottingham",
+        "status": "developmental list",
+        "type": {
+          "abbreviation": "DEVLIST",
+          "description": "Developmental List",
+          "id": "12",
+          "name": "INJURY_STATUS_DEVELOPMENTAL_LIST"
+        }
+      }
+    ],
+    "home_ml": "-149",
+    "home_offense": {
+      "woba": 0.304,
+      "xwoba": 0.314
+    },
+    "home_starter": "Kade Anderson",
+    "home_starter_stats": {
+      "bb": 7,
+      "era": 5.4,
+      "fip": 5.68,
+      "hr": 3,
+      "ip": "15.0",
+      "k": 11,
+      "k_bb_pct": 6.3,
+      "record": "0-1",
+      "starts": 3,
+      "whip": 1.47
+    },
+    "park": {
+      "data_status": "available",
+      "flag": "strong pitcher park",
+      "run_factor": 95,
+      "venue": "T-Mobile Park"
+    },
+    "time": "2026-09-09T20:10Z"
+  },
+  {
+    "away": "Washington Nationals",
+    "away_abbr": "WSH",
+    "away_bullpen": {
+      "bb": 14,
+      "era": 7.762499999999999,
+      "hr": 6,
+      "ip": 26.666666666666668,
+      "k": 21,
+      "whip": 1.6124999999999998
+    },
+    "away_fair": 0.376650305782304,
+    "away_form": {
+      "l": 6,
+      "n": 7,
+      "ra": 40,
+      "rd": -12,
+      "rf": 28,
+      "w": 1
+    },
+    "away_injuries": [
+      {
+        "name": "Orlando Ribalta",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Matt Waldron",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Connelly Early",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Drew Millas",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Josiah Gray",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Richard Lovelady",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "DJ Herz",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "PJ Poulin",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Mitchell Parker",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Travis Sykora",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      }
+    ],
+    "away_ml": "+154",
+    "away_offense": {
+      "woba": 0.329,
+      "xwoba": 0.325
+    },
+    "away_starter": "Jackson Kent",
+    "away_starter_stats": {
+      "bb": 19,
+      "era": 5.55,
+      "fip": 4.3,
+      "hr": 1,
+      "ip": "24.1",
+      "k": 21,
+      "k_bb_pct": 1.8,
+      "record": "1-3",
+      "starts": 5,
+      "whip": 1.68
+    },
+    "event": "Washington Nationals at San Diego Padres",
+    "event_id": "401816882",
+    "game_pk": 823251,
+    "home": "San Diego Padres",
+    "home_abbr": "SD",
+    "home_bullpen": {
+      "bb": 9,
+      "era": 3.0681818181818183,
+      "hr": 3,
+      "ip": 29.333333333333332,
+      "k": 38,
+      "whip": 1.090909090909091
+    },
+    "home_fair": 0.623349694217696,
+    "home_form": {
+      "l": 3,
+      "n": 7,
+      "ra": 27,
+      "rd": -5,
+      "rf": 22,
+      "w": 4
+    },
+    "home_injuries": [
+      {
+        "name": "Miguel Andujar",
+        "status": "10-Day-IL",
+        "type": {
+          "abbreviation": "IL10",
+          "description": "10-day IL",
+          "id": "14",
+          "name": "INJURY_STATUS_10DAYIL"
+        }
+      },
+      {
+        "name": "Joe Musgrove",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Luis Rengifo",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Gavin Sheets",
+        "status": "10-Day-IL",
+        "type": {
+          "abbreviation": "IL10",
+          "description": "10-day IL",
+          "id": "14",
+          "name": "INJURY_STATUS_10DAYIL"
+        }
+      },
+      {
+        "name": "Jeremiah Estrada",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Lucas Giolito",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Jason Adam",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Jonathan Vastine",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Kale Fountain",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Ramon Laureano",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      }
+    ],
+    "home_ml": "-187",
+    "home_offense": {
+      "woba": 0.309,
+      "xwoba": 0.319
+    },
+    "home_starter": "Walker Buehler",
+    "home_starter_stats": {
+      "bb": 51,
+      "era": 4.56,
+      "fip": 4.38,
+      "hr": 18,
+      "ip": "136.1",
+      "k": 117,
+      "k_bb_pct": 11.5,
+      "record": "8-6",
+      "starts": 28,
+      "whip": 1.34
+    },
+    "park": {
+      "data_status": "available",
+      "flag": "strong pitcher park",
+      "run_factor": 96,
+      "venue": "Petco Park"
+    },
+    "time": "2026-09-09T20:10Z"
+  },
+  {
+    "away": "Cleveland Guardians",
+    "away_abbr": "CLE",
+    "away_bullpen": {
+      "bb": 10,
+      "era": 1.9090909090909092,
+      "hr": 2,
+      "ip": 33.0,
+      "k": 43,
+      "whip": 0.9393939393939394
+    },
+    "away_fair": 0.5173641257162701,
+    "away_form": {
+      "l": 3,
+      "n": 7,
+      "ra": 34,
+      "rd": -4,
+      "rf": 30,
+      "w": 4
+    },
+    "away_injuries": [
+      {
+        "name": "Chase DeLauter",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Colin Holderman",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Will Hynes",
+        "status": "developmental list",
+        "type": {
+          "abbreviation": "DEVLIST",
+          "description": "Developmental List",
+          "id": "12",
+          "name": "INJURY_STATUS_DEVELOPMENTAL_LIST"
+        }
+      },
+      {
+        "name": "Rhys Hoskins",
+        "status": "10-Day-IL",
+        "type": {
+          "abbreviation": "IL10",
+          "description": "10-day IL",
+          "id": "14",
+          "name": "INJURY_STATUS_10DAYIL"
+        }
+      },
+      {
+        "name": "Shawn Armstrong",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Luis De La Cruz",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Jonah Advincula",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Esteban Gonzalez",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Jose Devers",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "CJ Kayfus",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      }
+    ],
+    "away_ml": "-118",
+    "away_offense": {
+      "woba": 0.305,
+      "xwoba": 0.303
+    },
+    "away_starter": "Foster Griffin",
+    "away_starter_stats": {
+      "bb": 41,
+      "era": 3.26,
+      "fip": 4.16,
+      "hr": 23,
+      "ip": "160.1",
+      "k": 142,
+      "k_bb_pct": 15.4,
+      "record": "15-4",
+      "starts": 28,
+      "whip": 1.14
+    },
+    "event": "Cleveland Guardians at Baltimore Orioles",
+    "event_id": "401816869",
+    "game_pk": 824791,
+    "home": "Baltimore Orioles",
+    "home_abbr": "BAL",
+    "home_bullpen": {
+      "bb": 9,
+      "era": 4.068493150684931,
+      "hr": 3,
+      "ip": 24.333333333333332,
+      "k": 30,
+      "whip": 1.315068493150685
+    },
+    "home_fair": 0.4826358742837298,
+    "home_form": {
+      "l": 6,
+      "n": 7,
+      "ra": 34,
+      "rd": -12,
+      "rf": 22,
+      "w": 1
+    },
+    "home_injuries": [
+      {
+        "name": "Blaze Alexander",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Gunnar Henderson",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Ryan Mountcastle",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Christian Franklin",
+        "status": "10-Day-IL",
+        "type": {
+          "abbreviation": "IL10",
+          "description": "10-day IL",
+          "id": "14",
+          "name": "INJURY_STATUS_10DAYIL"
+        }
+      },
+      {
+        "name": "Ryan Helsley",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Felix Bautista",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Tyler O'Neill",
+        "status": "10-Day-IL",
+        "type": {
+          "abbreviation": "IL10",
+          "description": "10-day IL",
+          "id": "14",
+          "name": "INJURY_STATUS_10DAYIL"
+        }
+      },
+      {
+        "name": "Luis Robert Jr.",
+        "status": "10-Day-IL",
+        "type": {
+          "abbreviation": "IL10",
+          "description": "10-day IL",
+          "id": "14",
+          "name": "INJURY_STATUS_10DAYIL"
+        }
+      },
+      {
+        "name": "Keagan Gillies",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Reed Trimble",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      }
+    ],
+    "home_ml": "-102",
+    "home_offense": {
+      "woba": 0.313,
+      "xwoba": 0.322
+    },
+    "home_starter": "Shane Baz",
+    "home_starter_stats": {
+      "bb": 57,
+      "era": 3.91,
+      "fip": 3.45,
+      "hr": 12,
+      "ip": "163.1",
+      "k": 145,
+      "k_bb_pct": 12.7,
+      "record": "5-15",
+      "starts": 28,
+      "whip": 1.33
+    },
+    "park": {
+      "data_status": "available",
+      "flag": null,
+      "run_factor": 100,
+      "venue": "Oriole Park at Camden Yards"
+    },
+    "time": "2026-09-09T22:35Z"
+  },
+  {
+    "away": "Houston Astros",
+    "away_abbr": "HOU",
+    "away_bullpen": {
+      "bb": 11,
+      "era": 3.2837837837837838,
+      "hr": 1,
+      "ip": 24.666666666666668,
+      "k": 26,
+      "whip": 1.2567567567567568
+    },
+    "away_fair": 0.4174548300828387,
+    "away_form": {
+      "l": 3,
+      "n": 7,
+      "ra": 20,
+      "rd": 3,
+      "rf": 23,
+      "w": 4
+    },
+    "away_injuries": [
+      {
+        "name": "Mike Burrows",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Steven Okert",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Carlos Correa",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Brice Matthews",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Cameron Sisneros",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Nehomar Ochoa",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Drew Brutcher",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Jax Biggers",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Brandon Walter",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Juan Bello",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      }
+    ],
+    "away_ml": "+129",
+    "away_offense": {
+      "woba": 0.316,
+      "xwoba": 0.311
+    },
+    "away_starter": "Hunter Brown",
+    "away_starter_stats": {
+      "bb": 46,
+      "era": 3.31,
+      "fip": 4.23,
+      "hr": 10,
+      "ip": "87.0",
+      "k": 93,
+      "k_bb_pct": 12.9,
+      "record": "5-3",
+      "starts": 16,
+      "whip": 1.3
+    },
+    "event": "Houston Astros at Philadelphia Phillies",
+    "event_id": "401816871",
+    "game_pk": 823416,
+    "home": "Philadelphia Phillies",
+    "home_abbr": "PHI",
+    "home_bullpen": {
+      "bb": 3,
+      "era": 5.282608695652174,
+      "hr": 5,
+      "ip": 15.333333333333334,
+      "k": 14,
+      "whip": 1.0434782608695652
+    },
+    "home_fair": 0.5825451699171612,
+    "home_form": {
+      "l": 4,
+      "n": 7,
+      "ra": 20,
+      "rd": 3,
+      "rf": 23,
+      "w": 3
+    },
+    "home_injuries": [
+      {
+        "name": "Andrew Hoffmann",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Mark Kolozsvary",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Tanner Banks",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Nestor Cortes",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Felix Reyes",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Caleb Kilian",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Brad Keller",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Johan Rojas",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Adolis Garcia",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Levi Stoudt",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      }
+    ],
+    "home_ml": "-156",
+    "home_offense": {
+      "woba": 0.313,
+      "xwoba": 0.319
+    },
+    "home_starter": "Cristopher S\u00e1nchez",
+    "home_starter_stats": {
+      "bb": 42,
+      "era": 2.58,
+      "fip": 2.65,
+      "hr": 14,
+      "ip": "181.1",
+      "k": 207,
+      "k_bb_pct": 21.9,
+      "record": "16-5",
+      "starts": 29,
+      "whip": 1.2
+    },
+    "park": {
+      "data_status": "available",
+      "flag": null,
+      "run_factor": 103,
+      "venue": "Citizens Bank Park"
+    },
+    "time": "2026-09-09T22:40Z"
+  },
+  {
+    "away": "New York Mets",
+    "away_abbr": "NYM",
+    "away_bullpen": {
+      "bb": 5,
+      "era": 3.903614457831325,
+      "hr": 4,
+      "ip": 27.666666666666668,
+      "k": 28,
+      "whip": 1.0481927710843373
+    },
+    "away_fair": 0.46787015568068896,
+    "away_form": {
+      "l": 2,
+      "n": 7,
+      "ra": 36,
+      "rd": 11,
+      "rf": 47,
+      "w": 5
+    },
+    "away_injuries": [
+      {
+        "name": "Cionel Perez",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Devin Williams",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Jorge Polanco",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Randy Guzman",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Ryan Lambert",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Joander David Suarez",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Wyatt Hudepohl",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Reed Garrett",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Peter Kussow",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Boston Baro",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      }
+    ],
+    "away_ml": "+104",
+    "away_offense": {
+      "woba": 0.308,
+      "xwoba": 0.319
+    },
+    "away_starter": "Robert Stock",
+    "away_starter_stats": {
+      "bb": 13,
+      "era": 5.81,
+      "fip": 4.06,
+      "hr": 2,
+      "ip": "26.1",
+      "k": 25,
+      "k_bb_pct": 9.4,
+      "record": "1-3",
+      "starts": 6,
+      "whip": 1.75
+    },
+    "event": "New York Mets at Miami Marlins",
+    "event_id": "401816873",
+    "game_pk": 823818,
+    "home": "Miami Marlins",
+    "home_abbr": "MIA",
+    "home_bullpen": {
+      "bb": 18,
+      "era": 3.4941176470588236,
+      "hr": 1,
+      "ip": 28.333333333333332,
+      "k": 26,
+      "whip": 1.4470588235294117
+    },
+    "home_fair": 0.532129844319311,
+    "home_form": {
+      "l": 5,
+      "n": 7,
+      "ra": 44,
+      "rd": -7,
+      "rf": 37,
+      "w": 2
+    },
+    "home_injuries": [
+      {
+        "name": "Starlyn Caba",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Wilfredo Lara",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Anthony Bender",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Max Meyer",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Xavier Edwards",
+        "status": "10-Day-IL",
+        "type": {
+          "abbreviation": "IL10",
+          "description": "10-day IL",
+          "id": "14",
+          "name": "INJURY_STATUS_10DAYIL"
+        }
+      },
+      {
+        "name": "Andrew Nardi",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Ian Lewis",
+        "status": "developmental list",
+        "type": {
+          "abbreviation": "DEVLIST",
+          "description": "Developmental List",
+          "id": "12",
+          "name": "INJURY_STATUS_DEVELOPMENTAL_LIST"
+        }
+      },
+      {
+        "name": "Kade Bragg",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Colby Martin",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "William Kempner",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      }
+    ],
+    "home_ml": "-126",
+    "home_offense": {
+      "woba": 0.32,
+      "xwoba": 0.308
+    },
+    "home_starter": "Janson Junk",
+    "home_starter_stats": {
+      "bb": 29,
+      "era": 4.0,
+      "fip": 4.11,
+      "hr": 12,
+      "ip": "108.0",
+      "k": 74,
+      "k_bb_pct": 9.9,
+      "record": "6-9",
+      "starts": 21,
+      "whip": 1.28
+    },
+    "park": {
+      "data_status": "available",
+      "flag": null,
+      "run_factor": 97,
+      "venue": "loanDepot park"
+    },
+    "time": "2026-09-09T22:40Z"
+  },
+  {
+    "away": "Los Angeles Angels",
+    "away_abbr": "LAA",
+    "away_bullpen": {
+      "bb": 8,
+      "era": 4.5,
+      "hr": 1,
+      "ip": 18.0,
+      "k": 22,
+      "whip": 1.7222222222222223
+    },
+    "away_fair": 0.3393356165822705,
+    "away_form": {
+      "l": 5,
+      "n": 7,
+      "ra": 22,
+      "rd": -2,
+      "rf": 20,
+      "w": 2
+    },
+    "away_injuries": [
+      {
+        "name": "Sam Bachman",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Nolan Schanuel",
+        "status": "10-Day-IL",
+        "type": {
+          "abbreviation": "IL10",
+          "description": "10-day IL",
+          "id": "14",
+          "name": "INJURY_STATUS_10DAYIL"
+        }
+      },
+      {
+        "name": "George Klassen",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Gustavo Campero",
+        "status": "10-Day-IL",
+        "type": {
+          "abbreviation": "IL10",
+          "description": "10-day IL",
+          "id": "14",
+          "name": "INJURY_STATUS_10DAYIL"
+        }
+      },
+      {
+        "name": "Javier D'Orazio",
+        "status": "developmental list",
+        "type": {
+          "abbreviation": "DEVLIST",
+          "description": "Developmental List",
+          "id": "12",
+          "name": "INJURY_STATUS_DEVELOPMENTAL_LIST"
+        }
+      },
+      {
+        "name": "Nacho Alvarez Jr.",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Johnny Slawinski",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Yoan Moncada",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Jack Kochanowicz",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Rio Foster",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      }
+    ],
+    "away_ml": "+182",
+    "away_offense": {
+      "woba": 0.302,
+      "xwoba": 0.302
+    },
+    "away_starter": "Ryan Johnson",
+    "away_starter_stats": {
+      "bb": 38,
+      "era": 5.17,
+      "fip": 5.93,
+      "hr": 16,
+      "ip": "78.1",
+      "k": 58,
+      "k_bb_pct": 5.9,
+      "record": "3-8",
+      "starts": 15,
+      "whip": 1.39
+    },
+    "event": "Los Angeles Angels at Boston Red Sox",
+    "event_id": "401816868",
+    "game_pk": 824713,
+    "home": "Boston Red Sox",
+    "home_abbr": "BOS",
+    "home_bullpen": {
+      "bb": 7,
+      "era": 4.090909090909091,
+      "hr": 3,
+      "ip": 22.0,
+      "k": 30,
+      "whip": 1.2272727272727273
+    },
+    "home_fair": 0.6606643834177295,
+    "home_form": {
+      "l": 2,
+      "n": 7,
+      "ra": 22,
+      "rd": 2,
+      "rf": 24,
+      "w": 5
+    },
+    "home_injuries": [
+      {
+        "name": "Tanner Houck",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Garrett Crochet",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Willson Contreras",
+        "status": "10-Day-IL",
+        "type": {
+          "abbreviation": "IL10",
+          "description": "10-day IL",
+          "id": "14",
+          "name": "INJURY_STATUS_10DAYIL"
+        }
+      },
+      {
+        "name": "Justin Slaten",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Kutter Crawford",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Johan Oviedo",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Ceddanne Rafaela",
+        "status": "10-Day-IL",
+        "type": {
+          "abbreviation": "IL10",
+          "description": "10-day IL",
+          "id": "14",
+          "name": "INJURY_STATUS_10DAYIL"
+        }
+      },
+      {
+        "name": "Tyron Guerrero",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Eduardo Rivera",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Curtis Mead",
+        "status": "10-Day-IL",
+        "type": {
+          "abbreviation": "IL10",
+          "description": "10-day IL",
+          "id": "14",
+          "name": "INJURY_STATUS_10DAYIL"
+        }
+      }
+    ],
+    "home_ml": "-223",
+    "home_offense": {
+      "woba": 0.32,
+      "xwoba": 0.311
+    },
+    "home_starter": "Jake Bennett",
+    "home_starter_stats": {
+      "bb": 18,
+      "era": 3.34,
+      "fip": 3.33,
+      "hr": 9,
+      "ip": "99.2",
+      "k": 81,
+      "k_bb_pct": 15.9,
+      "record": "9-6",
+      "starts": 17,
+      "whip": 1.02
+    },
+    "park": {
+      "data_status": "available",
+      "flag": "extreme hitter park \u2014 cap confidence per park rule",
+      "run_factor": 106,
+      "venue": "Fenway Park"
+    },
+    "time": "2026-09-09T22:45Z"
+  },
+  {
+    "away": "Colorado Rockies",
+    "away_abbr": "COL",
+    "away_bullpen": {
+      "bb": 14,
+      "era": 4.344827586206897,
+      "hr": 3,
+      "ip": 29.0,
+      "k": 25,
+      "whip": 1.2758620689655173
+    },
+    "away_fair": 0.31059133814547474,
+    "away_form": {
+      "l": 4,
+      "n": 7,
+      "ra": 38,
+      "rd": 0,
+      "rf": 38,
+      "w": 3
+    },
+    "away_injuries": [
+      {
+        "name": "Jose Quintana",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Kyle Freeland",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Willi Castro",
+        "status": "10-Day-IL",
+        "type": {
+          "abbreviation": "IL10",
+          "description": "10-day IL",
+          "id": "14",
+          "name": "INJURY_STATUS_10DAYIL"
+        }
+      },
+      {
+        "name": "Bryce McGowan",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Brody Brecht",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Tyler Bell",
+        "status": "Out",
+        "type": {
+          "abbreviation": "O",
+          "description": "out",
+          "id": "4",
+          "name": "INJURY_STATUS_OUT"
+        }
+      },
+      {
+        "name": "Chase Dollander",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Welinton Herrera",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "McCade Brown",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Ethan Holliday",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      }
+    ],
+    "away_ml": "+208",
+    "away_offense": {
+      "woba": 0.324,
+      "xwoba": 0.308
+    },
+    "away_starter": "Tomoyuki Sugano",
+    "away_starter_stats": {
+      "bb": 30,
+      "era": 5.19,
+      "fip": 5.37,
+      "hr": 27,
+      "ip": "131.2",
+      "k": 79,
+      "k_bb_pct": 8.7,
+      "record": "12-8",
+      "starts": 25,
+      "whip": 1.35
+    },
+    "event": "Colorado Rockies at New York Yankees",
+    "event_id": "401816870",
+    "game_pk": 823497,
+    "home": "New York Yankees",
+    "home_abbr": "NYY",
+    "home_bullpen": {
+      "bb": 7,
+      "era": 3.919354838709677,
+      "hr": 3,
+      "ip": 20.666666666666668,
+      "k": 22,
+      "whip": 1.064516129032258
+    },
+    "home_fair": 0.6894086618545252,
+    "home_form": {
+      "l": 3,
+      "n": 7,
+      "ra": 27,
+      "rd": 2,
+      "rf": 29,
+      "w": 4
+    },
+    "home_injuries": [
+      {
+        "name": "Jazz Chisholm Jr.",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Kevin Stevens",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Ryan Weathers",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Fernando Cruz",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Trent Grisham",
+        "status": "10-Day-IL",
+        "type": {
+          "abbreviation": "IL10",
+          "description": "10-day IL",
+          "id": "14",
+          "name": "INJURY_STATUS_10DAYIL"
+        }
+      },
+      {
+        "name": "Carlos Lagrange",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Clarke Schmidt",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Kervin Castro",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Wilson Rodriguez",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Giancarlo Stanton",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      }
+    ],
+    "home_ml": "-258",
+    "home_offense": {
+      "woba": 0.315,
+      "xwoba": 0.32
+    },
+    "home_starter": "Will Warren",
+    "home_starter_stats": {
+      "bb": 47,
+      "era": 4.16,
+      "fip": 4.23,
+      "hr": 20,
+      "ip": "136.1",
+      "k": 133,
+      "k_bb_pct": 14.5,
+      "record": "9-6",
+      "starts": 26,
+      "whip": 1.38
+    },
+    "park": {
+      "data_status": "available",
+      "flag": null,
+      "run_factor": 103,
+      "venue": "Yankee Stadium"
+    },
+    "time": "2026-09-09T23:05Z"
+  },
+  {
+    "away": "Tampa Bay Rays",
+    "away_abbr": "TB",
+    "away_bullpen": {
+      "bb": 12,
+      "era": 4.153846153846154,
+      "hr": 3,
+      "ip": 26.0,
+      "k": 20,
+      "whip": 1.2307692307692308
+    },
+    "away_fair": 0.46787015568068896,
+    "away_form": {
+      "l": 3,
+      "n": 7,
+      "ra": 36,
+      "rd": 0,
+      "rf": 36,
+      "w": 4
+    },
+    "away_injuries": [
+      {
+        "name": "Taylor Walls",
+        "status": "10-Day-IL",
+        "type": {
+          "abbreviation": "IL10",
+          "description": "10-day IL",
+          "id": "14",
+          "name": "INJURY_STATUS_10DAYIL"
+        }
+      },
+      {
+        "name": "Austin Overn",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Manuel Rodriguez",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Garrett Cleavinger",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Shane McClanahan",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Jake Fraley",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Edwin Uceta",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Gavin Lux",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Ben Williamson",
+        "status": "10-Day-IL",
+        "type": {
+          "abbreviation": "IL10",
+          "description": "10-day IL",
+          "id": "14",
+          "name": "INJURY_STATUS_10DAYIL"
+        }
+      },
+      {
+        "name": "Marshall Toole",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      }
+    ],
+    "away_ml": "+104",
+    "away_offense": {
+      "woba": 0.322,
+      "xwoba": 0.306
+    },
+    "away_starter": "Griffin Jax",
+    "away_starter_stats": {
+      "bb": 32,
+      "era": 3.82,
+      "fip": 4.02,
+      "hr": 14,
+      "ip": "94.1",
+      "k": 101,
+      "k_bb_pct": 17.4,
+      "record": "6-10",
+      "starts": 19,
+      "whip": 1.27
+    },
+    "event": "Tampa Bay Rays at Atlanta Braves",
+    "event_id": "401816874",
+    "game_pk": 824871,
+    "home": "Atlanta Braves",
+    "home_abbr": "ATL",
+    "home_bullpen": {
+      "bb": 9,
+      "era": 2.5714285714285716,
+      "hr": 5,
+      "ip": 28.0,
+      "k": 31,
+      "whip": 1.0357142857142858
+    },
+    "home_fair": 0.532129844319311,
+    "home_form": {
+      "l": 4,
+      "n": 7,
+      "ra": 27,
+      "rd": 0,
+      "rf": 27,
+      "w": 3
+    },
+    "home_injuries": [
+      {
+        "name": "Bryce Elder",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Robert Suarez",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Joe Jimenez",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Spencer Strider",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Hurston Waldrep",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Spencer Schwellenbach",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "AJ Gracia",
+        "status": "Out",
+        "type": {
+          "abbreviation": "O",
+          "description": "out",
+          "id": "4",
+          "name": "INJURY_STATUS_OUT"
+        }
+      },
+      {
+        "name": "Tate Southisene",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Rayven Antonio",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Landon Harper",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      }
+    ],
+    "home_ml": "-126",
+    "home_offense": {
+      "woba": 0.315,
+      "xwoba": 0.315
+    },
+    "home_starter": "Reynaldo L\u00f3pez",
+    "home_starter_stats": {
+      "bb": 29,
+      "era": 3.64,
+      "fip": 4.38,
+      "hr": 10,
+      "ip": "71.2",
+      "k": 66,
+      "k_bb_pct": 12.1,
+      "record": "4-3",
+      "starts": 11,
+      "whip": 1.34
+    },
+    "park": {
+      "data_status": "available",
+      "flag": null,
+      "run_factor": 101,
+      "venue": "Truist Park"
+    },
+    "time": "2026-09-09T23:15Z"
+  },
+  {
+    "away": "Arizona Diamondbacks",
+    "away_abbr": "ARI",
+    "away_bullpen": {
+      "bb": 11,
+      "era": 1.75,
+      "hr": 1,
+      "ip": 36.0,
+      "k": 39,
+      "whip": 0.9722222222222222
+    },
+    "away_fair": 0.5217391304347826,
+    "away_form": {
+      "l": 2,
+      "n": 7,
+      "ra": 22,
+      "rd": -2,
+      "rf": 20,
+      "w": 5
+    },
+    "away_injuries": [
+      {
+        "name": "Corbin Carroll",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Ryne Nelson",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Zac Gallen",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Michael Soroka",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Ryan Thompson",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Jansel Luis",
+        "status": "Out",
+        "type": {
+          "abbreviation": "O",
+          "description": "out",
+          "id": "4",
+          "name": "INJURY_STATUS_OUT"
+        }
+      },
+      {
+        "name": "A.J. Puk",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Andrew Saalfrank",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Juan Centeno",
+        "status": "developmental list",
+        "type": {
+          "abbreviation": "DEVLIST",
+          "description": "Developmental List",
+          "id": "12",
+          "name": "INJURY_STATUS_DEVELOPMENTAL_LIST"
+        }
+      },
+      {
+        "name": "Ryan Bruno",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      }
+    ],
+    "away_ml": "-120",
+    "away_offense": null,
+    "away_starter": "Zac Gallen",
+    "away_starter_stats": {
+      "bb": 31,
+      "era": 6.34,
+      "fip": 5.36,
+      "hr": 18,
+      "ip": "98.0",
+      "k": 61,
+      "k_bb_pct": 6.8,
+      "record": "3-9",
+      "starts": 19,
+      "whip": 1.56
+    },
+    "event": "Arizona Diamondbacks at Kansas City Royals",
+    "event_id": "401816875",
+    "game_pk": 824064,
+    "home": "Kansas City Royals",
+    "home_abbr": "KC",
+    "home_bullpen": {
+      "bb": 9,
+      "era": 5.0,
+      "hr": 4,
+      "ip": 27.0,
+      "k": 21,
+      "whip": 1.6666666666666667
+    },
+    "home_fair": 0.4782608695652174,
+    "home_form": {
+      "l": 5,
+      "n": 7,
+      "ra": 36,
+      "rd": -5,
+      "rf": 31,
+      "w": 2
+    },
+    "home_injuries": [
+      {
+        "name": "Jac Caglianone",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Maikel Garcia",
+        "status": "10-Day-IL",
+        "type": {
+          "abbreviation": "IL10",
+          "description": "10-day IL",
+          "id": "14",
+          "name": "INJURY_STATUS_10DAYIL"
+        }
+      },
+      {
+        "name": "Beck Way",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Carlos Estevez",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Tony Gonsolin",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Nick Mears",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "James McArthur",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Mitch Spence",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Luinder Avila",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Stephen Kolek",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      }
+    ],
+    "home_ml": "+100",
+    "home_offense": {
+      "woba": 0.315,
+      "xwoba": 0.313
+    },
+    "home_starter": "Daniel Lynch IV",
+    "home_starter_stats": {
+      "bb": 20,
+      "era": 3.51,
+      "fip": 3.78,
+      "hr": 5,
+      "ip": "66.2",
+      "k": 46,
+      "k_bb_pct": 9.5,
+      "record": "4-5",
+      "starts": 6,
+      "whip": 1.1
+    },
+    "park": {
+      "data_status": "available",
+      "flag": null,
+      "run_factor": 101,
+      "venue": "Kauffman Stadium"
+    },
+    "time": "2026-09-09T23:40Z"
+  },
+  {
+    "away": "Chicago Cubs",
+    "away_abbr": "CHC",
+    "away_bullpen": {
+      "bb": 12,
+      "era": 3.6986301369863015,
+      "hr": 4,
+      "ip": 24.333333333333332,
+      "k": 26,
+      "whip": 1.4383561643835616
+    },
+    "away_fair": 0.45880670533089696,
+    "away_form": {
+      "l": 4,
+      "n": 7,
+      "ra": 34,
+      "rd": -6,
+      "rf": 28,
+      "w": 3
+    },
+    "away_injuries": [
+      {
+        "name": "Gavin Hollowell",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Edward Cabrera",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Ben Brown",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Justin Steele",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Phil Maton",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Riley Martin",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Hunter Harvey",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Dansby Swanson",
+        "status": "10-Day-IL",
+        "type": {
+          "abbreviation": "IL10",
+          "description": "10-day IL",
+          "id": "14",
+          "name": "INJURY_STATUS_10DAYIL"
+        }
+      },
+      {
+        "name": "Shelby Miller",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Corbin Martin",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      }
+    ],
+    "away_ml": "+108",
+    "away_offense": {
+      "woba": 0.338,
+      "xwoba": 0.323
+    },
+    "away_starter": "Kevin Gausman",
+    "away_starter_stats": {
+      "bb": 44,
+      "era": 4.38,
+      "fip": 3.63,
+      "hr": 21,
+      "ip": "162.1",
+      "k": 165,
+      "k_bb_pct": 17.7,
+      "record": "9-11",
+      "starts": 29,
+      "whip": 1.26
+    },
+    "event": "Chicago Cubs at Milwaukee Brewers",
+    "event_id": "401816876",
+    "game_pk": 823739,
+    "home": "Milwaukee Brewers",
+    "home_abbr": "MIL",
+    "home_bullpen": {
+      "bb": 16,
+      "era": 3.903614457831325,
+      "hr": 3,
+      "ip": 27.666666666666668,
+      "k": 26,
+      "whip": 1.3734939759036144
+    },
+    "home_fair": 0.541193294669103,
+    "home_form": {
+      "l": 3,
+      "n": 7,
+      "ra": 37,
+      "rd": 2,
+      "rf": 39,
+      "w": 4
+    },
+    "home_injuries": [
+      {
+        "name": "Rob Zastryzny",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Jake Bauers",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Grant Anderson",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Luis Pena",
+        "status": "Out",
+        "type": {
+          "abbreviation": "O",
+          "description": "out",
+          "id": "4",
+          "name": "INJURY_STATUS_OUT"
+        }
+      },
+      {
+        "name": "Bryse Wilson",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Brandon Woodruff",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Freddy Zamora",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Jett Williams",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "J.B. Bukauskas",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Brian Fitzpatrick",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      }
+    ],
+    "home_ml": "-131",
+    "home_offense": {
+      "woba": 0.326,
+      "xwoba": 0.321
+    },
+    "home_starter": "Logan Henderson",
+    "home_starter_stats": {
+      "bb": 14,
+      "era": 2.48,
+      "fip": 3.33,
+      "hr": 12,
+      "ip": "83.1",
+      "k": 93,
+      "k_bb_pct": 25.5,
+      "record": "9-3",
+      "starts": 15,
+      "whip": 0.79
+    },
+    "park": {
+      "data_status": "available",
+      "flag": null,
+      "run_factor": 99,
+      "venue": "American Family Field"
+    },
+    "time": "2026-09-09T23:40Z"
+  },
+  {
+    "away": "Pittsburgh Pirates",
+    "away_abbr": "PIT",
+    "away_bullpen": {
+      "bb": 12,
+      "era": 4.247191011235955,
+      "hr": 0,
+      "ip": 29.666666666666668,
+      "k": 23,
+      "whip": 1.1123595505617978
+    },
+    "away_fair": 0.4508825786646201,
+    "away_form": {
+      "l": 2,
+      "n": 7,
+      "ra": 28,
+      "rd": 6,
+      "rf": 34,
+      "w": 5
+    },
+    "away_injuries": [
+      {
+        "name": "Isaac Mattson",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Ryan O'Hearn",
+        "status": "10-Day-IL",
+        "type": {
+          "abbreviation": "IL10",
+          "description": "10-day IL",
+          "id": "14",
+          "name": "INJURY_STATUS_10DAYIL"
+        }
+      },
+      {
+        "name": "Kirby Yates",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Endy Rodriguez",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Jhostynxon Garcia",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Termarr Johnson",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Carter Gwost",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Mitch Keller",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Seth Hernandez",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Anthony Solometo",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      }
+    ],
+    "away_ml": "+112",
+    "away_offense": {
+      "woba": 0.325,
+      "xwoba": 0.316
+    },
+    "away_starter": "Lake Bachar",
+    "away_starter_stats": {
+      "bb": 32,
+      "era": 3.59,
+      "fip": 4.7,
+      "hr": 13,
+      "ip": "77.2",
+      "k": 80,
+      "k_bb_pct": 15.1,
+      "record": "1-3",
+      "starts": 8,
+      "whip": 1.08
+    },
+    "event": "Pittsburgh Pirates at Chicago White Sox",
+    "event_id": "401816877",
+    "game_pk": 824549,
+    "home": "Chicago White Sox",
+    "home_abbr": "CHW",
+    "home_bullpen": {
+      "bb": 9,
+      "era": 2.1599999999999997,
+      "hr": 4,
+      "ip": 33.333333333333336,
+      "k": 29,
+      "whip": 1.0499999999999998
+    },
+    "home_fair": 0.54911742133538,
+    "home_form": {
+      "l": 4,
+      "n": 7,
+      "ra": 26,
+      "rd": 2,
+      "rf": 28,
+      "w": 3
+    },
+    "home_injuries": [
+      {
+        "name": "Tyler Davis",
+        "status": "bereavement",
+        "type": {
+          "abbreviation": "BL",
+          "description": "Bereavement",
+          "id": "15",
+          "name": "INJURY_STATUS_BEREAVEMENT"
+        }
+      },
+      {
+        "name": "Drew Thorpe",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Tommy Pham",
+        "status": "10-Day-IL",
+        "type": {
+          "abbreviation": "IL10",
+          "description": "10-day IL",
+          "id": "14",
+          "name": "INJURY_STATUS_10DAYIL"
+        }
+      },
+      {
+        "name": "Prelander Berroa",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Ky Bush",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Huascar Brazoban",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Jordan Leasure",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Roch Cholowsky",
+        "status": "Out",
+        "type": {
+          "abbreviation": "O",
+          "description": "out",
+          "id": "4",
+          "name": "INJURY_STATUS_OUT"
+        }
+      },
+      {
+        "name": "Billy Carlson",
+        "status": "Out",
+        "type": {
+          "abbreviation": "O",
+          "description": "out",
+          "id": "4",
+          "name": "INJURY_STATUS_OUT"
+        }
+      },
+      {
+        "name": "Joey Bart",
+        "status": "10-Day-IL",
+        "type": {
+          "abbreviation": "IL10",
+          "description": "10-day IL",
+          "id": "14",
+          "name": "INJURY_STATUS_10DAYIL"
+        }
+      }
+    ],
+    "home_ml": "-135",
+    "home_offense": {
+      "woba": 0.319,
+      "xwoba": 0.317
+    },
+    "home_starter": "Davis Martin",
+    "home_starter_stats": {
+      "bb": 40,
+      "era": 4.13,
+      "fip": 3.72,
+      "hr": 12,
+      "ip": "130.2",
+      "k": 114,
+      "k_bb_pct": 13.4,
+      "record": "9-6",
+      "starts": 25,
+      "whip": 1.32
+    },
+    "park": {
+      "data_status": "available",
+      "flag": null,
+      "run_factor": 102,
+      "venue": "Rate Field"
+    },
+    "time": "2026-09-09T23:40Z"
+  },
+  {
+    "away": "Cincinnati Reds",
+    "away_abbr": "CIN",
+    "away_bullpen": {
+      "bb": 19,
+      "era": 3.103448275862069,
+      "hr": 2,
+      "ip": 29.0,
+      "k": 36,
+      "whip": 1.3793103448275863
+    },
+    "away_fair": 0.28811011553878807,
+    "away_form": {
+      "l": 3,
+      "n": 7,
+      "ra": 36,
+      "rd": 4,
+      "rf": 40,
+      "w": 4
+    },
+    "away_injuries": [
+      {
+        "name": "Michael Toglia",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Spencer Steer",
+        "status": "10-Day-IL",
+        "type": {
+          "abbreviation": "IL10",
+          "description": "10-day IL",
+          "id": "14",
+          "name": "INJURY_STATUS_10DAYIL"
+        }
+      },
+      {
+        "name": "Sam Benschoter",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Hunter Greene",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Blake Dunn",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Jose Franco",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Julian Aguiar",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Brandon Leibrandt",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Cole Schoenwetter",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Connor Burns",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      }
+    ],
+    "away_ml": "+232",
+    "away_offense": {
+      "woba": 0.311,
+      "xwoba": 0.316
+    },
+    "away_starter": "Rhett Lowder",
+    "away_starter_stats": {
+      "bb": 47,
+      "era": 5.43,
+      "fip": 4.71,
+      "hr": 16,
+      "ip": "116.0",
+      "k": 90,
+      "k_bb_pct": 8.2,
+      "record": "6-9",
+      "starts": 22,
+      "whip": 1.49
+    },
+    "event": "Cincinnati Reds at Los Angeles Dodgers",
+    "event_id": "401816878",
+    "game_pk": 823900,
+    "home": "Los Angeles Dodgers",
+    "home_abbr": "LAD",
+    "home_bullpen": {
+      "bb": 6,
+      "era": 2.7,
+      "hr": 1,
+      "ip": 23.333333333333332,
+      "k": 26,
+      "whip": 1.0285714285714287
+    },
+    "home_fair": 0.711889884461212,
+    "home_form": {
+      "l": 1,
+      "n": 7,
+      "ra": 28,
+      "rd": 8,
+      "rf": 36,
+      "w": 6
+    },
+    "home_injuries": [
+      {
+        "name": "Andy Pages",
+        "status": "10-Day-IL",
+        "type": {
+          "abbreviation": "IL10",
+          "description": "10-day IL",
+          "id": "14",
+          "name": "INJURY_STATUS_10DAYIL"
+        }
+      },
+      {
+        "name": "Dalton Rushing",
+        "status": "10-Day-IL",
+        "type": {
+          "abbreviation": "IL10",
+          "description": "10-day IL",
+          "id": "14",
+          "name": "INJURY_STATUS_10DAYIL"
+        }
+      },
+      {
+        "name": "Edwin Diaz",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Roki Sasaki",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Gavin Stone",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Hyun-Seok Jang",
+        "status": "Day-To-Day",
+        "type": {
+          "abbreviation": "DD",
+          "description": "day-to-day",
+          "id": "6",
+          "name": "INJURY_STATUS_DAYTODAY"
+        }
+      },
+      {
+        "name": "Jake Cousins",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Will Klein",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      },
+      {
+        "name": "Eric Lauer",
+        "status": "15-Day-IL",
+        "type": {
+          "abbreviation": "IL15",
+          "description": "15-day IL",
+          "id": "10",
+          "name": "INJURY_STATUS_15DAYIL"
+        }
+      },
+      {
+        "name": "Ben Casparius",
+        "status": "60-Day-IL",
+        "type": {
+          "abbreviation": "IL60",
+          "description": "60-day IL",
+          "id": "11",
+          "name": "INJURY_STATUS_60DAYIL"
+        }
+      }
+    ],
+    "home_ml": "-291",
+    "home_offense": {
+      "woba": 0.331,
+      "xwoba": 0.337
+    },
+    "home_starter": "Yoshinobu Yamamoto",
+    "home_starter_stats": {
+      "bb": 38,
+      "era": 2.67,
+      "fip": 3.42,
+      "hr": 18,
+      "ip": "165.0",
+      "k": 161,
+      "k_bb_pct": 19.4,
+      "record": "12-8",
+      "starts": 25,
+      "whip": 0.9
+    },
+    "park": {
+      "data_status": "unavailable",
+      "flag": "park run factor unavailable for UNIQLO Field at Dodger Stadium \u2014 no park_home_context adjustment; charge the unknown_park_environment haircut instead of discarding the game",
+      "run_factor": null,
+      "venue": "UNIQLO Field at Dodger Stadium"
+    },
+    "time": "2026-09-10T02:10Z"
+  }
+]
