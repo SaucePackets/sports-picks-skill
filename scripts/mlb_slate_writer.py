@@ -827,7 +827,26 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="skeleton destination (default: .picks/tmp/)",
     )
+    parser.add_argument(
+        "--schema-sha256",
+        help="expected producer schema digest; refuse before any draft or schedule write on mismatch",
+    )
     args = parser.parse_args(argv)
+    if (
+        args.schema_sha256 is not None
+        and args.schema_sha256 != mlb_game_reads.producer_schema()["sha256"]
+    ):
+        print(
+            json.dumps(
+                {
+                    "landed": False,
+                    "errors": [
+                        "producer/schema fingerprint mismatch; regenerate the source contract before serialization"
+                    ],
+                }
+            )
+        )
+        return 1
 
     root = (args.root or resolve_scan_root()).resolve()
     # A malformed ``--day`` is a usage error and not a finding about the slate:
