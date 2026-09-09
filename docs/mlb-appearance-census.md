@@ -31,7 +31,9 @@ caught-stealing and pickoff outs in its explicit `RUNNER_OUT_EVENTS` set. Each
 requires a complete, nonscoring third-out play, fewer than four balls and three
 strikes, a runner distinct from the matchup batter who started on an occupied
 base, matching event type and out base, exactly one matching third out, and a
-valid indexed play-event reference. In-play or terminal PA event details conflict
+valid indexed play-event reference whose own `details.isOut` is exactly true.
+False, missing, or nonboolean out flags refuse recovery; an unrelated event
+cannot substitute for the referenced event. In-play or terminal PA event details conflict
 with this interpretation and refuse it. Generic `other_out`, wild pitches,
 stolen bases, pickoff errors, and unknown labels remain insufficient evidence.
 The retained game 778557 play 66 projection supplies a concrete fixture; its

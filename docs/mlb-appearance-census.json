@@ -1,6 +1,6 @@
 {
   "adapter_sha256": {
-    "mlb_appearance_census.py": "3a9d6682a22c702551d3768f8b8e987412c43137f915d0838377b367df7e10a6",
+    "mlb_appearance_census.py": "fb7f6b3884667439c64137417862c1c76633c22d271f2dde9c18c403e48e83d4",
     "mlb_bulk_starter_admission.py": "430ade044ba1843f770c484dc0904c4f29f40a4d1a3efe40c3654b4440f1b994",
     "mlb_bulk_starter_snapshots.py": "8b0e190df66ea7e05e8df1a156cef929b4feeb5d0c23e2ee63e8469772fcf63f",
     "mlb_chronological_admission.py": "90519414af4c5649793547ffced81deb87a4c44678d6764cd494a0db9aaf13b3",
@@ -67,7 +67,7 @@
   "regular_occurrences": 1291,
   "remaining_refused_occurrences": 137,
   "replay_bytes": 11019723,
-  "replay_sha256": "3c76c5baf604ab2b9a6fdad2abde895f5ad6a8f0093005bf1402095e98e454c7",
+  "replay_sha256": "b84341afc63ca8449cf7521857017a68063ab1075fefde46d5839fb28e3bc2e3",
   "schema": "mlb-appearance-census-v1",
   "scoring_enabled": false
 }

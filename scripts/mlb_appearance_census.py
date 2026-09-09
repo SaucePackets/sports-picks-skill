@@ -61,6 +61,7 @@ def runner_out(play):
         require(type(index) is int and 0 <= index < len(events)
                 and type(events[index]['index']) is int and events[index]['index'] == index, 'non_pa_event_reference')
         if details['eventType'] == result['eventType'] and movement['isOut'] is True:
+            require(events[index]['details'].get('isOut') is True, 'non_pa_referenced_event_not_out')
             matched += int(type(movement['outNumber']) is int and movement['outNumber'] == 3
                         and movement['end'] is None and movement['outBase'] == out_base)
     require(matched == 1, 'non_pa_runner_out_not_corroborated')

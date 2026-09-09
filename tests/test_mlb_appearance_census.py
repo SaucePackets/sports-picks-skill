@@ -20,7 +20,7 @@ def example():
     p['about'].update(atBatIndex=2, isScoringPlay=False)
     p['result'].update(eventType='caught_stealing_2b', isOut=True)
     p['count'] = dict(balls=1, strikes=2, outs=3)
-    p['playEvents'] = [{'isPitch': True, 'index': 0, 'details': {}}]
+    p['playEvents'] = [{'isPitch': True, 'index': 0, 'details': {'isOut': True}}]
     p['runners'] = [{'movement': dict(start='1B', end=None, outBase='2B', isOut=True, outNumber=3),
         'details': dict(eventType='caught_stealing_2b', runner={'id': 777}, isScoringEvent=False, playIndex=0)}]
     f['liveData']['plays']['allPlays'].append(p)
@@ -38,6 +38,22 @@ class CensusTests(unittest.TestCase):
         self.assertEqual(home['non_pa_play_pointers'], ['/liveData/plays/allPlays/2'])
         self.assertEqual(home['play_pointers'], ['/liveData/plays/allPlays/1'])
         self.assertEqual(len(m.play_inventory(raw(f))), 3)
+
+    def test_referenced_event_must_explicitly_corroborate_out(self):
+        for value in (False, None, 1, 'true', 'missing'):
+            with self.subTest(is_out=value):
+                g, f, p = example()
+                # An unrelated true event must not corroborate the referenced one.
+                p['playEvents'].append({'isPitch': False, 'index': 1, 'details': {'isOut': True}})
+                if value == 'missing':
+                    p['playEvents'][0]['details'].pop('isOut')
+                else:
+                    p['playEvents'][0]['details']['isOut'] = value
+                with self.assertRaisesRegex(ValueError, 'non_pa_referenced_event_not_out'):
+                    m.runner_out(p)
+                with self.assertRaisesRegex(ValueError, 'non_pa_referenced_event_not_out'):
+                    m.appearances(g, raw(f), non_pa_classifier=m.runner_out)
+                self.assertEqual(m.play_inventory(raw(f))[-1]['refusal'], 'non_pa_referenced_event_not_out')
 
     def test_retained_runner_projection_in_synthetic_envelope(self):
         fixture = m.decode((Path(__file__).parent/'fixtures/mlb_778557_runner_out.json').read_bytes())
