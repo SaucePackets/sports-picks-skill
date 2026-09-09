@@ -1,0 +1,21 @@
+{
+  "acquisition_sha256": "92acda65ff2e925c593917be55d3776c61875cf162d26b5e602e59cabbf7c182",
+  "adapter_sha256": {
+    "mlb_bulk_starter_admission.py": "430ade044ba1843f770c484dc0904c4f29f40a4d1a3efe40c3654b4440f1b994",
+    "mlb_bulk_starter_snapshots.py": "8b0e190df66ea7e05e8df1a156cef929b4feeb5d0c23e2ee63e8469772fcf63f",
+    "mlb_chronological_admission.py": "90519414af4c5649793547ffced81deb87a4c44678d6764cd494a0db9aaf13b3",
+    "mlb_chronological_checkpoint.py": "e4f38993b4d57c5c383710ded265cfbb0d7f47a79e9204ed292eeef16ff64ab5",
+    "mlb_chronological_starter_probe.py": "1fd61e9b5735ea96875091d6ca4299cf5b0a5b904fc0271c50e60ca657c69a59",
+    "mlb_market_free_checkpoint.py": "6b8f82a47ef966e4e30a5a41e39c06117bc9ecabd53aa30c254c2eafc316fd33",
+    "mlb_real_shadow_capture.py": "ad3925128f9b847e27adb63248716be3f11788ace65eb06145ade382e472165b"
+  },
+  "assigned_base": "bbee9b7",
+  "bundle_sha256": "d8983606ce75093d924d53caffe73c31b9fdbd404c0ca086ad3873d73f2dc7aa",
+  "contract_sha256": "4883378257b6f6d2834945a38f96fc8c8c57b71366bda45c42c4c838d88432bf",
+  "manifest_sha256": "acd3e7544f718b9321a5eb293e54a322d5cca6d9a94d7027fb3b36f8f5a5191b",
+  "plan_sha256": "a0b47bb663a165848146193dd9fcb7bdc18dab74ac944237f7791c5ef0b0f300",
+  "predecessor_checkpoint": "mlb-bulk-starter-snapshots.json",
+  "replay_bytes": 2627833,
+  "replay_sha256": "09cf7472f85105395f37d44684ba008447e059f9904ee41de0145094ad6d7bcd",
+  "schema": "mlb-provenance-checkpoint-v1"
+}
