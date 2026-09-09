@@ -785,3 +785,34 @@ never substitute for component arithmetic.
   baseline, no predictive score regressing, and at least one predictive score
   improving by its predeclared margin. Anything else exits non-zero and the
   market-only fallback stays active.
+
+
+### Acquisition completeness receipts
+
+Stage 2 now emits `data_completeness` per game and a
+`.picks/tmp/stage2-YYYY-MM-DD.coverage.json` receipt. Keep all scheduled games,
+including unresolved identities and source failures. `complete_reads` measures
+source coverage, not picks or model quality; `ready_for_evaluation` is not a pass
+or a candidate. The source receipt partitions every row among
+`incomplete_input_data`, `not_priced`, and `ready_for_evaluation`, and separately
+counts unpriced games so simultaneous outages remain visible.
+
+Record an input-caused refusal as disposition `incomplete_input_data` with the
+same named refusal rail. Record a price-caused refusal as `not_priced`; reserve
+`pass` for an evaluated refusal. Do not turn missing inputs into a handicapping
+judgment. For versioned scans, the writer recomputes completeness from the
+source fields and rejects a `pass` with missing/stale lineup evidence or absent
+prices. Legacy scans remain readable but cannot establish verified lineup
+coverage. The source acquisition assessment does not alter candidate eligibility,
+lineup-watchlist exceptions, price/edge floors, review, or execution policy.
+
+Lineup confirmation means a complete published pregame StatsAPI order,
+corroborated by nine unique players in starting slots 1–9, matching game/team
+identities and first pitch. It is not a vendor confirmation boolean. Evidence
+includes source URL, UTC retrieval time, team ID/abbreviation, and player IDs,
+names, and slots. Absent or empty data, substitutes, identity conflicts, observations
+at/after first pitch, future timestamps, or age greater than 30 minutes cannot
+establish current confirmed-lineup coverage. Refresh the source when stale;
+never refresh a timestamp without fetching the source.
+
+See `docs/mlb-data-completeness.md` for diagnosis, limitations, and validation.
