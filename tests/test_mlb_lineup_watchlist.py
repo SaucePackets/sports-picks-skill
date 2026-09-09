@@ -959,6 +959,7 @@ class MlbLineupWatchlistTests(unittest.TestCase):
         promoted = self.starter_pending_entry(
             status="promoted",
             rechecked_at_utc="2026-07-17T21:45:00Z",
+            slate_probability=prob_block(),
             recheck={
                 "lineups_confirmed": True,
                 "key_injuries_refreshed": True,
@@ -966,6 +967,9 @@ class MlbLineupWatchlistTests(unittest.TestCase):
                 "all_original_gates_hold": True,
                 "starter_confirmed": True,
                 "net_edge_recomputed": True,
+                "probability": prob_block(),
+                "material_changes": ["opposing starter announced"],
+                "probability_unchanged_justification": "Announced starter matches the expected profile used in the morning read.",
             },
             promoted_candidate={
                 "watchlist_id": "lineup-abc-def",
@@ -975,15 +979,19 @@ class MlbLineupWatchlistTests(unittest.TestCase):
                 "execution_status": "pending",
                 "max_polymarket_price": 0.53,
                 "executed": False,
+                "baseball_evidence": valid_baseball_evidence(),
+                **prob_block(),
             },
         )
+        from dataclasses import replace
+        disabled = replace(enabled_starter_policy(), starter_pending_promotions_enabled=False)
         with mock.patch.object(
             mlb_lineup_watchlist, "standing_authorization_enabled", return_value=True
-        ):
+        ), mock.patch.object(mlb_lineup_watchlist, "load_mlb_selection_policy", return_value=disabled):
             errors = mlb_lineup_watchlist.validate_entry(promoted)
-        self.assertIn(
-            "starter_unannounced entries cannot be promoted: "
-            "starter_pending_promotions_enabled is false in the shared MLB selection policy",
+        self.assertEqual(
+            ["starter_unannounced entries cannot be promoted: "
+            "starter_pending_promotions_enabled is false in the shared MLB selection policy"],
             errors,
         )
 
