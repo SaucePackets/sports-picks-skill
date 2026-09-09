@@ -468,10 +468,11 @@ class NflSlateCollector:
                          "ask": None, "net_edge": None},
         }
 
-        row["blockers"] = readiness_blockers(row)
-        row["assessment"] = "PASS"
-        row["candidates"] = []
-        row["official_pick_allowed"] = False
+        row["context_version"] = 1
+        row["collected_at"] = dt.datetime.now(dt.timezone.utc).isoformat()
+        row["away_id"], row["home_id"] = str(away_id), str(home_id)
+        row["analysis_tasks"] = readiness_tasks(row)
+        row["collector_only"] = True
         return row
 
     def collect(self) -> list[dict[str, Any]]:
@@ -491,15 +492,16 @@ class NflSlateCollector:
                         "event": event.get("name") if isinstance(event, dict) else None,
                         "time": event.get("date") if isinstance(event, dict) else None,
                         "error": f"{type(exc).__name__}: {exc}",
-                        "assessment": "PASS", "candidates": [], "official_pick_allowed": False,
-                        "blockers": [{"component": "game", "category": "collector_failure",
+                        "context_version": 1, "collector_only": True,
+                        "collected_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+                        "analysis_tasks": [{"component": "game", "category": "collector_failure",
                                       "reason": "row_collection_failed"}],
                     }
                 )
         return rows
 
 
-def readiness_blockers(row: dict[str, Any]) -> list[dict[str, str]]:
+def readiness_tasks(row: dict[str, Any]) -> list[dict[str, str]]:
     """Collection diagnostics, not an implementation of the full handicap gate."""
     blockers = []
 
@@ -507,7 +509,7 @@ def readiness_blockers(row: dict[str, Any]) -> list[dict[str, str]]:
         status = evidence.get("status", "not_retrieved")
         if status in ("retrieved", "not_applicable"):
             return
-        category = {"unavailable": "upstream_missing", "collector_failure": "collector_failure"}.get(status, "hard_gate")
+        category = {"unavailable": "upstream_missing", "collector_failure": "collector_failure"}.get(status, "collection_required")
         blockers.append({"component": component, "category": category,
                          "reason": evidence.get("reason", status)})
 
@@ -520,12 +522,12 @@ def readiness_blockers(row: dict[str, Any]) -> list[dict[str, str]]:
         if not form.get("n"):
             blockers.append({"component": f"{side}_form", "category": "upstream_missing", "reason": "no_completed_form"})
         if form.get("prior_season_games"):
-            blockers.append({"component": f"{side}_form", "category": "hard_gate", "reason": "offseason_changes_require_review"})
+            blockers.append({"component": f"{side}_form", "category": "analysis_required", "reason": "offseason_changes_require_review"})
     check("weather", row.get("weather", {}))
     check("exchange", row.get("exchange", {}))
     if row.get("away_fair") is None or row.get("home_fair") is None:
         blockers.append({"component": "sportsbook", "category": "upstream_missing", "reason": "two_sided_price_missing"})
-    blockers.append({"component": "analysis", "category": "hard_gate",
+    blockers.append({"component": "analysis", "category": "analysis_required",
                      "reason": "full_nfl_handicap_and_lock_gate_required"})
     return blockers
 

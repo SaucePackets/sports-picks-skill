@@ -122,8 +122,13 @@ injury identities/positions, roster and depth-chart evidence, stadium weather,
 and per-game readiness diagnostics. See `docs/nfl-readiness.md` for field and
 failure semantics. Depth rank and roster Active are not game-day QB confirmation;
 `unavailable` means the requested source did not supply evidence, while
-`not_retrieved` means the input has not been collected. The scanner emits PASS
-and no candidates pending the full handicap. Treat it as slate context;
+`not_retrieved` means the input has not been collected. The scanner emits
+collector-only context and analysis tasks. It does not emit
+a final PASS or candidates array. Complete the per-game handicap through
+`scripts/nfl_card_writer.py`; see `docs/nfl-card-writer.md` and the committed
+`scripts/nfl_weekly_prompt.txt`. An incomplete assessment is no-pick and visibly
+INCOMPLETE, never a completed zero-card. Require finalizer `--verify` success
+before accepting the run bundle as a completed card. Treat it as slate context;
 deeper per-candidate stats still come from the steps below.
 
 ### Step 1 — Current form (ALWAYS first)

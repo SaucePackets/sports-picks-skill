@@ -1,10 +1,11 @@
 # NFL scanner readiness evidence
 
 `python3 scripts/nfl_stage2_scan.py --season 2026 --week 1` remains a
-read-only context collector. Each row now includes `blockers`, `assessment:
-"PASS"`, `official_pick_allowed: false`, and `candidates: []`. These are the
-collector's readiness result, not a replacement for a separately completed
-NFL handicap. It cannot authorize a pick, infer an exchange price, or execute.
+read-only context collector. Each row carries `context_version: 1`,
+`collector_only: true`, `collected_at`, team IDs and `analysis_tasks`.
+It has no final-card decision or candidates fields. The supported second-stage
+path is `nfl_card_writer.py`, documented in [nfl-card-writer.md](nfl-card-writer.md).
+Only completed, validated assessments can produce an official proposed card.
 
 ## Player evidence
 
@@ -34,9 +35,9 @@ Status meanings:
 - `not_retrieved`: this collector intentionally has not acquired that input.
 - `not_applicable`: ESPN explicitly marks the venue indoor.
 
-Diagnostics classify these as `upstream_missing`, `collector_failure`, or
-`hard_gate`. Full handicap/lock-gate review always remains required. Missing
-exchange context is explicitly `not_retrieved`, with null `ask` and `net_edge`.
+Diagnostics classify acquisition states separately from `analysis_required`
+tasks. These are not final gate decisions. Full handicap/lock-gate review always
+remains required. Missing exchange context is explicitly `not_retrieved`, with null `ask` and `net_edge`.
 
 ## Stadium weather
 
@@ -74,8 +75,8 @@ estimated win probability. `discounted_pd_per_game` divides weighted PD by raw
 valid game count: dividing by effective sample size would cancel the discount
 in a prior-only Week 1 sample. Analysis must use the discounted contribution,
 not raw historical PD as current form. The form label explicitly flags the
-fallback; offseason roster/coaching adjustment remains a blocker and Week 1
-confidence is capped at Medium. No fallback runs in Week 5+, preseason, or
+fallback; offseason roster/coaching adjustment remains a required analytical
+task and Week 1 confidence is capped at Medium. No fallback runs in Week 5+, preseason, or
 postseason. These summaries do not enforce the downstream analyst's reasoning.
 
 ## Verification and provider references
