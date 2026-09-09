@@ -8,11 +8,11 @@ unreadable/invalid evidence. A report is not an eligibility verdict.
 
 ```sh
 python3 scripts/mlb_job_diagnostics.py \
-  --runtime-root /snapshot/home/projects/sports-picks-runtime \
-  --script-cwd /snapshot/home/.hermes/profiles/vig/scripts \
-  --home /snapshot/home --day 2026-09-08 \
-  --execution-db /snapshot/home/.hermes/cron/executions.db \
-  --execution-db /snapshot/home/.hermes/profiles/vig/cron/executions.db \
+  --runtime-root /snapshot/account/projects/sports-picks-runtime \
+  --script-cwd /snapshot/account/.hermes/profiles/vig/scripts \
+  --home /snapshot/account --day 2026-09-08 \
+  --execution-db /snapshot/account/.hermes/cron/executions.db \
+  --execution-db /snapshot/account/.hermes/profiles/vig/cron/executions.db \
   --job-id example-poller \
   --since 2026-09-08T21:31:29Z --until 2026-09-08T22:40:00Z
 ```
