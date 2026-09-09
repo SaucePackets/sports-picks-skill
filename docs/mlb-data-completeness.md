@@ -104,3 +104,16 @@ A read-only official-feed check at 2026-09-09T20:10:54Z parsed both Arizona and
 Kansas City published orders as confirmed with nine corroborated players each.
 This is acquisition-parser evidence, not a deployed cron or end-to-end picks
 workflow result.
+
+## Review corrections
+
+Source-data refusals now require agreement in both directions: `not_priced`
+requires source status `not_priced`, and `incomplete_input_data` requires that
+same source status. Missing inputs take precedence over absent prices when
+both occur. The real writer is exercised across all three refusing dispositions
+and four source states, including every crossed classification and valid landing.
+
+The byte-binding regression changes an offense value while retaining one row
+and the same unique game identity. Coverage and writer admission reject the
+stale digest, and rebinding the same changed bytes restores admission. This
+isolates hash verification from count reconciliation.

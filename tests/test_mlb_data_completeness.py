@@ -229,8 +229,21 @@ def test_coverage_sidecar_is_bound_to_scan_bytes(tmp_path):
     r["scan_sha256"] = hashlib.sha256(p.read_bytes()).hexdigest()
     p.with_suffix(".coverage.json").write_text(json.dumps(r))
     assert data.coverage_for_scan(p, [row()], NOW)["reconciled"]
-    p.write_text("[]")
-    assert not data.coverage_for_scan(p, [], NOW)["reconciled"]
+    from scripts import mlb_slate_writer as writer
+    assert writer.load_scan(p)[0][0]["game_pk"] == 1
+    changed = row()
+    changed["away_offense"]["woba"] = .31
+    p.write_text(json.dumps([changed]))
+    assert data.coverage([changed], NOW, scheduled_games=1, schedule_verified=True)["reconciled"]
+    assert not data.coverage_for_scan(p, [changed], NOW)["reconciled"]
+    with pytest.raises(writer.SlateWriteError, match="cannot reconcile"):
+        writer.load_scan(p)
+    # Rebinding precisely these bytes restores admission: the digest, not
+    # changed cardinality or identity, was the sole failing condition.
+    r["scan_sha256"] = hashlib.sha256(p.read_bytes()).hexdigest()
+    p.with_suffix(".coverage.json").write_text(json.dumps(r))
+    assert data.coverage_for_scan(p, [changed], NOW)["reconciled"]
+    assert writer.load_scan(p)[0] == [changed]
 
 
 @pytest.mark.parametrize("disposition", ["candidate", "pass"])
@@ -322,3 +335,40 @@ def test_incomplete_disposition_requires_named_rail():
     from scripts import mlb_game_reads
     assert not mlb_game_reads._disposition_errors("read", {"disposition": "incomplete_input_data", "refusing_rails": ["incomplete_input_data"]})
     assert mlb_game_reads._disposition_errors("read", {"disposition": "incomplete_input_data", "refusing_rails": ["starter_floor"]})
+
+
+@pytest.mark.parametrize("source_status", ["ready_for_evaluation", "not_priced", "incomplete_input_data", "missing_and_unpriced"])
+@pytest.mark.parametrize("disposition", ["pass", "not_priced", "incomplete_input_data"])
+def test_refusal_classifications_correspond_through_real_writer(tmp_path, source_status, disposition):
+    import hashlib
+    import vig_policy_state
+    from scripts import mlb_slate_writer as writer
+    from tests.test_mlb_slate_writer import draft_for, read_for
+
+    r = row()
+    if source_status in ("incomplete_input_data", "missing_and_unpriced"):
+        r["away_offense"] = None
+    if source_status in ("not_priced", "missing_and_unpriced"):
+        r["away_fair"] = r["home_fair"] = None
+    expected = data.assess(r, NOW)["status"]
+    # Keep the recorded summary saying ready: admission must recompute.
+    path = writer.denominator_output_path("2026-09-09", tmp_path)
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps([r]))
+    receipt = data.coverage([r], NOW, scheduled_games=1, schedule_verified=True)
+    receipt["scan_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+    path.with_suffix(".coverage.json").write_text(json.dumps(receipt))
+    rails = {"pass": "price_discipline", "not_priced": "no_dk_price", "incomplete_input_data": "incomplete_input_data"}
+    read = read_for(r, disposition=disposition, refusing_rails=[rails[disposition]])
+    draft = draft_for([r], date="2026-09-09", game_reads=[read])
+    accepted = (disposition == "pass" and expected == "ready_for_evaluation") or disposition == expected
+    with vig_policy_state.deployed_policy(tmp_path / "state"), \
+            mock.patch("mlb_data_completeness.utc_now", return_value=NOW):
+        if accepted:
+            landed, result = writer.land(tmp_path, "2026-09-09", draft)
+            assert landed.exists()
+            assert result["game_reads"][0]["disposition"] == disposition
+        else:
+            with pytest.raises(writer.SlateWriteError, match=f"{disposition} cannot describe {expected}"):
+                writer.land(tmp_path, "2026-09-09", draft)
+            assert not (tmp_path / ".picks/execute/2026-09-09-schedule.json").exists()

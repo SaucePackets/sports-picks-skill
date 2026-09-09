@@ -205,6 +205,8 @@ def read_disposition_errors(reads: list, rows: list, now: dt.datetime | None = N
         disposition = read.get("disposition")
         if disposition in ("pass", "candidate") and status["status"] != "ready_for_evaluation":
             errors.append(f"game {read.get('game_pk')}: {disposition} cannot describe {status['status']}")
+        if disposition in ("incomplete_input_data", "not_priced") and disposition != status["status"]:
+            errors.append(f"game {read.get('game_pk')}: {disposition} cannot describe {status['status']}")
         if disposition == "lineup_watchlist" and (
                 not status["prices_available"] or set(status["missing_fields"]) - {"away_lineup", "home_lineup"}):
             errors.append(f"game {read.get('game_pk')}: lineup watchlist has missing non-lineup inputs")
