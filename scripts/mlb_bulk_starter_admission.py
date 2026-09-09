@@ -99,14 +99,18 @@ def starter(game, sources, cutoff):
             'pitcher_pointer': '/gameData/probablePitchers', 'timestamp_pointer': '/metaData/timeStamp'}
 
 
-def appearances(game, body):
+def appearances(game, body, *, non_pa_classifier=None, trace=None):
     """Corroborate all listed pitchers, per-game BF/K/BB, and completed PA identity."""
+    if trace is not None:
+        trace.update(feed_pointer="", stage="outcome")
     final = outcome(game, body)
     data = decode(body)
     boxes = data['liveData']['boxscore']['teams']
     records = {}
     for side in SIDES:
         box = boxes[side]
+        if trace is not None:
+            trace.update(feed_pointer=f'/liveData/boxscore/teams/{side}', stage='box')
         require(positive_id(box['team']['id']) == game[side + '_id'], 'box_team_mismatch')
         ids = [positive_id(p) for p in box['pitchers']]
         require(bool(ids) and len(ids) == len(set(ids)), 'box_pitcher_list')
@@ -125,11 +129,15 @@ def appearances(game, body):
                 'box_pointer': f'/liveData/boxscore/teams/{side}/players/ID{pid}/stats/pitching',
                 'plate_appearances': 0, 'strikeouts': 0, 'walks': 0, 'play_pointers': [], 'expected': stats}
     for i, play in enumerate(data['liveData']['plays']['allPlays']):
+        pointer = f'/liveData/plays/allPlays/{i}'
+        if trace is not None:
+            trace.update(feed_pointer=pointer, stage='play')
         about = play['about']
         require(type(about['atBatIndex']) is int and about['atBatIndex'] == i
                 and type(about['isTopInning']) is bool, 'play_index_or_side')
         require(instant(game['scheduled_start']) <= instant(about['startTime']), 'play_before_scheduled_start')
-        require(play['result']['type'] == 'atBat' and play['result']['eventType'] in PA_EVENTS,
+        is_pa = play['result']['type'] == 'atBat' and play['result']['eventType'] in PA_EVENTS
+        require(is_pa or (non_pa_classifier is not None and non_pa_classifier(play)),
                 'unsupported_plate_appearance_event')
         pid = positive_id(play['matchup']['pitcher']['id'])
         positive_id(play['matchup']['batter']['id'])
@@ -146,11 +154,16 @@ def appearances(game, body):
         require(pid in records, 'play_pitcher_not_in_box')
         record = records[pid]
         require(record['side'] == ('home' if about['isTopInning'] else 'away'), 'play_pitcher_team_mismatch')
+        if not is_pa:
+            record.setdefault('non_pa_play_pointers', []).append(pointer)
+            continue
         record['plate_appearances'] += 1
         record['strikeouts'] += int(play['result']['eventType'] in K_EVENTS)
         record['walks'] += int(play['result']['eventType'] in BB_EVENTS)
         record['play_pointers'].append(f'/liveData/plays/allPlays/{i}')
     for record in records.values():
+        if trace is not None:
+            trace.update(feed_pointer=record['box_pointer'], stage='counts')
         stats = record.pop('expected')
         require(record['plate_appearances'] > 0, 'appearance_without_completed_pa')
         require([record[k] for k in ('plate_appearances', 'strikeouts', 'walks')] ==
