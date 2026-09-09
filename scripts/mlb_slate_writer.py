@@ -96,7 +96,7 @@ import mlb_runtime_policy  # noqa: E402
 # the same reason: the writer, the receipt and the gate must agree byte-for-byte
 # about where a day's schedule lives, and two copies of that is two chances to
 # disagree about it.
-from mlb_slate_receipt import schedule_path_for  # noqa: E402
+from mlb_slate_receipt import read_sha256, schedule_path_for  # noqa: E402
 from mlb_stage2_scan import denominator_output_path, resolve_scan_root  # noqa: E402
 
 DENOMINATOR_SOURCE = "mlb_stage2_scan"
@@ -420,6 +420,13 @@ def compose(draft: dict[str, Any], denominator: dict[str, Any]) -> dict[str, Any
             _canonical_event_ids(entry) for entry in schedule["game_reads"]
         ]
     schedule["slate_denominator"] = _canonical_denominator(denominator)
+    schedule["slate_denominator"]["read_bindings"] = {
+        str(read.get("game_pk")): {
+            "read_sha256": read_sha256(read),
+            "scan_sha256": denominator.get("scan_sha256"),
+        }
+        for read in schedule.get("game_reads", []) if isinstance(read, dict)
+    }
     schedule.setdefault("candidates", [])
     schedule.setdefault("lineup_watchlist", [])
     return schedule
@@ -554,7 +561,7 @@ def validate_card_identities(schedule: dict[str, Any]) -> None:
 def merge_existing(
     existing: dict[str, Any], incoming: dict[str, Any]
 ) -> tuple[dict[str, Any], dict[str, int]]:
-    """Keep the header and all existing cards; only new games may be appended.
+    """Refresh the derived denominator; retain other headers and existing cards.
 
     The retained read for an occupied game travels with its card, including a
     watchlist promotion's candidate disposition. A stale producer retry cannot
@@ -606,13 +613,24 @@ def merge_existing(
     if set(retained) != occupied:
         raise SlateWriteError(["occupied entries require their existing game reads"])
     merged["game_reads"] = [retained.get(r["game_pk"], r) for r in reads]
+    denominator = dict(incoming["slate_denominator"])
+    bindings = dict(denominator["read_bindings"])
+    old_bindings = existing["slate_denominator"].get("read_bindings", {})
+    if not isinstance(old_bindings, dict):
+        old_bindings = {}
+    for game_pk in occupied:
+        # Missing legacy bindings stay unknown. Never reattribute an earlier
+        # retained read to the scan accepted by this append.
+        bindings[str(game_pk)] = old_bindings.get(str(game_pk))
+    denominator["read_bindings"] = bindings
+    merged["slate_denominator"] = denominator
     return merged, counts
 
 
 def preserving_payload(
     raw: str, existing: dict[str, Any], merged: dict[str, Any]
 ) -> str:
-    """Replace changed array values only, retaining original element JSON bytes.
+    """Replace arrays and derived denominator, retaining original element bytes.
 
     Everything outside those values, including whitespace and header spelling,
     remains untouched. Equal arrays are not rewritten at all.
@@ -631,6 +649,9 @@ def preserving_payload(
         start = pos
         old, pos = decoder.raw_decode(raw, pos)
         if old == merged[key]:
+            continue
+        if key == "slate_denominator":
+            replacements.append((start, pos, json.dumps(merged[key], indent=2)))
             continue
         if key not in ("candidates", "lineup_watchlist", "game_reads"):
             raise SlateWriteError([f"unsafe mutation of schedule header {key}"])

@@ -148,6 +148,43 @@ def _scan_game_count(scan_rows: Any) -> int | None:
     return len(scan_rows)
 
 
+def read_sha256(read: dict[str, Any]) -> str:
+    """Bind a read's JSON value without changing its retained on-disk spelling."""
+    return hashlib.sha256(
+        json.dumps(read, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
+
+def read_scan_bindings(schedule: Any, actual_scan: Any) -> dict[str, Any]:
+    """Diagnostic landing attribution; neither digest nor mtime proves acquisition."""
+    result = {
+        "current_scan": [], "earlier_scan": [], "unknown": [],
+        "acquisition_freshness": "not_established",
+    }
+    if not isinstance(schedule, dict):
+        return result
+    denominator = schedule.get("slate_denominator")
+    bindings = denominator.get("read_bindings") if isinstance(denominator, dict) else None
+    reads = schedule.get("game_reads")
+    for read in reads if isinstance(reads, list) else []:
+        if not isinstance(read, dict):
+            continue
+        game_pk = read.get("game_pk")
+        binding = bindings.get(str(game_pk)) if isinstance(bindings, dict) else None
+        digest = binding.get("scan_sha256") if isinstance(binding, dict) else None
+        if (not isinstance(binding, dict)
+                or binding.get("read_sha256") != read_sha256(read)
+                or not isinstance(digest, str)
+                or len(digest) != 64
+                or any(c not in "0123456789abcdef" for c in digest)
+                or actual_scan is None):
+            category = "unknown"
+        else:
+            category = "current_scan" if digest == actual_scan else "earlier_scan"
+        result[category].append(game_pk)
+    return result
+
+
 def writer_provenance(schedule: Any, scan_path: Path | None) -> tuple[str, Any, Any]:
     """Did this schedule come through ``mlb_slate_writer``, as far as we can tell?
 
@@ -235,6 +272,7 @@ def build_receipt(root: Path, day: str) -> dict[str, Any]:
         "writer_provenance": PROVENANCE_UNVERIFIABLE,
         "scan_sha256_recorded": None,
         "scan_sha256_actual": None,
+        "read_scan_bindings": read_scan_bindings(None, None),
         "policy_status": POLICY_NOT_CHECKED,
         "policy_warning": None,
         "verdict": VERDICT_NO_SCHEDULE,
@@ -290,6 +328,7 @@ def build_receipt(root: Path, day: str) -> dict[str, Any]:
     receipt["writer_provenance"] = provenance
     receipt["scan_sha256_recorded"] = recorded
     receipt["scan_sha256_actual"] = actual
+    receipt["read_scan_bindings"] = read_scan_bindings(schedule, actual)
 
     scheduled = receipt["scheduled_games"]
     if scheduled == 0 and not errors:
