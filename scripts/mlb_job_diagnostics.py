@@ -21,6 +21,8 @@ from mlb_runtime_policy import MARKET_MODEL_VERSION
 
 
 def instant(value: str) -> datetime:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("timestamps must be non-empty strings with an offset")
     parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     if parsed.tzinfo is None:
         raise ValueError("timestamps must include an offset")
@@ -45,9 +47,10 @@ def execution_window(path: Path, job_id: str, since: str, until: str) -> dict:
         ):
             item = dict(row)
             # Keep the measurement basis explicit: a claim is not a start.
-            stamp = item["started_at"] or item["claimed_at"]
+            basis = "started_at" if item["started_at"] is not None else "claimed_at"
+            stamp = item[basis]
             if start <= instant(stamp) < end:
-                item["window_basis"] = "started_at" if item["started_at"] else "claimed_at"
+                item["window_basis"] = basis
                 rows.append(item)
     rows.sort(key=lambda r: (instant(r[r["window_basis"]]), r["id"]))
     return {"store": str(path.resolve()), "job_id": job_id, "since": since,

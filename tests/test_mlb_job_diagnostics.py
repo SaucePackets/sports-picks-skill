@@ -43,6 +43,7 @@ def test_wrong_cwd_falls_back_and_silent_success_does_not_mean_empty_runtime(tmp
     home, runtime, developer, cwd = roots(tmp_path)
     monkeypatch.delenv("SPORTS_PICKS_ROOT", raising=False)
     report = diag.root_snapshot(runtime, cwd, home, "2026-09-08")
+    assert report["evidence_kind"] == "current_snapshot_not_historical_execution"
     assert report["resolved_gate_root"] == str(developer)
     assert not report["root_matches_runtime"]
     assert report["schedules"][0]["approved_count"] == 1
@@ -120,3 +121,28 @@ def test_cli_unavailable_store_is_incomplete_not_no_runs(tmp_path, monkeypatch, 
                       "--execution-db", str(tmp_path / "absent.db"), "--job-id", "poller",
                       "--since", "2026-09-08T21:31:29Z", "--until", "2026-09-08T22:40Z"]) == 2
     assert json.loads(capsys.readouterr().out)["evidence_complete"] is False
+
+
+@pytest.mark.parametrize("started,claimed", [
+    (None, None), (None, 123), (None, ""),
+    (None, "invalid"), (None, "2026-09-08T21:32:00"),
+    ("", "2026-09-08T21:32:00Z"), (0, "2026-09-08T21:32:00Z"),
+])
+def test_cli_invalid_execution_timestamp_is_incomplete(tmp_path, monkeypatch, capsys, started, claimed):
+    home, runtime, _, cwd = roots(tmp_path)
+    monkeypatch.delenv("SPORTS_PICKS_ROOT", raising=False)
+    path = tmp_path / "executions.db"
+    with sqlite3.connect(path) as db:
+        db.execute("CREATE TABLE executions (id, job_id, status, claimed_at, started_at, finished_at)")
+        db.execute("INSERT INTO executions VALUES (?,?,?,?,?,?)",
+                   ("broken", "poller", "completed", claimed, started, None))
+    before = path.read_bytes()
+    assert diag.main(["--runtime-root", str(runtime), "--script-cwd", str(cwd),
+                      "--home", str(home), "--day", "2026-09-08",
+                      "--execution-db", str(path), "--job-id", "poller",
+                      "--since", "2026-09-08T21:31:29Z", "--until", "2026-09-08T22:40Z"]) == 2
+    report = json.loads(capsys.readouterr().out)
+    assert report["evidence_complete"] is False
+    assert report["error"]
+    assert "execution_windows" not in report
+    assert path.read_bytes() == before
