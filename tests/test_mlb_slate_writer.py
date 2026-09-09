@@ -386,7 +386,7 @@ class NonDestructiveTests(WriterTestCase):
             mlb_slate_writer.land(self.root, DAY, draft_for(rows))
 
         self.assertTrue(
-            any("landing would erase it" in error for error in caught.exception.errors),
+            any("slate_denominator is missing" in error for error in caught.exception.errors),
             caught.exception.errors,
         )
         self.assertEqual(self.schedule_path().read_bytes(), before)
@@ -403,7 +403,7 @@ class NonDestructiveTests(WriterTestCase):
             mlb_slate_writer.land(self.root, DAY, draft_for(rows))
 
         self.assertTrue(
-            any("has been rechecked" in error for error in caught.exception.errors),
+            any("malformed" in error for error in caught.exception.errors),
             caught.exception.errors,
         )
 
@@ -421,13 +421,8 @@ class NonDestructiveTests(WriterTestCase):
         )
         self.assertEqual(self.schedule_path().read_text(), "{ not json")
 
-    def test_a_still_pending_watchlist_entry_does_not_block_a_relanding(self):
-        """The producer's own output must not read as somebody else's decision.
-
-        A watchlist entry this run just wrote carries ``pending_lineup_recheck``.
-        Treating any status but the literal ``"pending"`` as "rechecked" would
-        block every ordinary re-run — the rail keys on the module's constant.
-        """
+    def test_an_incomplete_existing_watchlist_is_not_erased(self):
+        """A pending status cannot make a partial, malformed schedule disposable."""
         rows = [scan_row(823509)]
         self.write_scan(rows)
         self.schedule_path().write_text(
@@ -441,8 +436,10 @@ class NonDestructiveTests(WriterTestCase):
             encoding="utf-8",
         )
 
-        self.assertEqual(mlb_slate_writer.occupancy_errors(self.schedule_path()), [])
-        self.assertTrue(mlb_slate_writer.land(self.root, DAY, draft_for(rows))[0].exists())
+        before = self.schedule_path().read_bytes()
+        with self.assertRaises(mlb_slate_writer.SlateWriteError):
+            mlb_slate_writer.land(self.root, DAY, draft_for(rows))
+        self.assertEqual(self.schedule_path().read_bytes(), before)
 
     def test_an_unreviewed_schedule_may_be_relanded(self):
         """Re-running the slate before anyone has ruled on it is ordinary."""
@@ -473,9 +470,11 @@ class AuthoredDecisionTests(WriterTestCase):
     indistinguishable from one that refuses everything.
     """
 
-    # scripts/../skills/sports-picks/SKILL.md, verbatim: what the producer is
-    # told to write. If this stops landing, the guard is broken, not the slate.
+    # Producer template state, plus the stable game identity required for
+    # safe retries. Null/false decision fields must remain accepted.
     CANONICAL_CANDIDATE = {
+        "game_pk": 823509,
+        "event_id": "4018823509",
         "sport": "MLB",
         "market_type": "moneyline",
         "vig_review_needed": True,
@@ -668,56 +667,11 @@ class AuthoredDecisionTests(WriterTestCase):
         self.assertEqual(mlb_slate_writer.decision_fields("vig_approved"), [])
         self.assertEqual(mlb_slate_writer.decision_fields(None), [])
 
-    def test_both_rails_ask_one_predicate_rather_than_two_copies(self):
-        """The consultation, proven by rebinding the source and both answers moving.
-
-        The occupancy check asks it of the file being replaced and the draft
-        check asks it of the record replacing it. Asserting the two agree on
-        some card would pass just as well against two identical copies; forcing
-        the shared name to lie is what makes this a consultation pin.
-        """
-        rows = [scan_row(823509)]
-        self.write_scan(rows)
-        clean = self.draft_with_candidate(rows)
-        mlb_slate_writer.land(self.root, DAY, clean)
-        approved = self.draft_with_candidate(rows, vig_approved=True)
-
-        # Baseline in both directions with the real predicate: the existing
-        # schedule is landable and the approved draft is not.
-        self.assertEqual(mlb_slate_writer.occupancy_errors(self.schedule_path()), [])
-        self.assertTrue(
-            [error for error in mlb_slate_writer.draft_errors(approved, DAY)]
-        )
-
-        with mock.patch.object(
-            mlb_slate_writer, "decision_fields", return_value=["sentinel"]
-        ):
-            self.assertTrue(
-                any(
-                    "sentinel" in error
-                    for error in mlb_slate_writer.occupancy_errors(self.schedule_path())
-                )
-            )
-            self.assertTrue(
-                any(
-                    "sentinel" in error
-                    for error in mlb_slate_writer.draft_errors(clean, DAY)
-                )
-            )
-
-        with mock.patch.object(mlb_slate_writer, "decision_fields", return_value=[]):
-            reviewed = json.loads(self.schedule_path().read_text())
-            reviewed["candidates"][0]["vig_approved"] = True
-            self.schedule_path().write_text(json.dumps(reviewed), encoding="utf-8")
-            self.assertEqual(mlb_slate_writer.occupancy_errors(self.schedule_path()), [])
-            self.assertEqual(
-                [
-                    error
-                    for error in mlb_slate_writer.draft_errors(approved, DAY)
-                    if "already carries" in error
-                ],
-                [],
-            )
+    def test_draft_decision_rail_still_consults_the_shared_predicate(self):
+        draft = self.draft_with_candidate([scan_row(823509)])
+        self.assertEqual(mlb_slate_writer.authored_decision_errors(draft), [])
+        with mock.patch.object(mlb_slate_writer, "decision_fields", return_value=["sentinel"]):
+            self.assertIn("sentinel", mlb_slate_writer.authored_decision_errors(draft)[0])
 
 
 class SkeletonTests(WriterTestCase):

@@ -24,9 +24,9 @@ half:
   The executor reads ``vig_approved`` straight off the schedule and the review
   queue holds only candidates whose value is not yet a bool, so a
   producer-written ``true`` would reach the executor having never been
-  reviewed. A draft carrying any of them is refused, by the same rule that
-  refuses to overwrite a card already carrying them — one predicate, asked of
-  the record landing and of the record it replaces.
+  reviewed. Draft decisions are refused. Existing cards are retained with
+  their reads, and only new game identities are appended. A repeated landing
+  succeeds without rewriting an unchanged schedule.
 - **One validated read per scheduled game, before the record can land.** The
   composed schedule is put through ``mlb_game_reads.validate_with_denominator``
   and ``mlb_lineup_watchlist.validate_watchlist`` — the same functions the gate
@@ -113,9 +113,8 @@ DENOMINATOR_FIELDS = ("game_pk", "event_id", "away", "home")
 # whole value is that the run did not write it.
 DERIVED_KEYS = ("slate_denominator",)
 
-# Review and execution state a landing must never clobber, and — the same list,
-# read the other way — state the producer must never author. A schedule that has
-# been through the reviewer is no longer a slate being produced.
+# Review and execution state the producer must never author. Existing cards,
+# including these decisions, are retained during append-only landing.
 #
 # ``execution_mode`` is deliberately absent. It is ``"standing_authorized"`` in
 # the producer's own template: it says what MAY happen after a review, not that
@@ -187,7 +186,7 @@ def load_scan(path: Path) -> tuple[list[Any], str]:
     try:
         raw = path.read_bytes()
         rows = json.loads(raw.decode("utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+    except (OSError, UnicodeDecodeError, ValueError) as exc:
         raise SlateWriteError(
             [
                 f"denominator scan not readable at {path}: {exc}; the slate's size "
@@ -196,7 +195,9 @@ def load_scan(path: Path) -> tuple[list[Any], str]:
             ]
         ) from exc
     if not isinstance(rows, list):
-        raise SlateWriteError([f"denominator scan at {path} is not a JSON list of rows"])
+        raise SlateWriteError(
+            [f"denominator scan at {path} is not a JSON list of rows"]
+        )
     return rows, hashlib.sha256(raw).hexdigest()
 
 
@@ -219,7 +220,8 @@ def unresolved_scan_rows(rows: list[Any]) -> list[str]:
         # makes a denominator entry usable and what makes a scan row usable are
         # the same question, and two copies of that answer would drift.
         identity = mlb_game_reads._identity_errors(
-            f"scan row {label!r}", {field: row.get(field) for field in DENOMINATOR_FIELDS}
+            f"scan row {label!r}",
+            {field: row.get(field) for field in DENOMINATOR_FIELDS},
         )
         if identity:
             problems.append(
@@ -280,7 +282,9 @@ def decision_fields(candidate: Any) -> list[str]:
     """
     if not isinstance(candidate, dict):
         return []
-    stamped = [field for field in CANDIDATE_STATE_FIELDS if candidate.get(field) is not None]
+    stamped = [
+        field for field in CANDIDATE_STATE_FIELDS if candidate.get(field) is not None
+    ]
     if candidate.get("executed"):
         stamped.append("executed")
     return stamped
@@ -348,6 +352,12 @@ def draft_errors(draft: Any, day: str) -> list[str]:
             )
     if not isinstance(draft.get("game_reads"), list):
         errors.append("draft.game_reads must be a list, one entry per scheduled game")
+    for key in ("candidates", "lineup_watchlist"):
+        if key in draft and (
+            not isinstance(draft[key], list)
+            or any(not isinstance(entry, dict) for entry in draft[key])
+        ):
+            errors.append(f"draft.{key} must be a list of objects")
     errors.extend(authored_decision_errors(draft))
     return errors
 
@@ -409,7 +419,9 @@ def compose(draft: dict[str, Any], denominator: dict[str, Any]) -> dict[str, Any
     return schedule
 
 
-def record_errors(schedule_path: Path, schedule: dict[str, Any]) -> list[str]:
+def record_errors(
+    schedule_path: Path, schedule: dict[str, Any], *, reconcile: bool = True
+) -> list[str]:
     """Every defect in the composed record, from the rails that already exist.
 
     ``validate_with_denominator`` is the function the scheduled gate and the
@@ -428,6 +440,11 @@ def record_errors(schedule_path: Path, schedule: dict[str, Any]) -> list[str]:
             mlb_runtime_policy.load_mlb_selection_policy(),
         )
     )
+    if not reconcile:
+        # Drafts may omit occupied cards. Validate their reads in full, then
+        # reconcile card counts against the merged record before writing.
+        reconciliation = mlb_game_reads.card_reconciliation_errors(schedule)
+        errors = [error for error in errors if error not in reconciliation]
     for label, entry_errors in sorted(
         mlb_lineup_watchlist.validate_watchlist(schedule).items()
     ):
@@ -436,49 +453,200 @@ def record_errors(schedule_path: Path, schedule: dict[str, Any]) -> list[str]:
     return errors
 
 
-def occupancy_errors(schedule_path: Path) -> list[str]:
-    """Refuse to overwrite a schedule that has moved on past production.
+def _strict_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key {key!r}")
+        result[key] = value
+    return result
 
-    Landing is the first write of a slate day. Once the reviewer has ruled on a
-    candidate or the executor has stamped one, the schedule carries decisions
-    that exist nowhere else, and replacing it wholesale would erase them with
-    no trace. There is deliberately no flag to override this: an optional rail
-    is the exact shape of defect this lane keeps paying for.
-    """
-    if not schedule_path.exists():
-        return []
+
+def load_existing(path: Path) -> tuple[str | None, dict[str, Any] | None]:
+    if not path.exists():
+        return None, None
     try:
-        existing = json.loads(schedule_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        return [
-            f"a schedule already exists at {schedule_path} and could not be parsed "
-            f"({exc}); refusing to overwrite a file whose contents are unknown"
-        ]
-    errors: list[str] = []
-    candidates = existing.get("candidates") if isinstance(existing, dict) else None
-    for index, candidate in enumerate(candidates or []):
-        stamped = decision_fields(candidate)
-        if stamped:
-            errors.append(
-                f"the existing schedule's candidates[{index}] already carries "
-                f"{', '.join(sorted(set(stamped)))}; that is a reviewed or executed "
-                "card and landing would erase it"
-            )
-    watchlist = existing.get("lineup_watchlist") if isinstance(existing, dict) else None
-    for index, entry in enumerate(watchlist or []):
-        if not isinstance(entry, dict):
+        raw = path.read_bytes().decode("utf-8")
+        existing = json.loads(raw, object_pairs_hook=_strict_object)
+        if not isinstance(existing, dict):
+            raise ValueError("schedule must be an object")
+        for key in ("candidates", "lineup_watchlist", "game_reads"):
+            if not isinstance(existing.get(key), list) or any(
+                not isinstance(entry, dict) for entry in existing[key]
+            ):
+                raise ValueError(f"existing {key} must be a list of objects")
+    except (OSError, UnicodeError, ValueError) as exc:
+        raise SlateWriteError(
+            [
+                f"existing schedule contents are unknown or malformed ({exc}); refusing overwrite"
+            ]
+        ) from exc
+    return raw, existing
+
+
+def game_identity(entry: dict[str, Any], reads: list[dict[str, Any]]) -> int:
+    """Resolve each supplied id independently; disagreement is never occupancy."""
+    matches: list[set[int]] = []
+    for field in ("game_pk", "event_id"):
+        value = entry.get(field)
+        if value is None:
             continue
-        status = entry.get("status")
-        # The constant, never the string. A watchlist entry the producer just
-        # wrote is ``pending_lineup_recheck``; restating that here as "pending"
-        # would have made every ordinary re-landing look like a rechecked entry
-        # and blocked it.
-        if status is not None and status != mlb_lineup_watchlist.PENDING_STATUS:
-            errors.append(
-                f"the existing schedule's lineup_watchlist[{index}] has status "
-                f"{status!r}; that entry has been rechecked and landing would erase it"
+        if field == "game_pk":
+            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+                raise SlateWriteError(["entry.game_pk must be a positive integer"])
+            found = {r["game_pk"] for r in reads if r.get(field) == value}
+        else:
+            value = mlb_game_reads._event_key(value)
+            if value is None:
+                raise SlateWriteError(["entry.event_id must name a stable event"])
+            found = {
+                r["game_pk"]
+                for r in reads
+                if mlb_game_reads._event_key(r.get(field)) == value
+            }
+        if len(found) != 1:
+            raise SlateWriteError(
+                [f"entry {field} has missing or ambiguous scan identity"]
             )
-    return errors
+        matches.append(found)
+    if not matches or any(found != matches[0] for found in matches):
+        raise SlateWriteError(["entry needs consistent stable game/event identity"])
+    game_pk = next(iter(matches[0]))
+    reference = next(r for r in reads if r["game_pk"] == game_pk)
+    errors = mlb_game_reads.identity_agreement_errors("entry", entry, reference)
+    if errors:
+        raise SlateWriteError(errors)
+    return game_pk
+
+
+def validate_card_identities(schedule: dict[str, Any]) -> None:
+    """Reconcile game identities as well as counts before accepting a merge."""
+    reads = schedule["game_reads"]
+    dispositions = {r["game_pk"]: r["disposition"] for r in reads}
+    for key, expected in (
+        ("candidates", "candidate"),
+        ("lineup_watchlist", "lineup_watchlist"),
+    ):
+        seen: set[int] = set()
+        for entry in schedule[key]:
+            game = game_identity(entry, reads)
+            if game in seen:
+                raise SlateWriteError([f"{key} contains duplicate game identity"])
+            seen.add(game)
+            disposition = (
+                "candidate"
+                if key == "lineup_watchlist"
+                and entry.get("status") == mlb_lineup_watchlist.PROMOTED_STATUS
+                else expected
+            )
+            if dispositions[game] != disposition:
+                raise SlateWriteError(
+                    [f"{key} game {game} does not match its recorded disposition"]
+                )
+
+
+def merge_existing(
+    existing: dict[str, Any], incoming: dict[str, Any]
+) -> tuple[dict[str, Any], dict[str, int]]:
+    """Keep the header and all existing cards; only new games may be appended.
+
+    The retained read for an occupied game travels with its card, including a
+    watchlist promotion's candidate disposition. A stale producer retry cannot
+    relabel it back to a deferral or pass.
+    """
+    if existing.get("date") != incoming["date"] or existing.get("sport") != "MLB":
+        raise SlateWriteError(["existing schedule date/sport does not match landing"])
+    reads = incoming["game_reads"]
+    occupied: set[int] = set()
+    for key in ("candidates", "lineup_watchlist"):
+        seen: set[int] = set()
+        for entry in existing[key]:
+            identity = game_identity(entry, reads)
+            if identity in seen:
+                raise SlateWriteError(
+                    [f"existing {key} contains duplicate game identity"]
+                )
+            seen.add(identity)
+        occupied.update(seen)
+    merged = dict(existing)
+    counts = {
+        "new_candidates": 0,
+        "new_watchlist_entries": 0,
+        "skipped_occupied_entries": 0,
+        "retained_occupied_entries": 0,
+    }
+    counts["retained_occupied_entries"] = len(existing["candidates"]) + len(
+        existing["lineup_watchlist"]
+    )
+    new_seen: set[int] = set()
+    for key, counter in (
+        ("candidates", "new_candidates"),
+        ("lineup_watchlist", "new_watchlist_entries"),
+    ):
+        merged[key] = list(existing[key])
+        for entry in incoming[key]:
+            identity = game_identity(entry, reads)
+            if identity in occupied:
+                counts["skipped_occupied_entries"] += 1
+                continue
+            if identity in new_seen:
+                raise SlateWriteError(["draft contains duplicate new game identity"])
+            new_seen.add(identity)
+            merged[key].append(entry)
+            counts[counter] += 1
+    retained = {
+        r["game_pk"]: r for r in existing["game_reads"] if r["game_pk"] in occupied
+    }
+    if set(retained) != occupied:
+        raise SlateWriteError(["occupied entries require their existing game reads"])
+    merged["game_reads"] = [retained.get(r["game_pk"], r) for r in reads]
+    return merged, counts
+
+
+def preserving_payload(
+    raw: str, existing: dict[str, Any], merged: dict[str, Any]
+) -> str:
+    """Replace changed array values only, retaining original element JSON bytes.
+
+    Everything outside those values, including whitespace and header spelling,
+    remains untouched. Equal arrays are not rewritten at all.
+    """
+    decoder = json.JSONDecoder()
+    pos = raw.index("{") + 1
+    replacements = []
+    while True:
+        while raw[pos].isspace() or raw[pos] == ",":
+            pos += 1
+        if raw[pos] == "}":
+            break
+        key, pos = decoder.raw_decode(raw, pos)
+        while raw[pos].isspace() or raw[pos] == ":":
+            pos += 1
+        start = pos
+        old, pos = decoder.raw_decode(raw, pos)
+        if old == merged[key]:
+            continue
+        if key not in ("candidates", "lineup_watchlist", "game_reads"):
+            raise SlateWriteError([f"unsafe mutation of schedule header {key}"])
+        cursor = start + 1
+        original = []
+        for entry in old:
+            while raw[cursor].isspace() or raw[cursor] == ",":
+                cursor += 1
+            element_start = cursor
+            _, cursor = decoder.raw_decode(raw, cursor)
+            original.append((entry, raw[element_start:cursor]))
+        elements = [
+            next(
+                (text for entry, text in original if entry == value),
+                json.dumps(value, indent=2),
+            )
+            for value in merged[key]
+        ]
+        replacements.append((start, pos, "[" + ",\n".join(elements) + "]"))
+    for start, end, text in reversed(replacements):
+        raw = raw[:start] + text + raw[end:]
+    return raw
 
 
 def atomic_write(path: Path, payload: str) -> None:
@@ -498,7 +666,9 @@ def atomic_write(path: Path, payload: str) -> None:
             tmp.unlink()
 
 
-def land(root: Path, day: str, draft: Any) -> tuple[Path, dict[str, Any]]:
+def land(
+    root: Path, day: str, draft: Any, *, counts: dict[str, int] | None = None
+) -> tuple[Path, dict[str, Any]]:
     """Validate a draft against the scan roster and write it, or raise.
 
     Returns the schedule path and the schedule that was written.
@@ -515,7 +685,7 @@ def land(root: Path, day: str, draft: Any) -> tuple[Path, dict[str, Any]]:
     scan_path = denominator_output_path(day, root)
 
     errors = draft_errors(draft, day)
-    errors.extend(occupancy_errors(schedule_path))
+    raw, existing = load_existing(schedule_path)
     try:
         rows, scan_digest = load_scan(scan_path)
     except SlateWriteError as exc:
@@ -532,11 +702,59 @@ def land(root: Path, day: str, draft: Any) -> tuple[Path, dict[str, Any]]:
     schedule = compose(
         draft, denominator_from_scan(rows, scan_fetched_at(scan_path), scan_digest)
     )
-    errors.extend(record_errors(schedule_path, schedule))
+    errors.extend(record_errors(schedule_path, schedule, reconcile=existing is None))
     if errors:
         raise SlateWriteError(errors)
 
-    atomic_write(schedule_path, json.dumps(schedule, indent=2) + "\n")
+    # Every card needs an address even on its first landing, otherwise its
+    # very next retry cannot be deduplicated safely.
+    seen: set[int] = set()
+    for key in ("candidates", "lineup_watchlist"):
+        for entry in schedule[key]:
+            identity = game_identity(entry, schedule["game_reads"])
+            if identity in seen:
+                raise SlateWriteError(["draft contains duplicate game identity"])
+            seen.add(identity)
+            if (
+                key == "lineup_watchlist"
+                and entry.get("status") != mlb_lineup_watchlist.PENDING_STATUS
+            ):
+                raise SlateWriteError(
+                    [
+                        "draft watchlist must be pending; producer cannot author recheck state"
+                    ]
+                )
+    landing_counts = {
+        "new_candidates": len(schedule["candidates"]),
+        "new_watchlist_entries": len(schedule["lineup_watchlist"]),
+        "skipped_occupied_entries": 0,
+        "retained_occupied_entries": 0,
+    }
+    payload = json.dumps(schedule, indent=2) + "\n"
+    if existing is not None:
+        existing_errors = record_errors(schedule_path, existing)
+        if existing_errors:
+            raise SlateWriteError(existing_errors)
+        validate_card_identities(existing)
+        schedule, landing_counts = merge_existing(existing, schedule)
+        merged_errors = record_errors(schedule_path, schedule)
+        if merged_errors:
+            raise SlateWriteError(merged_errors)
+        payload = preserving_payload(raw, existing, schedule)
+    validate_card_identities(schedule)
+    # Refuse a stale snapshot if a reviewer/executor changed the file while we
+    # validated. All writes still use the existing atomic replacement primitive.
+    current = (
+        schedule_path.read_bytes().decode("utf-8") if schedule_path.exists() else None
+    )
+    if current != raw:
+        raise SlateWriteError(
+            ["schedule changed during landing; retry from current state"]
+        )
+    if payload != raw:
+        atomic_write(schedule_path, payload)
+    if counts is not None:
+        counts.update(landing_counts)
     return schedule_path, schedule
 
 
@@ -599,10 +817,15 @@ def main(argv: list[str] | None = None) -> int:
         metavar="DRAFT",
         help="validate a filled draft against the scan roster and write the schedule",
     )
-    parser.add_argument("--day", default=None, help="slate date YYYY-MM-DD (default: today)")
+    parser.add_argument(
+        "--day", default=None, help="slate date YYYY-MM-DD (default: today)"
+    )
     parser.add_argument("--root", type=Path, default=None)
     parser.add_argument(
-        "--out", type=Path, default=None, help="skeleton destination (default: .picks/tmp/)"
+        "--out",
+        type=Path,
+        default=None,
+        help="skeleton destination (default: .picks/tmp/)",
     )
     args = parser.parse_args(argv)
 
@@ -643,21 +866,23 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     try:
-        draft = json.loads(args.land.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        draft = json.loads(
+            args.land.read_text(encoding="utf-8"), object_pairs_hook=_strict_object
+        )
+    except (OSError, UnicodeError, ValueError) as exc:
         parser.error(str(exc))
 
     try:
-        schedule_path, schedule = land(root, day, draft)
+        counts: dict[str, int] = {}
+        schedule_path, schedule = land(root, day, draft, counts=counts)
     except SlateWriteError as exc:
-        print(
-            json.dumps({"landed": False, "day": day, "errors": exc.errors}, indent=2)
-        )
+        print(json.dumps({"landed": False, "day": day, "errors": exc.errors}, indent=2))
         return 1
     print(
         json.dumps(
             {
                 "landed": True,
+                **counts,
                 "day": day,
                 "schedule_path": str(schedule_path),
                 "scheduled_games": len(schedule["slate_denominator"]["games"]),
