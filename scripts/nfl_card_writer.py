@@ -318,6 +318,7 @@ def assess(row, draft, now):
         blocked_gate = failed[0]
         kind = "qb_confirmation" if blocked_gate == "qb_status_gate" else "player_availability"
         require(any(e["status"] == "unavailable" and e.get("source_type") in ("official_team", "official_league")
+                    and (kind != "qb_confirmation" or e["team_ids"] == [selected_id])
                     for e in linked(blocked_gate, kind, available=False)),
                 "watchlist needs attempted official confirmation/inactives evidence")
         decision = "WATCHLIST"

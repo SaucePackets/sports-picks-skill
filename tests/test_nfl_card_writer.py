@@ -158,6 +158,17 @@ def test_attempted_exchange_unavailable_supports_failed_price_gate():
     assert schedule["game_assessments"][0]["market"]["net_edge"] is None
 
 
+@pytest.mark.parametrize("team_ids", [["26"], ["17", "26"]])
+def test_qb_watchlist_rejects_unavailable_evidence_for_other_teams(team_ids):
+    scan, draft = fixture()
+    evidence(draft, "qb").update(status="unavailable", reason="Official confirmation pending",
+                                 data={}, team_ids=team_ids)
+    draft["assessments"][0]["gates"]["qb_status_gate"].update(
+        status="fail", reason_code="qb_status_unconfirmed")
+    with pytest.raises(ValueError, match="watchlist needs attempted official"):
+        writer.compose(scan, draft, NOW)
+
+
 def test_only_qb_blocker_becomes_watchlist_without_awaiting_jerry():
     scan, draft = fixture()
     evidence(draft, "qb").update(status="unavailable", reason="Official confirmation pending", data={})
