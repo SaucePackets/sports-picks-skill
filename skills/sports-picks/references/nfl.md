@@ -118,7 +118,12 @@ python3 scripts/nfl_stage2_scan.py --season 2026 --week 1
 ```
 It emits one JSON row per game: moneylines + de-vigged fair probabilities,
 last-5 form (W-L, PF/PA, point differential), rest days and short-week flags,
-best-effort injuries, and venue/indoor context. Treat it as slate context;
+injury identities/positions, roster and depth-chart evidence, stadium weather,
+and per-game readiness diagnostics. See `docs/nfl-readiness.md` for field and
+failure semantics. Depth rank and roster Active are not game-day QB confirmation;
+`unavailable` means the requested source did not supply evidence, while
+`not_retrieved` means the input has not been collected. The scanner emits PASS
+and no candidates pending the full handicap. Treat it as slate context;
 deeper per-candidate stats still come from the steps below.
 
 ### Step 1 — Current form (ALWAYS first)
@@ -310,6 +315,12 @@ as official picks unless the user explicitly asks for spread/total work.
 - Prior-season stats are the baseline, but discount hard: coaching changes,
   QB changes, OL turnover, and scheme installs break priors every September.
 - Flag explicitly: "Early season — prior-season baseline, discounted."
+- Scanner prior-season contributions use 0.5 evidence weight (current games
+  use 1.0), with `weighted_pd`, `effective_n`, and
+  `discounted_pd_per_game`. This conservative weight is not calibrated win
+  probability. Use the discounted contribution for analysis; raw W/L/PF/PA/PD
+  are historical descriptors. Do not divide by effective sample size to undo
+  the Week 1 discount. Roster/coaching changes still require explicit review.
 - Weight offseason ground truth (confirmed QB/OL changes) over projection
   narratives (hype, camp reports).
 - Week 1 is the highest-variance slate of the year. Cap confidence at Medium
