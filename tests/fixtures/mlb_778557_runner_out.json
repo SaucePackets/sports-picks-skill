@@ -1,0 +1,167 @@
+{
+  "feed_sha256": "b5aff91ac589394d6c20a9b66fecbd2babce2f31201dd03070b40944d706a48f",
+  "game_id": "778557",
+  "play_pointer": "/liveData/plays/allPlays/66",
+  "play": {
+    "about": {
+      "atBatIndex": 66,
+      "halfInning": "bottom",
+      "isTopInning": false,
+      "inning": 8,
+      "startTime": "2025-03-27T22:00:46.262Z",
+      "endTime": "2025-03-27T22:01:40.884Z",
+      "isComplete": true,
+      "isScoringPlay": false,
+      "hasReview": true,
+      "hasOut": true,
+      "captivatingIndex": 17
+    },
+    "result": {
+      "type": "atBat",
+      "event": "Caught Stealing 2B",
+      "eventType": "caught_stealing_2b",
+      "description": "Yankees challenged (tag play), call on the field was upheld: Trent Grisham caught stealing 2nd base, catcher William Contreras to shortstop Joey Ortiz.",
+      "rbi": 0,
+      "awayScore": 1,
+      "homeScore": 4,
+      "isOut": true
+    },
+    "matchup": {
+      "batter": {
+        "id": 700250,
+        "fullName": "Ben Rice",
+        "link": "/api/v1/people/700250"
+      },
+      "batSide": {
+        "code": "L",
+        "description": "Left"
+      },
+      "pitcher": {
+        "id": 641302,
+        "fullName": "Tyler Alexander",
+        "link": "/api/v1/people/641302"
+      },
+      "pitchHand": {
+        "code": "L",
+        "description": "Left"
+      },
+      "batterHotColdZones": [],
+      "pitcherHotColdZones": [],
+      "splits": {
+        "batter": "vs_LHP",
+        "pitcher": "vs_LHB",
+        "menOnBase": "Empty"
+      }
+    },
+    "count": {
+      "balls": 1,
+      "strikes": 1,
+      "outs": 3
+    },
+    "runners": [
+      {
+        "movement": {
+          "originBase": "1B",
+          "start": "1B",
+          "end": null,
+          "outBase": "2B",
+          "isOut": true,
+          "outNumber": 3
+        },
+        "details": {
+          "event": "Caught Stealing 2B",
+          "eventType": "caught_stealing_2b",
+          "movementReason": "r_caught_stealing_2b",
+          "runner": {
+            "id": 663757,
+            "fullName": "Trent Grisham",
+            "link": "/api/v1/people/663757"
+          },
+          "responsiblePitcher": null,
+          "isScoringEvent": false,
+          "rbi": false,
+          "earned": false,
+          "teamUnearned": false,
+          "playIndex": 1
+        },
+        "credits": [
+          {
+            "player": {
+              "id": 661388,
+              "link": "/api/v1/people/661388"
+            },
+            "position": {
+              "code": "2",
+              "name": "Catcher",
+              "type": "Catcher",
+              "abbreviation": "C"
+            },
+            "credit": "f_assist"
+          },
+          {
+            "player": {
+              "id": 687401,
+              "link": "/api/v1/people/687401"
+            },
+            "position": {
+              "code": "6",
+              "name": "Shortstop",
+              "type": "Infielder",
+              "abbreviation": "SS"
+            },
+            "credit": "f_putout"
+          }
+        ]
+      }
+    ],
+    "playEvents": [
+      {
+        "index": 0,
+        "isPitch": true,
+        "details": {
+          "call": {
+            "code": "F",
+            "description": "Foul"
+          },
+          "description": "Foul",
+          "code": "F",
+          "ballColor": "rgba(170, 21, 11, 1.0)",
+          "trailColor": "rgba(188, 0, 33, 1.0)",
+          "isInPlay": false,
+          "isStrike": true,
+          "isBall": false,
+          "type": {
+            "code": "FF",
+            "description": "Four-Seam Fastball"
+          },
+          "isOut": false,
+          "hasReview": false
+        }
+      },
+      {
+        "index": 1,
+        "isPitch": true,
+        "details": {
+          "call": {
+            "code": "B",
+            "description": "Ball"
+          },
+          "description": "Ball",
+          "code": "B",
+          "ballColor": "rgba(39, 161, 39, 1.0)",
+          "trailColor": "rgba(188, 0, 33, 1.0)",
+          "isInPlay": false,
+          "isStrike": false,
+          "isBall": true,
+          "type": {
+            "code": "FF",
+            "description": "Four-Seam Fastball"
+          },
+          "isOut": true,
+          "hasReview": false,
+          "runnerGoing": true
+        }
+      }
+    ]
+  }
+}

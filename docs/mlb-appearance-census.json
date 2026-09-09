@@ -1,0 +1,73 @@
+{
+  "adapter_sha256": {
+    "mlb_appearance_census.py": "3a9d6682a22c702551d3768f8b8e987412c43137f915d0838377b367df7e10a6",
+    "mlb_bulk_starter_admission.py": "430ade044ba1843f770c484dc0904c4f29f40a4d1a3efe40c3654b4440f1b994",
+    "mlb_bulk_starter_snapshots.py": "8b0e190df66ea7e05e8df1a156cef929b4feeb5d0c23e2ee63e8469772fcf63f",
+    "mlb_chronological_admission.py": "90519414af4c5649793547ffced81deb87a4c44678d6764cd494a0db9aaf13b3",
+    "mlb_market_free_checkpoint.py": "6b8f82a47ef966e4e30a5a41e39c06117bc9ecabd53aa30c254c2eafc316fd33",
+    "mlb_real_shadow_capture.py": "ad3925128f9b847e27adb63248716be3f11788ace65eb06145ade382e472165b"
+  },
+  "baseline_refused_occurrences": 326,
+  "baseline_replay_sha256": "8ed8cd4807c59a27eec2eceb9aaeec6008307878fb04d76fcbae627c8d3f1302",
+  "bundle_sha256": "d8983606ce75093d924d53caffe73c31b9fdbd404c0ca086ad3873d73f2dc7aa",
+  "contract_sha256": "4883378257b6f6d2834945a38f96fc8c8c57b71366bda45c42c4c838d88432bf",
+  "eligible": false,
+  "evidence_directory": "RESEARCH/MLB_APPEARANCE_CENSUS_2026_09_09",
+  "feature_rows_created": 0,
+  "fitting_enabled": false,
+  "groups": {
+    "ambiguous_substitutions": {
+      "occurrences": 28,
+      "recovered": 0,
+      "remaining_refusals": {
+        "ambiguous_mid_appearance_pitcher_substitution": 28
+      }
+    },
+    "before_start": {
+      "occurrences": 22,
+      "recovered": 0,
+      "remaining_refusals": {
+        "play_before_scheduled_start": 22
+      }
+    },
+    "duplicate_ids": {
+      "occurrences": 40,
+      "recovered": 0,
+      "remaining_refusals": {
+        "repeated_game_across_source_dates": 40
+      }
+    },
+    "other": {
+      "occurrences": 15,
+      "recovered": 0,
+      "remaining_refusals": {
+        "appearance_without_completed_pa": 1,
+        "final_not_complete_in_both_sources": 4,
+        "final_schedule_mismatch": 5,
+        "play_chronology": 3,
+        "substitution_pitcher_mismatch": 2
+      }
+    },
+    "unsupported_pa": {
+      "occurrences": 221,
+      "recovered": 189,
+      "remaining_refusals": {
+        "ambiguous_mid_appearance_pitcher_substitution": 2,
+        "appearance_without_completed_pa": 5,
+        "non_pa_runner_out_not_corroborated": 4,
+        "non_pa_scoring_conflict": 1,
+        "non_pa_terminal_runner_out_required": 1,
+        "substitution_pitcher_mismatch": 1,
+        "unsupported_plate_appearance_event": 18
+      }
+    }
+  },
+  "historical_performance": null,
+  "recovered_occurrences": 189,
+  "regular_occurrences": 1291,
+  "remaining_refused_occurrences": 137,
+  "replay_bytes": 11019723,
+  "replay_sha256": "3c76c5baf604ab2b9a6fdad2abde895f5ad6a8f0093005bf1402095e98e454c7",
+  "schema": "mlb-appearance-census-v1",
+  "scoring_enabled": false
+}
