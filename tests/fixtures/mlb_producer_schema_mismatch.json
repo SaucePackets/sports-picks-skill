@@ -1,0 +1,10 @@
+{
+  "description": "September 9 source/schema mismatch fragments; full slate is synthesized in tests, retained incident is replayed privately without edits",
+  "row_count": 15,
+  "cases": [
+    {"row": 8, "source": {"park": {"run_factor": 106, "flag": "extreme hitter park — cap confidence per park rule"}}, "refusing_rail": "extreme_park_confidence_cap", "recorded_reason": "park_environment_cap"},
+    {"row": 11, "source": {"away_offense": null}, "refusing_rail": "missing_offense_data", "recorded_reason": "incomplete_input_data"},
+    {"row": 11, "unavailable": {"away_offense": true}, "error": "unavailable names unknown field 'away_offense'"},
+    {"row": 14, "source": {"park": {"run_factor": null, "data_status": "unavailable"}}, "refusing_rail": "unknown_park_environment", "recorded_reason": null, "model_haircut": "unknown_park_environment"}
+  ]
+}

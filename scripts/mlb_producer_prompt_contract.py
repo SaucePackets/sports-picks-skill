@@ -11,9 +11,15 @@ selection, review, and execution language are left byte-for-byte unchanged.
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+try:
+    from . import mlb_game_reads
+except ImportError:  # direct script invocation
+    import mlb_game_reads
 
 
 MORNING_JOB_ID = "c9452052719c"
@@ -91,6 +97,112 @@ def writer_contract(spec: PromptSpec) -> str:
             "failure. Return the exact writer errors and stop; never report slate success.",
         ]
     )
+
+
+SCHEMA_START = "   PRODUCER SCHEMA CONTRACT v1:"
+SCHEMA_END = "   END PRODUCER SCHEMA CONTRACT"
+
+
+def schema_contract() -> str:
+    schema = mlb_game_reads.producer_schema()
+    return "\n".join(
+        [
+            SCHEMA_START,
+            f"   - Schema version: {schema['version']}; SHA256: {schema['sha256']}",
+            f"   - Add --schema-sha256 {schema['sha256']} to BOTH writer --skeleton and --land commands. A mismatch is terminal; do not omit the flag to bypass it.",
+            "   - refusing_rails accepts exactly: "
+            + ", ".join(schema["refusing_rails"]),
+            "   - unavailable keys accept exactly: "
+            + ", ".join(schema["unavailable_fields"]),
+            "   - unavailable values must be nonempty string reasons for absent recorded fields, never booleans. Do not declare a recorded value unavailable.",
+            "   - A scan-confirmed extreme-park confidence-cap refusal is recorded as park_environment_cap, never extreme_park_confidence_cap. Preserve the source reason in the report; do not change a threshold or invent a cap.",
+            "   - A refusal caused by a missing source offense input is recorded as incomplete_input_data, never missing_offense_data. Preserve the exact missing input and source in the report. away_offense/home_offense are source inputs, not unavailable keys; unavailable.away_offense=true is invalid. Do not fabricate missing model/price values to fit the schema.",
+            "   - unknown_park_environment belongs only to the probability-model haircut vocabulary, never refusing_rails. Follow the existing model rule: no park_home_context adjustment when that haircut is used. A zero-haircut draft carrying this refusal requires a new evidenced model read; never silently remove or rename the token, invent a haircut, or change the disposition to make it pass.",
+            "   - Keep every skeleton game row and identity. Unknown/unmapped tokens or fields remain errors: report them and stop, never silently map, drop, or reset the draft. Preserve failed drafts before producing a separately reviewed correction.",
+            SCHEMA_END,
+        ]
+    )
+
+
+# Bound prompts use only these emitted inline command forms. Refuse unexpected
+# shell syntax rather than pretending a prose digest protects its execution.
+WRITER_COMMAND = re.compile(r"`([^`\n]*mlb_slate_writer\.py[^`\n]*)`")
+
+
+def _writer_invocations(job_id: str, prompt: str, *, bind: bool = False) -> str:
+    spec = PROMPT_SPECS[job_id]
+    expected = {
+        f"python3 {WRITER} --skeleton --day YYYY-MM-DD --out {spec.draft}": 1,
+        f"python3 {WRITER} --land {spec.draft} --day YYYY-MM-DD": 2,
+    }
+    flag = f" --schema-sha256 {mlb_game_reads.producer_schema()['sha256']}"
+    matches = list(WRITER_COMMAND.finditer(prompt))
+    if len(matches) != prompt.count("mlb_slate_writer.py"):
+        raise ProducerPromptError(
+            "writer invocation outside supported inline command form"
+        )
+    seen = dict.fromkeys(expected, 0)
+    replacements = []
+    for index, match in enumerate(matches):
+        command = match.group(1)
+        original = next(
+            (
+                item
+                for item in expected
+                if command == item + flag or (bind and command == item)
+            ),
+            None,
+        )
+        if original is None:
+            raise ProducerPromptError(
+                f"writer invocation {index + 1} missing current schema digest or has stale/unsupported arguments"
+            )
+        seen[original] += 1
+        replacements.append((match.start(1), match.end(1), original + flag))
+    if seen != expected:
+        raise ProducerPromptError(
+            "expected one bound skeleton and two bound land invocations"
+        )
+    for start, end, command in reversed(replacements):
+        prompt = prompt[:start] + command + prompt[end:]
+    return prompt
+
+
+def bind_schema_contract(job_id: str, prompt: str) -> str:
+    """Bind an already valid writer prompt without changing its policy text."""
+    errors = writer_contract_errors(job_id, prompt)
+    if errors:
+        raise ProducerPromptError("; ".join(errors))
+    if SCHEMA_START in prompt or SCHEMA_END in prompt:
+        if prompt.count(SCHEMA_START) != 1 or prompt.count(SCHEMA_END) != 1:
+            raise ProducerPromptError("ambiguous producer schema block")
+        start = prompt.index(SCHEMA_START)
+        end = prompt.index(SCHEMA_END, start) + len(SCHEMA_END)
+        if prompt[start:end] != schema_contract():
+            raise ProducerPromptError(
+                "producer schema block differs from current validator; explicit migration required"
+            )
+        return _writer_invocations(job_id, prompt)
+    prompt = _writer_invocations(job_id, prompt, bind=True)
+    return prompt + ("" if prompt.endswith("\n") else "\n") + schema_contract() + "\n"
+
+
+def schema_contract_errors(job_id: str, prompt: str) -> list[str]:
+    errors = writer_contract_errors(job_id, prompt)
+    if (
+        prompt.count(SCHEMA_START) != 1
+        or prompt.count(SCHEMA_END) != 1
+        or schema_contract() not in prompt
+    ):
+        errors.append(
+            "producer schema contract missing or mismatched with current validator"
+        )
+    if job_id in PROMPT_SPECS:
+        try:
+            _writer_invocations(job_id, prompt)
+        except ProducerPromptError as exc:
+            errors.append(str(exc))
+    return errors
 
 
 def _task_write_line(spec: PromptSpec) -> str:
@@ -206,17 +318,28 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="verify input without transforming or emitting it",
     )
+    parser.add_argument(
+        "--bind-schema",
+        action="store_true",
+        help="bind/check validator schema on an existing writer-contract prompt",
+    )
     args = parser.parse_args(argv)
 
     try:
         prompt = args.input.read_text(encoding="utf-8")
         if args.check:
-            errors = writer_contract_errors(args.job_id, prompt)
+            errors = (
+                schema_contract_errors if args.bind_schema else writer_contract_errors
+            )(args.job_id, prompt)
             if errors:
                 raise ProducerPromptError("; ".join(errors))
             return 0
         else:
-            output = transform_prompt(args.job_id, prompt)
+            output = (
+                bind_schema_contract(args.job_id, prompt)
+                if args.bind_schema
+                else transform_prompt(args.job_id, prompt)
+            )
     except (OSError, ProducerPromptError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1

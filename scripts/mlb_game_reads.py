@@ -61,6 +61,7 @@ review instead of by default.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -160,6 +161,28 @@ EXPLAINABLE_FIELDS = SIDE_FIELDS + SCALAR_NON_NEGATIVE_FIELDS + READ_STRING_FIEL
 COHERENCE_TOLERANCE = 1e-3
 
 IDENTITY_STRING_FIELDS = ("event_id", "away", "home")
+
+
+PRODUCER_SCHEMA_VERSION = "mlb-game-reads-v1"
+
+
+def producer_schema() -> dict[str, Any]:
+    """Describe the recording vocabulary from the validator that consumes it.
+
+    The digest binds the published vocabulary and validator source. It is a
+    compatibility check, not provenance or permission to change a decision.
+    """
+    contract = {
+        "version": PRODUCER_SCHEMA_VERSION,
+        "refusing_rails": sorted(REFUSAL_RAILS),
+        "unavailable_fields": list(EXPLAINABLE_FIELDS),
+        "dispositions": sorted(DISPOSITIONS),
+        "validator_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+    }
+    contract["sha256"] = hashlib.sha256(
+        json.dumps(contract, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    return contract
 
 
 def _is_probability(value: Any) -> bool:
