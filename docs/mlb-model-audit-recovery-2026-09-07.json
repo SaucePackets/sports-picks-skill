@@ -1,0 +1,121 @@
+{
+  "search_started_at_utc": "2026-09-07T19:59:03Z",
+  "search_stopped_at_utc": "2026-09-07T20:05:00Z",
+  "stop_condition": "identified offline archive roots exhausted; not the one-hour deadline",
+  "scope": "15 listed local roots; non-Python regular files, including backup variants; no symlinks, live runtime, purchases or external data",
+  "manifest_sha256": "8ef152bbb24bd62291a8a47b0fa1bb321af01d042e86c2f95e645bb69ede455e",
+  "frozen_rules_sha256": "4b9d0a5ab406ca7543103fefbb8e41030021279969f89785009ea2adfd91ffce",
+  "roots": {
+    ".scratch/claude-attrib-corpus": {
+      "files": 340,
+      "bytes": 7176150
+    },
+    ".scratch/claude-devcorpus-20260831": {
+      "files": 357,
+      "bytes": 5750049
+    },
+    ".scratch/claude-freshcorpus-20260831": {
+      "files": 1214,
+      "bytes": 21495645
+    },
+    ".scratch/claude-drought-vps": {
+      "files": 4,
+      "bytes": 466976
+    },
+    ".scratch/claude-mlb-audit": {
+      "files": 254,
+      "bytes": 6755131
+    },
+    ".scratch/claude-replay21": {
+      "files": 71,
+      "bytes": 1370615
+    },
+    ".scratch/claude-rootcause-before": {
+      "files": 42,
+      "bytes": 1592255
+    },
+    ".scratch/claude-nearmiss": {
+      "files": 38,
+      "bytes": 631175
+    },
+    ".scratch/claude-dryrun-0902": {
+      "files": 16,
+      "bytes": 611939
+    },
+    ".scratch/claude-dryrun-2026-09-02/snapshot": {
+      "files": 3,
+      "bytes": 105519
+    },
+    ".scratch/claude-selhandoff": {
+      "files": 7,
+      "bytes": 204181
+    },
+    ".scratch/claude-wii-probe": {
+      "files": 3,
+      "bytes": 1900
+    },
+    ".scratch/claude-obs": {
+      "files": 3,
+      "bytes": 157543
+    },
+    ".scratch/builder-mlb-model-audit/live": {
+      "files": 401,
+      "bytes": 6087703
+    },
+    "RESEARCH/DROUGHT_COUNTERFACTUAL_2026-09-01": {
+      "files": 0,
+      "bytes": 0
+    }
+  },
+  "file_instances": 2753,
+  "unique_file_digests": 1314,
+  "read_errors": [],
+  "symlinks_skipped": [],
+  "recovered": {
+    "result_cache_files": 99,
+    "game_occurrences": 1302,
+    "unique_game_ids": 1287,
+    "unique_game_ids_with_final_status": 1274,
+    "ledger_rows": 45,
+    "ledger_rows_with_win_and_dk_probabilities": 8,
+    "ledger_rows_with_model_version": 0,
+    "receipt_json_files": 463,
+    "september_2_scan_rows": 15,
+    "september_2_scan_rows_with_two_sided_odds_and_fair": 9,
+    "september_2_scan_sha256": "a719e91d1611d96f5f28e4ff719042c4e8f46dc33fbdad9140f16475c82c6a54"
+  },
+  "scan_targets": [
+    {
+      "schedule": "2026-09-04-schedule.json",
+      "sha256": "d1e35bebcbd796a059ef98e55aec1e4e2bb8c232a8d5dc9a8b72468919db8273",
+      "matching_file_instances": 0
+    },
+    {
+      "schedule": "2026-09-05-schedule.json",
+      "sha256": "1b01c9ed8a6294862ec0d0182f6ec644c235c1a5bc3e5cf0848c033202aef5e0",
+      "matching_file_instances": 0
+    },
+    {
+      "schedule": "2026-09-06-schedule.json",
+      "sha256": "5aed13452819d1cb1496b1690935edcd21e647b61c1f797920cf4cbc7dce98c4",
+      "matching_file_instances": 0
+    },
+    {
+      "schedule": "2026-09-07-schedule.json",
+      "sha256": "fae8adc3a92de900c0a3f4845bbd97dd2dff6073dc280483ed79eb439b457670",
+      "matching_file_instances": 0
+    }
+  ],
+  "admission": {
+    "market_games_established": 0,
+    "team_strength_games_established": 0,
+    "pitcher_bullpen_context_games_established": 0,
+    "three_family_intersection_established": 0,
+    "meaning": "No scored-game admissions established under the frozen rules; not a prediction of how many a future expanded archive search might establish."
+  },
+  "performance": {
+    "predictive_metrics": null,
+    "clv": null,
+    "realized_returns": null
+  }
+}

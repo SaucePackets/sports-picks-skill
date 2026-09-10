@@ -1,0 +1,127 @@
+{
+  "window": "2026-09-01 through 2026-09-07 (partial day)",
+  "source": "~/projects/sports-picks-runtime/.picks/execute; copied 2026-09-07",
+  "rows": [
+    {
+      "file": "2026-09-01-schedule.json",
+      "sha256": "c63e45563dc23b16bcba5f370be96963fa5eef40fbc3379f70db52afef41c108",
+      "reads": 0,
+      "candidates": 0,
+      "watchlist": 0,
+      "complete_price_probability_games": 0,
+      "raw_equal_market_games": 0,
+      "best_conservative_edge_ge_005": 0,
+      "best_market_gap_ge_005": 0,
+      "versions": {},
+      "rails": {}
+    },
+    {
+      "file": "2026-09-02-schedule.json",
+      "sha256": "ff84a2b7cd50f194deed3a984df18ccf12f2d6a75cecc2c09f5c45d304d8977e",
+      "reads": 0,
+      "candidates": 0,
+      "watchlist": 0,
+      "complete_price_probability_games": 0,
+      "raw_equal_market_games": 0,
+      "best_conservative_edge_ge_005": 0,
+      "best_market_gap_ge_005": 0,
+      "versions": {},
+      "rails": {}
+    },
+    {
+      "file": "2026-09-03-schedule.json",
+      "sha256": "32cbc5d10a732593ef45fb8c6506048e953dfd1553b58cb09078cc78513076f6",
+      "reads": 9,
+      "candidates": 1,
+      "watchlist": 0,
+      "complete_price_probability_games": 9,
+      "raw_equal_market_games": 0,
+      "best_conservative_edge_ge_005": 3,
+      "best_market_gap_ge_005": 0,
+      "versions": {
+        "market-handicap-v1": 9
+      },
+      "rails": {
+        "starter_floor": 4,
+        "real_winner_conviction": 3,
+        "cold_fade_reset": 1,
+        "bullpen_close_game_survival": 2,
+        "lineups_unconfirmed": 1,
+        "incomplete_input_data": 1
+      }
+    },
+    {
+      "file": "2026-09-04-schedule.json",
+      "sha256": "9ec4b40510b6afc0eae0d6dc69f71178bb34e5d7d168da2643ec997582359fc1",
+      "reads": 16,
+      "candidates": 0,
+      "watchlist": 0,
+      "complete_price_probability_games": 0,
+      "raw_equal_market_games": 0,
+      "best_conservative_edge_ge_005": 0,
+      "best_market_gap_ge_005": 0,
+      "versions": {
+        "MISSING": 16
+      },
+      "rails": {
+        "no_dk_price": 16,
+        "game_already_started": 16
+      }
+    },
+    {
+      "file": "2026-09-05-schedule.json",
+      "sha256": "ae5670ba7ef170317aa2edb79ba6b639e8c217a459970fe6545e8736280177b5",
+      "reads": 15,
+      "candidates": 0,
+      "watchlist": 0,
+      "complete_price_probability_games": 15,
+      "raw_equal_market_games": 15,
+      "best_conservative_edge_ge_005": 0,
+      "best_market_gap_ge_005": 0,
+      "versions": {
+        "market-handicap-v1": 15
+      },
+      "rails": {
+        "price_discipline": 15
+      }
+    },
+    {
+      "file": "2026-09-06-schedule.json",
+      "sha256": "c7af90292e1d6f9d533d52068675ced29236e7cadf9632e07359e500095df1b0",
+      "reads": 15,
+      "candidates": 0,
+      "watchlist": 0,
+      "complete_price_probability_games": 14,
+      "raw_equal_market_games": 14,
+      "best_conservative_edge_ge_005": 0,
+      "best_market_gap_ge_005": 0,
+      "versions": {
+        "dk_fair_baseline_v1": 15
+      },
+      "rails": {
+        "price_discipline": 14,
+        "park_environment_cap": 2,
+        "no_polymarket_market": 1
+      }
+    },
+    {
+      "file": "2026-09-07-schedule.json",
+      "sha256": "4a39f0550067fc6d73391e1f3d79a0dc595305bd4056043c9d0808f33ffe23e5",
+      "reads": 11,
+      "candidates": 0,
+      "watchlist": 0,
+      "complete_price_probability_games": 11,
+      "raw_equal_market_games": 11,
+      "best_conservative_edge_ge_005": 0,
+      "best_market_gap_ge_005": 0,
+      "versions": {
+        "market-handicap-v1": 11
+      },
+      "rails": {
+        "price_discipline": 11,
+        "incomplete_input_data": 2,
+        "park_environment_cap": 1
+      }
+    }
+  ]
+}
