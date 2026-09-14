@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from unittest import mock
 
 import pytest
@@ -68,6 +69,28 @@ def test_evening_contract_rejects_prompt_without_stage2_preflight():
     errors = contract.writer_contract_errors(contract.EVENING_JOB_ID, prompt)
 
     assert any("Stage 2 preflight" in error for error in errors)
+
+
+def test_evening_contract_rejects_preflight_after_writer_invocation():
+    transformed = contract.transform_prompt(contract.EVENING_JOB_ID, legacy_prompt(evening=True))
+    preflight = contract.EVENING_PREFLIGHT_CONTRACT
+    bad = transformed.replace(preflight, "", 1)
+    first_writer = bad.index("mlb_slate_writer.py")
+    first_writer_end = bad.index("`", first_writer) + 1
+    bad = bad[:first_writer_end] + "\n" + preflight + bad[first_writer_end:]
+
+    errors = contract.writer_contract_errors(contract.EVENING_JOB_ID, bad)
+
+    assert any("precede every writer" in error for error in errors)
+
+
+def test_evening_preflight_uses_the_writer_scan_artifact_convention():
+    from scripts.mlb_stage2_scan import denominator_output_path
+
+    day = "2026-09-09"
+    expected = denominator_output_path(day, Path("/runtime"))
+    assert str(expected) == "/runtime/.picks/tmp/stage2-2026-09-09.json"
+    assert "--date YYYY-MM-DD && test -s .picks/tmp/stage2-YYYY-MM-DD.json" in contract.EVENING_PREFLIGHT_CONTRACT
 
 
 def test_a_marker_does_not_hide_a_remaining_direct_write_instruction():

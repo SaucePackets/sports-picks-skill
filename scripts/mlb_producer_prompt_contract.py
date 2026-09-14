@@ -292,6 +292,24 @@ def transform_prompt(job_id: str, prompt: str) -> str:
     return transformed
 
 
+def _evening_preflight_errors(prompt: str) -> list[str]:
+    """Validate the preflight as an ordered executable contract."""
+    errors: list[str] = []
+    preflight_positions = [
+        match.start()
+        for match in re.finditer(re.escape(EVENING_PREFLIGHT_CONTRACT), prompt)
+    ]
+    if len(preflight_positions) != 1:
+        return ["Stage 2 preflight contract missing or ambiguous"]
+    preflight_at = preflight_positions[0]
+    writer_positions = [match.start() for match in WRITER_COMMAND.finditer(prompt)]
+    if writer_positions and preflight_at > min(writer_positions):
+        errors.append("Stage 2 preflight must precede every writer invocation")
+    if "--date YYYY-MM-DD && test -s .picks/tmp/stage2-YYYY-MM-DD.json" not in prompt:
+        errors.append("Stage 2 preflight must check the scan artifact produced for the date")
+    return errors
+
+
 def writer_contract_errors(job_id: str, prompt: str) -> list[str]:
     try:
         spec = PROMPT_SPECS[job_id]
@@ -309,8 +327,8 @@ def writer_contract_errors(job_id: str, prompt: str) -> list[str]:
         for item in required
         if item not in prompt
     ]
-    if spec.evening and EVENING_PREFLIGHT_CONTRACT not in prompt:
-        errors.append("Stage 2 preflight contract missing")
+    if spec.evening:
+        errors.extend(_evening_preflight_errors(prompt))
     forbidden = [WRITE_PREFIX]
     if spec.evening:
         forbidden.append(EVENING_MERGE_PREFIX)
