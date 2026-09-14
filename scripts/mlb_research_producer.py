@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from datetime import datetime, timezone
 import fcntl
 import json
@@ -19,10 +20,37 @@ import mlb_slate_receipt as receipt
 MAX_PRODUCER_ATTEMPTS = 2
 
 
+def run_logged(command, *, directory, phase, **kwargs):
+    """Retain partial output on timeout without exposing the command/prompt."""
+    try:
+        result = subprocess.run(command, **kwargs)
+    except subprocess.TimeoutExpired as exc:
+        for stream, value in (("stdout", exc.stdout), ("stderr", exc.stderr)):
+            data = value if isinstance(value, bytes) else (value or "").encode()
+            (directory / f"{phase}.{stream}").write_bytes(data)
+        raise TimeoutError(
+            f"research {phase} timed out after {exc.timeout}s; logs: {directory}"
+        ) from None
+    for stream in ("stdout", "stderr"):
+        (directory / f"{phase}.{stream}").write_text(getattr(result, stream))
+    return result
+
+
+def landed_summary(handoff):
+    counts = handoff["disposition_counts"]
+    details = ", ".join(f"{count} {name}" for name, count in sorted(counts.items()))
+    return (
+        f"MLB research recorded: {counts.get('candidate', 0)} candidate reads; {details or '0 game reads'}. "
+        "Counts describe the saved slate, including retained decisions. "
+        "Candidate reads are proposals requiring normal review. "
+        "Execution state is unchanged."
+    )
+
+
 def produce(root, day, directory, nonce, timeout):
     """The orchestrator runs scan/skeleton/land. The agent fills a draft only."""
     env = dict(os.environ, SPORTS_PICKS_ROOT=str(root))
-    scan = subprocess.run(
+    scan = run_logged(
         [
             sys.executable,
             str(root / "scripts/mlb_stage2_scan.py"),
@@ -31,14 +59,14 @@ def produce(root, day, directory, nonce, timeout):
             "--run-nonce",
             nonce,
         ],
+        directory=directory,
+        phase="scan",
         cwd=root,
         env=env,
         capture_output=True,
         text=True,
         timeout=timeout,
     )
-    (directory / "scan.stdout").write_text(scan.stdout)
-    (directory / "scan.stderr").write_text(scan.stderr)
     if scan.returncode:
         raise ValueError(
             f"research scan failed (exit {scan.returncode}); see retained log"
@@ -65,7 +93,7 @@ helper files only in {directory}. Return a short explanation, but completion req
 that the draft file is actually filled. The orchestrator performs validation and landing.
 """
     (directory / "prompt.txt").write_text(prompt)
-    child = subprocess.run(
+    child = run_logged(
         [
             shutil.which("hermes") or str(Path.home() / ".local/bin/hermes"),
             "--profile",
@@ -83,14 +111,14 @@ that the draft file is actually filled. The orchestrator performs validation and
             "terminal,file,web,skills,sports-data",
             "--quiet",
         ],
+        directory=directory,
+        phase="producer",
         cwd=root,
         env=env,
         capture_output=True,
         text=True,
         timeout=timeout,
     )
-    (directory / "producer.stdout").write_text(child.stdout)
-    (directory / "producer.stderr").write_text(child.stderr)
     if child.returncode:
         raise ValueError(
             f"research producer failed (exit {child.returncode}); see retained log"
@@ -178,6 +206,9 @@ def dispatch_ready(root, day, *, now=None, producer=produce):
                     )
             status = {
                 "status": "landed",
+                "disposition_counts": dict(
+                    Counter(r["disposition"] for r in reads.values())
+                ),
                 "game_pks": list(ready),
                 "receipt": str(run_dir / "receipt.json"),
             }

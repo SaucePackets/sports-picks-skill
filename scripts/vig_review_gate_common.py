@@ -1599,7 +1599,8 @@ def run_gate(sport: str) -> int:
             run_research_cycle(ROOT, day)
             handoff = dispatch_research_producer(ROOT, day)
             if handoff["status"] == "landed":
-                print("MLB research: refreshed decisions landed; new proposals await the normal reviewer. Execution state is unchanged.")
+                from mlb_research_producer import landed_summary
+                print(landed_summary(handoff))
         except Exception as exc:
             print(f"MLB research follow-up ERROR: {type(exc).__name__}: {exc}")
             result = 1

@@ -68,6 +68,7 @@ def test_producer_draft_lands_via_real_writer_then_acknowledges(tmp_path):
     with vig_policy_state.deployed_policy(tmp_path / "policy"):
         result = producer.dispatch_ready(tmp_path, DAY, now=NOW, producer=draft)
     assert result["status"] == "landed"
+    assert result["disposition_counts"] == {"pass": 1}
     state = json.loads((directory / "queue.json").read_text())
     assert state["games"]["1"]["status"] == "decision_recorded"
     assert state["games"]["1"]["disposition"] == "pass"
@@ -96,7 +97,11 @@ def test_invalid_producer_output_never_lands(tmp_path, defect):
         return value
 
     with vig_policy_state.deployed_policy(tmp_path / "policy"):
-        expected = {"wrong_nonce":"invalid scan run receipt", "unfilled":"no game_reads entry", "self_approved":"already carries vig_approved"}[defect]
+        expected = {
+            "wrong_nonce": "invalid scan run receipt",
+            "unfilled": "no game_reads entry",
+            "self_approved": "already carries vig_approved",
+        }[defect]
         with pytest.raises(writer.SlateWriteError, match=expected):
             producer.dispatch_ready(tmp_path, DAY, now=NOW, producer=bad)
     assert not writer.schedule_path_for(tmp_path, DAY).exists()
@@ -131,3 +136,33 @@ def test_expired_handoff_does_not_launch_agent(tmp_path):
         producer=lambda *a: pytest.fail("late"),
     )
     assert result["status"] == "no_due_producer"
+
+
+@pytest.mark.parametrize("output", [b"partial output", "partial output", None])
+def test_timeout_retains_output_without_prompt(tmp_path, monkeypatch, output):
+    import subprocess
+
+    def fail(*args, **kwargs):
+        raise subprocess.TimeoutExpired(
+            ["hermes", "private prompt"], 300, output=output, stderr=b"partial error"
+        )
+
+    monkeypatch.setattr(producer.subprocess, "run", fail)
+    with pytest.raises(TimeoutError, match="producer timed out after 300s") as error:
+        producer.run_logged(
+            ["hermes", "private prompt"], directory=tmp_path, phase="producer"
+        )
+    assert "private prompt" not in str(error.value)
+    assert (tmp_path / "producer.stdout").read_text() == (
+        "partial output" if output else ""
+    )
+    assert (tmp_path / "producer.stderr").read_text() == "partial error"
+
+
+def test_zero_candidates_summary_reports_actual_dispositions():
+    message = producer.landed_summary(
+        {"disposition_counts": {"pass": 6, "incomplete_input_data": 4}}
+    )
+    assert "6 pass" in message and "4 incomplete_input_data" in message
+    assert "new proposals" not in message
+    assert "0 candidate reads" in message
