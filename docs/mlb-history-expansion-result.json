@@ -1,0 +1,248 @@
+{
+  "bulk_coverage_established": false,
+  "dates": [
+    {
+      "date": "2023-04-17",
+      "refusal": null,
+      "regular_occurrences": 13
+    },
+    {
+      "date": "2023-07-14",
+      "refusal": null,
+      "regular_occurrences": 15
+    },
+    {
+      "date": "2023-09-18",
+      "refusal": null,
+      "regular_occurrences": 11
+    },
+    {
+      "date": "2024-04-15",
+      "refusal": null,
+      "regular_occurrences": 15
+    },
+    {
+      "date": "2024-07-12",
+      "refusal": null,
+      "regular_occurrences": 15
+    },
+    {
+      "date": "2024-09-16",
+      "refusal": null,
+      "regular_occurrences": 10
+    }
+  ],
+  "eligible": false,
+  "final_statistics_admitted": false,
+  "fitting_enabled": false,
+  "implementation_sha256": "8aa5be36edb257323593e396143f6f90759efcdac601827c1007aab4f83595cb",
+  "independent_pregame_timing_verified": false,
+  "plan_sha256": "3c5798d3dcc0c6e485c74de7d2f92d1d2cd6058d3137cf8330e0f41df8c1082c",
+  "request_count": 41,
+  "retained_response_bytes": 12229707,
+  "samples": [
+    {
+      "cutoff": "2023-04-18T01:10:00+00:00",
+      "date": "2023-04-17",
+      "final_feed_available": true,
+      "final_feed_sha256": "c01e40f1aca8b5f363fd55e488e706f90ab391e50cc37659938cb81d18f4a6b0",
+      "game_id": "718532",
+      "probable_pitcher_ids": {
+        "away": "656849",
+        "home": "669160"
+      },
+      "refusal": null,
+      "schedule_pointer": "/dates/0/games/10",
+      "schedule_sha256": "282ef3e391d6ad373038cfa6ce9880ae1372d826eb9a1ab1c755c8ff43c1f707",
+      "snapshot_sha256": "2f96c34eb78307d4ddacc6929465d824af50fbd49e63dad516aeda8183468f59",
+      "starter_candidate": true,
+      "timecode": "20230418_010259"
+    },
+    {
+      "cutoff": "2023-04-18T00:40:00+00:00",
+      "date": "2023-04-17",
+      "final_feed_available": true,
+      "final_feed_sha256": "b4ec8b34ff5377fe18c4e67cea61c0c49ffd0ea066a135be845ced980afa53c4",
+      "game_id": "718533",
+      "probable_pitcher_ids": {
+        "away": "608331",
+        "home": "677960"
+      },
+      "refusal": null,
+      "schedule_pointer": "/dates/0/games/8",
+      "schedule_sha256": "282ef3e391d6ad373038cfa6ce9880ae1372d826eb9a1ab1c755c8ff43c1f707",
+      "snapshot_sha256": "a2856627b891bd9a3772a92351bf3d56ca4fc3a81c929df232e0fc89e644f5d4",
+      "starter_candidate": true,
+      "timecode": "20230418_003139"
+    },
+    {
+      "cutoff": "2023-07-15T00:38:00+00:00",
+      "date": "2023-07-14",
+      "final_feed_available": true,
+      "final_feed_sha256": "fedef78b0425d99962759822950889a5c4744b838b427e3310f2ca0f43a146ad",
+      "game_id": "717405",
+      "probable_pitcher_ids": {
+        "away": "641585",
+        "home": "660271"
+      },
+      "refusal": null,
+      "schedule_pointer": "/dates/0/games/11",
+      "schedule_sha256": "a7d8f896f4b6b0bbce103e57496ac5a5e28474f81a4724f5dcd7bfe6969e9f51",
+      "snapshot_sha256": "bbe9cc6e75623f01c16a35c20aff70b33a9068f0901bcec1fd117d2aa09e6eb2",
+      "starter_candidate": true,
+      "timecode": "20230715_001321"
+    },
+    {
+      "cutoff": "2023-07-15T01:10:00+00:00",
+      "date": "2023-07-14",
+      "final_feed_available": true,
+      "final_feed_sha256": "84f2b9eca352514019b93a617b1331e6436cdd377309bcef824ca9fa19f7c69b",
+      "game_id": "717406",
+      "probable_pitcher_ids": {
+        "away": "593958",
+        "home": "622491"
+      },
+      "refusal": null,
+      "schedule_pointer": "/dates/0/games/13",
+      "schedule_sha256": "a7d8f896f4b6b0bbce103e57496ac5a5e28474f81a4724f5dcd7bfe6969e9f51",
+      "snapshot_sha256": "1485dbbae04a752e28bab296eac429b8986b6483129983592b48842ce5069985",
+      "starter_candidate": true,
+      "timecode": "20230715_010537"
+    },
+    {
+      "cutoff": "2023-09-19T00:40:00+00:00",
+      "date": "2023-09-18",
+      "final_feed_available": true,
+      "final_feed_sha256": "89e24cdd6da40a2766e9c4dadafdc4b1afa5e2b02a7cb021facde40dd2d60bce",
+      "game_id": "716526",
+      "probable_pitcher_ids": {
+        "away": "621389",
+        "home": "608379"
+      },
+      "refusal": null,
+      "schedule_pointer": "/dates/0/games/8",
+      "schedule_sha256": "3cdbc3b47cc9cbafc354ad2e089ec5b9fb5b2e4fea5c4974a8d552a523ec90c2",
+      "snapshot_sha256": "21da2bab9b81edb449d605926f30f08ee57daf309cacc5244ff0e4c3455d1de0",
+      "starter_candidate": true,
+      "timecode": "20230919_002210"
+    },
+    {
+      "cutoff": "2023-09-19T00:40:00+00:00",
+      "date": "2023-09-18",
+      "final_feed_available": true,
+      "final_feed_sha256": "f782090929d6cd586da9a7bd2c8fe2f31680bb276dbb4a3e3596582f86694788",
+      "game_id": "716527",
+      "probable_pitcher_ids": {
+        "away": "693433",
+        "home": "676664"
+      },
+      "refusal": null,
+      "schedule_pointer": "/dates/0/games/9",
+      "schedule_sha256": "3cdbc3b47cc9cbafc354ad2e089ec5b9fb5b2e4fea5c4974a8d552a523ec90c2",
+      "snapshot_sha256": "957329b38c6eb87f6dfec9bd7529bc9e1762c4aeb29f127df40b7feabfab27a6",
+      "starter_candidate": true,
+      "timecode": "20230918_211602"
+    },
+    {
+      "cutoff": "2024-04-15T22:07:00+00:00",
+      "date": "2024-04-15",
+      "final_feed_available": true,
+      "final_feed_sha256": "7a32ad0f9ecb8c87baf63dd252f860452446da05da4a05f3bc1f539ff5a5b511",
+      "game_id": "744951",
+      "probable_pitcher_ids": {
+        "away": "661563",
+        "home": "605135"
+      },
+      "refusal": null,
+      "schedule_pointer": "/dates/0/games/6",
+      "schedule_sha256": "9f15ecf7803cd12e86006e9016698d542a2ca72c22e2bd5005c14c151ff94afe",
+      "snapshot_sha256": "68901d0017f677741c0a0e76c84cb6c08864d86a4b25ca7e5fc2b3b0bd6f45ed",
+      "starter_candidate": true,
+      "timecode": "20240415_204914"
+    },
+    {
+      "cutoff": "2024-04-15T21:50:00+00:00",
+      "date": "2024-04-15",
+      "final_feed_available": true,
+      "final_feed_sha256": "b7a025cf824e56536196f41cf6a01a3a9553f991842ab343410792bd0a0c2101",
+      "game_id": "745106",
+      "probable_pitcher_ids": {
+        "away": "663776",
+        "home": "621107"
+      },
+      "refusal": null,
+      "schedule_pointer": "/dates/0/games/5",
+      "schedule_sha256": "9f15ecf7803cd12e86006e9016698d542a2ca72c22e2bd5005c14c151ff94afe",
+      "snapshot_sha256": "c57c9a82e17edb39f444481fe2851e0cdd1337b547db3bc9ae57ed0c8e37f665",
+      "starter_candidate": true,
+      "timecode": "20240415_185150"
+    },
+    {
+      "cutoff": "2024-07-12T21:50:00+00:00",
+      "date": "2024-07-12",
+      "final_feed_available": true,
+      "final_feed_sha256": "ef4e71fa62344c7d8b92e20fe16a5fee7ae9d0851728586a61d7b461f301f1a5",
+      "game_id": "745064",
+      "probable_pitcher_ids": {
+        "away": "471911",
+        "home": "671737"
+      },
+      "refusal": null,
+      "schedule_pointer": "/dates/0/games/2",
+      "schedule_sha256": "254ddd68375f3495e404c1ae56ff85ec5e36c6314ae8b5685e9e3b02f14799a3",
+      "snapshot_sha256": "8bd110268ddb0a1be9bfc92b2f74394dd5548f207e9a3cb087899f3d913a0e9f",
+      "starter_candidate": true,
+      "timecode": "20240712_214248"
+    },
+    {
+      "cutoff": "2024-07-12T23:15:00+00:00",
+      "date": "2024-07-12",
+      "final_feed_available": true,
+      "final_feed_sha256": "8b18d8cabc25353997dae884a2efe7fffb4c7d2c383abae4e511f5096126b5d8",
+      "game_id": "745153",
+      "probable_pitcher_ids": {
+        "away": "543294",
+        "home": "543243"
+      },
+      "refusal": null,
+      "schedule_pointer": "/dates/0/games/10",
+      "schedule_sha256": "254ddd68375f3495e404c1ae56ff85ec5e36c6314ae8b5685e9e3b02f14799a3",
+      "snapshot_sha256": "b9b5b624010a97776bd1082cbfba21dd8043b121ad1bb24c102077f06fdd1452",
+      "starter_candidate": true,
+      "timecode": "20240712_230638"
+    },
+    {
+      "date": "2024-09-16",
+      "final_feed_available": true,
+      "final_feed_sha256": "225393d4a0977ebf697cca2542e38fbe7287a75ba18a732242109d07d55a29d6",
+      "game_id": "745130",
+      "refusal": "no_provider_snapshot_before_cutoff",
+      "schedule_pointer": "/dates/0/games/6",
+      "schedule_sha256": "2a7440ea62898787b25d36dfaa148ff37e27f88247e653792c6da605e4a2383b",
+      "starter_candidate": false
+    },
+    {
+      "cutoff": "2024-09-17T00:40:00+00:00",
+      "date": "2024-09-16",
+      "final_feed_available": true,
+      "final_feed_sha256": "d44e3a39b3dfe2887685aca3be078b19919151413e33d02a7b3b9e24c3ec130f",
+      "game_id": "745367",
+      "probable_pitcher_ids": {
+        "away": "681293",
+        "home": "506433"
+      },
+      "refusal": null,
+      "schedule_pointer": "/dates/0/games/9",
+      "schedule_sha256": "2a7440ea62898787b25d36dfaa148ff37e27f88247e653792c6da605e4a2383b",
+      "snapshot_sha256": "c8b0b9f2c7c81fd1d47bb9f633b7680825f8e71ef6e1caf13c5836005aeaae8e",
+      "starter_candidate": true,
+      "timecode": "20240917_001059"
+    }
+  ],
+  "schema": "mlb-history-expansion-probe-v1",
+  "scoring_enabled": false,
+  "transport_sha256": "8b0e190df66ea7e05e8df1a156cef929b4feeb5d0c23e2ee63e8469772fcf63f",
+  "full_report_sha256": "01e36f38b282198fe0661dccc01215f9fe856933d7c392e82ef20d0c7eb12c75",
+  "full_report_bytes": 17280,
+  "receipt_count": 41
+}
