@@ -31,6 +31,8 @@ for _guard_dir in (
 
 from mlb_candidate_contract import candidate_errors
 from mlb_decision_audit import write_snapshot as write_decision_snapshot
+from mlb_research_queue import run_cycle as run_research_cycle, expire_previous as expire_research_queues
+from mlb_research_producer import dispatch_ready as dispatch_research_producer
 
 from mlb_lineup_watchlist import (  # noqa: E402
     PENDING_STATUS,
@@ -1591,13 +1593,23 @@ def run_gate(sport: str) -> int:
     # receipt that is written only on the happy path would reproduce it in a
     # narrower form.
     try:
-        return _run_gate(sport, day)
+        result = _run_gate(sport, day)
+        try:
+            expire_research_queues(ROOT, day)
+            run_research_cycle(ROOT, day)
+            handoff = dispatch_research_producer(ROOT, day)
+            if handoff["status"] == "landed":
+                print("MLB research: refreshed decisions landed; new proposals await the normal reviewer. Execution state is unchanged.")
+        except Exception as exc:
+            print(f"MLB research follow-up ERROR: {type(exc).__name__}: {exc}")
+            result = 1
     finally:
         write_slate_receipt(sport, day)
         try:
             write_decision_snapshot(ROOT, day)
         except Exception as exc:
             print(f"{sport} review gate AUDIT CRITICAL: {type(exc).__name__}: {exc}")
+    return result
 
 
 def _run_gate(sport: str, day: str) -> int:

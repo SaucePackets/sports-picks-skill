@@ -27,7 +27,7 @@ from mlb_runtime_policy import (
 )
 
 
-def build_audit(document, policy, *, now, state_dir=None):
+def build_audit(document, policy, *, now, state_dir=None, research=None):
     if not isinstance(document, dict):
         raise ValueError("schedule must be an object")
     if now.tzinfo is None:
@@ -118,6 +118,12 @@ def build_audit(document, policy, *, now, state_dir=None):
             "disposition"
         ) in {"pass", "incomplete_input_data"}
         rails.update(game["refusing_rails"])
+        research_item = (research or {}).get("games", {}).get(str(identity), {})
+        if not isinstance(research_item, dict):
+            research_item = {}
+        expected_identity = research_item.get("identity", [])
+        if not isinstance(expected_identity, list) or len(expected_identity) != 5 or expected_identity[:4] != [identity, event, read.get("away"), read.get("home")]:
+            research_item = {}
         result["games"].append(
             {
                 "game_pk": identity,
@@ -127,6 +133,10 @@ def build_audit(document, policy, *, now, state_dir=None):
                 "refusing_rails": game["refusing_rails"],
                 "unavailable": game.get("unavailable", {}),
                 "recheck_statuses": [w.get("status") for w in linked],
+                "research_status": research_item.get("status"),
+                "research_next_retry": research_item.get("next_retry") if research_item.get("status") == "pending" else None,
+                "research_deadline": research_item.get("deadline"),
+                "incomplete_without_tracked_followup": read.get("disposition") == "incomplete_input_data" and not linked and not research_item,
                 "incomplete_without_linked_recheck": read.get("disposition")
                 == "incomplete_input_data"
                 and not linked,
@@ -154,7 +164,22 @@ def write_snapshot(root, day, *, now=None):
         document = json.loads(raw)
         if isinstance(document, list):
             document = {"candidates": document}
-        report = build_audit(document, load_mlb_selection_policy(), now=now)
+        research = None
+        queue_path = root / ".picks" / "research" / day / "queue.json"
+        queue_error = None
+        if queue_path.exists():
+            try:
+                research = json.loads(queue_path.read_text())
+                if (not isinstance(research, dict) or research.get("schema") != "mlb-research-queue-v1"
+                        or research.get("day") != day or not isinstance(research.get("games"), dict)
+                        or any(not isinstance(item, dict) for item in research["games"].values())):
+                    raise ValueError("invalid research queue shape")
+            except (OSError, ValueError) as exc:
+                research = None
+                queue_error = str(exc)
+        report = build_audit(document, load_mlb_selection_policy(), now=now, research=research)
+        if queue_error:
+            report["input_errors"].append("research queue unreadable: " + queue_error)
         report["schedule_sha256"] = hashlib.sha256(raw).hexdigest()
     directory = root / ".picks" / "journal"
     directory.mkdir(parents=True, exist_ok=True)

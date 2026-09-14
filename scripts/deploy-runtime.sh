@@ -25,6 +25,8 @@ PROFILE_MANIFEST=(
   execution_guard.py
   http_util.py
   mlb_baseball_evidence.py
+  mlb_research_producer.py
+  mlb_research_queue.py
   mlb_decision_audit.py
   mlb_candidate_contract.py
   mlb_eligibility_report.py

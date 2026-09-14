@@ -816,3 +816,31 @@ establish current confirmed-lineup coverage. Refresh the source when stale;
 never refresh a timestamp without fetching the source.
 
 See `docs/mlb-data-completeness.md` for diagnosis, limitations, and validation.
+
+
+## Research follow-ups before first pitch
+
+The 15-minute review cycle separately refreshes missing inputs in
+`.picks/research/YYYY-MM-DD/queue.json`. This is a research queue, not an
+executable watchlist. Read its `producer-handoff.json` on every authorized slate
+producer run. `ready_for_producer` means source fields recovered; it does not
+assert an edge, complete baseball judgment, source freshness for every field,
+or model admission.
+
+Consume ready, unexpired packets as research leads. Re-fetch current prices,
+lineups/injuries and any stale card evidence, apply the current admitted-model
+contract and all original gates, and record either a supported proposal or a
+specific pass/incomplete reason through the existing nonce-bound full-slate
+writer. Preserve occupied cards and their earlier reads. Never copy a packet
+into the executable schedule or reset an existing approval. The queue will
+acknowledge a current-scan recorded decision on a later cycle. An expired packet
+is historical research only.
+
+A missing source outside the worker's supported refresh fields remains explicit;
+the producer must research it using the established source tools. Do not call a
+research packet a completed handicap or a filled pick. The review cycle invokes a bounded producer when packets become ready. The
+orchestrator creates the nonce-bound scan and skeleton, the agent fills only the
+draft, and the orchestrator calls the existing writer to land it. Failed attempts
+remain visible and expire or exhaust their retry budget; they are never counted
+as successful passes. New proposals go through the normal reviewer on a later
+cycle. Morning/evening runs can also consume these packets.

@@ -62,6 +62,18 @@ class DecisionAuditTests(unittest.TestCase):
         self.assertEqual(game["model_errors"], [])
         self.assertFalse(report["execution_enabled"])
 
+    def test_research_tracking_does_not_imply_a_pick_or_lineup_recheck(self):
+        queue = {"games": {"1": {"identity": [1, "a", "A", "B", "2026-09-14T22:00Z"],
+                                  "status": "pending", "next_retry": "2026-09-14T20:00Z"}}}
+        report = build_audit(self.doc, self.policy, now=self.now, state_dir=self.state, research=queue)
+        game = report["games"][0]
+        self.assertTrue(game["incomplete_without_linked_recheck"])
+        self.assertFalse(game["incomplete_without_tracked_followup"])
+        self.assertEqual(game["research_status"], "pending")
+        queue["games"]["1"]["identity"][1] = "wrong event"
+        report = build_audit(self.doc, self.policy, now=self.now, state_dir=self.state, research=queue)
+        self.assertTrue(report["games"][0]["incomplete_without_tracked_followup"])
+
     def test_snapshot_hash_matches_input_and_missing_schedule_is_explicit(self):
         root = self.state / "runtime"
         root.mkdir()
