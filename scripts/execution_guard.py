@@ -21,6 +21,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
+from mlb_candidate_contract import candidate_errors
+
 from mlb_runtime_policy import (  # noqa: E402
     live_conservative_edge,
     load_mlb_selection_policy,
@@ -253,7 +255,7 @@ def _risk_limit_violation(
                 "risk_limits.json; standing-authorized execution is disabled "
                 "until the policy block loads"
             )
-        contract_errors = stale_probability_field_errors(candidate)
+        contract_errors = candidate_errors(candidate, limits=limits)
         if contract_errors:
             return "probability contract violation: " + "; ".join(contract_errors)
         # The lock re-checks every upstream gate, and deployment eligibility is
@@ -284,9 +286,9 @@ def _risk_limit_violation(
     # Small-stake tier: a below-Medium-confidence pick that still clears the 2%
     # net-edge floor is bet SMALL, not passed. It is capped tighter than the
     # absolute cap so lower-conviction volume cannot size up. Keyed on the
-    # explicit confidence label, never prose. Other tiers keep only the absolute
-    # cap (adding per-tier caps here would retroactively block existing $18
-    # Medium bets against the seed max_unit_usd.medium=15).
+    # explicit confidence label, never prose. Standing-authorized MLB cards
+    # have already passed every current tier cap through candidate_errors.
+    # This legacy Small check also applies to other execution modes.
     tier = str(candidate.get("confidence") or "").strip().lower()
     is_small = tier == SMALL_TIER
     if is_small:

@@ -21,6 +21,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
+from mlb_candidate_contract import candidate_errors
+
 from mlb_runtime_policy import (
     enforce_daily_candidate_limit,
     live_conservative_edge,
@@ -158,7 +160,7 @@ def candidate_is_eligible(candidate: dict[str, Any], now: datetime) -> bool:
     # recomputation (conservative_probability - current_ask). Missing or stale
     # fields make the candidate ineligible — a stale stored edge never
     # overrides live arithmetic.
-    if stale_probability_field_errors(candidate):
+    if candidate_errors(candidate):
         return False
     # Deployment contract: a version string is not a deployed model. The
     # probability trail above proves the numbers are internally consistent and

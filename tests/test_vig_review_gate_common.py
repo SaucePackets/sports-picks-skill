@@ -52,7 +52,9 @@ PROBABILITY_TRAIL = {
     "conservative_probability": 0.54,
     "current_ask": 0.48,
     "projected_edge_at_current_ask": 0.06,
-    "model_version": "vig-mlb-market-v1",
+    "model_version": "test-admitted-components-v1",
+    "confidence": "medium",
+    "unit_size": 15,
     "baseball_evidence": valid_baseball_evidence(),
     "execution_checks": valid_execution_checks(supported_price=0.48),
     "probability_components": valid_probability_components(),
@@ -159,7 +161,9 @@ def with_recorder_record(payload):
                 "raw_probability": {"away": 0.400, "home": 0.610},
                 "uncertainty_haircut": 0.02,
                 "conservative_probability": {"away": 0.380, "home": 0.590},
-                "model_version": "vig-mlb-market-v1",
+                "model_version": "test-admitted-components-v1",
+                "confidence": "medium",
+                "unit_size": 15,
                 "net_edge": {"away": -0.080, "home": 0.045},
                 "refusing_rails": [],
             }
@@ -221,6 +225,8 @@ class DeterministicPolicyState:
         self.tmp = tempfile.TemporaryDirectory()
         state = Path(self.tmp.name)
         (state / "risk_limits.json").write_text(json.dumps({
+            "max_unit_usd": {"small": 9, "medium": 15, "high": 25},
+            "mlb_deployed_models": {"schema": "vig-mlb-deployed-models-v1", "versions": ["test-admitted-components-v1"]},
             "mlb_selection_policy": {
                 "schema": "vig-mlb-selection-policy-v1",
                 "policy_version": "test",
@@ -255,7 +261,7 @@ class VigReviewGateCommonTests(DeterministicPolicyState, unittest.TestCase):
                     "first_pitch_utc": "2026-07-19T18:15:00Z",
                     "polymarket_slug": "aec-mlb-cws-tor-2026-07-19",
                     "polymarket_ask": 0.525,
-                    "unit_size": 18,
+                    "unit_size": 15,
                     "vig_approved": None,
                 }
             ],
@@ -589,7 +595,10 @@ class VigReviewGateCommonTests(DeterministicPolicyState, unittest.TestCase):
         # refuse the entire review — never silently fall back to partial rails.
         state = Path(self.tmp.name) / "empty-state"
         state.mkdir()
-        (state / "risk_limits.json").write_text(json.dumps({}))
+        (state / "risk_limits.json").write_text(json.dumps({
+            "max_unit_usd": {"medium": 15},
+            "mlb_deployed_models": {"schema": "vig-mlb-deployed-models-v1", "versions": ["test-admitted-components-v1"]},
+        }))
         (state / "standing_authorization.json").write_text(json.dumps({
             "schema": "vig-standing-authorization-v1",
             "enabled": True,
@@ -628,6 +637,8 @@ class VigReviewGateCommonTests(DeterministicPolicyState, unittest.TestCase):
         state = Path(self.tmp.name) / "deployed-state"
         state.mkdir()
         (state / "risk_limits.json").write_text(json.dumps({
+            "max_unit_usd": {"small": 9, "medium": 15, "high": 25},
+            "mlb_deployed_models": {"schema": "vig-mlb-deployed-models-v1", "versions": ["test-admitted-components-v1"]},
             "mlb_policy": {
                 "schema": "vig-mlb-selection-policy-v1",
                 "policy_version": "2026-08-11-hardening-pr1",
@@ -678,7 +689,9 @@ class VigReviewGateCommonTests(DeterministicPolicyState, unittest.TestCase):
                 "approved_polymarket_ask": 0.48,
                 "vig_approved": None,
                 "dk_fair_prob": 0.55,
-                "model_version": "vig-mlb-market-v1",
+                "model_version": "test-admitted-components-v1",
+                "confidence": "medium",
+                "unit_size": 15,
                 "baseball_evidence": valid_baseball_evidence(),
                 "execution_checks": valid_execution_checks(supported_price=0.48),
                 **consistent_probability_overrides(round(0.48 + edge, 6), 0.48),
@@ -720,7 +733,9 @@ class VigReviewGateCommonTests(DeterministicPolicyState, unittest.TestCase):
                 "approved_polymarket_ask": 0.48,
                 "vig_approved": None,
                 "dk_fair_prob": 0.55,
-                "model_version": "vig-mlb-market-v1",
+                "model_version": "test-admitted-components-v1",
+                "confidence": "medium",
+                "unit_size": 15,
                 "baseball_evidence": valid_baseball_evidence(),
                 "execution_checks": valid_execution_checks(supported_price=0.48),
                 **consistent_probability_overrides(round(0.48 + edge, 6), 0.48),
@@ -767,7 +782,9 @@ class VigReviewGateCommonTests(DeterministicPolicyState, unittest.TestCase):
                 "approved_polymarket_ask": 0.48,
                 "vig_approved": vig_approved,
                 "dk_fair_prob": 0.55,
-                "model_version": "vig-mlb-market-v1",
+                "model_version": "test-admitted-components-v1",
+                "confidence": "medium",
+                "unit_size": 15,
                 "baseball_evidence": valid_baseball_evidence(),
                 "execution_checks": valid_execution_checks(supported_price=0.48),
                 **consistent_probability_overrides(round(0.48 + edge, 6), 0.48),
@@ -1027,7 +1044,7 @@ class VigReviewGateCommonTests(DeterministicPolicyState, unittest.TestCase):
                     "side": "CWS",
                     "sport": "MLB",
                     "market_type": "moneyline",
-                    "unit_size": 18,
+                    "unit_size": 15,
                     "polymarket_ask": 0.51,
                     "vig_approved": None,
                     "execution_mode": "manual",
@@ -1079,7 +1096,7 @@ class VigReviewGateCommonTests(DeterministicPolicyState, unittest.TestCase):
                 self.assertIn("1 approved standing-authorized candidate", latest)
                 self.assertIn("1 approved", latest)
                 self.assertIn("0 rejected", latest)
-                self.assertIn("Approved exposure $18 / $110", latest)
+                self.assertIn("Approved exposure $15 / $110", latest)
                 self.assertIn("Review gate placed no bet", latest)
             finally:
                 setattr(vig_review_gate_common, "ROOT", original_root)
@@ -1113,7 +1130,7 @@ class VigReviewGateCommonTests(DeterministicPolicyState, unittest.TestCase):
                     "side": "MIN",
                     "price": 123,
                     "bettable_to_price": 105,
-                    "unit_size": 18,
+                    "unit_size": 15,
                     **PROBABILITY_TRAIL,
                     "vig_approved": True,
                     "vig_notes": "All gates hold.",
@@ -1175,7 +1192,7 @@ class VigReviewGateCommonTests(DeterministicPolicyState, unittest.TestCase):
                     "Supported price: +123\n"
                     "Bettable to: +105\n"
                     "Reason: Both lineups confirmed; matchup edge still holds.\n"
-                    "Size: $18\n"
+                    "Size: $15\n"
                     "Status: pending execution\n",
                 )
                 self.assertNotIn("review diff", output.getvalue())
@@ -1744,7 +1761,7 @@ class VigReviewGateCommonTests(DeterministicPolicyState, unittest.TestCase):
                     "side": "CWS",
                     "sport": "MLB",
                     "market_type": "moneyline",
-                    "unit_size": 18,
+                    "unit_size": 15,
                     "polymarket_ask": 0.51,
                     "vig_approved": None,
                     "execution_mode": "manual",
@@ -2387,7 +2404,7 @@ class VigReviewGateCommonTests(DeterministicPolicyState, unittest.TestCase):
     _ROUTABLE_CANDIDATE = {
         "event_id": "401816156",
         "side": "CWS",
-        "unit_size": 18,
+        "unit_size": 15,
         "polymarket_ask": 0.51,
         "vig_approved": None,
         "executed": False,
@@ -2866,7 +2883,7 @@ class VigReviewGateCommonTests(DeterministicPolicyState, unittest.TestCase):
                 candidate = {
                     "event_id": "401816156",
                     "side": "CWS",
-                    "unit_size": 18,
+                    "unit_size": 15,
                     "polymarket_ask": 0.51,
                     "vig_approved": None,
                     "executed": False,
@@ -3461,7 +3478,9 @@ def _promotion_watch_entry(**overrides):
             "conservative_probability": 0.54,
             "current_ask": 0.48,
             "projected_edge_at_current_ask": 0.06,
-            "model_version": "vig-mlb-market-v1",
+            "model_version": "test-admitted-components-v1",
+                "confidence": "medium",
+                "unit_size": 15,
         },
     }
     entry.update(overrides)

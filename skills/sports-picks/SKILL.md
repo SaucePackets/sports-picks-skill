@@ -74,17 +74,19 @@ roster, validates the whole record, and writes nothing at all if it does not
 pass. Start the day from the skeleton:
 
 ```
-python3 scripts/mlb_stage2_scan.py --date <day>
+MLB_RUN_NONCE="$(python3 -c 'import uuid; print(uuid.uuid4().hex)')"
+python3 scripts/mlb_stage2_scan.py --date <day> --run-nonce "$MLB_RUN_NONCE"
 python3 scripts/mlb_slate_writer.py --skeleton --day <day>
 ```
 
+Preserve the same nonce across terminal calls for this scan and landing.
 That writes `.picks/tmp/<day>-slate-draft.json` carrying one `game_reads` stub
 per scanned game — both id spaces, the team names, and the DK fair prior the
 scan already computed. Fill in the decisions, add `candidates` and
 `lineup_watchlist`, then land it:
 
 ```
-python3 scripts/mlb_slate_writer.py --land .picks/tmp/<day>-slate-draft.json --day <day>
+python3 scripts/mlb_slate_writer.py --land .picks/tmp/<day>-slate-draft.json --day <day> --run-nonce "$MLB_RUN_NONCE"
 ```
 
 A nonzero exit means nothing was written and the errors name every defect. The
@@ -120,12 +122,12 @@ Each `game_reads` entry — one per game in that roster — looks like this:
   "disposition": "pass",
   "dk_fair_prob": {"away": 0.398, "home": 0.602},
   "polymarket_ask": {"away": 0.460, "home": 0.545},
-  "raw_probability": {"away": 0.400, "home": 0.610},
-  "uncertainty_haircut": 0.02,
-  "conservative_probability": {"away": 0.380, "home": 0.590},
+  "raw_probability": {"away": 0.398, "home": 0.602},
+  "uncertainty_haircut": 0.0,
+  "conservative_probability": {"away": 0.398, "home": 0.602},
   "model_version": "vig-mlb-market-v1",
-  "net_edge": {"away": -0.080, "home": 0.035},
-  "refusing_rails": ["price_discipline"]
+  "net_edge": {"away": -0.062, "home": 0.057},
+  "refusing_rails": ["real_winner_conviction"]
 }]
 ```
 
@@ -170,6 +172,48 @@ Each `game_reads` entry — one per game in that roster — looks like this:
   and exits nonzero on a contradiction. It reports only; the decision stays
   yours, and a `pass` on an eligible price is correct whenever a handicapping
   gate is what refused it.
+
+### Decision-quality accounting
+
+New MLB candidates must pass `mlb_candidate_contract.candidate_errors` before
+landing, fresh review approval, and execution. The market fallback means
+`raw_probability == conservative_probability == dk_fair_prob`, zero haircut,
+and empty component lists. Adjusted estimates require an explicitly admitted
+model version. Use the configured confidence tier cap; an old $18 Medium card
+is not permission to exceed today's Medium cap. Existing occupied cards remain
+immutable during producer append; execution revalidates current policy.
+
+After landing, run:
+
+```sh
+python3 scripts/mlb_decision_audit.py --schedule .picks/execute/<day>-schedule.json
+```
+
+The scheduled MLB review gate also refreshes
+`.picks/journal/<day>-decision-audit.json` on every cycle, including no-work
+returns. It records the hash of the schedule bytes it inspected. Retain its JSON
+alongside the run evidence. Review every incomplete game with
+`incomplete_without_linked_recheck`, each due or overdue watchlist entry, and
+each `price_qualified_refusal`. The last flag means the recorded arithmetic
+clears the floor; inspect `model_errors`, read errors, and the named refusal
+before calling it an opportunity. A named subjective veto is recorded reasoning,
+not measured evidence of its usefulness. Preserve the pregame reason and input
+artifacts so it can be evaluated after settlement. Do not remove a gate based
+on a few winning passes.
+
+For incomplete games, refresh the missing inputs during the next authorized
+slate/recheck run before first pitch. Record unresolved data as incomplete;
+do not turn it into a final model pass or create an executable watchlist entry
+without its required evidence. This report does not schedule new jobs or prove
+that a follow-up happened. Missing follow-up remains a visible process gap.
+
+Independent estimates belong in the existing non-executing shadow collection
+and evaluation workflow in `docs/mlb-shadow-collection.md` and
+`docs/model-evaluation.md`. Freeze a distinct version before collecting inputs,
+record every scheduled game regardless of disposition, and evaluate one version
+at a time with `evaluate --model-version <version>`. Never relabel an adjusted
+estimate as market fallback to make it eligible. Evaluation output does not
+activate a model, authorize an order, or establish historical provenance.
 
 `--land` runs `mlb_game_reads.py --validate` for you, before it writes: the
 writer calls the same validator, and a schedule it accepts is one the gate

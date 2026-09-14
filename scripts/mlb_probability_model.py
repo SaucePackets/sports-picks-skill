@@ -271,6 +271,14 @@ def validate_probability_components(components: Any, candidate: dict[str, Any]) 
         errors.append("uncertainty_haircut must be a non-negative number")
         return errors
 
+    if str(candidate.get("model_version", "")).strip() == MARKET_MODEL_VERSION:
+        if (adjustments or haircuts or raw != dk_fair or haircut != 0
+                or conservative != dk_fair):
+            errors.append(
+                "market-only model requires raw_probability and conservative_probability "
+                "equal to dk_fair_prob, zero uncertainty_haircut, and empty components"
+            )
+
     adjustment_sum = sum(adjustments.values())
     stated_delta = float(raw) - float(dk_fair)
     if abs(adjustment_sum - stated_delta) > COMPONENT_SUM_TOLERANCE:
@@ -747,9 +755,22 @@ def _cmd_dataset(args: argparse.Namespace) -> int:
 
 def _cmd_evaluate(args: argparse.Namespace) -> int:
     rows = _load_dataset(Path(args.dataset))
+    versions = sorted({str(row.get("model_version") or "") for row in rows})
+    if args.model_version:
+        selected = [row for row in rows if row.get("model_version") == args.model_version]
+    elif len(versions) == 1 and versions[0]:
+        selected = rows
+    else:
+        print(json.dumps({"status": "model_version_required", "versions": versions,
+                          "detail": "Select one version; mixed or missing identities cannot be evaluated together."}))
+        return 1
     report = {
-        "walk_forward": walk_forward_report(rows, args.field, args.window),
-        "market_comparison": compare_to_market(rows, args.field),
+        "model_version": args.model_version or versions[0],
+        "selected_rows": len(selected), "excluded_rows": len(rows) - len(selected),
+        "execution_enabled": False,
+
+        "walk_forward": walk_forward_report(selected, args.field, args.window),
+        "market_comparison": compare_to_market(selected, args.field),
     }
     print(json.dumps(report, indent=2))
     return 0
@@ -785,6 +806,7 @@ def main(argv: list[str] | None = None) -> int:
     evaluate.add_argument("--dataset", required=True, help="path to dataset JSONL")
     evaluate.add_argument("--field", default="conservative_probability")
     evaluate.add_argument("--window", type=int, default=20)
+    evaluate.add_argument("--model-version", help="isolate one immutable experiment version")
     evaluate.set_defaults(func=_cmd_evaluate)
 
     gate = sub.add_parser("gate", help="versioned deployment gate (exit 1 = not deployable)")

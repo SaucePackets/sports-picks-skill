@@ -12,6 +12,12 @@ from scripts import mlb_slate_writer as writer
 
 def candidate(row, **extra):
     return {
+        "dk_fair_prob": .602, "raw_probability": .602,
+        "conservative_probability": .602, "uncertainty_haircut": 0,
+        "current_ask": .545, "projected_edge_at_current_ask": .057,
+        "model_version": "vig-mlb-market-v1",
+        "probability_components": {"adjustments": [], "haircuts": []},
+        "confidence": "medium", "unit_size": 15,
         "game_pk": row["game_pk"],
         "event_id": row["event_id"],
         "sport": "MLB",
