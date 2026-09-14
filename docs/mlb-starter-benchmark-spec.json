@@ -1,0 +1,58 @@
+{
+  "schema": "mlb-starter-benchmark-spec-v1",
+  "purpose": "Exploratory reconstruction benchmark of added starter features; not original pregame predictions or live model admission",
+  "inputs": {
+    "participant_replay_sha256": "788962239390cbadd83dd6f2b72ce081470e8d6ad242082c3b61e6ace456366a",
+    "team_admission_replay_sha256": "ade264ee082fc4f09fd42f1c4011cb4704b2a50fcb08eee82c851da95f21c30c"
+  },
+  "splits": {
+    "train": [
+      "2025-03-18",
+      "2025-04-30"
+    ],
+    "validation": [
+      "2025-05-01",
+      "2025-05-31"
+    ],
+    "test": [
+      "2025-06-01",
+      "2025-06-30"
+    ]
+  },
+  "training_completion_cutoff": "2025-05-01T00:00:00Z",
+  "features": [
+    "home_minus_away_last10_team_win_fraction",
+    "home_minus_away_last3_starter_strikeout_fraction",
+    "home_minus_away_last3_starter_walk_fraction"
+  ],
+  "model": {
+    "family": "logistic regression with intercept",
+    "objective": "mean binary log loss + 0.5 * sum(squared slopes)",
+    "l2_lambda": 1.0,
+    "standardization": "training mean and population standard deviation; zero variance maps to zero",
+    "optimizer": "Newton with partial-pivot linear solve and backtracking; gradient max below 1e-10; max 100 iterations; failure refuses"
+  },
+  "missing_data": "Refuse incomplete features or label; use participant-v2 historical exclusions without adding appearances or changing cutoffs",
+  "baselines": {
+    "coin": 0.5,
+    "team_matched": "one-feature logistic fitted on exactly the same complete training rows",
+    "team_full": "previous frozen team-form model, fitted on all feature-complete training rows",
+    "empirical_home": "previous frozen smoothed training-label frequency",
+    "elo": "previous frozen training-only Elo"
+  },
+  "evaluation": {
+    "paired": "identical intersection for all six models; home win orientation",
+    "measures": [
+      "Brier",
+      "binary log loss",
+      "10-bin calibration",
+      "ECE",
+      "paired Brier and log-loss differences versus every baseline"
+    ],
+    "coverage": "all retained regular-season schedule occurrences",
+    "selection": "no tuning, refit, or automatic selection; report validation and test even if unfavorable",
+    "limitations": "June outcomes have already been inspected in prior research; exploratory reuse, not an untouched confirmatory holdout. No verified sportsbook baseline or original pregame timing. No ROI claims."
+  },
+  "eligible": false,
+  "live_model_admitted": false
+}

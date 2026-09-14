@@ -1,0 +1,201 @@
+{
+  "asof_snapshot_verified": false,
+  "confirmatory_holdout": false,
+  "eligible": false,
+  "full_team_model": {
+    "gradient_max": 1.6368021975098239e-13,
+    "intercept": 0.3938803503099918,
+    "iterations": 3,
+    "mean": -0.045229681978798585,
+    "scale": 0.2410303271878468,
+    "slope": 0.04306422711847717,
+    "training_rows": 283
+  },
+  "implementation_sha256": "6c5067f36b1bcc9d40dd0b376ebb51e6f55a2f9cc83e7f926925e49be97b0266",
+  "input_sha256": {
+    "participant_replay_sha256": "788962239390cbadd83dd6f2b72ce081470e8d6ad242082c3b61e6ace456366a",
+    "team_admission_replay_sha256": "ade264ee082fc4f09fd42f1c4011cb4704b2a50fcb08eee82c851da95f21c30c"
+  },
+  "live_model_admitted": false,
+  "matched_team_model": {
+    "gradient_max": 1.9401593996771299e-13,
+    "intercept": 0.3961708560814106,
+    "iterations": 3,
+    "mean": 0.0011494252873563194,
+    "scale": 0.23415009081442897,
+    "slope": 0.05304653818818494,
+    "training_rows": 87
+  },
+  "model": {
+    "gradient_max": 3.197837907630375e-13,
+    "iterations": 3,
+    "means": [
+      0.0011494252873563194,
+      0.0018929949576209264,
+      0.0074068874408962215
+    ],
+    "scales": [
+      0.23415009081442897,
+      0.10413791740292919,
+      0.05705209030838496
+    ],
+    "training_rows": 87,
+    "weights": [
+      0.3966946079593012,
+      0.05286258630244797,
+      0.062497987459225114,
+      -0.025442695147454054
+    ]
+  },
+  "original_pregame_predictions": false,
+  "results": {
+    "test": {
+      "metrics": {
+        "coin": {
+          "brier": 0.25,
+          "ece": 0.008021390374331527,
+          "log_loss": 0.6931471805599454,
+          "n": 187
+        },
+        "elo": {
+          "brier": 0.2517100549590784,
+          "ece": 0.053136237330360714,
+          "log_loss": 0.6964975131055342,
+          "n": 187
+        },
+        "empirical_home": {
+          "brier": 0.26210044968400587,
+          "ece": 0.11029411764705882,
+          "log_loss": 0.7178452535782626,
+          "n": 187
+        },
+        "starter": {
+          "brier": 0.2602667031228726,
+          "ece": 0.10587968600736986,
+          "log_loss": 0.7142011302403554,
+          "n": 187
+        },
+        "team_full": {
+          "brier": 0.2616122851877278,
+          "ece": 0.1066420267569571,
+          "log_loss": 0.716853741946901,
+          "n": 187
+        },
+        "team_matched": {
+          "brier": 0.26139816842917385,
+          "ece": 0.10502514408352881,
+          "log_loss": 0.7164231606928453,
+          "n": 187
+        }
+      },
+      "missing_baselines": 0,
+      "paired_games": 187,
+      "regular_occurrences": 402,
+      "starter_minus_baseline": {
+        "coin": {
+          "brier": 0.010266703122872589,
+          "log_loss": 0.021053949680409967
+        },
+        "elo": {
+          "brier": 0.0085566481637942,
+          "log_loss": 0.01770361713482116
+        },
+        "empirical_home": {
+          "brier": -0.001833746561133276,
+          "log_loss": -0.0036441233379072013
+        },
+        "team_full": {
+          "brier": -0.0013455820648551886,
+          "log_loss": -0.0026526117065456267
+        },
+        "team_matched": {
+          "brier": -0.0011314653063012603,
+          "log_loss": -0.0022220304524899204
+        }
+      }
+    },
+    "validation": {
+      "metrics": {
+        "coin": {
+          "brier": 0.25,
+          "ece": 0.020270270270270285,
+          "log_loss": 0.6931471805599453,
+          "n": 148
+        },
+        "elo": {
+          "brier": 0.24491997959568532,
+          "ece": 0.03314340574797449,
+          "log_loss": 0.682273635917541,
+          "n": 148
+        },
+        "empirical_home": {
+          "brier": 0.26460590238999326,
+          "ece": 0.12254299754299756,
+          "log_loss": 0.7229278509857369,
+          "n": 148
+        },
+        "starter": {
+          "brier": 0.261577327792772,
+          "ece": 0.11419375247485823,
+          "log_loss": 0.7166897119084823,
+          "n": 148
+        },
+        "team_full": {
+          "brier": 0.2621621269328803,
+          "ece": 0.11724517367635652,
+          "log_loss": 0.7178768388841149,
+          "n": 148
+        },
+        "team_matched": {
+          "brier": 0.26142226613854086,
+          "ece": 0.11518215544668149,
+          "log_loss": 0.7163623740206465,
+          "n": 148
+        }
+      },
+      "missing_baselines": 0,
+      "paired_games": 148,
+      "regular_occurrences": 422,
+      "starter_minus_baseline": {
+        "coin": {
+          "brier": 0.011577327792771985,
+          "log_loss": 0.02354253134853701
+        },
+        "elo": {
+          "brier": 0.01665734819708667,
+          "log_loss": 0.03441607599094132
+        },
+        "empirical_home": {
+          "brier": -0.0030285745972212785,
+          "log_loss": -0.0062381390772545675
+        },
+        "team_full": {
+          "brier": -0.0005847991401083386,
+          "log_loss": -0.001187126975632613
+        },
+        "team_matched": {
+          "brier": 0.0001550616542311256,
+          "log_loss": 0.000327337887835788
+        }
+      }
+    }
+  },
+  "schema": "mlb-starter-benchmark-result-v1",
+  "spec_sha256": "6a76f577012292c4f68d164d9af73e1821218312a86bfe4692cdf349f80e646d",
+  "sportsbook_comparison_available": false,
+  "team_implementation_sha256": "b9c44f733e2b8846aa49e7d13ba2dab6cbbbedd285a669f8e2c73a148818b461",
+  "training_labels_for_baselines": 438,
+  "training_rows": 87,
+  "replay_sha256": "f5328455c2108697cd1815cd092b2761c32152a54498ea7f815911c628be1568",
+  "replay_bytes": 212073,
+  "evaluation_rates": {
+    "validation": {
+      "observed_home_win_fraction": 0.4797297297297297,
+      "mean_starter_probability": 0.5939234822045879
+    },
+    "test": {
+      "observed_home_win_fraction": 0.4919786096256685,
+      "mean_starter_probability": 0.5978582956330384
+    }
+  }
+}
