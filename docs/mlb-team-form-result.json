@@ -1,0 +1,89 @@
+{
+  "asof_snapshot_verified": false,
+  "bundle_sha256": "d8983606ce75093d924d53caffe73c31b9fdbd404c0ca086ad3873d73f2dc7aa",
+  "eligible": false,
+  "empirical_home": 0.6022727272727273,
+  "evidence_kind": "historical_reconstruction",
+  "experiment_spec_sha256": "6d559b3d2cdc0a03048c97bf8563f312dacd23fed100bd6e94e7f1ea7177b704",
+  "implementation_sha256": "b9c44f733e2b8846aa49e7d13ba2dab6cbbbedd285a669f8e2c73a148818b461",
+  "live_model_admitted": false,
+  "model": {
+    "gradient_max": 1.6368021975098239e-13,
+    "intercept": 0.3938803503099918,
+    "iterations": 3,
+    "mean": -0.045229681978798585,
+    "scale": 0.2410303271878468,
+    "slope": 0.04306422711847717,
+    "training_rows": 283
+  },
+  "original_pregame_predictions": false,
+  "results": {
+    "test": {
+      "metrics": {
+        "coin": {
+          "brier": 0.25,
+          "ece": 0.012820512820512775,
+          "log_loss": 0.6931471805599453,
+          "n": 390
+        },
+        "elo": {
+          "brier": 0.25470661468446837,
+          "ece": 0.06384275665781515,
+          "log_loss": 0.7026777884781752,
+          "n": 390
+        },
+        "empirical_home": {
+          "brier": 0.25783733312142404,
+          "ece": 0.08945221445221452,
+          "log_loss": 0.7091970339822757,
+          "n": 390
+        },
+        "team_form": {
+          "brier": 0.25685282561643,
+          "ece": 0.08531357025464656,
+          "log_loss": 0.7071642658978962,
+          "n": 390
+        }
+      },
+      "paired_games": 390,
+      "regular_occurrences": 402
+    },
+    "validation": {
+      "metrics": {
+        "coin": {
+          "brier": 0.25,
+          "ece": 0.013715710723191998,
+          "log_loss": 0.6931471805599453,
+          "n": 401
+        },
+        "elo": {
+          "brier": 0.24241181441200504,
+          "ece": 0.03630807503497419,
+          "log_loss": 0.6771084985309944,
+          "n": 401
+        },
+        "empirical_home": {
+          "brier": 0.25765422445951236,
+          "ece": 0.0885570165495353,
+          "log_loss": 0.7088255771161796,
+          "n": 401
+        },
+        "team_form": {
+          "brier": 0.2553443871388685,
+          "ece": 0.08429148769762855,
+          "log_loss": 0.7040351215136722,
+          "n": 401
+        }
+      },
+      "paired_games": 401,
+      "regular_occurrences": 422
+    }
+  },
+  "schema": "mlb-team-form-result-v1",
+  "source_contract_sha256": "4883378257b6f6d2834945a38f96fc8c8c57b71366bda45c42c4c838d88432bf",
+  "source_replay_sha256": "ade264ee082fc4f09fd42f1c4011cb4704b2a50fcb08eee82c851da95f21c30c",
+  "sportsbook_comparison_available": false,
+  "training_labels": 438,
+  "replay_sha256": "19492c78304872a85bb194551cb800dfdbfd8687a910f2ca4555962a3182ed29",
+  "replay_bytes": 468616
+}

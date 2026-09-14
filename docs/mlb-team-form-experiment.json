@@ -1,0 +1,16 @@
+{
+  "schema": "mlb-team-form-experiment-v1",
+  "purpose": "Separate offline team-only research baseline; not the three-feature challenger or a deployed model",
+  "evidence_kind": "historical_reconstruction",
+  "source_contract": "mlb-chronological-contract.json",
+  "splits": {"train": ["2025-03-18", "2025-04-30"], "validation": ["2025-05-01", "2025-05-31"], "test": ["2025-06-01", "2025-06-30"]},
+  "training_completion_cutoff": "2025-05-01T00:00:00Z",
+  "feature": "home minus away win fraction over last 10 accepted prior outcomes; same-day excluded; completion strictly before start minus 60 minutes",
+  "missing_data": "Refuse missing target label or either 10-game history. Unaccepted historical outcomes are skipped by the existing adapter; this is not guaranteed to be the last 10 actual games.",
+  "model": {"family": "one-feature logistic regression with intercept", "standardization": "training mean and population standard deviation; zero variance maps to zero", "objective": "mean binary log loss plus 0.5 times squared slope; intercept unpenalized", "l2_lambda": 1.0, "optimizer": "Newton with backtracking; gradient tolerance 1e-10; at most 100 iterations; failure refuses report"},
+  "baselines": {"coin": 0.5, "empirical_home": "(home wins + 1)/(training labels + 2)", "elo": "initial 1500; K 20; scale 400; home offset 0; chronological accepted training labels only; frozen after train"},
+  "evaluation": {"orientation": "home win", "measures": ["Brier", "binary log loss", "10 equal-width calibration bins", "ECE"], "log_loss_clip": 1e-15, "comparison": "same labeled feature-complete games for every model", "denominator": "all regular-season schedule occurrences per split, including refused occurrences", "refit_or_tuning": "none", "model_selection": "report all validation and test results without selecting a winner for deployment"},
+  "eligible": false,
+  "original_pregame_predictions": false,
+  "live_admission": "None; sportsbook comparison and independently verified timing remain absent"
+}

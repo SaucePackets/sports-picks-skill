@@ -1,0 +1,69 @@
+{
+  "schema": "mlb-recovered-history-experiment-v1",
+  "bundle_sha256": "d8983606ce75093d924d53caffe73c31b9fdbd404c0ca086ad3873d73f2dc7aa",
+  "contract_sha256": "4883378257b6f6d2834945a38f96fc8c8c57b71366bda45c42c4c838d88432bf",
+  "snapshot_receipts_sha256": "a08ac957e83c6d1a7e319f8bca8be8316421375255bfe9fa5bce20011c1893d6",
+  "baseline_replay_sha256": "8c964e4bbff14e40ca2e4d2ea9271e1c7bc34747ac2a436c24e14f9edea40dea",
+  "appearance_replay_sha256": "b84341afc63ca8449cf7521857017a68063ab1075fefde46d5839fb28e3bc2e3",
+  "adapter_sha256": "a2d409325ba192ff92a472d0746b387c96a2fc1b4a92dbed86ca1a660cda36a6",
+  "census_complete": true,
+  "recovered_occurrences": 189,
+  "summary": {
+    "test": {
+      "feature_pairs_after": 0,
+      "feature_pairs_before": 0,
+      "history_refusals": {
+        "prior_appearance_census_unresolved": 774
+      },
+      "starter_candidates": 387
+    },
+    "train": {
+      "feature_pairs_after": 0,
+      "feature_pairs_before": 0,
+      "history_refusals": {
+        "fewer_than_three_prior_appearances": 32,
+        "prior_appearance_census_unresolved": 834
+      },
+      "starter_candidates": 433
+    },
+    "validation": {
+      "feature_pairs_after": 0,
+      "feature_pairs_before": 0,
+      "history_refusals": {
+        "prior_appearance_census_unresolved": 780
+      },
+      "starter_candidates": 390
+    },
+    "warmup": {
+      "feature_pairs_after": 0,
+      "feature_pairs_before": 0,
+      "history_refusals": {},
+      "starter_candidates": 0
+    }
+  },
+  "eligible": false,
+  "historical_performance": null,
+  "replay_sha256": "694e55d315648472b625821b468f39a0d72258288466cff6abb8542a3103ed4c",
+  "replay_bytes": 60526152,
+  "remaining_gap_count": 137,
+  "earliest_gaps": [
+    {
+      "feed_sha256": "636a98005b31a482c0cdc0517e12301166ec126d1d72f3f7eb34b61ad9748a0a",
+      "game_id": "778554",
+      "refusal": "ambiguous_mid_appearance_pitcher_substitution",
+      "source_date": "2025-03-27"
+    },
+    {
+      "feed_sha256": "cb84b621155995b05a54450bd79197a0ec02fcd44d51414af24fabd8dcb79b6c",
+      "game_id": "778559",
+      "refusal": "unsupported_plate_appearance_event",
+      "source_date": "2025-03-27"
+    },
+    {
+      "feed_sha256": "2bdb40576db49a6482f8ba310f5d91aebb17d4b567ec21903b415424d367dfa6",
+      "game_id": "778562",
+      "refusal": "play_chronology",
+      "source_date": "2025-03-27"
+    }
+  ]
+}
