@@ -38,6 +38,19 @@ POSTFLIGHT_DIRECT_WRITE = (
 )
 POSTFLIGHT_RUN_PREFIX = "- Immediately run: `test -s"
 EVENING_MERGE_PREFIX = f"- Schedule file: MERGE into the existing `{SCHEDULE}`"
+STAGE2_SCAN = "scripts/mlb_stage2_scan.py"
+EVENING_PREFLIGHT_CONTRACT = (
+    "   EVENING STAGE 2 PREFLIGHT (mandatory, before any writer command):\n"
+    "   - Run `python3 scripts/mlb_stage2_scan.py --date YYYY-MM-DD && test -s "
+    ".picks/tmp/stage2-YYYY-MM-DD.json` before the first skeleton command and again "
+    "before any land command if the scan was not run in this invocation. If the scan "
+    "or artifact check fails, return the exact error and stop; never call the writer."
+)
+
+
+
+def _evening_preflight_contract() -> str:
+    return EVENING_PREFLIGHT_CONTRACT
 
 
 class ProducerPromptError(ValueError):
@@ -236,16 +249,17 @@ def transform_prompt(job_id: str, prompt: str) -> str:
     except KeyError as exc:
         raise ProducerPromptError(f"unsupported producer job id: {job_id}") from exc
 
+    scan_replacement = next(
+        line.rstrip("\r\n")
+        for line in prompt.splitlines(keepends=True)
+        if line.startswith(SCAN_PREFIX)
+    )
+    if spec.evening:
+        scan_replacement += "\n" + _evening_preflight_contract()
     transformed = _replace_one_line(
         prompt,
         SCAN_PREFIX,
-        next(
-            line.rstrip("\r\n")
-            for line in prompt.splitlines(keepends=True)
-            if line.startswith(SCAN_PREFIX)
-        )
-        + "\n"
-        + writer_contract(spec),
+        scan_replacement + "\n" + writer_contract(spec),
     )
     transformed = _replace_one_line(transformed, WRITE_PREFIX, _task_write_line(spec))
     transformed = _replace_one_line(transformed, VALIDATE_PREFIX, _task_land_line(spec))
@@ -295,6 +309,8 @@ def writer_contract_errors(job_id: str, prompt: str) -> list[str]:
         for item in required
         if item not in prompt
     ]
+    if spec.evening and EVENING_PREFLIGHT_CONTRACT not in prompt:
+        errors.append("Stage 2 preflight contract missing")
     forbidden = [WRITE_PREFIX]
     if spec.evening:
         forbidden.append(EVENING_MERGE_PREFIX)
