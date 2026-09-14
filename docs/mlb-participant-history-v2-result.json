@@ -1,0 +1,69 @@
+{
+  "schema": "mlb-participant-history-experiment-v2",
+  "bundle_sha256": "d8983606ce75093d924d53caffe73c31b9fdbd404c0ca086ad3873d73f2dc7aa",
+  "contract_sha256": "4883378257b6f6d2834945a38f96fc8c8c57b71366bda45c42c4c838d88432bf",
+  "snapshot_receipts_sha256": "a08ac957e83c6d1a7e319f8bca8be8316421375255bfe9fa5bce20011c1893d6",
+  "parent_replay_sha256": "694e55d315648472b625821b468f39a0d72258288466cff6abb8542a3103ed4c",
+  "participant_adapter_sha256": "b8a6fdfe676c42238bb0259a5960129d29152ef4a6f67952e2f804e954b7028e",
+  "summary": {
+    "test": {
+      "feature_pairs_after": 188,
+      "feature_pairs_before": 0,
+      "history_refusals": {
+        "fewer_than_three_prior_appearances": 40,
+        "prior_appearance_census_unresolved": 201
+      },
+      "starter_candidates": 387
+    },
+    "train": {
+      "feature_pairs_after": 90,
+      "feature_pairs_before": 0,
+      "history_refusals": {
+        "fewer_than_three_prior_appearances": 411,
+        "prior_appearance_census_unresolved": 178
+      },
+      "starter_candidates": 433
+    },
+    "validation": {
+      "feature_pairs_after": 148,
+      "feature_pairs_before": 0,
+      "history_refusals": {
+        "fewer_than_three_prior_appearances": 41,
+        "prior_appearance_census_unresolved": 291
+      },
+      "starter_candidates": 390
+    },
+    "warmup": {
+      "feature_pairs_after": 0,
+      "feature_pairs_before": 0,
+      "history_refusals": {},
+      "starter_candidates": 0
+    }
+  },
+  "certificate_summary": {
+    "accepted": 112,
+    "postponed_intervals": 23,
+    "refused": {
+      "participant_unique_final_schedule_unavailable": 5
+    }
+  },
+  "eligible": false,
+  "fitting_enabled": false,
+  "scoring_enabled": false,
+  "historical_performance": null,
+  "replay_bytes": 61187075,
+  "replay_sha256": "788962239390cbadd83dd6f2b72ce081470e8d6ad242082c3b61e6ace456366a",
+  "team_label_join": {
+    "team_admission_replay_sha256": "ade264ee082fc4f09fd42f1c4011cb4704b2a50fcb08eee82c851da95f21c30c",
+    "identity_keys": [
+      "game_id",
+      "source_date",
+      "split"
+    ],
+    "complete_labeled_rows": {
+      "train": 87,
+      "validation": 148,
+      "test": 187
+    }
+  }
+}

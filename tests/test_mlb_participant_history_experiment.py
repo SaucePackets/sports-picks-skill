@@ -62,7 +62,8 @@ def test_ambiguous_attribution_can_certify_roster_but_not_statistics():
         ("boolean_count", "participant_counts"),
     ],
 )
-def test_contradictions_refuse_absence_certificate(change, reason):
+@pytest.mark.parametrize("evidence_version", [1, 2])
+def test_contradictions_refuse_absence_certificate(change, reason, evidence_version):
     g, f = fixture()
     b = f["liveData"]["boxscore"]["teams"]["away"]
     p = f["liveData"]["plays"]["allPlays"][0]
@@ -94,7 +95,7 @@ def test_contradictions_refuse_absence_certificate(change, reason):
     if change == "boolean_count":
         b["players"]["ID10"]["stats"]["pitching"]["battersFaced"] = True
     with pytest.raises(ValueError, match=reason):
-        m.participants(g, raw(f))
+        m.participants(g, raw(f), evidence_version=evidence_version)
 
 
 def test_zero_bf_substitute_stays_in_participant_set():
@@ -385,3 +386,98 @@ def test_resumed_final_cannot_reuse_pre_resume_completion_bound():
     )
     with pytest.raises(ValueError, match="participant_completion_before_start"):
         m.participants(g, raw(f))
+
+
+def v2_fixture(kind):
+    g, f = fixture()
+    p = f["liveData"]["plays"]["allPlays"][-1]
+    if kind == "zero":
+        box = f["liveData"]["boxscore"]["teams"]["away"]
+        box["pitchers"].append(30)
+        box["players"]["ID30"] = dict(
+            person={"id": 30},
+            stats={"pitching": dict.fromkeys(m.COUNTS, 0) | {"gamesPitched": 0}},
+        )
+    else:
+        p["about"]["isScoringPlay"] = False
+        for j, event in enumerate(p["playEvents"]):
+            event.update(
+                index=j,
+                startTime=p["about"]["startTime"],
+                endTime=p["about"]["endTime"],
+            )
+        if kind == "rain":
+            for status in (g["raw_game"]["status"], f["gameData"]["status"]):
+                status.update(
+                    abstractGameState="Final",
+                    detailedState="Completed Early: Rain",
+                    statusCode="FR",
+                    reason="Rain",
+                )
+            p["about"]["isComplete"] = False
+            p["result"].update(eventType="game_advisory", isOut=False)
+        else:
+            from test_mlb_appearance_census import example
+
+            _, _, runner = example()
+            for key in ("count", "runners"):
+                p[key] = deepcopy(runner[key])
+            p["result"].update(eventType="caught_stealing_2b", isOut=True)
+            p["playEvents"][0]["details"] = {"isOut": True}
+            p["about"]["startTime"] = "2025-04-21T23:59:00Z"
+    return g, f
+
+
+@pytest.mark.parametrize("kind", ["zero", "rain", "runner"])
+def test_v2_exceptions_preserve_source_and_v1_refusal(kind):
+    g, f = v2_fixture(kind)
+    body = raw(f)
+    with pytest.raises(ValueError):
+        m.participants(g, body)
+    cert = m.participants(g, body, evidence_version=2)
+    assert cert["feed_sha256"] == m.sha(body)
+    assert cert["anomalies"] and cert["statistics_admitted"] is False
+    if kind == "zero":
+        assert "30" in cert["pitcher_ids"]
+    if kind == "runner":
+        assert cert["completion_upper_bound"] == "2025-04-21T23:59:00+00:00"
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "active",
+        "rain_status",
+        "rain_out",
+        "rain_scoring",
+        "rain_nonterminal",
+        "runner_scoring",
+        "runner_time",
+        "runner_end",
+        "runner_index",
+    ],
+)
+def test_v2_rejects_missing_exception_proof(change):
+    kind = "zero" if change == "active" else change.split("_")[0]
+    g, f = v2_fixture(kind)
+    p = f["liveData"]["plays"]["allPlays"][-1]
+    if change == "active":
+        f["liveData"]["boxscore"]["teams"]["away"]["players"]["ID30"]["stats"][
+            "pitching"
+        ]["gamesPitched"] = 1
+    elif change == "rain_status":
+        f["gameData"]["status"]["reason"] = "Other"
+    elif change == "rain_out":
+        p["result"]["isOut"] = True
+    elif change.endswith("scoring"):
+        p["about"]["isScoringPlay"] = True
+    elif change == "rain_nonterminal":
+        f["liveData"]["plays"]["allPlays"].append(deepcopy(p))
+    elif change == "runner_time":
+        p["playEvents"][0]["startTime"] = "2025-04-22T23:59:00Z"
+    elif change == "runner_end":
+        p["playEvents"][0]["endTime"] = p["playEvents"][0]["startTime"]
+    elif change == "runner_index":
+        p["playEvents"][0]["index"] = 99
+    with pytest.raises(ValueError):
+        m.participants(g, raw(f), evidence_version=2)

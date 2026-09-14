@@ -89,12 +89,13 @@ def final_identity(game, body):
     return dict(away_score=scores[0], home_score=scores[1])
 
 
-def participants(game, body):
+def participants(game, body, *, evidence_version=1):
     """Corroborate a complete final participant superset, not per-pitcher BF/K/BB.
 
     Completion bound is the latest completed play end, allowing nonmonotonic
     play ordering only for exclusion. Original appearance/outcome gates persist.
     """
+    require(evidence_version in (1, 2), "participant_evidence_version")
     final = final_identity(game, body)
     data = decode(body)
     gd, live = data["gameData"], data["liveData"]
@@ -111,6 +112,7 @@ def participants(game, body):
     )
     boxes = live["boxscore"]["teams"]
     roster, pointers, totals = {}, [], {}
+    zero_activity, anomalies = set(), []
     for side in SIDES:
         box = boxes[side]
         base = f"/liveData/boxscore/teams/{side}"
@@ -143,6 +145,8 @@ def participants(game, body):
                 and all(type(stats[k]) is int and stats[k] >= 0 for k in COUNTS),
                 "participant_counts",
             )
+            if stats["gamesPitched"] == 0 and all(stats[k] == 0 for k in COUNTS):
+                zero_activity.add(pid)
             roster[pid] = side
             pointers.append(f"{base}/players/ID{pid}/stats/pitching")
         require(
@@ -158,16 +162,61 @@ def participants(game, body):
     seen, ends, pitch_counts = set(), [], {s: 0 for s in SIDES}
     for i, play in enumerate(plays):
         about = play["about"]
+        terminal_rain = (
+            evidence_version == 2
+            and i == len(plays) - 1
+            and about["isComplete"] is False
+            and gd["status"]["detailedState"] == "Completed Early: Rain"
+            and play["result"].get("eventType") == "game_advisory"
+            and play["result"].get("isOut") is False
+            and about.get("isScoringPlay") is False
+        )
         require(
             type(about["atBatIndex"]) is int
             and about["atBatIndex"] == i
-            and about["isComplete"] is True
+            and (about["isComplete"] is True or terminal_rain)
             and type(about["isTopInning"]) is bool,
             "participant_play_index_or_completion",
         )
         start, end = instant(about["startTime"]), instant(about["endTime"])
-        require(start <= end, "participant_play_time")
-        ends.append(end)
+        reversed_runner = False
+        if evidence_version == 2 and start > end:
+            from mlb_appearance_census import runner_out
+
+            reversed_runner = runner_out(play)
+        require(start <= end or reversed_runner, "participant_play_time")
+        if terminal_rain or reversed_runner:
+            events = play["playEvents"]
+            require(
+                isinstance(events, list) and bool(events), "participant_events_missing"
+            )
+            event_ends = []
+            for j, event in enumerate(events):
+                a, b = instant(event["startTime"]), instant(event["endTime"])
+                require(
+                    type(event["index"]) is int
+                    and event["index"] == j
+                    and a <= b <= end,
+                    "participant_exception_event_time",
+                )
+                event_ends.append(b)
+            require(max(event_ends) == end, "participant_exception_end_mismatch")
+            if terminal_rain:
+                require(
+                    all(instant(e["startTime"]) >= start for e in events),
+                    "participant_exception_event_time",
+                )
+            anomalies.append(
+                dict(
+                    pointer=f"/liveData/plays/allPlays/{i}",
+                    kind=(
+                        "terminal_rain_unfinished_pa"
+                        if terminal_rain
+                        else "runner_out_reversed_outer_time"
+                    ),
+                )
+            )
+        ends.append(max(start, end))
         side = "home" if about["isTopInning"] else "away"
         pid = positive_id(play["matchup"]["pitcher"]["id"])
         require(roster.get(pid) == side, "participant_matchup_missing_or_wrong_side")
@@ -186,7 +235,18 @@ def participants(game, body):
                 )
                 seen.add(sub)
                 pointers.append(f"/liveData/plays/allPlays/{i}/playEvents/{j}/player")
-    require(seen == set(roster), "participant_play_box_census_mismatch")
+    unseen = set(roster) - seen
+    require(
+        seen == set(roster) or (evidence_version == 2 and unseen <= zero_activity),
+        "participant_play_box_census_mismatch",
+    )
+    if evidence_version == 2 and unseen:
+        anomalies.append(
+            dict(
+                kind="listed_zero_activity_superset",
+                pitcher_ids=sorted(unseen, key=int),
+            )
+        )
     require(
         all(pitch_counts[s] == totals[s]["numberOfPitches"] for s in SIDES),
         "participant_pitch_total_conflict",
@@ -203,7 +263,7 @@ def participants(game, body):
         < bound,
         "participant_completion_before_start",
     )
-    return dict(
+    certificate = dict(
         game_id=game["game_id"],
         source_date=game["source_date"],
         feed_sha256=sha(body),
@@ -215,6 +275,10 @@ def participants(game, body):
         status="structurally_corroborated_only",
         statistics_admitted=False,
     )
+
+    if evidence_version == 2:
+        certificate.update(evidence_version=2, anomalies=anomalies)
+    return certificate
 
 
 def postponed_interval(game, body):
@@ -294,7 +358,7 @@ def postponed_interval(game, body):
     )
 
 
-def certify(games, sources, gaps):
+def certify(games, sources, gaps, *, evidence_version=1):
     """Use the unique matching final occurrence even for postponed duplicate dates."""
     certificates = {}
     for gid in sorted({g["game_id"] for g in gaps}, key=int):
@@ -342,7 +406,9 @@ def certify(games, sources, gaps):
                 ),
                 "participant_schedule_occurrence_identity_conflict",
             )
-            row["certificate"] = participants(matching[0], pair[1])
+            row["certificate"] = participants(
+                matching[0], pair[1], evidence_version=evidence_version
+            )
         except ERRORS as exc:
             row["refusal"] = str(exc)
         certificates[gid] = row
@@ -461,14 +527,17 @@ def narrow(base, certificates):
     return result
 
 
-def experiment(bundle, snapshots, baseline):
+def experiment(bundle, snapshots, baseline, *, evidence_version=1):
     base = recovered_experiment(bundle, snapshots, baseline)
     planned, games, sources = plan(bundle)
     require(
         planned["bundle_sha256"] == base["bundle_sha256"], "participant_bundle_mismatch"
     )
-    certificates = certify(games, sources, base["remaining_gaps"])
+    certificates = certify(
+        games, sources, base["remaining_gaps"], evidence_version=evidence_version
+    )
     result = narrow(base, certificates)
+    result["schema"] = f"mlb-participant-history-experiment-v{evidence_version}"
     result.update(
         parent_replay_sha256=sha(encoded(base)),
         participant_adapter_sha256=sha(Path(__file__).read_bytes()),
@@ -481,11 +550,17 @@ if __name__ == "__main__":
     p.add_argument("--bundle", required=True, type=Path)
     p.add_argument("--snapshot-dir", required=True, type=Path)
     p.add_argument("--baseline-replay", required=True, type=Path)
+    p.add_argument("--evidence-version", type=int, choices=(1, 2), default=1)
     args = p.parse_args()
     try:
         print(
             encoded(
-                experiment(args.bundle, args.snapshot_dir, args.baseline_replay)
+                experiment(
+                    args.bundle,
+                    args.snapshot_dir,
+                    args.baseline_replay,
+                    evidence_version=args.evidence_version,
+                )
             ).decode(),
             end="",
         )
