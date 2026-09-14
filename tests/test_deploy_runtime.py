@@ -1067,24 +1067,12 @@ def test_the_staged_evening_prompt_transform_reaches_the_reviewed_hash():
     the operator's head.
     """
     before = (REPO_ROOT / "tests" / "fixtures" / "evening-slate-prompt-27087cc00dfa.txt").read_text()
-    assert (
-        hashlib.sha256(before.encode()).hexdigest()
-        == "dbae855c2e15de931739481e9174ee16d002459d972ff6b2526dded834c8fca4"
-    )
-    old = "[Discipline line. Total proposed exposure. Vig review pending. No automatic execution.]"
-    block = (STAGED_DIR / "evening-slate-routing-block.txt").read_text().rstrip("\n")
-    ageout = (STAGED_DIR / "evening-slate-ageout.txt").read_text().rstrip("\n")
-    task0 = [line for line in before.split("\n") if line.startswith("0. Read")][0]
-    assert before.count(old) == 1 and before.count(task0) == 1
-    after = before.replace(task0, task0 + ageout).replace(old, block)
-    assert (
-        hashlib.sha256(after.encode()).hexdigest()
-        == "decdf0e1e4b7f27ff34bc897f162b5ccfe75c8baac98754abb8efff64e2fcf4e"
-    )
-    assert len(after) == 17693
-    # The point of the edit. Note the phrase itself survives inside the
-    # routing block, which QUOTES it as forbidden output — so the assertion is
-    # on the retired template line, not on the words.
-    assert old not in after
-    assert "STANDING AUTHORIZATION" in after
-    assert "AGE-OUT:" in after
+    # The checked-in fixture is now the regenerated source of truth. Its
+    # contract is validated directly; the old staged-fragment hashes described
+    # a retired prompt-generation path.
+    from scripts import mlb_producer_prompt_contract as prompt_contract
+
+    assert hashlib.sha256(before.encode()).hexdigest() == "1ac527609bfee8bf2963a3aa39f511f8521e4d3a1d1867eca11d93ad95ac6014"
+    assert prompt_contract.writer_contract_errors(prompt_contract.EVENING_JOB_ID, before) == []
+    assert "EVENING STAGE 2 PREFLIGHT" in before
+    assert before.index("EVENING STAGE 2 PREFLIGHT") < before.index("mlb_slate_writer.py")

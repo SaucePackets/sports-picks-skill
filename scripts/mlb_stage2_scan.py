@@ -639,6 +639,10 @@ def denominator_output_path(date: str, root: Path | None = None) -> Path:
     return resolved
 
 
+def scan_receipt_path(date: str, root: Path | None = None) -> Path:
+    return denominator_output_path(date, root).with_suffix(".run.json")
+
+
 def resolve_scan_root(cwd: Path | None = None, home: Path | None = None) -> Path:
     override = os.environ.get("SPORTS_PICKS_ROOT")
     if override:
@@ -656,6 +660,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--date", default=dt.date.today().isoformat(), help="Slate date YYYY-MM-DD")
     parser.add_argument("--season", type=int, default=None, help="MLB season year; defaults to date year")
+    parser.add_argument("--run-nonce", default=None, help="writer boundary nonce for this scan invocation")
     args = parser.parse_args()
     try:
         day = dt.date.fromisoformat(args.date)
@@ -672,13 +677,25 @@ def main() -> None:
     # that is supposed to stop a short roster had no file to check against —
     # the newest scan artifact on the runtime was three weeks old while the
     # slate ran daily. Writing it is what makes the check reachable at all.
-    destination = denominator_output_path(args.date)
+    root = resolve_scan_root()
+    destination = denominator_output_path(args.date, root)
+    receipt = scan_receipt_path(args.date, root)
+    # A failed or interrupted scan must not leave a receipt that certifies a
+    # later writer invocation. Remove it before collecting/writing new output.
+    receipt.unlink(missing_ok=True)
     write_failed = False
     try:
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(payload + "\n", encoding="utf-8")
         collector.coverage["scan_sha256"] = hashlib.sha256((payload + "\n").encode()).hexdigest()
         destination.with_suffix(".coverage.json").write_text(json.dumps(collector.coverage, indent=2) + "\n", encoding="utf-8")
+        if args.run_nonce and collector.coverage["reconciled"]:
+            receipt.write_text(json.dumps({
+                "schema": "mlb-stage2-run-v1",
+                "date": args.date,
+                "run_nonce": args.run_nonce,
+                "scan_sha256": collector.coverage["scan_sha256"],
+            }, sort_keys=True) + "\n", encoding="utf-8")
     except OSError as exc:
         # stdout is still the primary output; a write failure is reported and
         # never silently swallowed, but it does not destroy the scan itself.

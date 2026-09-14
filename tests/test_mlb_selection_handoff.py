@@ -738,6 +738,16 @@ class ThePriceRailIsLoadBearingAtEveryBoundaryTests(unittest.TestCase):
         rows = [{key: entry[key] for key in ("game_pk", "event_id", "away", "home")}]
         self.scan_path.write_text(json.dumps(rows), encoding="utf-8")
 
+    def run_nonce(self):
+        nonce = "test-run-nonce"
+        import hashlib
+        self.writer.scan_receipt_path(self.day, self.root).write_text(json.dumps({
+            "schema": "mlb-stage2-run-v1", "date": self.day,
+            "run_nonce": nonce,
+            "scan_sha256": hashlib.sha256(self.scan_path.read_bytes()).hexdigest(),
+        }), encoding="utf-8")
+        return nonce
+
     def _landed(self, *, clearing):
         """A schedule the writer itself certified, then moved one number.
 
@@ -750,7 +760,7 @@ class ThePriceRailIsLoadBearingAtEveryBoundaryTests(unittest.TestCase):
         """
         self._write_scan()
         path, schedule = self.writer.land(
-            self.root, self.day, self._draft(clearing=False)
+            self.root, self.day, self._draft(clearing=False), run_nonce=self.run_nonce()
         )
         if clearing:
             entry = dict(schedule["game_reads"][0])
@@ -812,7 +822,7 @@ class ThePriceRailIsLoadBearingAtEveryBoundaryTests(unittest.TestCase):
         before = path.read_bytes()
 
         with self.assertRaises(self.writer.SlateWriteError) as caught:
-            self.writer.land(self.root, self.day, self._draft(clearing=True))
+            self.writer.land(self.root, self.day, self._draft(clearing=True), run_nonce=self.run_nonce())
 
         self.assertTrue(
             self._names_the_rail(caught.exception.errors), caught.exception.errors

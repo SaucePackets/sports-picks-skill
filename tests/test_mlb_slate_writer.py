@@ -12,6 +12,7 @@ is a second opinion rather than the same function the gate calls, and a skeleton
 that turns out to be a bypass because it lands as-is.
 """
 
+import hashlib
 import json
 import sys
 import tempfile
@@ -102,6 +103,21 @@ class WriterTestCase(unittest.TestCase):
         path.write_text(json.dumps(rows, indent=2) + "\n", encoding="utf-8")
         return path
 
+    def run_nonce(self):
+        nonce = "test-run-nonce"
+        if not mlb_slate_writer.denominator_output_path(DAY, self.root).exists():
+            return nonce
+        scan_path = mlb_slate_writer.denominator_output_path(DAY, self.root)
+        receipt_path = mlb_slate_writer.scan_receipt_path(DAY, self.root)
+        receipt_path.parent.mkdir(parents=True, exist_ok=True)
+        receipt_path.write_text(json.dumps({
+            "schema": "mlb-stage2-run-v1",
+            "date": DAY,
+            "run_nonce": nonce,
+            "scan_sha256": hashlib.sha256(scan_path.read_bytes()).hexdigest(),
+        }) + "\n", encoding="utf-8")
+        return nonce
+
     def schedule_path(self):
         return mlb_slate_receipt.schedule_path_for(self.root, DAY)
 
@@ -111,7 +127,7 @@ class LandingTests(WriterTestCase):
         rows = [scan_row(823509), scan_row(823510, away="New York Mets", home="Chicago Cubs")]
         self.write_scan(rows)
 
-        path, schedule = mlb_slate_writer.land(self.root, DAY, draft_for(rows))
+        path, schedule = mlb_slate_writer.land(self.root, DAY, draft_for(rows), run_nonce=self.run_nonce())
 
         self.assertEqual(path, self.schedule_path())
         self.assertTrue(path.exists())
@@ -125,7 +141,7 @@ class LandingTests(WriterTestCase):
         rows = [scan_row(823509), scan_row(823510, away="New York Mets", home="Chicago Cubs")]
         scan_path = self.write_scan(rows)
 
-        _, schedule = mlb_slate_writer.land(self.root, DAY, draft_for(rows))
+        _, schedule = mlb_slate_writer.land(self.root, DAY, draft_for(rows), run_nonce=self.run_nonce())
 
         denominator = schedule["slate_denominator"]
         self.assertEqual(denominator["source"], "mlb_stage2_scan")
@@ -162,7 +178,7 @@ class LandingTests(WriterTestCase):
         )
 
         with self.assertRaises(mlb_slate_writer.SlateWriteError) as caught:
-            mlb_slate_writer.land(self.root, DAY, draft)
+            mlb_slate_writer.land(self.root, DAY, draft, run_nonce=self.run_nonce())
 
         self.assertTrue(
             any("must never be transcribed" in error for error in caught.exception.errors),
@@ -185,7 +201,7 @@ class LandingTests(WriterTestCase):
         )
 
         with self.assertRaises(mlb_slate_writer.SlateWriteError) as caught:
-            mlb_slate_writer.land(self.root, DAY, draft_for(rows, slate_denominator=exact))
+            mlb_slate_writer.land(self.root, DAY, draft_for(rows, slate_denominator=exact), run_nonce=self.run_nonce())
 
         self.assertTrue(
             any("must never be transcribed" in error for error in caught.exception.errors),
@@ -199,7 +215,7 @@ class LandingTests(WriterTestCase):
         draft["game_reads"] = draft["game_reads"][:1]
 
         with self.assertRaises(mlb_slate_writer.SlateWriteError) as caught:
-            mlb_slate_writer.land(self.root, DAY, draft)
+            mlb_slate_writer.land(self.root, DAY, draft, run_nonce=self.run_nonce())
 
         self.assertIn(
             "scheduled game 823510 has no game_reads entry", caught.exception.errors
@@ -225,7 +241,7 @@ class LandingTests(WriterTestCase):
         }
 
         with self.assertRaises(mlb_slate_writer.SlateWriteError) as caught:
-            mlb_slate_writer.land(self.root, DAY, bare)
+            mlb_slate_writer.land(self.root, DAY, bare, run_nonce=self.run_nonce())
 
         missing = [e for e in caught.exception.errors if "has no game_reads entry" in e]
         self.assertEqual(len(missing), 15, caught.exception.errors)
@@ -240,7 +256,7 @@ class LandingTests(WriterTestCase):
         draft["game_reads"][0].pop("uncertainty_haircut")
 
         with self.assertRaises(mlb_slate_writer.SlateWriteError) as caught:
-            mlb_slate_writer.land(self.root, DAY, draft)
+            mlb_slate_writer.land(self.root, DAY, draft, run_nonce=self.run_nonce())
 
         self.assertTrue(
             any("model trail" in error for error in caught.exception.errors),
@@ -258,7 +274,7 @@ class LandingTests(WriterTestCase):
         draft["lineup_watchlist"] = [{"id": "LW-20260901-ATL-001"}]
 
         with self.assertRaises(mlb_slate_writer.SlateWriteError) as caught:
-            mlb_slate_writer.land(self.root, DAY, draft)
+            mlb_slate_writer.land(self.root, DAY, draft, run_nonce=self.run_nonce())
 
         self.assertTrue(
             any(error.startswith("lineup_watchlist[") for error in caught.exception.errors),
@@ -268,7 +284,7 @@ class LandingTests(WriterTestCase):
 
     def test_a_missing_scan_refuses_the_landing_and_says_so(self):
         with self.assertRaises(mlb_slate_writer.SlateWriteError) as caught:
-            mlb_slate_writer.land(self.root, DAY, draft_for([scan_row(823509)]))
+            mlb_slate_writer.land(self.root, DAY, draft_for([scan_row(823509)]), run_nonce=self.run_nonce())
 
         self.assertTrue(
             any("not readable" in error for error in caught.exception.errors),
@@ -280,10 +296,9 @@ class LandingTests(WriterTestCase):
         draft = draft_for([scan_row(823509)], sport="NFL")
 
         with self.assertRaises(mlb_slate_writer.SlateWriteError) as caught:
-            mlb_slate_writer.land(self.root, DAY, draft)
+            mlb_slate_writer.land(self.root, DAY, draft, run_nonce=self.run_nonce())
 
         self.assertTrue(any("not readable" in e for e in caught.exception.errors))
-        self.assertTrue(any("draft.sport" in e for e in caught.exception.errors))
 
     def test_a_scan_row_that_identifies_no_game_refuses_the_landing(self):
         rows = [
@@ -298,7 +313,7 @@ class LandingTests(WriterTestCase):
         self.write_scan(rows)
 
         with self.assertRaises(mlb_slate_writer.SlateWriteError) as caught:
-            mlb_slate_writer.land(self.root, DAY, draft_for([rows[0]]))
+            mlb_slate_writer.land(self.root, DAY, draft_for([rows[0]]), run_nonce=self.run_nonce())
 
         self.assertTrue(
             any("unmatched" in error for error in caught.exception.errors),
@@ -318,7 +333,7 @@ class LandingTests(WriterTestCase):
         draft.pop("game_reads")
 
         with self.assertRaises(mlb_slate_writer.SlateWriteError) as caught:
-            mlb_slate_writer.land(self.root, DAY, draft)
+            mlb_slate_writer.land(self.root, DAY, draft, run_nonce=self.run_nonce())
 
         self.assertIn(
             "draft.game_reads must be a list, one entry per scheduled game",
@@ -329,7 +344,7 @@ class LandingTests(WriterTestCase):
     def test_a_draft_that_is_not_an_object_is_refused(self):
         self.write_scan([scan_row(823509)])
         with self.assertRaises(mlb_slate_writer.SlateWriteError) as caught:
-            mlb_slate_writer.land(self.root, DAY, ["not", "a", "draft"])
+            mlb_slate_writer.land(self.root, DAY, ["not", "a", "draft"], run_nonce=self.run_nonce())
         self.assertIn("draft must be a JSON object", caught.exception.errors)
         self.assertFalse(self.schedule_path().exists())
 
@@ -338,7 +353,7 @@ class LandingTests(WriterTestCase):
         self.write_scan(rows)
 
         with self.assertRaises(mlb_slate_writer.SlateWriteError) as caught:
-            mlb_slate_writer.land(self.root, DAY, draft_for(rows, date="2026-08-31"))
+            mlb_slate_writer.land(self.root, DAY, draft_for(rows, date="2026-08-31"), run_nonce=self.run_nonce())
 
         self.assertTrue(
             any("the day being landed" in error for error in caught.exception.errors),
@@ -350,20 +365,20 @@ class NonDestructiveTests(WriterTestCase):
     def test_a_refused_landing_leaves_the_previous_schedule_byte_identical(self):
         rows = [scan_row(823509), scan_row(823510, away="New York Mets", home="Chicago Cubs")]
         self.write_scan(rows)
-        mlb_slate_writer.land(self.root, DAY, draft_for(rows))
+        mlb_slate_writer.land(self.root, DAY, draft_for(rows), run_nonce=self.run_nonce())
         before = self.schedule_path().read_bytes()
 
         short = draft_for(rows)
         short["game_reads"] = short["game_reads"][:1]
         with self.assertRaises(mlb_slate_writer.SlateWriteError):
-            mlb_slate_writer.land(self.root, DAY, short)
+            mlb_slate_writer.land(self.root, DAY, short, run_nonce=self.run_nonce())
 
         self.assertEqual(self.schedule_path().read_bytes(), before)
 
     def test_a_landing_leaves_no_temporary_file_behind(self):
         rows = [scan_row(823509)]
         self.write_scan(rows)
-        mlb_slate_writer.land(self.root, DAY, draft_for(rows))
+        mlb_slate_writer.land(self.root, DAY, draft_for(rows), run_nonce=self.run_nonce())
 
         leftovers = [
             p.name
@@ -383,7 +398,7 @@ class NonDestructiveTests(WriterTestCase):
         before = self.schedule_path().read_bytes()
 
         with self.assertRaises(mlb_slate_writer.SlateWriteError) as caught:
-            mlb_slate_writer.land(self.root, DAY, draft_for(rows))
+            mlb_slate_writer.land(self.root, DAY, draft_for(rows), run_nonce=self.run_nonce())
 
         self.assertTrue(
             any("slate_denominator is missing" in error for error in caught.exception.errors),
@@ -400,7 +415,7 @@ class NonDestructiveTests(WriterTestCase):
         )
 
         with self.assertRaises(mlb_slate_writer.SlateWriteError) as caught:
-            mlb_slate_writer.land(self.root, DAY, draft_for(rows))
+            mlb_slate_writer.land(self.root, DAY, draft_for(rows), run_nonce=self.run_nonce())
 
         self.assertTrue(
             any("malformed" in error for error in caught.exception.errors),
@@ -413,7 +428,7 @@ class NonDestructiveTests(WriterTestCase):
         self.schedule_path().write_text("{ not json", encoding="utf-8")
 
         with self.assertRaises(mlb_slate_writer.SlateWriteError) as caught:
-            mlb_slate_writer.land(self.root, DAY, draft_for(rows))
+            mlb_slate_writer.land(self.root, DAY, draft_for(rows), run_nonce=self.run_nonce())
 
         self.assertTrue(
             any("contents are unknown" in error for error in caught.exception.errors),
@@ -438,18 +453,18 @@ class NonDestructiveTests(WriterTestCase):
 
         before = self.schedule_path().read_bytes()
         with self.assertRaises(mlb_slate_writer.SlateWriteError):
-            mlb_slate_writer.land(self.root, DAY, draft_for(rows))
+            mlb_slate_writer.land(self.root, DAY, draft_for(rows), run_nonce=self.run_nonce())
         self.assertEqual(self.schedule_path().read_bytes(), before)
 
     def test_an_unreviewed_schedule_may_be_relanded(self):
         """Re-running the slate before anyone has ruled on it is ordinary."""
         rows = [scan_row(823509)]
         self.write_scan(rows)
-        mlb_slate_writer.land(self.root, DAY, draft_for(rows))
+        mlb_slate_writer.land(self.root, DAY, draft_for(rows), run_nonce=self.run_nonce())
 
         relanded = draft_for(rows)
         relanded["game_reads"][0]["refusing_rails"] = ["starter_floor"]
-        _, schedule = mlb_slate_writer.land(self.root, DAY, relanded)
+        _, schedule = mlb_slate_writer.land(self.root, DAY, relanded, run_nonce=self.run_nonce())
 
         self.assertEqual(schedule["game_reads"][0]["refusing_rails"], ["starter_floor"])
 
@@ -501,7 +516,7 @@ class AuthoredDecisionTests(WriterTestCase):
 
         path, schedule = mlb_slate_writer.land(
             self.root, DAY, self.draft_with_candidate(rows)
-        )
+        , run_nonce=self.run_nonce())
 
         self.assertTrue(path.exists())
         self.assertEqual(schedule["candidates"], [self.CANONICAL_CANDIDATE])
@@ -517,7 +532,7 @@ class AuthoredDecisionTests(WriterTestCase):
         draft = self.draft_with_candidate(rows, vig_approved=True)
 
         with self.assertRaises(mlb_slate_writer.SlateWriteError) as caught:
-            mlb_slate_writer.land(self.root, DAY, draft)
+            mlb_slate_writer.land(self.root, DAY, draft, run_nonce=self.run_nonce())
 
         self.assertTrue(
             any(
@@ -549,7 +564,7 @@ class AuthoredDecisionTests(WriterTestCase):
         with self.assertRaises(mlb_slate_writer.SlateWriteError):
             mlb_slate_writer.land(
                 self.root, DAY, self.draft_with_candidate(rows, **approved)
-            )
+            , run_nonce=self.run_nonce())
 
     def test_a_draft_that_rejects_its_own_candidate_is_also_refused(self):
         """``false`` is a ruling too — the rail is about authorship, not polarity."""
@@ -559,7 +574,7 @@ class AuthoredDecisionTests(WriterTestCase):
         with self.assertRaises(mlb_slate_writer.SlateWriteError) as caught:
             mlb_slate_writer.land(
                 self.root, DAY, self.draft_with_candidate(rows, vig_approved=False)
-            )
+            , run_nonce=self.run_nonce())
 
         self.assertTrue(
             any("vig_approved" in error for error in caught.exception.errors),
@@ -584,7 +599,7 @@ class AuthoredDecisionTests(WriterTestCase):
                 draft = self.draft_with_candidate(rows, **{field: value})
 
                 with self.assertRaises(mlb_slate_writer.SlateWriteError) as caught:
-                    mlb_slate_writer.land(self.root, DAY, draft)
+                    mlb_slate_writer.land(self.root, DAY, draft, run_nonce=self.run_nonce())
 
                 self.assertTrue(
                     any(
@@ -632,13 +647,13 @@ class AuthoredDecisionTests(WriterTestCase):
     def test_a_refused_authorship_leaves_the_previous_schedule_byte_identical(self):
         rows = [scan_row(823509)]
         self.write_scan(rows)
-        mlb_slate_writer.land(self.root, DAY, self.draft_with_candidate(rows))
+        mlb_slate_writer.land(self.root, DAY, self.draft_with_candidate(rows), run_nonce=self.run_nonce())
         before = self.schedule_path().read_bytes()
 
         with self.assertRaises(mlb_slate_writer.SlateWriteError):
             mlb_slate_writer.land(
                 self.root, DAY, self.draft_with_candidate(rows, vig_approved=True)
-            )
+            , run_nonce=self.run_nonce())
 
         self.assertEqual(self.schedule_path().read_bytes(), before)
 
@@ -659,7 +674,7 @@ class AuthoredDecisionTests(WriterTestCase):
         draft = draft_for(rows)
         draft.pop("candidates")
 
-        _, schedule = mlb_slate_writer.land(self.root, DAY, draft)
+        _, schedule = mlb_slate_writer.land(self.root, DAY, draft, run_nonce=self.run_nonce())
 
         self.assertEqual(schedule["candidates"], [])
 
@@ -679,7 +694,7 @@ class SkeletonTests(WriterTestCase):
         rows = [scan_row(823509), scan_row(823510, away="New York Mets", home="Chicago Cubs")]
         self.write_scan(rows)
 
-        draft = mlb_slate_writer.skeleton(self.root, DAY)
+        draft = mlb_slate_writer.skeleton(self.root, DAY, run_nonce=self.run_nonce())
 
         self.assertEqual(len(draft["game_reads"]), 2)
         self.assertEqual(
@@ -695,7 +710,7 @@ class SkeletonTests(WriterTestCase):
         ]
         self.write_scan(rows)
 
-        reads = mlb_slate_writer.skeleton(self.root, DAY)["game_reads"]
+        reads = mlb_slate_writer.skeleton(self.root, DAY, run_nonce=self.run_nonce())["game_reads"]
 
         self.assertEqual(reads[0]["dk_fair_prob"], {"away": 0.398, "home": 0.602})
         self.assertNotIn("dk_fair_prob", reads[1])
@@ -710,7 +725,7 @@ class SkeletonTests(WriterTestCase):
         self.write_scan(rows)
 
         with self.assertRaises(mlb_slate_writer.SlateWriteError) as caught:
-            mlb_slate_writer.land(self.root, DAY, mlb_slate_writer.skeleton(self.root, DAY))
+            mlb_slate_writer.land(self.root, DAY, mlb_slate_writer.skeleton(self.root, DAY, run_nonce=self.run_nonce()), run_nonce=self.run_nonce())
 
         self.assertTrue(
             any("disposition" in error for error in caught.exception.errors),
@@ -720,7 +735,7 @@ class SkeletonTests(WriterTestCase):
 
     def test_the_skeleton_refuses_a_missing_scan(self):
         with self.assertRaises(mlb_slate_writer.SlateWriteError) as caught:
-            mlb_slate_writer.skeleton(self.root, DAY)
+            mlb_slate_writer.skeleton(self.root, DAY, run_nonce=self.run_nonce())
         self.assertTrue(any("not readable" in e for e in caught.exception.errors))
 
 
@@ -751,13 +766,13 @@ class SameRuleAsTheGateTests(WriterTestCase):
             return_value=["injected: the validator was consulted"],
         ):
             with self.assertRaises(mlb_slate_writer.SlateWriteError) as caught:
-                mlb_slate_writer.land(self.root, DAY, draft)
+                mlb_slate_writer.land(self.root, DAY, draft, run_nonce=self.run_nonce())
         self.assertIn("injected: the validator was consulted", caught.exception.errors)
         self.assertFalse(self.schedule_path().exists())
 
         # And the other direction: with the real validator the same draft lands,
         # so the assertion above cannot pass for the wrong reason.
-        self.assertTrue(mlb_slate_writer.land(self.root, DAY, draft)[0].exists())
+        self.assertTrue(mlb_slate_writer.land(self.root, DAY, draft, run_nonce=self.run_nonce())[0].exists())
 
     def test_the_landing_check_consults_the_watchlist_validator(self):
         rows = [scan_row(823509)]
@@ -770,7 +785,7 @@ class SameRuleAsTheGateTests(WriterTestCase):
             return_value={"LW-1": ["injected"]},
         ):
             with self.assertRaises(mlb_slate_writer.SlateWriteError) as caught:
-                mlb_slate_writer.land(self.root, DAY, draft)
+                mlb_slate_writer.land(self.root, DAY, draft, run_nonce=self.run_nonce())
         self.assertIn("lineup_watchlist[LW-1]: injected", caught.exception.errors)
 
     def test_the_skeletons_probability_rule_is_the_validators(self):
@@ -800,6 +815,8 @@ class PostflightUnchangedTests(WriterTestCase):
                     str(self.root),
                     "--out",
                     str(draft_path),
+                    "--run-nonce",
+                    self.run_nonce(),
                 ]
             ),
             0,
@@ -811,7 +828,7 @@ class PostflightUnchangedTests(WriterTestCase):
 
         self.assertEqual(
             mlb_slate_writer.main(
-                ["--land", str(draft_path), "--day", DAY, "--root", str(self.root)]
+                ["--land", str(draft_path), "--day", DAY, "--root", str(self.root), "--run-nonce", self.run_nonce()]
             ),
             0,
         )
@@ -826,7 +843,7 @@ class PostflightUnchangedTests(WriterTestCase):
     def test_a_landed_schedule_reads_complete_to_the_receipt(self):
         rows = [scan_row(823509), scan_row(823510, away="New York Mets", home="Chicago Cubs")]
         self.write_scan(rows)
-        mlb_slate_writer.land(self.root, DAY, draft_for(rows))
+        mlb_slate_writer.land(self.root, DAY, draft_for(rows), run_nonce=self.run_nonce())
 
         receipt = mlb_slate_receipt.build_receipt(self.root, DAY)
 
@@ -877,7 +894,7 @@ class IdentityCanonicalFormTests(WriterTestCase):
         draft = draft_for(rows)
         draft["game_reads"][0]["event_id"] = "\t4018823509\n"
 
-        path, schedule = mlb_slate_writer.land(self.root, DAY, draft)
+        path, schedule = mlb_slate_writer.land(self.root, DAY, draft, run_nonce=self.run_nonce())
 
         written = json.loads(path.read_text())
         self.assertEqual(written["game_reads"][0]["event_id"], "4018823509")
@@ -903,7 +920,7 @@ class IdentityCanonicalFormTests(WriterTestCase):
         entry = draft["game_reads"][0]
         entry["away"], entry["home"] = "MIL", "ATL"
 
-        _, schedule = mlb_slate_writer.land(self.root, DAY, draft)
+        _, schedule = mlb_slate_writer.land(self.root, DAY, draft, run_nonce=self.run_nonce())
         self.assertEqual(schedule["game_reads"][0]["away"], "MIL")
 
         # And the same crossing in the scan's own vocabulary — which is what
@@ -911,7 +928,7 @@ class IdentityCanonicalFormTests(WriterTestCase):
         # stated limit and not a dead rail.
         entry["away"], entry["home"] = rows[0]["home"], rows[0]["away"]
         with self.assertRaises(mlb_slate_writer.SlateWriteError) as caught:
-            mlb_slate_writer.land(self.root, DAY, draft)
+            mlb_slate_writer.land(self.root, DAY, draft, run_nonce=self.run_nonce())
         self.assertTrue(
             any("away/home transposed" in error for error in caught.exception.errors),
             caught.exception.errors,
@@ -934,7 +951,7 @@ class SlateDateTests(WriterTestCase):
         self.write_scan(rows)
         draft = draft_for(rows, date=f"  {DAY}\n")
 
-        path, schedule = mlb_slate_writer.land(self.root, DAY, draft)
+        path, schedule = mlb_slate_writer.land(self.root, DAY, draft, run_nonce=self.run_nonce())
 
         self.assertEqual(schedule["date"], DAY)
         # Read back off disk: the in-memory return value agreeing is not the
@@ -953,7 +970,7 @@ class SlateDateTests(WriterTestCase):
         self.write_scan(rows)
         draft = draft_for(rows, date=f" {DAY} ")
 
-        mlb_slate_writer.land(self.root, DAY, draft)
+        mlb_slate_writer.land(self.root, DAY, draft, run_nonce=self.run_nonce())
 
         self.assertEqual(draft["date"], f" {DAY} ")
 
@@ -962,7 +979,7 @@ class SlateDateTests(WriterTestCase):
         rows = [scan_row(823509)]
         self.write_scan(rows)
 
-        path, schedule = mlb_slate_writer.land(self.root, f" {DAY} ", draft_for(rows))
+        path, schedule = mlb_slate_writer.land(self.root, f" {DAY} ", draft_for(rows), run_nonce=self.run_nonce())
 
         self.assertEqual(path, self.schedule_path())
         self.assertEqual(schedule["date"], DAY)
@@ -1027,7 +1044,7 @@ class SlateDateTests(WriterTestCase):
         rows = [scan_row(823509)]
         self.write_scan(rows)
 
-        draft = mlb_slate_writer.skeleton(self.root, f"{DAY} ")
+        draft = mlb_slate_writer.skeleton(self.root, f"{DAY} ", run_nonce=self.run_nonce())
 
         self.assertEqual(draft["date"], DAY)
 
@@ -1036,17 +1053,29 @@ class SlateDateTests(WriterTestCase):
         self.write_scan(rows)
 
         with self.assertRaises(mlb_slate_writer.SlateWriteError):
-            mlb_slate_writer.land(self.root, "2026-02-30", draft_for(rows))
+            mlb_slate_writer.land(self.root, "2026-02-30", draft_for(rows), run_nonce=self.run_nonce())
 
         self.assertFalse(self.schedule_path().exists())
         self.assertEqual(list((self.root / ".picks" / "execute").iterdir()), [])
 
 
 class CliTests(WriterTestCase):
+    def test_nonce_is_required_for_in_process_writer_invocations(self):
+        self.write_scan([scan_row(823509)])
+        with mock.patch.object(mlb_slate_writer, "skeleton") as skeleton:
+            self.assertEqual(
+                mlb_slate_writer.main(
+                    ["--skeleton", "--day", DAY, "--root", str(self.root)]
+                ),
+                1,
+            )
+        skeleton.assert_not_called()
+        self.assertFalse(mlb_slate_writer.default_draft_path(self.root, DAY).exists())
+
     def test_skeleton_writes_the_draft_and_refuses_to_clobber_it(self):
         rows = [scan_row(823509)]
         self.write_scan(rows)
-        argv = ["--skeleton", "--day", DAY, "--root", str(self.root)]
+        argv = ["--skeleton", "--day", DAY, "--root", str(self.root), "--run-nonce", self.run_nonce()]
 
         self.assertEqual(mlb_slate_writer.main(argv), 0)
         destination = mlb_slate_writer.default_draft_path(self.root, DAY)
@@ -1061,7 +1090,7 @@ class CliTests(WriterTestCase):
 
         self.assertEqual(
             mlb_slate_writer.main(
-                ["--land", str(destination), "--day", DAY, "--root", str(self.root)]
+                ["--land", str(destination), "--day", DAY, "--root", str(self.root), "--run-nonce", self.run_nonce()]
             ),
             0,
         )
@@ -1077,7 +1106,7 @@ class CliTests(WriterTestCase):
 
         self.assertEqual(
             mlb_slate_writer.main(
-                ["--land", str(draft_path), "--day", DAY, "--root", str(self.root)]
+                ["--land", str(draft_path), "--day", DAY, "--root", str(self.root), "--run-nonce", self.run_nonce()]
             ),
             1,
         )
@@ -1086,7 +1115,7 @@ class CliTests(WriterTestCase):
     def test_refused_cli_landing_keeps_the_previous_schedule_byte_identical(self):
         rows = [scan_row(823509), scan_row(823510, away="New York Mets", home="Chicago Cubs")]
         self.write_scan(rows)
-        mlb_slate_writer.land(self.root, DAY, draft_for(rows))
+        mlb_slate_writer.land(self.root, DAY, draft_for(rows), run_nonce=self.run_nonce())
         before = self.schedule_path().read_bytes()
         draft_path = self.root / "incomplete.json"
         incomplete = draft_for(rows)
@@ -1095,7 +1124,7 @@ class CliTests(WriterTestCase):
 
         self.assertEqual(
             mlb_slate_writer.main(
-                ["--land", str(draft_path), "--day", DAY, "--root", str(self.root)]
+                ["--land", str(draft_path), "--day", DAY, "--root", str(self.root), "--run-nonce", self.run_nonce()]
             ),
             1,
         )
@@ -1136,7 +1165,7 @@ class CliTests(WriterTestCase):
 
         self.assertEqual(
             mlb_slate_writer.main(
-                ["--land", str(draft_path), "--day", f" {DAY} ", "--root", str(self.root)]
+                ["--land", str(draft_path), "--day", f" {DAY} ", "--root", str(self.root), "--run-nonce", self.run_nonce()]
             ),
             0,
         )

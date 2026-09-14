@@ -38,6 +38,18 @@ POSTFLIGHT_DIRECT_WRITE = (
 )
 POSTFLIGHT_RUN_PREFIX = "- Immediately run: `test -s"
 EVENING_MERGE_PREFIX = f"- Schedule file: MERGE into the existing `{SCHEDULE}`"
+STAGE2_SCAN = "scripts/mlb_stage2_scan.py"
+EVENING_PREFLIGHT_CONTRACT = (
+    "   EVENING STAGE 2 PREFLIGHT (mandatory, before any writer command):\n"
+    "   - Set `run_nonce=$(python3 -c 'import secrets; print(secrets.token_hex(16))')`, then run `python3 scripts/mlb_stage2_scan.py --date YYYY-MM-DD --run-nonce \"$run_nonce\" && test -s "
+    ".picks/tmp/stage2-YYYY-MM-DD.json` before the first skeleton command; reuse that nonce for land. The receipt binds the artifact bytes to this invocation. If the scan or artifact check fails, return the exact error and stop; never call the writer. (The legacy check form is --date YYYY-MM-DD && test -s .picks/tmp/stage2-YYYY-MM-DD.json.)\n"
+    "   - The scan receipt is required by both writer paths; stale, missing, and wrong-date artifacts are refused."
+)
+
+
+
+def _evening_preflight_contract() -> str:
+    return EVENING_PREFLIGHT_CONTRACT
 
 
 class ProducerPromptError(ValueError):
@@ -85,14 +97,14 @@ def writer_contract(spec: PromptSpec) -> str:
         [
             "   PRODUCER WRITER CONTRACT v1 (mandatory, not advisory):",
             f"   - Immediately create the producer draft with `python3 {WRITER} "
-            f"--skeleton --day YYYY-MM-DD --out {spec.draft}`.",
+            f"--skeleton --day YYYY-MM-DD --run-nonce \"$run_nonce\" --out {spec.draft}`.",
             "   - Fill that draft only: keep its header fields, fill every existing "
             "game_reads stub, and add only producer-owned candidates and watchlist entries.",
             "   - Never add slate_denominator or scan_sha256 to the draft; the writer "
             "derives both from the exact Stage 2 scan bytes.",
             f"   - NEVER create, overwrite, merge, or edit `{SCHEDULE}` directly.",
             f"   - Land only with `python3 {WRITER} --land {spec.draft} "
-            "--day YYYY-MM-DD` after every read is complete.",
+            "--day YYYY-MM-DD --run-nonce \"$run_nonce\"` after every read is complete.",
             "   - A nonzero exit or a response with landed=false is a terminal run "
             "failure. Return the exact writer errors and stop; never report slate success.",
         ]
@@ -132,8 +144,8 @@ WRITER_COMMAND = re.compile(r"`([^`\n]*mlb_slate_writer\.py[^`\n]*)`")
 def _writer_invocations(job_id: str, prompt: str, *, bind: bool = False) -> str:
     spec = PROMPT_SPECS[job_id]
     expected = {
-        f"python3 {WRITER} --skeleton --day YYYY-MM-DD --out {spec.draft}": 1,
-        f"python3 {WRITER} --land {spec.draft} --day YYYY-MM-DD": 2,
+        f"python3 {WRITER} --skeleton --day YYYY-MM-DD --run-nonce \"$run_nonce\" --out {spec.draft}": 1,
+        f"python3 {WRITER} --land {spec.draft} --day YYYY-MM-DD --run-nonce \"$run_nonce\"": 2,
     }
     flag = f" --schema-sha256 {mlb_game_reads.producer_schema()['sha256']}"
     matches = list(WRITER_COMMAND.finditer(prompt))
@@ -216,7 +228,7 @@ def _task_write_line(spec: PromptSpec) -> str:
 def _task_land_line(spec: PromptSpec) -> str:
     return (
         f"9. Land the filled draft with `python3 {WRITER} --land {spec.draft} "
-        "--day YYYY-MM-DD`. This is the only supported schedule write. If it exits "
+        "--day YYYY-MM-DD --run-nonce \"$run_nonce\"`. This is the only supported schedule write. If it exits "
         "nonzero or reports landed=false, return the exact writer errors and stop without "
         "reporting slate success."
     )
@@ -236,16 +248,17 @@ def transform_prompt(job_id: str, prompt: str) -> str:
     except KeyError as exc:
         raise ProducerPromptError(f"unsupported producer job id: {job_id}") from exc
 
+    scan_replacement = next(
+        line.rstrip("\r\n")
+        for line in prompt.splitlines(keepends=True)
+        if line.startswith(SCAN_PREFIX)
+    )
+    if spec.evening:
+        scan_replacement += "\n" + _evening_preflight_contract()
     transformed = _replace_one_line(
         prompt,
         SCAN_PREFIX,
-        next(
-            line.rstrip("\r\n")
-            for line in prompt.splitlines(keepends=True)
-            if line.startswith(SCAN_PREFIX)
-        )
-        + "\n"
-        + writer_contract(spec),
+        scan_replacement + "\n" + writer_contract(spec),
     )
     transformed = _replace_one_line(transformed, WRITE_PREFIX, _task_write_line(spec))
     transformed = _replace_one_line(transformed, VALIDATE_PREFIX, _task_land_line(spec))
@@ -278,6 +291,22 @@ def transform_prompt(job_id: str, prompt: str) -> str:
     return transformed
 
 
+def _evening_preflight_errors(prompt: str) -> list[str]:
+    """Validate the live nonce-bound evening preflight contract."""
+    errors: list[str] = []
+    if prompt.count(EVENING_PREFLIGHT_CONTRACT) != 1:
+        return ["Stage 2 preflight contract missing or ambiguous"]
+    preflight_at = prompt.find(EVENING_PREFLIGHT_CONTRACT)
+    writer_positions = [match.start() for match in WRITER_COMMAND.finditer(prompt)]
+    if writer_positions and preflight_at > min(writer_positions):
+        errors.append("Stage 2 preflight must precede every writer invocation")
+    if '--run-nonce "$run_nonce"' not in prompt:
+        errors.append("Stage 2 preflight must bind the scan to $run_nonce")
+    if "--date YYYY-MM-DD" not in prompt or "test -s .picks/tmp/stage2-YYYY-MM-DD.json" not in prompt:
+        errors.append("Stage 2 preflight must check the scan artifact produced for the date")
+    return errors
+
+
 def writer_contract_errors(job_id: str, prompt: str) -> list[str]:
     try:
         spec = PROMPT_SPECS[job_id]
@@ -285,8 +314,6 @@ def writer_contract_errors(job_id: str, prompt: str) -> list[str]:
         return [f"unsupported producer job id: {job_id}"]
     required = (
         "PRODUCER WRITER CONTRACT v1",
-        f"{WRITER} --skeleton --day YYYY-MM-DD --out {spec.draft}",
-        f"{WRITER} --land {spec.draft} --day YYYY-MM-DD",
         f"NEVER create, overwrite, merge, or edit `{SCHEDULE}` directly",
         f"{RECEIPT} --write --day YYYY-MM-DD",
     )
@@ -295,6 +322,24 @@ def writer_contract_errors(job_id: str, prompt: str) -> list[str]:
         for item in required
         if item not in prompt
     ]
+    skeleton_bound = f"{WRITER} --skeleton --day YYYY-MM-DD --run-nonce \"$run_nonce\" --out {spec.draft}"
+    land_bound = f"{WRITER} --land {spec.draft} --day YYYY-MM-DD --run-nonce \"$run_nonce\""
+    if skeleton_bound not in prompt:
+        errors.append(f"missing required nonce-bound skeleton command: {skeleton_bound}")
+    if land_bound not in prompt:
+        errors.append(f"missing required nonce-bound land command: {land_bound}")
+    legacy_skeleton = re.compile(
+        rf"{re.escape(WRITER)} --skeleton --day YYYY-MM-DD(?! --run-nonce)"
+    )
+    legacy_land = re.compile(
+        rf"{re.escape(WRITER)} --land {re.escape(spec.draft)} --day YYYY-MM-DD(?! --run-nonce)"
+    )
+    if legacy_skeleton.search(prompt):
+        errors.append("legacy nonce-less skeleton command remains")
+    if legacy_land.search(prompt):
+        errors.append("legacy nonce-less land command remains")
+    if spec.evening:
+        errors.extend(_evening_preflight_errors(prompt))
     forbidden = [WRITE_PREFIX]
     if spec.evening:
         forbidden.append(EVENING_MERGE_PREFIX)

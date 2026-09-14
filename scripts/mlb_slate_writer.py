@@ -97,7 +97,7 @@ import mlb_runtime_policy  # noqa: E402
 # about where a day's schedule lives, and two copies of that is two chances to
 # disagree about it.
 from mlb_slate_receipt import read_sha256, schedule_path_for  # noqa: E402
-from mlb_stage2_scan import denominator_output_path, resolve_scan_root  # noqa: E402
+from mlb_stage2_scan import denominator_output_path, resolve_scan_root, scan_receipt_path  # noqa: E402
 
 DENOMINATOR_SOURCE = "mlb_stage2_scan"
 
@@ -694,9 +694,18 @@ def atomic_write(path: Path, payload: str) -> None:
 
 
 def land(
-    root: Path, day: str, draft: Any, *, counts: dict[str, int] | None = None
+    root: Path,
+    day: str,
+    draft: Any,
+    *,
+    counts: dict[str, int] | None = None,
+    run_nonce: str | None = None,
 ) -> tuple[Path, dict[str, Any]]:
     """Validate a draft against the scan roster and write it, or raise.
+
+    Supported direct signature: ``land(root, day, draft, *, run_nonce=...)``.
+    The nonce is mandatory and must match the Stage 2 receipt for ``day`` and
+    the exact current scan artifact bytes.
 
     Returns the schedule path and the schedule that was written.
     """
@@ -708,6 +717,7 @@ def land(
         day = normalize_slate_date(day)
     except ValueError as exc:
         raise SlateWriteError([f"day {exc}"]) from exc
+    require_scan_receipt(root, day, run_nonce)
     schedule_path = schedule_path_for(root, day)
     scan_path = denominator_output_path(day, root)
 
@@ -788,8 +798,11 @@ def land(
     return schedule_path, schedule
 
 
-def skeleton(root: Path, day: str) -> dict[str, Any]:
-    """A draft with one stub per scanned game, from the scan's own numbers.
+def skeleton(root: Path, day: str, *, run_nonce: str | None = None) -> dict[str, Any]:
+    """Build a draft with one stub per scanned game.
+
+    Supported direct signature: ``skeleton(root, day, *, run_nonce=...)``;
+    the nonce is mandatory and receipt-bound to the exact scan artifact.
 
     Deliberately incomplete: no disposition, no ask, no handicap. Those are the
     run's decisions and it must record them. What the run should never have been
@@ -803,6 +816,7 @@ def skeleton(root: Path, day: str) -> dict[str, Any]:
         day = normalize_slate_date(day)
     except ValueError as exc:
         raise SlateWriteError([f"day {exc}"]) from exc
+    require_scan_receipt(root, day, run_nonce)
     scan_path = denominator_output_path(day, root)
     rows, _digest = load_scan(scan_path)
     reads: list[dict[str, Any]] = []
@@ -833,6 +847,28 @@ def default_draft_path(root: Path, day: str) -> Path:
     return root / ".picks" / "tmp" / f"{day}-slate-draft.json"
 
 
+def require_scan_receipt(root: Path, day: str, nonce: str | None) -> None:
+    """Require the nonce-bound receipt for every write-capable writer path."""
+    if not nonce:
+        raise SlateWriteError(["scan run receipt nonce is required; run Stage 2 with --run-nonce first"])
+    path = scan_receipt_path(day, root)
+    try:
+        receipt = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError) as exc:
+        raise SlateWriteError([f"scan run receipt not readable at {path}: {exc}"]) from exc
+    if not isinstance(receipt, dict) or receipt.get("schema") != "mlb-stage2-run-v1":
+        raise SlateWriteError([f"invalid scan run receipt at {path}"])
+    if receipt.get("date") != day or receipt.get("run_nonce") != nonce:
+        raise SlateWriteError([f"scan run receipt does not match day {day} and this invocation"])
+    scan_path = denominator_output_path(day, root)
+    try:
+        digest = hashlib.sha256(scan_path.read_bytes()).hexdigest()
+    except OSError as exc:
+        raise SlateWriteError([f"denominator scan not readable at {scan_path}: {exc}"]) from exc
+    if receipt.get("scan_sha256") != digest:
+        raise SlateWriteError(["scan run receipt does not match the current scan artifact"])
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     mode = parser.add_mutually_exclusive_group(required=True)
@@ -861,6 +897,11 @@ def main(argv: list[str] | None = None) -> int:
         "--schema-sha256",
         help="expected producer schema digest; refuse before any draft or schedule write on mismatch",
     )
+    parser.add_argument(
+        "--run-nonce",
+        default=None,
+        help="nonce from the Stage 2 scan invocation; required at the CLI boundary",
+    )
     args = parser.parse_args(argv)
     if (
         args.schema_sha256 is not None
@@ -878,7 +919,6 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
 
-    root = (args.root or resolve_scan_root()).resolve()
     # A malformed ``--day`` is a usage error and not a finding about the slate:
     # every path below is built from it, so there is no day whose record could
     # be reported on.
@@ -886,6 +926,13 @@ def main(argv: list[str] | None = None) -> int:
         day = normalize_slate_date(args.day or dt.date.today().isoformat())
     except ValueError as exc:
         parser.error(f"--day {exc}")
+
+    root = (args.root or resolve_scan_root()).resolve()
+    try:
+        require_scan_receipt(root, day, args.run_nonce)
+    except SlateWriteError as exc:
+        print(json.dumps({"landed": False, "errors": exc.errors}, indent=2))
+        return 1
 
     if args.skeleton:
         destination = args.out or default_draft_path(root, day)
@@ -898,7 +945,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 1
         try:
-            draft = skeleton(root, day)
+            draft = skeleton(root, day, run_nonce=args.run_nonce)
         except SlateWriteError as exc:
             for message in exc.errors:
                 print(f"error: {message}", file=sys.stderr)
@@ -923,7 +970,9 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         counts: dict[str, int] = {}
-        schedule_path, schedule = land(root, day, draft, counts=counts)
+        schedule_path, schedule = land(
+            root, day, draft, counts=counts, run_nonce=args.run_nonce
+        )
     except SlateWriteError as exc:
         print(json.dumps({"landed": False, "day": day, "errors": exc.errors}, indent=2))
         return 1

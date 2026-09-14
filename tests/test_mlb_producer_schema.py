@@ -75,7 +75,7 @@ class ProducerSchemaLandingTests(WriterTestCase):
         rows = [scan_row(820000 + i) for i in range(FIXTURE["row_count"])]
         self.write_scan(rows)
         valid = draft_for(rows)
-        writer.land(self.root, DAY, valid)
+        writer.land(self.root, DAY, valid, run_nonce=self.run_nonce())
         before = self.schedule_path().read_bytes()
         draft = copy.deepcopy(valid)
         for case in FIXTURE["cases"]:
@@ -87,7 +87,7 @@ class ProducerSchemaLandingTests(WriterTestCase):
                 draft["game_reads"][case["row"]]["unavailable"] = case["unavailable"]
         draft_before = copy.deepcopy(draft)
         with self.assertRaises(writer.SlateWriteError) as caught:
-            writer.land(self.root, DAY, draft)
+            writer.land(self.root, DAY, draft, run_nonce=self.run_nonce())
         errors = "\n".join(caught.exception.errors)
         for token in (
             "extreme_park_confidence_cap",
@@ -102,7 +102,7 @@ class ProducerSchemaLandingTests(WriterTestCase):
         missing = copy.deepcopy(valid)
         missing["game_reads"].pop(11)
         with self.assertRaises(writer.SlateWriteError):
-            writer.land(self.root, DAY, missing)
+            writer.land(self.root, DAY, missing, run_nonce=self.run_nonce())
         self.assertEqual(self.schedule_path().read_bytes(), before)
 
     def test_schema_mismatch_stops_both_modes_before_reading_or_writing(self):
@@ -148,6 +148,8 @@ class ProducerSchemaLandingTests(WriterTestCase):
                         str(self.root),
                         "--schema-sha256",
                         digest,
+                        "--run-nonce",
+                        self.run_nonce(),
                     ]
                 ),
                 0,
@@ -213,5 +215,5 @@ def test_extra_or_non_inline_writer_invocation_is_not_ignored():
         f"\n`python3 {prompts.WRITER} --skeleton`",
     ):
         assert prompts.schema_contract_errors(job, bound + extra)
-    # Existing unbound prompt preparation/check remains available separately.
+    # Morning migration compatibility remains isolated from the live evening rail.
     assert prompts.writer_contract_errors(job, original) == []
