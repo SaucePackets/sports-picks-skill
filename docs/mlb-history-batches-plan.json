@@ -1,0 +1,14 @@
+{
+  "schema": "mlb-history-batches-v1",
+  "source_plan_sha256": "3c5798d3dcc0c6e485c74de7d2f92d1d2cd6058d3137cf8330e0f41df8c1082c",
+  "start": "2023-03-01",
+  "end": "2024-09-30",
+  "selection": "All regular-season occurrences; unique game IDs sorted by earliest source date then numeric ID. Repeated occurrences retained; their starter snapshot target is refused.",
+  "schedule_requests": "One per calendar month, exact startDate/endDate, hydrate linescore; no 2025 requests",
+  "batch_games": 100,
+  "max_workers": 3,
+  "max_requests_per_batch": 300,
+  "failure_policy": "Retain failed receipts without retry. Resume only missing requests in the same immutable batch plan. Refuse changed bytes, identities, or plans.",
+  "source_features": "Availability and pre-cutoff starter identity only; no complete-history admission, fitting, scoring, or evaluation",
+  "eligible": false
+}

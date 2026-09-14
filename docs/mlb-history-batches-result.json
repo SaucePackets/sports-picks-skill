@@ -1,0 +1,30 @@
+{
+  "inventory_sha256": "fc7fe135ca9cf189b175713e3581103f817c32f98a15e60be1abfbb3a15e4765",
+  "batch_report_sha256": "dd1defe78c0203a729ca6fe1dbe5c73699c141f44b1b0de2f8dab68b26a7b705",
+  "implementation_sha256": "0daac2d92e2d9e54631503d023a36eb41e3c9ef78d2f9bf0d5a104bd4b400ebc",
+  "regular_occurrences": 4945,
+  "unique_games": 4860,
+  "repeated_game_ids": 83,
+  "batches": 49,
+  "schedule_requests": 19,
+  "max_game_requests": 14580,
+  "first_batch": {
+    "feeds": 100,
+    "games": 100,
+    "refusals": {
+      "no_provider_snapshot_before_cutoff": 7,
+      "repeated_schedule_occurrence": 4
+    },
+    "starter_candidates": 89
+  },
+  "first_batch_requests": 285,
+  "first_batch_bytes": 97642039,
+  "linear_response_storage_estimate_bytes": 4745403095.4,
+  "first_batch_dates": [
+    "2023-03-30",
+    "2023-04-06"
+  ],
+  "complete_training_rows": null,
+  "training_coverage_status": "not_evaluated_requires_season_general_history_admission",
+  "eligible": false
+}
