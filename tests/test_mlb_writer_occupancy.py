@@ -50,7 +50,7 @@ class OccupancyTests(WriterTestCase):
         draft["game_reads"][0] = read_for(
             rows[0], disposition="candidate", refusing_rails=[]
         )
-        _, schedule = writer.land(self.root, DAY, draft)
+        _, schedule = writer.land(self.root, DAY, draft, run_nonce=self.run_nonce())
         schedule = copy.deepcopy(schedule)
         schedule["candidates"][0].update(
             vig_approved=True, vig_notes="review retained", **state
@@ -94,7 +94,7 @@ class OccupancyTests(WriterTestCase):
                 rows, draft, schedule, before = self.existing(**state)
                 draft["candidates"][0]["thesis"] = "stale producer overwrite"
                 counts = {}
-                _, actual = writer.land(self.root, DAY, draft, counts=counts)
+                _, actual = writer.land(self.root, DAY, draft, counts=counts, run_nonce=self.run_nonce())
                 self.assertEqual(actual["candidates"], schedule["candidates"])
                 self.assertEqual(self.schedule_path().read_bytes(), before)
                 self.assertEqual(counts["skipped_occupied_entries"], 1)
@@ -106,7 +106,7 @@ class OccupancyTests(WriterTestCase):
         draft["game_reads"][0] = read_for(
             rows[0], disposition="lineup_watchlist", refusing_rails=[]
         )
-        _, actual = writer.land(self.root, DAY, draft)
+        _, actual = writer.land(self.root, DAY, draft, run_nonce=self.run_nonce())
         self.assertEqual(actual, schedule)
         self.assertEqual(self.schedule_path().read_bytes(), before)
 
@@ -157,7 +157,7 @@ class OccupancyTests(WriterTestCase):
             rows[2], disposition="lineup_watchlist", refusing_rails=[]
         )
         counts = {}
-        _, actual = writer.land(self.root, DAY, draft, counts=counts)
+        _, actual = writer.land(self.root, DAY, draft, counts=counts, run_nonce=self.run_nonce())
         self.assertEqual(counts["new_candidates"], 1)
         self.assertEqual(counts["new_watchlist_entries"], 1)
         self.assertEqual(counts["skipped_occupied_entries"], 1)
@@ -175,7 +175,7 @@ class OccupancyTests(WriterTestCase):
             self.assertIn(text[start:end].encode(), after)
             self.assertEqual(actual[key][0], value)
         retry_counts = {}
-        writer.land(self.root, DAY, draft, counts=retry_counts)
+        writer.land(self.root, DAY, draft, counts=retry_counts, run_nonce=self.run_nonce())
         self.assertEqual(self.schedule_path().read_bytes(), after)
         self.assertEqual(retry_counts["new_candidates"], 0)
         self.assertEqual(retry_counts["new_watchlist_entries"], 0)
@@ -185,11 +185,11 @@ class OccupancyTests(WriterTestCase):
         rows, draft, _, before = self.existing()
         draft["candidates"][0].pop("game_pk")
         draft["candidates"][0]["event_id"] = int(rows[0]["event_id"])
-        writer.land(self.root, DAY, draft)
+        writer.land(self.root, DAY, draft, run_nonce=self.run_nonce())
         self.assertEqual(self.schedule_path().read_bytes(), before)
         draft["candidates"][0]["game_pk"] = rows[1]["game_pk"]
         with self.assertRaisesRegex(writer.SlateWriteError, "consistent stable"):
-            writer.land(self.root, DAY, draft)
+            writer.land(self.root, DAY, draft, run_nonce=self.run_nonce())
         self.assertEqual(self.schedule_path().read_bytes(), before)
 
     def test_doubleheader_games_are_distinct_and_ambiguous_event_fails(self):
@@ -199,7 +199,7 @@ class OccupancyTests(WriterTestCase):
             rows[1], disposition="candidate", refusing_rails=[]
         )
         counts = {}
-        writer.land(self.root, DAY, draft, counts=counts)
+        writer.land(self.root, DAY, draft, counts=counts, run_nonce=self.run_nonce())
         self.assertEqual(counts["new_candidates"], 1)
         with self.assertRaisesRegex(writer.SlateWriteError, "ambiguous"):
             writer.game_identity(
@@ -231,7 +231,7 @@ class OccupancyTests(WriterTestCase):
         variants.append(bad)
         for bad in variants:
             with self.subTest(bad=bad), self.assertRaises(writer.SlateWriteError):
-                writer.land(self.root, DAY, bad)
+                writer.land(self.root, DAY, bad, run_nonce=self.run_nonce())
             self.assertEqual(self.schedule_path().read_bytes(), before)
 
     def test_duplicate_json_key_and_changed_schedule_fail_closed(self):
@@ -240,7 +240,7 @@ class OccupancyTests(WriterTestCase):
             before.replace(b'"date":', b'"date":"wrong", "date":', 1)
         )
         with self.assertRaisesRegex(writer.SlateWriteError, "duplicate JSON key"):
-            writer.land(self.root, DAY, draft)
+            writer.land(self.root, DAY, draft, run_nonce=self.run_nonce())
         self.schedule_path().write_bytes(before)
         original = writer.preserving_payload
 
@@ -252,7 +252,7 @@ class OccupancyTests(WriterTestCase):
             with self.assertRaisesRegex(
                 writer.SlateWriteError, "changed during landing"
             ):
-                writer.land(self.root, DAY, draft)
+                writer.land(self.root, DAY, draft, run_nonce=self.run_nonce())
         self.assertEqual(self.schedule_path().read_bytes(), before + b" ")
 
     def test_new_candidate_cannot_borrow_another_games_disposition(self):
@@ -263,12 +263,12 @@ class OccupancyTests(WriterTestCase):
             rows[2], disposition="candidate", refusing_rails=[]
         )
         with self.assertRaisesRegex(writer.SlateWriteError, "recorded disposition"):
-            writer.land(self.root, DAY, draft)
+            writer.land(self.root, DAY, draft, run_nonce=self.run_nonce())
         self.assertEqual(self.schedule_path().read_bytes(), before)
 
     def test_zero_cards_cannot_erase_an_occupied_schedule(self):
         rows, draft, schedule, before = self.existing(promoted=True)
         empty_card = draft_for(rows)  # all pass, but valid read coverage
-        _, actual = writer.land(self.root, DAY, empty_card)
+        _, actual = writer.land(self.root, DAY, empty_card, run_nonce=self.run_nonce())
         self.assertEqual(actual, schedule)
         self.assertEqual(self.schedule_path().read_bytes(), before)

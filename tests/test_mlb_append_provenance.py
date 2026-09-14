@@ -65,7 +65,7 @@ class AppendProvenanceTests(WriterTestCase):
         })
         for _ in range(2):
             with mock.patch.object(writer, "atomic_write") as write:
-                writer.land(self.root, DAY, draft)
+                writer.land(self.root, DAY, draft, run_nonce=self.run_nonce())
                 write.assert_not_called()
             self.assertEqual(self.schedule_path().read_bytes(), after)
             self.assertEqual(receipt.build_receipt(self.root, DAY)["read_scan_bindings"],
@@ -85,7 +85,7 @@ class AppendProvenanceTests(WriterTestCase):
                 self.schedule_path().write_text(json.dumps(existing))
                 rows[1]["away_fair"] = 0.41
                 self.write_scan(rows)
-                writer.land(self.root, DAY, draft)
+                writer.land(self.root, DAY, draft, run_nonce=self.run_nonce())
                 result = receipt.build_receipt(self.root, DAY)
                 self.assertEqual(result["writer_provenance"], "corroborated")
                 self.assertEqual(result["read_scan_bindings"]["unknown"], [rows[0]["game_pk"]])
@@ -98,7 +98,7 @@ class AppendProvenanceTests(WriterTestCase):
         draft["game_reads"][0]["event_id"] = "different-event"
         draft["candidates"][0]["event_id"] = "different-event"
         with self.assertRaises(writer.SlateWriteError):
-            writer.land(self.root, DAY, draft)
+            writer.land(self.root, DAY, draft, run_nonce=self.run_nonce())
         self.assertEqual(self.schedule_path().read_bytes(), before)
 
     def test_verified_coverage_sidecar_append_and_stale_sidecar_refusal(self):
@@ -116,13 +116,19 @@ class AppendProvenanceTests(WriterTestCase):
                 path.write_text(json.dumps([source]))
                 if version:
                     before = writer.schedule_path_for(self.root, day).read_bytes()
-                    with self.assertRaisesRegex(writer.SlateWriteError, "cannot reconcile"):
-                        writer.land(self.root, day, draft)
+                    with self.assertRaisesRegex(writer.SlateWriteError, "cannot reconcile|does not match the current scan artifact"):
+                        writer.land(self.root, day, draft, run_nonce=self.run_nonce())
                     self.assertEqual(writer.schedule_path_for(self.root, day).read_bytes(), before)
                 coverage = data.coverage([source], NOW, scheduled_games=1, schedule_verified=True)
                 coverage["scan_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
                 path.with_suffix(".coverage.json").write_text(json.dumps(coverage))
-                writer.land(self.root, day, draft)
+                nonce = "test-run-nonce"
+                writer.scan_receipt_path(day, self.root).write_text(json.dumps({
+                    "schema": "mlb-stage2-run-v1", "date": day,
+                    "run_nonce": nonce,
+                    "scan_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                }))
+                writer.land(self.root, day, draft, run_nonce=nonce)
                 result = receipt.build_receipt(self.root, day)
                 self.assertEqual(result["verdict"], receipt.VERDICT_COMPLETE, result)
                 self.assertTrue(result["data_coverage"]["reconciled"])

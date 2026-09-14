@@ -8,6 +8,14 @@ import pytest
 from scripts import mlb_data_completeness as data
 from scripts import mlb_stage2_scan as scan
 
+def make_receipt(root, day, scan_path):
+    import hashlib
+    from scripts import mlb_slate_writer
+    nonce = "data-test-nonce"
+    receipt_path = mlb_slate_writer.scan_receipt_path(day, root)
+    receipt_path.write_text(json.dumps({"schema":"mlb-stage2-run-v1", "date":day, "run_nonce":nonce, "scan_sha256":hashlib.sha256(scan_path.read_bytes()).hexdigest()}))
+    return nonce
+
 NOW = dt.datetime(2026, 9, 9, 22, tzinfo=dt.timezone.utc)
 
 
@@ -299,6 +307,7 @@ def test_writer_invokes_source_gate_before_schedule_write(tmp_path):
     receipt = data.coverage([r], NOW, scheduled_games=1, schedule_verified=True)
     receipt["scan_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
     path.with_suffix(".coverage.json").write_text(json.dumps(receipt))
+    nonce = make_receipt(tmp_path, "2026-09-09", path)
     # Bypass unrelated draft/record validation so only the real source gate
     # can stop this write. Removing its call makes this test reach compose.
     with mock.patch.object(writer, "draft_errors", return_value=[]), \
@@ -306,7 +315,7 @@ def test_writer_invokes_source_gate_before_schedule_write(tmp_path):
             mock.patch.object(writer, "compose", return_value={}), \
             mock.patch.object(writer, "record_errors", return_value=[]):
         with pytest.raises(writer.SlateWriteError, match="pass cannot describe"):
-            writer.land(tmp_path, "2026-09-09", {"game_reads": [read]})
+            writer.land(tmp_path, "2026-09-09", {"game_reads": [read]}, run_nonce=nonce)
     assert not (tmp_path / ".picks/execute/2026-09-09-schedule.json").exists()
 
 
@@ -319,8 +328,9 @@ def test_failed_schedule_cannot_be_landed_as_zero(tmp_path):
     receipt = data.coverage([], NOW)
     receipt["scan_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
     path.with_suffix(".coverage.json").write_text(json.dumps(receipt))
+    nonce = make_receipt(tmp_path, "2026-09-09", path)
     with pytest.raises(writer.SlateWriteError, match="cannot reconcile"):
-        writer.skeleton(tmp_path, "2026-09-09")
+        writer.skeleton(tmp_path, "2026-09-09", run_nonce=nonce)
 
 
 def test_versioned_scan_requires_coverage_receipt(tmp_path):
@@ -358,6 +368,7 @@ def test_refusal_classifications_correspond_through_real_writer(tmp_path, source
     receipt = data.coverage([r], NOW, scheduled_games=1, schedule_verified=True)
     receipt["scan_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
     path.with_suffix(".coverage.json").write_text(json.dumps(receipt))
+    nonce = make_receipt(tmp_path, "2026-09-09", path)
     rails = {"pass": "price_discipline", "not_priced": "no_dk_price", "incomplete_input_data": "incomplete_input_data"}
     read = read_for(r, disposition=disposition, refusing_rails=[rails[disposition]])
     draft = draft_for([r], date="2026-09-09", game_reads=[read])
@@ -365,10 +376,10 @@ def test_refusal_classifications_correspond_through_real_writer(tmp_path, source
     with vig_policy_state.deployed_policy(tmp_path / "state"), \
             mock.patch("mlb_data_completeness.utc_now", return_value=NOW):
         if accepted:
-            landed, result = writer.land(tmp_path, "2026-09-09", draft)
+            landed, result = writer.land(tmp_path, "2026-09-09", draft, run_nonce=nonce)
             assert landed.exists()
             assert result["game_reads"][0]["disposition"] == disposition
         else:
             with pytest.raises(writer.SlateWriteError, match=f"{disposition} cannot describe {expected}"):
-                writer.land(tmp_path, "2026-09-09", draft)
+                writer.land(tmp_path, "2026-09-09", draft, run_nonce=nonce)
             assert not (tmp_path / ".picks/execute/2026-09-09-schedule.json").exists()

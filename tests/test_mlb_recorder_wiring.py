@@ -117,6 +117,16 @@ class Runtime:
     def write_schedule(self, payload):
         self.schedule_path.write_text(json.dumps(payload), encoding="utf-8")
 
+    def run_nonce(self):
+        nonce = "test-run-nonce"
+        self.rt_receipt_path = self.scan_path.with_suffix(".run.json")
+        self.rt_receipt_path.write_text(json.dumps({
+            "schema": "mlb-stage2-run-v1", "date": self.day,
+            "run_nonce": nonce,
+            "scan_sha256": hashlib.sha256(self.scan_path.read_bytes()).hexdigest(),
+        }), encoding="utf-8")
+        return nonce
+
     def write_scan(self, rows):
         self.scan_path.write_text(json.dumps(rows), encoding="utf-8")
 
@@ -1024,7 +1034,7 @@ class WriterProvenanceTests(unittest.TestCase):
             "lineup_watchlist": [],
             "game_reads": self.reads,
         }
-        return mlb_slate_writer.land(self.rt.root, self.rt.day, draft)
+        return mlb_slate_writer.land(self.rt.root, self.rt.day, draft, run_nonce=self.rt.run_nonce())
 
     def test_a_landed_schedule_names_the_scan_bytes_it_derived_the_roster_from(self):
         _path, schedule = self._land()
