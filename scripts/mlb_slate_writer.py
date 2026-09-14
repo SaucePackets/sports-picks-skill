@@ -694,7 +694,12 @@ def atomic_write(path: Path, payload: str) -> None:
 
 
 def land(
-    root: Path, day: str, draft: Any, *, counts: dict[str, int] | None = None
+    root: Path,
+    day: str,
+    draft: Any,
+    *,
+    counts: dict[str, int] | None = None,
+    run_nonce: str | None = None,
 ) -> tuple[Path, dict[str, Any]]:
     """Validate a draft against the scan roster and write it, or raise.
 
@@ -708,6 +713,7 @@ def land(
         day = normalize_slate_date(day)
     except ValueError as exc:
         raise SlateWriteError([f"day {exc}"]) from exc
+    require_scan_receipt(root, day, run_nonce)
     schedule_path = schedule_path_for(root, day)
     scan_path = denominator_output_path(day, root)
 
@@ -788,7 +794,7 @@ def land(
     return schedule_path, schedule
 
 
-def skeleton(root: Path, day: str) -> dict[str, Any]:
+def skeleton(root: Path, day: str, *, run_nonce: str | None = None) -> dict[str, Any]:
     """A draft with one stub per scanned game, from the scan's own numbers.
 
     Deliberately incomplete: no disposition, no ask, no handicap. Those are the
@@ -803,6 +809,7 @@ def skeleton(root: Path, day: str) -> dict[str, Any]:
         day = normalize_slate_date(day)
     except ValueError as exc:
         raise SlateWriteError([f"day {exc}"]) from exc
+    require_scan_receipt(root, day, run_nonce)
     scan_path = denominator_output_path(day, root)
     rows, _digest = load_scan(scan_path)
     reads: list[dict[str, Any]] = []
@@ -834,12 +841,7 @@ def default_draft_path(root: Path, day: str) -> Path:
 
 
 def require_scan_receipt(root: Path, day: str, nonce: str | None) -> None:
-    """Require the scan receipt supplied by the invoking producer process.
-
-    The public Python helpers remain usable for deterministic library tests; the
-    CLI boundary used by the prompt requires a nonce-bound receipt. This avoids
-    pretending that an existing scan file proves this invocation ran it.
-    """
+    """Require the nonce-bound receipt for every write-capable writer path."""
     if not nonce:
         raise SlateWriteError(["scan run receipt nonce is required; run Stage 2 with --run-nonce first"])
     path = scan_receipt_path(day, root)
@@ -936,7 +938,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 1
         try:
-            draft = skeleton(root, day)
+            draft = skeleton(root, day, run_nonce=args.run_nonce)
         except SlateWriteError as exc:
             for message in exc.errors:
                 print(f"error: {message}", file=sys.stderr)
@@ -961,7 +963,9 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         counts: dict[str, int] = {}
-        schedule_path, schedule = land(root, day, draft, counts=counts)
+        schedule_path, schedule = land(
+            root, day, draft, counts=counts, run_nonce=args.run_nonce
+        )
     except SlateWriteError as exc:
         print(json.dumps({"landed": False, "day": day, "errors": exc.errors}, indent=2))
         return 1
