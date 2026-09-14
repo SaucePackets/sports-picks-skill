@@ -1,0 +1,92 @@
+{
+  "schema": "mlb-multiseason-admission-v1",
+  "contract_sha256": "ae3308f34f9ba2dc7d8c8534721953a182feaeb5e64000e35b797ab99d2f49da",
+  "implementation_sha256": "b1a19dbc1b577847610e4ed948d540fe1b4b4a58a6d7daae8df14ee54b3d0760",
+  "evidence_sha256": "2a60aceacab8131f455b5c6d5f0fc8451fa76288c342f1182a5e674b9e62f798",
+  "source_script_sha256": {
+    "mlb_appearance_census.py": "fb7f6b3884667439c64137417862c1c76633c22d271f2dde9c18c403e48e83d4",
+    "mlb_bulk_starter_admission.py": "430ade044ba1843f770c484dc0904c4f29f40a4d1a3efe40c3654b4440f1b994",
+    "mlb_chronological_admission.py": "90519414af4c5649793547ffced81deb87a4c44678d6764cd494a0db9aaf13b3",
+    "mlb_history_batches.py": "0daac2d92e2d9e54631503d023a36eb41e3c9ef78d2f9bf0d5a104bd4b400ebc",
+    "mlb_multiseason_admission.py": "b1a19dbc1b577847610e4ed948d540fe1b4b4a58a6d7daae8df14ee54b3d0760",
+    "mlb_multiseason_evidence.py": "2a60aceacab8131f455b5c6d5f0fc8451fa76288c342f1182a5e674b9e62f798",
+    "mlb_participant_history_experiment.py": "b8a6fdfe676c42238bb0259a5960129d29152ef4a6f67952e2f804e954b7028e"
+  },
+  "inventory_sha256": "fc7fe135ca9cf189b175713e3581103f817c32f98a15e60be1abfbb3a15e4765",
+  "batch_bindings": [
+    {
+      "number": 0,
+      "sha256": "dd1defe78c0203a729ca6fe1dbe5c73699c141f44b1b0de2f8dab68b26a7b705"
+    },
+    {
+      "number": 1,
+      "sha256": "12a5253c47c9eeb531c7769404c017025ff7bc48a179decb57749b41100b3396"
+    },
+    {
+      "number": 2,
+      "sha256": "636546f8046b0fff0b5cbbd390d0ba3cdfc1523f5f73271d34f4155731683792"
+    },
+    {
+      "number": 3,
+      "sha256": "8efa099d264354a931f9828fe877928a83c730651b877a9daf06992466fa4987"
+    },
+    {
+      "number": 4,
+      "sha256": "ddd2a7d9ab2bee38e6a54d6be1eb839290e78bbffe7055e1036d2ba928bfcac8"
+    },
+    {
+      "number": 5,
+      "sha256": "4aa5e3cfb687cfb47b71b60c3c6a54a39978a07c64cea69a9af4fce0c7036b09"
+    },
+    {
+      "number": 6,
+      "sha256": "0b392570206af4cbea101beea0870f81aba431250fe14c83400a1aeffd408567"
+    }
+  ],
+  "summary": {
+    "appearance_games": 611,
+    "appearance_refusals": {
+      "ambiguous_mid_appearance_pitcher_substitution": 15,
+      "feed_not_collected": 4160,
+      "final_not_complete_in_both_sources": 1,
+      "non_pa_runner_out_not_corroborated": 2,
+      "non_pa_terminal_runner_out_required": 1,
+      "play_before_scheduled_start": 43,
+      "play_chronology": 3,
+      "repeated_schedule_occurrence": 16,
+      "unsupported_plate_appearance_event": 8
+    },
+    "collected_games": 700,
+    "complete_training_rows": 71,
+    "pitcher_features": {
+      "train": {
+        "feature_pairs_after": 71,
+        "feature_pairs_before": 0,
+        "history_refusals": {
+          "fewer_than_three_prior_appearances": 43,
+          "prior_appearance_census_unresolved": 149
+        },
+        "starter_candidates": 216
+      },
+      "warmup": {
+        "feature_pairs_after": 55,
+        "feature_pairs_before": 0,
+        "history_refusals": {
+          "fewer_than_three_prior_appearances": 390,
+          "prior_appearance_census_unresolved": 158
+        },
+        "starter_candidates": 363
+      }
+    },
+    "regular_occurrences": 4945,
+    "sealed_batches": 7,
+    "total_batches": 49
+  },
+  "eligible": false,
+  "fitting_enabled": false,
+  "scoring_enabled": false,
+  "historical_performance": null,
+  "original_pregame_predictions": false,
+  "replay_sha256": "f5eb22a92ce3e70c38b039d751654a894ab06a70f43967ee8c29e74839594833",
+  "replay_bytes": 80017768
+}

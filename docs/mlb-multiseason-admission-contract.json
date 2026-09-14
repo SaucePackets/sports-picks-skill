@@ -1,0 +1,18 @@
+{
+  "schema": "mlb-multiseason-history-admission-v1",
+  "inventory_spec_sha256": "139f3ad2dae5d0c0a4d3a24f3aa86bbb14dc4ca31bd838507102bc2de3853559",
+  "training_dates": [
+    "2023-05-01",
+    "2024-09-30"
+  ],
+  "training_label_cutoff": "2024-10-01T00:00:00Z",
+  "features": "Existing last-ten accepted team outcomes and last-three accepted starter appearances; same-day excluded; completion strictly before target start minus 60 minutes",
+  "appearance_rule": "Copy pinned strict outcome/appearance rules with season bound to source date, plus existing corroborated runner-out classifier; no source normalization",
+  "gap_rule": "Every refused or uncollected earlier occurrence blocks history unless same-feed participant evidence excludes the pitcher or places the complete game before all three selected appearances",
+  "participant_rule": "Existing v2 participant superset checks and reviewed postponed no-play intervals, with season bound to source date. Intervals exclude only before the explicit rescheduled start; suspended games remain refused.",
+  "selection": "Repeated schedule occurrences refuse appearance statistics and target starter selection; a unique matching final occurrence may certify participant absence only",
+  "fitting_enabled": false,
+  "scoring_enabled": false,
+  "eligible": false,
+  "test_window_access": false
+}
