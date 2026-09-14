@@ -24,8 +24,10 @@ From the root of the recipient's OpenClaw workspace:
 
 ```bash
 cp -R /path/to/sports-picks-skill/skills/* ./skills/
-cp -R /path/to/sports-picks-skill/.picks ./.picks
+mkdir -p .picks
 ```
+
+Initialize local ledger files using `skills/sports-picks/references/process.md`; no live or template `.picks/` ledger is bundled.
 
 ## Reload
 Start a fresh session or restart the gateway/session so the skills are reindexed.

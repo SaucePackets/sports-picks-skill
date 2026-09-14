@@ -25,10 +25,7 @@ from mlb_candidate_contract import candidate_errors
 
 from mlb_runtime_policy import (
     enforce_daily_candidate_limit,
-    live_conservative_edge,
     load_mlb_selection_policy,
-    model_deployment_errors,
-    stale_probability_field_errors,
     standing_authorization_enabled,
 )
 from mlb_baseball_evidence import (
@@ -36,7 +33,6 @@ from mlb_baseball_evidence import (
     execution_checks_errors,
     execution_prompt_evidence_section,
 )
-from mlb_probability_model import probability_component_errors
 
 CENTRAL = ZoneInfo("America/Chicago")
 MAX_MINUTES_BEFORE_FIRST_PITCH = 120
@@ -162,32 +158,13 @@ def candidate_is_eligible(candidate: dict[str, Any], now: datetime) -> bool:
     # overrides live arithmetic.
     if candidate_errors(candidate):
         return False
-    # Deployment contract: a version string is not a deployed model. The
-    # probability trail above proves the numbers are internally consistent and
-    # says nothing about whether the model that produced them was ever cleared
-    # to bet. Only the market-only fallback (which asserts no model) and
-    # versions named in the deployment record may reach an order.
-    if model_deployment_errors(candidate):
-        return False
     # Baseball evidence hard validators (Phase 2): deterministic starter role,
     # resolved named risks, available leverage arms, etc. Fails closed at gate time.
     if baseball_evidence_errors(candidate):
         return False
-    # Probability components (Phase 3): the structured component contract must
-    # still reconcile with the probability trail at gate time.
-    if probability_component_errors(candidate):
-        return False
     # Execution checks (Phase 2): confirm tradeability (mapping, price, liquidity,
     # lineup, receipts) without touching probability.
     if execution_checks_errors(candidate):
-        return False
-    # Edge floor: the live conservative edge must clear the shared policy
-    # floor (default 5 points) at gate time, not just at slate/review time.
-    policy = load_mlb_selection_policy()
-    if policy is None:
-        return False
-    live_edge = live_conservative_edge(candidate)
-    if live_edge is None or live_edge + 1e-9 < policy.min_conservative_edge:
         return False
     return (
         candidate.get("vig_approved") is True

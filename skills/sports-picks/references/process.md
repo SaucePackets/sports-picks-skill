@@ -159,4 +159,4 @@ Current known patterns:
 - **Career stats vs specific opponent:** useful directional signal, not a standalone edge; discount for current form
 - **Early season noise:** records and ERA through first 10 games are unreliable; weight game-by-game form instead
 
-If the same mistake appears twice, promote it to a permanent rule.
+If the same mistake appears twice, record a proposed rule and its evidence for review. Repetition identifies a hypothesis; it does not establish that a permanent gate improves predictions. Keep current rules unchanged until the proposal is reviewed.

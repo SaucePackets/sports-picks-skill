@@ -67,10 +67,9 @@ def main() -> int:
     else:
         print(f"RECONCILES TO record.json: no voids, so both documents cover the same "
               f"{len(all_settled)} settled picks.")
-    breakeven = 0.545  # rough avg ask + fees
-    print(f"NOTE: with n={n}, a CI spanning {fmt_pct(lo)}–{fmt_pct(hi)} cannot distinguish "
-          f"this from break-even (~{fmt_pct(breakeven)} needed at typical prices). "
-          "Treat ROI as unproven until the CI lower bound clears break-even.")
+    print("NOTE: win-rate uncertainty alone does not establish profitability at varying "
+          "prices and stakes. ROI above is descriptive; this report does not validate "
+          "a model or authorize a policy change.")
 
     bands = defaultdict(lambda: [0, 0, 0.0])
     for p in settled:
@@ -86,11 +85,13 @@ def main() -> int:
 
     tiers = defaultdict(lambda: [0, 0, 0.0])
     for p in settled:
-        tier = "High($30)" if float(p.get("unit_size") or 0) >= 30 else "Medium"
+        tier = str(p.get("confidence") or "").strip().lower()
+        if tier not in {"small", "medium", "high"}:
+            tier = "unknown (confidence not recorded)"
         tiers[tier][0] += 1 if p["result"] == "win" else 0
         tiers[tier][1] += 1
         tiers[tier][2] += float(p.get("pnl") or 0)
-    print("\n## By tier")
+    print("\n## By recorded confidence (never inferred from stake)")
     for tier, (w, tot, tpnl) in sorted(tiers.items()):
         print(f"- {tier}: {w}-{tot - w}, pnl ${tpnl:+.2f}")
 

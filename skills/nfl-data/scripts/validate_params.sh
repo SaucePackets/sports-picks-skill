@@ -1,6 +1,6 @@
 #!/bin/bash
 SPORT="${1:-nfl}"  # nfl
-MONTH=$(date +%m)
+MONTH=$((10#$(date +%m)))
 
 case "$SPORT" in
   nfl)

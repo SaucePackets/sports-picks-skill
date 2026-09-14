@@ -11,7 +11,8 @@ Then start a fresh Hermes session so the skills are reindexed.
 ## What the installer does
 
 - Copies every directory under `skills/` into `${HERMES_HOME:-$HOME/.hermes}/skills/sports/`.
-- Copies the fresh `.picks/` templates into `${HERMES_HOME:-$HOME/.hermes}/sports-picks/.picks/` if they do not already exist.
+- Creates an empty `${HERMES_HOME:-$HOME/.hermes}/sports-picks/.picks/` state directory. The repository does not ship `.picks/` ledger files. Initialize records using the sports-picks process reference.
+- Installs Markdown skills and their adjacent helpers only. Scheduled runtime scripts and cron configuration require the separate [runtime deployment](deploy-runtime.md) setup.
 - Leaves existing runtime ledgers, receipts, and reflections untouched.
 
 ## Optional dependencies

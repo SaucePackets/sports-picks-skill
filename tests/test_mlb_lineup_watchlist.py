@@ -77,7 +77,9 @@ class MlbLineupWatchlistTests(unittest.TestCase):
 
         self.assertEqual([item["id"] for item in due], ["lineup-abc-def"])
 
-    def test_entry_is_not_due_outside_window_or_after_terminal_status(self):
+    # This case exercises standing authorization, independent of host state.
+    @mock.patch.object(mlb_lineup_watchlist, "standing_authorization_enabled", return_value=True)
+    def test_entry_is_not_due_outside_window_or_after_terminal_status(self, _standing):
         early = datetime(2026, 7, 17, 21, 20, tzinfo=timezone.utc)
         late = datetime(2026, 7, 17, 22, 30, tzinfo=timezone.utc)  # 30 min pre-pitch, inside the 35 min floor
         promoted_candidate = {
@@ -204,7 +206,9 @@ class MlbLineupWatchlistTests(unittest.TestCase):
         self.assertIn("passed entry requires rechecked_at_utc", errors)
         self.assertIn("passed entry requires non-empty recheck_notes", errors)
 
-    def test_validation_rejects_manual_state_for_standing_authorized_mlb(self):
+    # This case exercises standing authorization, independent of host state.
+    @mock.patch.object(mlb_lineup_watchlist, "standing_authorization_enabled", return_value=True)
+    def test_validation_rejects_manual_state_for_standing_authorized_mlb(self, _standing):
         promoted = self.entry(
             status="promoted",
             rechecked_at_utc="2026-07-17T21:45:00Z",
@@ -280,7 +284,9 @@ class MlbLineupWatchlistTests(unittest.TestCase):
         self.assertIn("genuine pre-lineup", ctx)          # loaded feed, no orders yet
         self.assertIn("game-resolution or feed FAILURE", ctx)  # sparse feed = error, not a pass
 
-    def test_recheck_prompt_routes_promotion_to_recurring_execution_poller(self):
+    # This case exercises standing authorization, independent of host state.
+    @mock.patch.object(mlb_lineup_watchlist, "standing_authorization_enabled", return_value=True)
+    def test_recheck_prompt_routes_promotion_to_recurring_execution_poller(self, _standing):
         prompt = mlb_lineup_watchlist.build_recheck_prompt(Path("/tmp/schedule.json"), [self.entry()])
 
         self.assertIn("confirmed batting lineups", prompt)

@@ -81,6 +81,20 @@ class PostgameGateWiringTests(unittest.TestCase):
                 status = vig_postgame_gate.main()
         return status, seen["prompt"]
 
+    def test_settlement_preserves_cohort_reports_without_obsolete_policy_advice(self):
+        prompt = vig_postgame_gate.build_settlement_prompt(
+            open_pick_ids=["fixture"], open_count=1,
+            cohort_section="MARGINAL-FIXTURE", small_cohort_section="SMALL-DOG-FIXTURE",
+            recon_section="",
+        )
+        self.assertIn("MARGINAL-FIXTURE", prompt)
+        self.assertIn("SMALL-DOG-FIXTURE", prompt)
+        self.assertIn("membership is not current eligibility", prompt)
+        self.assertIn("Do not change risk limits, confidence gates, or approved data rules", prompt)
+        self.assertIn("prospective, predeclared evaluation", prompt)
+        for obsolete in ("0.025-0.030", "say the loosening is validated", "say that change is validated", "Promoted to data rule:", "Promote a durable rule to PROCESS.md"):
+            self.assertNotIn(obsolete, prompt)
+
     def test_a_clean_ledger_with_nothing_open_spawns_no_settlement_agent(self):
         # The discriminator. Without this, every assertion below would also
         # hold for a gate that spawned the child unconditionally.
