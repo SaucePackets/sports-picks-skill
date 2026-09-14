@@ -96,6 +96,8 @@ import mlb_runtime_policy  # noqa: E402
 # the same reason: the writer, the receipt and the gate must agree byte-for-byte
 # about where a day's schedule lives, and two copies of that is two chances to
 # disagree about it.
+from mlb_candidate_contract import candidate_errors
+
 from mlb_slate_receipt import read_sha256, schedule_path_for  # noqa: E402
 from mlb_stage2_scan import denominator_output_path, resolve_scan_root, scan_receipt_path  # noqa: E402
 
@@ -781,6 +783,14 @@ def land(
         if merged_errors:
             raise SlateWriteError(merged_errors)
         payload = preserving_payload(raw, existing, schedule)
+    retained_ids = {game_identity(card, existing["game_reads"])
+                    for card in existing["candidates"]} if existing else set()
+    for card in schedule["candidates"]:
+        if game_identity(card, schedule["game_reads"]) not in retained_ids:
+            errors.extend(f"candidate {card.get('event_id')}: {error}"
+                          for error in candidate_errors(card))
+    if errors:
+        raise SlateWriteError(errors)
     validate_card_identities(schedule)
     # Refuse a stale snapshot if a reviewer/executor changed the file while we
     # validated. All writes still use the existing atomic replacement primitive.

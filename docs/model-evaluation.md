@@ -101,10 +101,13 @@ behaviour. Until it is installed in `~/.hermes/vig/state/risk_limits.json`,
 market-only — which is the live state as of 2026-08-31, when the key was absent
 from that file entirely.
 
-## Open: the two halves of the pipeline disagree
+## Historical gap: the two halves of the pipeline disagreed
 
-Recorded here rather than fixed, because fixing it either way changes betting
-behaviour and that is out of scope for this slice.
+The decision-quality change adds shared candidate admission at production,
+fresh review, execution eligibility and the final lock. False market-only
+labels now fail; adjusted candidates must name an admitted model. Existing
+occupied cards are retained during append, with current checks still applied
+at execution. The history below explains why the check is necessary.
 
 The slate handicaps every night and writes candidates carrying
 `win_probability` well above `dk_fair_prob`. The review gate, following the
@@ -126,3 +129,19 @@ allowed to use.
 Resolving it means either the gate honours a deployed handicap (which is what
 the evaluation dataset above is for) or the slate stops writing one. Both are
 behaviour changes and belong to a scoped lane with a human decision in it.
+
+
+## Isolated, non-executing evaluation
+
+Use `evaluate --dataset <dataset.jsonl> --model-version <frozen-version>`.
+Without a version, evaluation refuses mixed or missing identities. Reports
+include selected/excluded row counts and never activate a model. Selective
+filtering is visible; it does not establish that the underlying dataset is
+complete or free of leakage. Use the existing shadow provenance and chronological
+admission workflow for those requirements, with all-game coverage and immutable
+pregame records. Historical winning passes alone cannot qualify an experiment.
+
+`mlb_decision_audit.py --schedule <schedule> --state-dir <state> --now <ISO-time>`
+provides per-game refusal counts, recorded price-qualified refusals, model-label
+errors, missing games, and recheck gaps. `--now` makes timing reproducible.
+A current schedule snapshot cannot reconstruct what an earlier job observed.

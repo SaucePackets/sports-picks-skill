@@ -91,6 +91,10 @@ class WriterTestCase(unittest.TestCase):
         # box with a live Vig state dir and failed on one without.
         policy = vig_policy_state.deployed_policy(self.root / "state")
         policy.__enter__()
+        path = self.root / "state" / "risk_limits.json"
+        data = json.loads(path.read_text())
+        data["max_unit_usd"] = {"small": 9, "medium": 15, "high": 25}
+        path.write_text(json.dumps(data))
         self.addCleanup(policy.__exit__, None, None, None)
 
     def policy(self):
@@ -488,6 +492,16 @@ class AuthoredDecisionTests(WriterTestCase):
     # Producer template state, plus the stable game identity required for
     # safe retries. Null/false decision fields must remain accepted.
     CANONICAL_CANDIDATE = {
+        "dk_fair_prob": 0.602,
+        "raw_probability": 0.602,
+        "conservative_probability": 0.602,
+        "uncertainty_haircut": 0,
+        "current_ask": 0.545,
+        "projected_edge_at_current_ask": 0.057,
+        "model_version": "vig-mlb-market-v1",
+        "probability_components": {"adjustments": [], "haircuts": []},
+        "confidence": "medium",
+        "unit_size": 15,
         "game_pk": 823509,
         "event_id": "4018823509",
         "sport": "MLB",
@@ -509,6 +523,20 @@ class AuthoredDecisionTests(WriterTestCase):
         draft["game_reads"][0]["disposition"] = "candidate"
         draft["game_reads"][0]["refusing_rails"] = []
         return draft
+
+    def test_candidate_contract_rejects_invalid_new_cards_before_writing(self):
+        rows = [scan_row(823509)]
+        self.write_scan(rows)
+        for change, expected in (
+            ({"unit_size": 18}, "exceeds cap"),
+            ({"model_version": "unadmitted-experiment"}, "not deployed"),
+            ({"raw_probability": 0.603}, "market-only model"),
+        ):
+            with self.subTest(change=change):
+                with self.assertRaises(mlb_slate_writer.SlateWriteError) as caught:
+                    mlb_slate_writer.land(self.root, DAY, self.draft_with_candidate(rows, **change), run_nonce=self.run_nonce())
+                self.assertTrue(any(expected in error for error in caught.exception.errors), caught.exception.errors)
+                self.assertFalse(self.schedule_path().exists())
 
     def test_the_canonical_producer_candidate_still_lands(self):
         rows = [scan_row(823509)]

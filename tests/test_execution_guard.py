@@ -239,7 +239,10 @@ class ExecutionGuardTests(unittest.TestCase):
 
         self.assertEqual(receipts, [])
 
-    def test_acquire_lock_refuses_when_candidate_already_locked(self):
+    @patch("scripts.execution_guard._risk_limit_violation", return_value=None)
+    def test_acquire_lock_refuses_when_candidate_already_locked(self, _risk):
+        # This is a lock occupancy test. Money rails have their own explicit
+        # policy fixtures below; do not depend on the developer's live ledger.
         self.assertTrue(acquire_execution_lock(self.schedule_path, "aec-mlb-nyy-kc-2026-05-27", "attempt-1"))
         self.assertFalse(acquire_execution_lock(self.schedule_path, "aec-mlb-nyy-kc-2026-05-27", "attempt-2"))
 
@@ -608,6 +611,7 @@ class FinalLockPolicyIntegrationTests(unittest.TestCase):
         self.limits_path.write_text(json.dumps({
             "daily_cap_usd": 90,
             "max_unit_usd_absolute": 30,
+            "max_unit_usd": {"medium": 15},
             "max_polymarket_price": 0.75,
         }))
         self.picks_path = self.root / "picks.json"
@@ -633,9 +637,9 @@ class FinalLockPolicyIntegrationTests(unittest.TestCase):
             "confidence": "medium",
             "max_polymarket_price": 0.60,
             "execution_mode": "standing_authorized",
-            "dk_fair_prob": 0.62,
-            "raw_probability": 0.66,
-            "uncertainty_haircut": 0.01,
+            "dk_fair_prob": 0.65,
+            "raw_probability": 0.65,
+            "uncertainty_haircut": 0.0,
             "conservative_probability": 0.65,
             "current_ask": 0.59,
             "projected_edge_at_current_ask": 0.06,
@@ -644,10 +648,13 @@ class FinalLockPolicyIntegrationTests(unittest.TestCase):
             # execution boundary read "there is a version" as "a model was
             # deployed". Only this version and a deployed one may execute now.
             "model_version": "vig-mlb-market-v1",
+            "probability_components": {"adjustments": [], "haircuts": []},
             "baseball_evidence": valid_baseball_evidence(),
             "execution_checks": valid_execution_checks(supported_price=0.59),
         }
         base.update(kw)
+        if "conservative_probability" in kw:
+            base["dk_fair_prob"] = base["raw_probability"] = kw["conservative_probability"]
         return base
 
     def test_deployed_policy_shape_loads_and_allows_valid_candidate(self):

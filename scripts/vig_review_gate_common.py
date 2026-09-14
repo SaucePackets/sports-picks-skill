@@ -29,6 +29,9 @@ for _guard_dir in (
     if _guard_dir.is_dir() and str(_guard_dir) not in sys.path:
         sys.path.insert(0, str(_guard_dir))
 
+from mlb_candidate_contract import candidate_errors
+from mlb_decision_audit import write_snapshot as write_decision_snapshot
+
 from mlb_lineup_watchlist import (  # noqa: E402
     PENDING_STATUS,
     PROMOTED_STATUS,
@@ -513,7 +516,7 @@ def normalize_review_routing(
         # execution gate and final lock) so a poisoned candidate never reaches
         # the rewrite below. `stale_probability_field_errors` rejects missing,
         # non-numeric, non-finite, out-of-range, and stale-edge fields.
-        contract_errors = stale_probability_field_errors(candidate)
+        contract_errors = candidate_errors(candidate)
         if contract_errors:
             errors.append(
                 f"candidate {identity} probability contract violation: "
@@ -721,7 +724,7 @@ def approved_candidate_errors(
     # Probability contract: a standing-authorized approval must carry the full
     # numeric probability trail and a stored edge that matches the live
     # recomputation. Missing or stale fields make the approval invalid.
-    errors.extend(stale_probability_field_errors(candidate))
+    errors.extend(candidate_errors(candidate))
     # Baseball evidence hard validators (Phase 2): separate baseball gates from
     # execution checks so a candidate cannot route on price/liquidity alone.
     errors.extend(
@@ -1626,6 +1629,10 @@ def run_gate(sport: str) -> int:
         return _run_gate(sport, day)
     finally:
         write_slate_receipt(sport, day)
+        try:
+            write_decision_snapshot(ROOT, day)
+        except Exception as exc:
+            print(f"{sport} review gate AUDIT CRITICAL: {type(exc).__name__}: {exc}")
 
 
 def _run_gate(sport: str, day: str) -> int:

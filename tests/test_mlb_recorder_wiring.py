@@ -562,12 +562,14 @@ class DeploymentRailTests(unittest.TestCase):
         self.assertIs(
             mlb_probability_model.MARKET_MODEL_VERSION, bare.MARKET_MODEL_VERSION
         )
-        with mock.patch.object(bare, "MARKET_MODEL_VERSION", "vig-mlb-renamed-v9"):
-            reloaded = importlib.reload(sys.modules["mlb_probability_model"])
-            try:
+        try:
+            with mock.patch.object(bare, "MARKET_MODEL_VERSION", "vig-mlb-renamed-v9"):
+                reloaded = importlib.reload(sys.modules["mlb_probability_model"])
                 self.assertEqual(reloaded.MARKET_MODEL_VERSION, "vig-mlb-renamed-v9")
-            finally:
-                importlib.reload(sys.modules["mlb_probability_model"])
+        finally:
+            # Reload after restoring the source, otherwise later tests inherit
+            # the renamed fallback and bypass its semantic check.
+            importlib.reload(sys.modules["mlb_probability_model"])
 
 
 class ExecutionBoundaryTests(unittest.TestCase):
@@ -585,7 +587,7 @@ class ExecutionBoundaryTests(unittest.TestCase):
         # a full candidate so the rail is genuinely reached.
         rail.reset_mock()
         with mock.patch.object(
-            mlb_execution_gate, "stale_probability_field_errors", return_value=[]
+            mlb_execution_gate, "candidate_errors", return_value=[]
         ), mock.patch.object(
             mlb_execution_gate, "model_deployment_errors", return_value=["refused"]
         ) as rail:
@@ -599,7 +601,7 @@ class ExecutionBoundaryTests(unittest.TestCase):
         # the same candidate must survive this check, so the assertion above
         # is not passing for some unrelated reason.
         with mock.patch.object(
-            mlb_execution_gate, "stale_probability_field_errors", return_value=[]
+            mlb_execution_gate, "candidate_errors", return_value=[]
         ), mock.patch.object(
             mlb_execution_gate, "model_deployment_errors", return_value=[]
         ), mock.patch.object(
@@ -615,7 +617,7 @@ class ExecutionBoundaryTests(unittest.TestCase):
 
         candidate = dict(_eligible_candidate(), execution_mode="standing_authorized")
         with mock.patch.object(
-            execution_guard, "stale_probability_field_errors", return_value=[]
+            execution_guard, "candidate_errors", return_value=[]
         ), mock.patch.object(
             execution_guard, "model_deployment_errors", return_value=["not deployed"]
         ), mock.patch.object(
