@@ -12,6 +12,7 @@ is a second opinion rather than the same function the gate calls, and a skeleton
 that turns out to be a bypass because it lands as-is.
 """
 
+import hashlib
 import json
 import sys
 import tempfile
@@ -101,6 +102,19 @@ class WriterTestCase(unittest.TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(rows, indent=2) + "\n", encoding="utf-8")
         return path
+
+    def run_nonce(self):
+        nonce = "test-run-nonce"
+        scan_path = mlb_slate_writer.denominator_output_path(DAY, self.root)
+        receipt_path = mlb_slate_writer.scan_receipt_path(DAY, self.root)
+        receipt_path.parent.mkdir(parents=True, exist_ok=True)
+        receipt_path.write_text(json.dumps({
+            "schema": "mlb-stage2-run-v1",
+            "date": DAY,
+            "run_nonce": nonce,
+            "scan_sha256": hashlib.sha256(scan_path.read_bytes()).hexdigest(),
+        }) + "\n", encoding="utf-8")
+        return nonce
 
     def schedule_path(self):
         return mlb_slate_receipt.schedule_path_for(self.root, DAY)
@@ -800,6 +814,8 @@ class PostflightUnchangedTests(WriterTestCase):
                     str(self.root),
                     "--out",
                     str(draft_path),
+                    "--run-nonce",
+                    self.run_nonce(),
                 ]
             ),
             0,
@@ -811,7 +827,7 @@ class PostflightUnchangedTests(WriterTestCase):
 
         self.assertEqual(
             mlb_slate_writer.main(
-                ["--land", str(draft_path), "--day", DAY, "--root", str(self.root)]
+                ["--land", str(draft_path), "--day", DAY, "--root", str(self.root), "--run-nonce", self.run_nonce()]
             ),
             0,
         )
@@ -1043,10 +1059,22 @@ class SlateDateTests(WriterTestCase):
 
 
 class CliTests(WriterTestCase):
+    def test_nonce_is_required_for_in_process_writer_invocations(self):
+        self.write_scan([scan_row(823509)])
+        with mock.patch.object(mlb_slate_writer, "skeleton") as skeleton:
+            self.assertEqual(
+                mlb_slate_writer.main(
+                    ["--skeleton", "--day", DAY, "--root", str(self.root)]
+                ),
+                1,
+            )
+        skeleton.assert_not_called()
+        self.assertFalse(mlb_slate_writer.default_draft_path(self.root, DAY).exists())
+
     def test_skeleton_writes_the_draft_and_refuses_to_clobber_it(self):
         rows = [scan_row(823509)]
         self.write_scan(rows)
-        argv = ["--skeleton", "--day", DAY, "--root", str(self.root)]
+        argv = ["--skeleton", "--day", DAY, "--root", str(self.root), "--run-nonce", self.run_nonce()]
 
         self.assertEqual(mlb_slate_writer.main(argv), 0)
         destination = mlb_slate_writer.default_draft_path(self.root, DAY)
@@ -1061,7 +1089,7 @@ class CliTests(WriterTestCase):
 
         self.assertEqual(
             mlb_slate_writer.main(
-                ["--land", str(destination), "--day", DAY, "--root", str(self.root)]
+                ["--land", str(destination), "--day", DAY, "--root", str(self.root), "--run-nonce", self.run_nonce()]
             ),
             0,
         )
@@ -1077,7 +1105,7 @@ class CliTests(WriterTestCase):
 
         self.assertEqual(
             mlb_slate_writer.main(
-                ["--land", str(draft_path), "--day", DAY, "--root", str(self.root)]
+                ["--land", str(draft_path), "--day", DAY, "--root", str(self.root), "--run-nonce", self.run_nonce()]
             ),
             1,
         )
@@ -1095,7 +1123,7 @@ class CliTests(WriterTestCase):
 
         self.assertEqual(
             mlb_slate_writer.main(
-                ["--land", str(draft_path), "--day", DAY, "--root", str(self.root)]
+                ["--land", str(draft_path), "--day", DAY, "--root", str(self.root), "--run-nonce", self.run_nonce()]
             ),
             1,
         )
@@ -1136,7 +1164,7 @@ class CliTests(WriterTestCase):
 
         self.assertEqual(
             mlb_slate_writer.main(
-                ["--land", str(draft_path), "--day", f" {DAY} ", "--root", str(self.root)]
+                ["--land", str(draft_path), "--day", f" {DAY} ", "--root", str(self.root), "--run-nonce", self.run_nonce()]
             ),
             0,
         )

@@ -919,17 +919,11 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(f"--day {exc}")
 
     root = (args.root or resolve_scan_root()).resolve()
-    # ``main([..])`` is also the long-standing in-process/library API used by
-    # callers which construct deterministic scan fixtures.  The producer's
-    # actual CLI invocation (main(None)) and any explicitly nonce-bound call
-    # retain the receipt gate; this compatibility boundary does not weaken the
-    # supported producer command contract.
-    if argv is None or args.run_nonce is not None:
-        try:
-            require_scan_receipt(root, day, args.run_nonce)
-        except SlateWriteError as exc:
-            print(json.dumps({"landed": False, "errors": exc.errors}, indent=2))
-            return 1
+    try:
+        require_scan_receipt(root, day, args.run_nonce)
+    except SlateWriteError as exc:
+        print(json.dumps({"landed": False, "errors": exc.errors}, indent=2))
+        return 1
 
     if args.skeleton:
         destination = args.out or default_draft_path(root, day)

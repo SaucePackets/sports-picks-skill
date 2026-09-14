@@ -148,6 +148,8 @@ class ProducerSchemaLandingTests(WriterTestCase):
                         str(self.root),
                         "--schema-sha256",
                         digest,
+                        "--run-nonce",
+                        self.run_nonce(),
                     ]
                 ),
                 0,

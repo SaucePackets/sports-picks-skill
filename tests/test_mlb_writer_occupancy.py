@@ -130,6 +130,8 @@ class OccupancyTests(WriterTestCase):
                             DAY,
                             "--root",
                             str(self.root),
+                            "--run-nonce",
+                            self.run_nonce(),
                         ]
                     ),
                     0,

@@ -35,7 +35,7 @@ class AppendProvenanceTests(WriterTestCase):
         draft_path.write_text(json.dumps(draft))
         with redirect_stdout(io.StringIO()):
             self.assertEqual(writer.main(["--land", str(draft_path), "--day", DAY,
-                                          "--root", str(self.root)]), 0)
+                                          "--root", str(self.root), "--run-nonce", self.run_nonce()]), 0)
         after = self.schedule_path().read_bytes()
         landed = json.loads(after)
         self.assertNotEqual(old_digest, hashlib.sha256(scan.read_bytes()).hexdigest())
