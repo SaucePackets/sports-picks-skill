@@ -1,7 +1,7 @@
 # Script provenance — the canonical source and its derived copies
 
-The same sports-picks scripts exist in seven places across two machines. Only
-one of them is a source; the rest are copies produced by a defined mechanism.
+The same sports-picks scripts can exist in several places across two machines.
+Only one is a source; the rest are copies produced by a defined mechanism.
 Before this document there was no written rule about which was which, so a
 developer checkout parked on a feature branch could look as authoritative as
 the tree cron actually executes.
@@ -43,25 +43,27 @@ Everything else is downstream of `main`.
 The profile-local directory holds only the files listed in `PROFILE_MANIFEST`
 in `scripts/deploy-runtime.sh`: the cron entrypoints plus the siblings they
 import. Files outside that list are *unmanaged* — the deploy warns about them
-and never deletes them. One such orphan exists today,
-`test_vig_review_gate.py`, which is in no repo tree; the checker reports it as
-`unmanaged` rather than as drift.
+and never deletes them. On 2026-09-14, `test_vig_review_gate.py` was archived outside the profile import
+directory after checking cron and profile callers. The remaining unmanaged files
+were `mlb_producer_prompt_contract.py` (an operational migration copy) and
+`nfl_actionable_scan.py` (an active NFL adapter). The checker reports unmanaged
+files separately from drift; do not delete an active adapter just to make that
+list empty.
 
-### Copy 6 — a known, unrepaired drift
+### Copy 6 — legacy developer checkout
 
-The VPS developer checkout `~/projects/sports-picks-skill` is parked on
-`fix/vig-review-transition-schema` (b5db856), clean but ahead 2 / behind 3 of
-its own remote branch. Six files differ from `main` and three
-(`vig_mlb_review_gate.py`, `vig_soccer_review_gate.py`, `deploy-runtime.sh`)
-are absent entirely.
+As observed on 2026-09-14, `~/projects/sports-picks-skill` was clean `main` at
+`ad9b8d9`, while canonical/runtime main was `c0f22d7`. It is a developer copy,
+not the deployed cron root. The older observation that it was parked on
+`fix/vig-review-transition-schema` is no longer current.
 
-This matters beyond tidiness: `resolve_root()` falls back to this checkout when
-a cron job has a null `workdir`, so the two null-workdir reporting jobs
-(`073bda7f7d56` Monthly Calibration, `0dc33c64fa3f` Weekly Discipline) would
-execute *this* tree if enabled. They stay paused. Repairing the checkout is a
-live-runtime change and is deliberately **out of scope** for this branch — the
-checker surfaces the drift as a plain failure rather than encoding it as an
-expected exception, so it cannot quietly become permanent.
+All nine inspected Vig jobs now have the dedicated runtime workdir. Monthly
+Calibration and Weekly Discipline are enabled there; the old null-workdir/paused
+observation no longer applies. The execution poller remains disabled separately.
+`resolve_root()` still has a legacy-directory fallback, so a future missing
+workdir or runtime `.picks` directory remains a configuration risk. Do not treat
+these dated observations as a permanent exception to provenance checks.
+See [the pipeline audit](pipeline-audit-2026-09-14.md) for the tested deployment.
 
 ## Checking provenance
 

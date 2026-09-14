@@ -43,8 +43,8 @@ def small_stake_cohort_stats(picks):
       being hard-passed by the Medium win-probability sizing floor.
     - two-sided pricing: dog-side picks (entry_price < 0.50) surfaced by pricing BOTH
       teams every game instead of anchoring the handicap on the favorite.
-    Each cohort's settled record + per-unit ROI is reported so the loosening proves or
-    kills itself; the settlement prompt recommends reverting a cohort that runs negative."""
+    Preserve historical cohort membership for descriptive comparisons only.
+    Outcomes in these small samples do not authorize changing current policy."""
     def bucket(pred):
         rows=[]
         for p in picks:
@@ -129,15 +129,17 @@ When settling, copy win_probability/dk_fair_prob/net_edge AND the price trail �
 
 {postgame_prompt_section()}
 
-SURFACE THE REFLECTION IN TELEGRAM: your final response must give each settled pick a one-line reflection takeaway directly under its result line, not bury it in the vault. For a LOSS: the single most important "what changes going forward" lesson, plus the validated process_grade. For a WIN: whether the edge actually held or variance carried it (its process_grade). Keep it to one line per pick — the full postmortem stays in REFLECTIONS.md. If a loss taught a repeatable, durable rule, also say one line: "Promoted to data rule: <name>" so Jerry sees the gate got tightened.
+SURFACE THE REFLECTION IN TELEGRAM: your final response must give each settled pick a one-line reflection takeaway directly under its result line, not bury it in the vault. For a LOSS: the single most important "what changes going forward" lesson, plus the validated process_grade. For a WIN: whether the edge actually held or variance carried it (its process_grade). Keep it to one line per pick — the full postmortem stays in REFLECTIONS.md. If a loss suggests a repeatable process improvement, say "Proposed rule for review: <name>" and distinguish the documented process defect from the game outcome. A loss alone is not evidence that a gate should tighten.
 
-MARGINAL-EDGE COHORT (fee-fix probation, started 2026-08-03): the phantom 2.4% Polymarket fee was removed, unlocking picks whose true edge (win_probability - fill) sits in the 2.0-4.4% band — previously hard-passed. Track them as a cohort so the loosening proves or kills itself. Current standing computed from picks.json:
+HISTORICAL POLICY COHORTS — descriptive reporting only. These cohorts began under earlier policy settings; membership is not current eligibility. Read the deployed risk_limits.json for the current edge floor and sizing caps. Never infer current limits from cohort labels or historical thresholds.
+
+Marginal-edge cohort (historical fee-fix cohort):
 {cohort_section}
-In your reflection, report the marginal cohort's running record + per-unit ROI on its own line (label it "Marginal-edge cohort (fee-fix probation)"). If that cohort reaches >=15 settled bets with negative per-unit ROI, explicitly recommend tightening the net-edge floor back toward 0.025-0.030 and flag it as "Promoted to data rule: raise net-edge floor". If it's positive over >=15 bets, say the loosening is validated.
 
-SMALL-STAKE / TWO-SIDED COHORTS (probation, started 2026-08-04): two gate changes now add bets — a small-stake tier ($9) for +EV picks below the Medium win-probability sizing floor, and two-sided pricing that lets the dog side qualify on the 2% net-edge floor instead of anchoring on the favorite. Track each so it proves or kills itself. Current standing computed from picks.json:
+Small-stake and dog-side cohorts (historical rollout cohorts):
 {small_cohort_section}
-In your reflection, report BOTH lines (label them "Small-stake tier (probation)" and "Dog-side picks (two-sided probation)"). For EITHER cohort, once it reaches >=15 settled bets with negative per-unit ROI, explicitly recommend disabling that change — for the small-stake tier flag "Promoted to data rule: retire small-stake tier"; for dog-side flag "Promoted to data rule: re-anchor to favorite-only pricing". If a cohort is positive over >=15 bets, say that change is validated. Below 15 settled, report the standing and say "sample still building".
+
+Report each cohort's settled count, running record, and per-unit ROI. Preserve its historical definition when comparing observations. A positive or negative record after 15 bets does not validate or invalidate a selection policy. Treat outcome-driven gate changes as hypotheses requiring prospective, predeclared evaluation against the market baseline. Do not change risk limits, confidence gates, or approved data rules during settlement. Report a proposed rule with its supporting evidence and sample limitations for review; do not promote it automatically.
 
 If no event is final and no audit discrepancy exists, return [SILENT].'''
 if __name__=='__main__': sys.exit(main())

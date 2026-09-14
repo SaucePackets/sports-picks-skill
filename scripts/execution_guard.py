@@ -24,10 +24,7 @@ if str(SCRIPT_DIR) not in sys.path:
 from mlb_candidate_contract import candidate_errors
 
 from mlb_runtime_policy import (  # noqa: E402
-    live_conservative_edge,
     load_mlb_selection_policy,
-    model_deployment_errors,
-    stale_probability_field_errors,
 )
 from mlb_baseball_evidence import (  # noqa: E402
     baseball_evidence_errors,
@@ -258,12 +255,6 @@ def _risk_limit_violation(
         contract_errors = candidate_errors(candidate, limits=limits)
         if contract_errors:
             return "probability contract violation: " + "; ".join(contract_errors)
-        # The lock re-checks every upstream gate, and deployment eligibility is
-        # one of them: the execution gate refuses an undeployed model version,
-        # and this is the independent second refusal at the money boundary.
-        deployment_errors = model_deployment_errors(candidate)
-        if deployment_errors:
-            return "model deployment violation: " + "; ".join(deployment_errors)
         # Phase 2 hard validators: baseball evidence and execution checks must
         # still hold at the final lock. The lock is the last deterministic line
         # of defense before an order, so it re-checks every upstream gate.
@@ -273,12 +264,6 @@ def _risk_limit_violation(
         exec_errors = execution_checks_errors(candidate)
         if exec_errors:
             return "execution checks violation: " + "; ".join(exec_errors)
-        live_edge = live_conservative_edge(candidate)
-        if live_edge is None or live_edge + 1e-9 < policy.min_conservative_edge:
-            return (
-                f"live conservative edge {live_edge} below policy floor "
-                f"{policy.min_conservative_edge}"
-            )
     unit_size = float(candidate.get("unit_size") or 0)
     max_unit = float(limits.get("max_unit_usd_absolute") or 0)
     if max_unit and unit_size > max_unit:

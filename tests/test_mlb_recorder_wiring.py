@@ -575,60 +575,40 @@ class DeploymentRailTests(unittest.TestCase):
 class ExecutionBoundaryTests(unittest.TestCase):
     """The rail has to be reached from the paths that place orders."""
 
-    def test_the_execution_gate_calls_the_deployment_rail(self):
-        # Mutating the CALLEE proves the rail works; this asserts the CALL
-        # SITE exists, which is the half that was missing for a month.
-        candidate = {"model_version": "vig-mlb-elo-v3"}
+    def test_execution_gate_reaches_shared_contract_once(self):
         with mock.patch.object(
-            mlb_execution_gate, "model_deployment_errors", return_value=["refused"]
-        ) as rail:
-            mlb_execution_gate.candidate_is_eligible(candidate, _now())
-        # Called only if the earlier trail checks did not already return; use
-        # a full candidate so the rail is genuinely reached.
-        rail.reset_mock()
-        with mock.patch.object(
-            mlb_execution_gate, "candidate_errors", return_value=[]
-        ), mock.patch.object(
-            mlb_execution_gate, "model_deployment_errors", return_value=["refused"]
-        ) as rail:
-            self.assertFalse(
-                mlb_execution_gate.candidate_is_eligible(_eligible_candidate(), _now())
-            )
-            rail.assert_called()
+            mlb_execution_gate, "candidate_errors", return_value=["not deployed"]
+        ) as contract, mock.patch.object(
+            mlb_execution_gate, "baseball_evidence_errors", return_value=[]
+        ) as baseball:
+            self.assertFalse(mlb_execution_gate.candidate_is_eligible(_eligible_candidate(), _now()))
+            contract.assert_called_once()
+            baseball.assert_not_called()
 
-    def test_deleting_the_gate_call_site_changes_the_verdict(self):
-        # The red-run in the other direction: with the rail returning nothing,
-        # the same candidate must survive this check, so the assertion above
-        # is not passing for some unrelated reason.
+    def test_passing_contract_reaches_next_independent_gate(self):
         with mock.patch.object(
             mlb_execution_gate, "candidate_errors", return_value=[]
-        ), mock.patch.object(
-            mlb_execution_gate, "model_deployment_errors", return_value=[]
-        ), mock.patch.object(
+        ) as contract, mock.patch.object(
             mlb_execution_gate, "baseball_evidence_errors", return_value=["stop here"]
-        ):
-            # Reaching the NEXT gate proves the deployment rail let it past.
-            self.assertFalse(
-                mlb_execution_gate.candidate_is_eligible(_eligible_candidate(), _now())
-            )
+        ) as baseball:
+            self.assertFalse(mlb_execution_gate.candidate_is_eligible(_eligible_candidate(), _now()))
+            contract.assert_called_once()
+            baseball.assert_called_once()
 
-    def test_the_final_lock_refuses_an_undeployed_version(self):
+    def test_final_lock_reaches_shared_contract_once(self):
         from scripts import execution_guard
-
         candidate = dict(_eligible_candidate(), execution_mode="standing_authorized")
         with mock.patch.object(
-            execution_guard, "candidate_errors", return_value=[]
-        ), mock.patch.object(
-            execution_guard, "model_deployment_errors", return_value=["not deployed"]
-        ), mock.patch.object(
+            execution_guard, "candidate_errors", return_value=["not deployed"]
+        ) as contract, mock.patch.object(
             execution_guard, "load_mlb_selection_policy"
         ) as policy, mock.patch.object(
             execution_guard, "RISK_LIMITS_PATH", _empty_limits_path(self)
         ):
             policy.return_value = mock.Mock(min_conservative_edge=0.05)
             violation = execution_guard._risk_limit_violation(candidate, None, _now())
-        self.assertIsNotNone(violation)
-        self.assertIn("model deployment violation", violation)
+        self.assertEqual(violation, "probability contract violation: not deployed")
+        contract.assert_called_once()
 
 
 class ProbabilityChainReportTests(unittest.TestCase):

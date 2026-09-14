@@ -49,9 +49,7 @@ from mlb_lineup_watchlist import (  # noqa: E402
 )
 from mlb_runtime_policy import (  # noqa: E402
     enforce_daily_candidate_limit,
-    live_conservative_edge,
     load_mlb_selection_policy,
-    stale_probability_field_errors,
     standing_authorization_enabled,
 )
 from mlb_baseball_evidence import (  # noqa: E402
@@ -60,7 +58,6 @@ from mlb_baseball_evidence import (  # noqa: E402
     review_prompt_evidence_section,
 )
 from mlb_probability_model import (  # noqa: E402
-    probability_component_errors,
     probability_contract_prompt_section,
 )
 from vig_run_journal import (  # noqa: E402
@@ -514,7 +511,7 @@ def normalize_review_routing(
         # must already carry the full numeric probability trail with a live
         # recomputed edge. NaN/Inf fields are rejected here (not just at the
         # execution gate and final lock) so a poisoned candidate never reaches
-        # the rewrite below. `stale_probability_field_errors` rejects missing,
+        # the rewrite below. The shared candidate contract rejects missing,
         # non-numeric, non-finite, out-of-range, and stale-edge fields.
         contract_errors = candidate_errors(candidate)
         if contract_errors:
@@ -530,15 +527,6 @@ def normalize_review_routing(
             errors.append(
                 f"candidate {identity} baseball evidence violation: "
                 + "; ".join(baseball_errors)
-            )
-        # Probability components (Phase 3): every point of disagreement with
-        # the DK-fair market prior must be an explicit named component, and
-        # the components must reconcile with the stated probability trail.
-        component_errors = probability_component_errors(candidate)
-        if component_errors:
-            errors.append(
-                f"candidate {identity} probability component violation: "
-                + "; ".join(component_errors)
             )
         # Execution checks (Phase 2): confirm tradeability without touching
         # probability. A candidate missing these fails closed at routing.
@@ -731,34 +719,11 @@ def approved_candidate_errors(
         f"baseball evidence: {message}"
         for message in baseball_evidence_errors(candidate)
     )
-    # Probability components (Phase 3): the structured component contract must
-    # reconcile with the stated probability trail before approval is valid.
-    errors.extend(
-        f"probability components: {message}"
-        for message in probability_component_errors(candidate)
-    )
     # Execution checks hard validators (Phase 2): separate tradeability gates.
     errors.extend(
         f"execution checks: {message}"
         for message in execution_checks_errors(candidate)
     )
-    # Edge floor: the live conservative edge must clear the shared policy
-    # floor (default 5 points). The haircut is an uncertainty buffer, never a fee.
-    # A missing/invalid policy FAILS CLOSED — the approval is invalid without
-    # the shared machine-readable rail.
-    policy = load_mlb_selection_policy()
-    if policy is None:
-        errors.append(
-            "shared MLB selection policy missing or invalid in risk_limits.json; "
-            "standing-authorized approval is invalid until the policy block loads"
-        )
-    else:
-        live = live_conservative_edge(candidate)
-        if live is not None and live + 1e-9 < policy.min_conservative_edge:
-            errors.append(
-                f"live conservative edge {live:.4f} is below the shared policy "
-                f"floor min_conservative_edge={policy.min_conservative_edge}"
-            )
     forbidden = sorted(
         field
         for field in ("execution_cron_id", "execution_cron_fire_utc", "approval_token")

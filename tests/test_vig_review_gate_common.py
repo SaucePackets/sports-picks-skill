@@ -826,16 +826,10 @@ class VigReviewGateCommonTests(DeterministicPolicyState, unittest.TestCase):
             "lineup_watchlist": [],
         }
         after = json.loads(json.dumps(before))
+        after["candidates"][0].update(PROBABILITY_TRAIL)
+        after["candidates"][0].update(consistent_probability_overrides(.529, .48))
         after["candidates"][0].update(
-            dk_fair_prob=0.55,
-            raw_probability=0.56,
-            uncertainty_haircut=0.02,
-            conservative_probability=0.529,
-            current_ask=0.48,
-            projected_edge_at_current_ask=0.049,
-            model_version="market-only-fallback-v1",
-            vig_approved=True,
-            vig_notes="Approved.",
+            approved_polymarket_ask=.48, vig_approved=True, vig_notes="Approved."
         )
 
         errors = vig_review_gate_common.validate_review_transition(
@@ -849,7 +843,7 @@ class VigReviewGateCommonTests(DeterministicPolicyState, unittest.TestCase):
 
         self.assertTrue(errors)
         self.assertTrue(
-            any("below the shared policy floor" in message for message in errors),
+            any("below policy floor" in message for message in errors),
             msg=repr(errors),
         )
 

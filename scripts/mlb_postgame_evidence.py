@@ -634,8 +634,9 @@ Hard rules the validator enforces:
   and do NOT write "I would assign it again".
 - Wins are graded too: good_read_edge_held only if every pillar held; a win carried by
   variance still gets its bad_read_* grade.
-Promote a durable rule to PROCESS.md only after a repeated or structural failure; match-
-specific detail stays in REFLECTIONS.md. The one-line Telegram reflection must cite the
+Record proposed rules and their repeated or structural supporting evidence in REFLECTIONS.md.
+Changing the active rules in PROCESS.md requires review; do not promote a hypothesis
+into a permanent gate during settlement. The one-line Telegram reflection must cite the
 process_grade verbatim."""
 
 

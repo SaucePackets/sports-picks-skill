@@ -34,8 +34,11 @@ scripts/deploy-runtime.sh \
   --seed-picks-from ~/projects/sports-picks-skill \
   --repoint-cron-from ~/projects/sports-picks-skill
 
-# Routine redeploy after a merge to main
-scripts/deploy-runtime.sh --expect-sha <merged-main-tip>
+# Routine redeploy: use the pinned merged driver, not an older checkout's manifest.
+# Run these from the runtime checkout; substitute the full merged SHA in both places.
+git fetch origin main
+git show <merged-main-tip>:scripts/deploy-runtime.sh | \
+  bash -s -- --expect-sha <merged-main-tip>
 ```
 
 ## Safety guards
