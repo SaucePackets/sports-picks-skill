@@ -703,6 +703,10 @@ def land(
 ) -> tuple[Path, dict[str, Any]]:
     """Validate a draft against the scan roster and write it, or raise.
 
+    Supported direct signature: ``land(root, day, draft, *, run_nonce=...)``.
+    The nonce is mandatory and must match the Stage 2 receipt for ``day`` and
+    the exact current scan artifact bytes.
+
     Returns the schedule path and the schedule that was written.
     """
     # The day names three files (the schedule, the scan artifact, the draft) and
@@ -795,7 +799,10 @@ def land(
 
 
 def skeleton(root: Path, day: str, *, run_nonce: str | None = None) -> dict[str, Any]:
-    """A draft with one stub per scanned game, from the scan's own numbers.
+    """Build a draft with one stub per scanned game.
+
+    Supported direct signature: ``skeleton(root, day, *, run_nonce=...)``;
+    the nonce is mandatory and receipt-bound to the exact scan artifact.
 
     Deliberately incomplete: no disposition, no ask, no handicap. Those are the
     run's decisions and it must record them. What the run should never have been
