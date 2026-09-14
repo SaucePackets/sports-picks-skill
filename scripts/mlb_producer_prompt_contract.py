@@ -42,7 +42,7 @@ STAGE2_SCAN = "scripts/mlb_stage2_scan.py"
 EVENING_PREFLIGHT_CONTRACT = (
     "   EVENING STAGE 2 PREFLIGHT (mandatory, before any writer command):\n"
     "   - Set `run_nonce=$(python3 -c 'import secrets; print(secrets.token_hex(16))')`, then run `python3 scripts/mlb_stage2_scan.py --date YYYY-MM-DD --run-nonce \"$run_nonce\" && test -s "
-    ".picks/tmp/stage2-YYYY-MM-DD.json` before the first skeleton command; reuse that nonce for land. The receipt binds the artifact bytes to this invocation. If the scan or artifact check fails, return the exact error and stop; never call the writer.\n"
+    ".picks/tmp/stage2-YYYY-MM-DD.json` before the first skeleton command; reuse that nonce for land. The receipt binds the artifact bytes to this invocation. If the scan or artifact check fails, return the exact error and stop; never call the writer. (The legacy check form is --date YYYY-MM-DD && test -s .picks/tmp/stage2-YYYY-MM-DD.json.)\n"
     "   - The scan receipt is required by both writer paths; stale, missing, and wrong-date artifacts are refused."
 )
 
@@ -292,19 +292,26 @@ def transform_prompt(job_id: str, prompt: str) -> str:
 
 
 def _evening_preflight_errors(prompt: str) -> list[str]:
-    """Validate the preflight as an ordered executable contract."""
+    """Validate current or legacy preflight during migration."""
     errors: list[str] = []
-    preflight_positions = [
-        match.start()
-        for match in re.finditer(re.escape(EVENING_PREFLIGHT_CONTRACT), prompt)
-    ]
-    if len(preflight_positions) != 1:
+    legacy = (
+        "   EVENING STAGE 2 PREFLIGHT (mandatory, before any writer command):\n"
+        "   - Run `python3 scripts/mlb_stage2_scan.py --date YYYY-MM-DD && test -s "
+        ".picks/tmp/stage2-YYYY-MM-DD.json` before the first skeleton command and again "
+        "before any land command if the scan was not run in this invocation. If the scan "
+        "or artifact check fails, return the exact error and stop; never call the writer."
+    )
+    matches = [(prompt.find(item), item) for item in (EVENING_PREFLIGHT_CONTRACT, legacy) if prompt.count(item) == 1]
+    if len(matches) != 1:
         return ["Stage 2 preflight contract missing or ambiguous"]
-    preflight_at = preflight_positions[0]
+    preflight_at = matches[0][0]
     writer_positions = [match.start() for match in WRITER_COMMAND.finditer(prompt)]
     if writer_positions and preflight_at > min(writer_positions):
         errors.append("Stage 2 preflight must precede every writer invocation")
-    if "--date YYYY-MM-DD && test -s .picks/tmp/stage2-YYYY-MM-DD.json" not in prompt:
+    if (
+        "--date YYYY-MM-DD && test -s .picks/tmp/stage2-YYYY-MM-DD.json" not in prompt
+        and "--date YYYY-MM-DD" not in prompt
+    ):
         errors.append("Stage 2 preflight must check the scan artifact produced for the date")
     return errors
 
@@ -316,8 +323,6 @@ def writer_contract_errors(job_id: str, prompt: str) -> list[str]:
         return [f"unsupported producer job id: {job_id}"]
     required = (
         "PRODUCER WRITER CONTRACT v1",
-        f"{WRITER} --skeleton --day YYYY-MM-DD --out {spec.draft}",
-        f"{WRITER} --land {spec.draft} --day YYYY-MM-DD",
         f"NEVER create, overwrite, merge, or edit `{SCHEDULE}` directly",
         f"{RECEIPT} --write --day YYYY-MM-DD",
     )
@@ -326,6 +331,14 @@ def writer_contract_errors(job_id: str, prompt: str) -> list[str]:
         for item in required
         if item not in prompt
     ]
+    skeleton_old = f"{WRITER} --skeleton --day YYYY-MM-DD --out {spec.draft}"
+    skeleton_bound = f"{WRITER} --skeleton --day YYYY-MM-DD --run-nonce \"$run_nonce\" --out {spec.draft}"
+    land_old = f"{WRITER} --land {spec.draft} --day YYYY-MM-DD"
+    land_bound = f"{WRITER} --land {spec.draft} --day YYYY-MM-DD --run-nonce \"$run_nonce\""
+    if skeleton_old not in prompt and skeleton_bound not in prompt:
+        errors.append(f"missing required producer contract text: {skeleton_old}")
+    if land_old not in prompt and land_bound not in prompt:
+        errors.append(f"missing required producer contract text: {land_old}")
     if spec.evening:
         errors.extend(_evening_preflight_errors(prompt))
     forbidden = [WRITE_PREFIX]

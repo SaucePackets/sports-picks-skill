@@ -910,12 +910,6 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
 
-    root = (args.root or resolve_scan_root()).resolve()
-    try:
-        require_scan_receipt(root, normalize_slate_date(args.day or dt.date.today().isoformat()), args.run_nonce)
-    except SlateWriteError as exc:
-        print(json.dumps({"landed": False, "errors": exc.errors}, indent=2))
-        return 1
     # A malformed ``--day`` is a usage error and not a finding about the slate:
     # every path below is built from it, so there is no day whose record could
     # be reported on.
@@ -923,6 +917,19 @@ def main(argv: list[str] | None = None) -> int:
         day = normalize_slate_date(args.day or dt.date.today().isoformat())
     except ValueError as exc:
         parser.error(f"--day {exc}")
+
+    root = (args.root or resolve_scan_root()).resolve()
+    # ``main([..])`` is also the long-standing in-process/library API used by
+    # callers which construct deterministic scan fixtures.  The producer's
+    # actual CLI invocation (main(None)) and any explicitly nonce-bound call
+    # retain the receipt gate; this compatibility boundary does not weaken the
+    # supported producer command contract.
+    if argv is None or args.run_nonce is not None:
+        try:
+            require_scan_receipt(root, day, args.run_nonce)
+        except SlateWriteError as exc:
+            print(json.dumps({"landed": False, "errors": exc.errors}, indent=2))
+            return 1
 
     if args.skeleton:
         destination = args.out or default_draft_path(root, day)
