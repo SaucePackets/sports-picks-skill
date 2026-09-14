@@ -205,7 +205,18 @@ def read_disposition_errors(reads: list, rows: list, now: dt.datetime | None = N
         disposition = read.get("disposition")
         if disposition in ("pass", "candidate") and status["status"] != "ready_for_evaluation":
             errors.append(f"game {read.get('game_pk')}: {disposition} cannot describe {status['status']}")
-        if disposition in ("incomplete_input_data", "not_priced") and disposition != status["status"]:
+        # Stage 2 assesses sportsbook prices, not the separately retrieved exchange
+        # quote. A fully sourced baseball row can still be unpriced on the exchange.
+        unavailable = read.get("unavailable")
+        quote_reason = unavailable.get("polymarket_ask") if isinstance(unavailable, dict) else None
+        missing_exchange = (
+            disposition == "not_priced" and status["status"] == "ready_for_evaluation"
+            and read.get("polymarket_ask") is None
+            and isinstance(quote_reason, str) and bool(quote_reason.strip())
+            and isinstance(read.get("refusing_rails"), list)
+            and "no_polymarket_market" in read["refusing_rails"]
+        )
+        if disposition in ("incomplete_input_data", "not_priced") and disposition != status["status"] and not missing_exchange:
             errors.append(f"game {read.get('game_pk')}: {disposition} cannot describe {status['status']}")
         if disposition == "lineup_watchlist" and (
                 not status["prices_available"] or set(status["missing_fields"]) - {"away_lineup", "home_lineup"}):

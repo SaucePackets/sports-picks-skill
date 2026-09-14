@@ -383,3 +383,44 @@ def test_refusal_classifications_correspond_through_real_writer(tmp_path, source
             with pytest.raises(writer.SlateWriteError, match=f"{disposition} cannot describe {expected}"):
                 writer.land(tmp_path, "2026-09-09", draft, run_nonce=nonce)
             assert not (tmp_path / ".picks/execute/2026-09-09-schedule.json").exists()
+
+
+@pytest.mark.parametrize("mutation", [None, "missing_baseball", "quote_present", "no_reason", "wrong_rail", "false_pass"])
+def test_missing_exchange_quote_is_not_a_sportsbook_price_or_supported_pass(tmp_path, mutation):
+    import hashlib
+    import vig_policy_state
+    from scripts import mlb_slate_writer as writer
+    from tests.test_mlb_slate_writer import draft_for, read_for
+
+    r = row()
+    read = read_for(r, disposition="not_priced", refusing_rails=["no_polymarket_market"])
+    read["polymarket_ask"] = None
+    read["net_edge"] = None
+    read.setdefault("unavailable", {})["net_edge"] = "Cannot compute edge without exchange quote."
+    read.setdefault("unavailable", {})["polymarket_ask"] = "No exact current two-sided exchange quote retrieved."
+    if mutation == "missing_baseball": r["away_offense"] = None
+    if mutation == "quote_present": read["polymarket_ask"] = {"away": .5, "home": .5}
+    if mutation == "no_reason": read["unavailable"]["polymarket_ask"] = " "
+    if mutation == "wrong_rail": read["refusing_rails"] = ["no_dk_price"]
+    if mutation == "false_pass":
+        read["disposition"] = "pass"
+        r["away_offense"] = None
+    assert bool(data.read_disposition_errors([read], [r], NOW)) == (mutation is not None)
+    path = writer.denominator_output_path("2026-09-09", tmp_path)
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps([r]))
+    coverage = data.coverage([r], NOW, scheduled_games=1, schedule_verified=True)
+    coverage["scan_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+    path.with_suffix(".coverage.json").write_text(json.dumps(coverage))
+    nonce = make_receipt(tmp_path, "2026-09-09", path)
+    draft = draft_for([r], date="2026-09-09", game_reads=[read])
+    with vig_policy_state.deployed_policy(tmp_path / "state"), mock.patch("mlb_data_completeness.utc_now", return_value=NOW):
+        if mutation is None:
+            landed, result = writer.land(tmp_path, "2026-09-09", draft, run_nonce=nonce)
+            assert landed.exists()
+            assert result["game_reads"][0]["disposition"] == "not_priced"
+            assert not result["candidates"]
+        else:
+            with pytest.raises(writer.SlateWriteError):
+                writer.land(tmp_path, "2026-09-09", draft, run_nonce=nonce)
+            assert not writer.schedule_path_for(tmp_path, "2026-09-09").exists()
