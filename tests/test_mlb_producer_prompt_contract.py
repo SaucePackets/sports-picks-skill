@@ -58,7 +58,7 @@ def test_evening_contract_requires_stage2_preflight_before_writer_calls():
     preflight = contract.EVENING_PREFLIGHT_CONTRACT
     assert preflight in transformed
     assert transformed.index(preflight) < transformed.index("mlb_slate_writer.py")
-    assert "--date YYYY-MM-DD && test -s .picks/tmp/stage2-YYYY-MM-DD.json" in transformed
+    assert '--run-nonce "$run_nonce"' in transformed
 
 
 def test_evening_contract_rejects_prompt_without_stage2_preflight():
@@ -69,6 +69,23 @@ def test_evening_contract_rejects_prompt_without_stage2_preflight():
     errors = contract.writer_contract_errors(contract.EVENING_JOB_ID, prompt)
 
     assert any("Stage 2 preflight" in error for error in errors)
+
+
+def test_evening_contract_rejects_nonce_less_writer_commands():
+    prompt = contract.transform_prompt(contract.EVENING_JOB_ID, legacy_prompt(evening=True))
+    prompt = prompt.replace(
+        ' --run-nonce "$run_nonce" --out .picks/tmp/YYYY-MM-DD-evening-slate-draft.json',
+        ' --out .picks/tmp/YYYY-MM-DD-evening-slate-draft.json',
+    )
+    prompt = prompt.replace(
+        ' --day YYYY-MM-DD --run-nonce "$run_nonce"`',
+        ' --day YYYY-MM-DD`',
+    )
+
+    errors = contract.writer_contract_errors(contract.EVENING_JOB_ID, prompt)
+
+    assert any("nonce-bound skeleton" in error for error in errors)
+    assert any("nonce-bound land" in error for error in errors)
 
 
 def test_evening_contract_rejects_preflight_after_writer_invocation():
@@ -90,7 +107,7 @@ def test_evening_preflight_uses_the_writer_scan_artifact_convention():
     day = "2026-09-09"
     expected = denominator_output_path(day, Path("/runtime"))
     assert str(expected) == "/runtime/.picks/tmp/stage2-2026-09-09.json"
-    assert "--date YYYY-MM-DD && test -s .picks/tmp/stage2-YYYY-MM-DD.json" in contract.EVENING_PREFLIGHT_CONTRACT
+    assert '--run-nonce "$run_nonce"' in contract.EVENING_PREFLIGHT_CONTRACT
 
 
 def test_a_marker_does_not_hide_a_remaining_direct_write_instruction():

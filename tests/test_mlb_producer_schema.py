@@ -213,5 +213,5 @@ def test_extra_or_non_inline_writer_invocation_is_not_ignored():
         f"\n`python3 {prompts.WRITER} --skeleton`",
     ):
         assert prompts.schema_contract_errors(job, bound + extra)
-    # Existing unbound prompt preparation/check remains available separately.
+    # Morning migration compatibility remains isolated from the live evening rail.
     assert prompts.writer_contract_errors(job, original) == []

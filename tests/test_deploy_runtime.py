@@ -1072,7 +1072,7 @@ def test_the_staged_evening_prompt_transform_reaches_the_reviewed_hash():
     # a retired prompt-generation path.
     from scripts import mlb_producer_prompt_contract as prompt_contract
 
-    assert hashlib.sha256(before.encode()).hexdigest() == "be96e234b9d413f48a7b7bc8c4a8996d823c1bc801f28b9e44dd65b6979d2a81"
+    assert hashlib.sha256(before.encode()).hexdigest() == "1ac527609bfee8bf2963a3aa39f511f8521e4d3a1d1867eca11d93ad95ac6014"
     assert prompt_contract.writer_contract_errors(prompt_contract.EVENING_JOB_ID, before) == []
     assert "EVENING STAGE 2 PREFLIGHT" in before
     assert before.index("EVENING STAGE 2 PREFLIGHT") < before.index("mlb_slate_writer.py")

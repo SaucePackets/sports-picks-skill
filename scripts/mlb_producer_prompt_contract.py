@@ -292,26 +292,17 @@ def transform_prompt(job_id: str, prompt: str) -> str:
 
 
 def _evening_preflight_errors(prompt: str) -> list[str]:
-    """Validate current or legacy preflight during migration."""
+    """Validate the live nonce-bound evening preflight contract."""
     errors: list[str] = []
-    legacy = (
-        "   EVENING STAGE 2 PREFLIGHT (mandatory, before any writer command):\n"
-        "   - Run `python3 scripts/mlb_stage2_scan.py --date YYYY-MM-DD && test -s "
-        ".picks/tmp/stage2-YYYY-MM-DD.json` before the first skeleton command and again "
-        "before any land command if the scan was not run in this invocation. If the scan "
-        "or artifact check fails, return the exact error and stop; never call the writer."
-    )
-    matches = [(prompt.find(item), item) for item in (EVENING_PREFLIGHT_CONTRACT, legacy) if prompt.count(item) == 1]
-    if len(matches) != 1:
+    if prompt.count(EVENING_PREFLIGHT_CONTRACT) != 1:
         return ["Stage 2 preflight contract missing or ambiguous"]
-    preflight_at = matches[0][0]
+    preflight_at = prompt.find(EVENING_PREFLIGHT_CONTRACT)
     writer_positions = [match.start() for match in WRITER_COMMAND.finditer(prompt)]
     if writer_positions and preflight_at > min(writer_positions):
         errors.append("Stage 2 preflight must precede every writer invocation")
-    if (
-        "--date YYYY-MM-DD && test -s .picks/tmp/stage2-YYYY-MM-DD.json" not in prompt
-        and "--date YYYY-MM-DD" not in prompt
-    ):
+    if '--run-nonce "$run_nonce"' not in prompt:
+        errors.append("Stage 2 preflight must bind the scan to $run_nonce")
+    if "--date YYYY-MM-DD" not in prompt or "test -s .picks/tmp/stage2-YYYY-MM-DD.json" not in prompt:
         errors.append("Stage 2 preflight must check the scan artifact produced for the date")
     return errors
 
@@ -331,14 +322,22 @@ def writer_contract_errors(job_id: str, prompt: str) -> list[str]:
         for item in required
         if item not in prompt
     ]
-    skeleton_old = f"{WRITER} --skeleton --day YYYY-MM-DD --out {spec.draft}"
     skeleton_bound = f"{WRITER} --skeleton --day YYYY-MM-DD --run-nonce \"$run_nonce\" --out {spec.draft}"
-    land_old = f"{WRITER} --land {spec.draft} --day YYYY-MM-DD"
     land_bound = f"{WRITER} --land {spec.draft} --day YYYY-MM-DD --run-nonce \"$run_nonce\""
-    if skeleton_old not in prompt and skeleton_bound not in prompt:
-        errors.append(f"missing required producer contract text: {skeleton_old}")
-    if land_old not in prompt and land_bound not in prompt:
-        errors.append(f"missing required producer contract text: {land_old}")
+    if skeleton_bound not in prompt:
+        errors.append(f"missing required nonce-bound skeleton command: {skeleton_bound}")
+    if land_bound not in prompt:
+        errors.append(f"missing required nonce-bound land command: {land_bound}")
+    legacy_skeleton = re.compile(
+        rf"{re.escape(WRITER)} --skeleton --day YYYY-MM-DD(?! --run-nonce)"
+    )
+    legacy_land = re.compile(
+        rf"{re.escape(WRITER)} --land {re.escape(spec.draft)} --day YYYY-MM-DD(?! --run-nonce)"
+    )
+    if legacy_skeleton.search(prompt):
+        errors.append("legacy nonce-less skeleton command remains")
+    if legacy_land.search(prompt):
+        errors.append("legacy nonce-less land command remains")
     if spec.evening:
         errors.extend(_evening_preflight_errors(prompt))
     forbidden = [WRITE_PREFIX]
