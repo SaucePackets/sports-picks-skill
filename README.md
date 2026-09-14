@@ -25,7 +25,7 @@ The installer copies this bundle into Hermes:
 - `polymarket`, `kalshi` — prediction-market helpers.
 - `sports-news` — sports news helper.
 - `weather` — weather helper for outdoor-game context.
-- `soccer` — soccer/World Cup pick rules and gate criteria.
+- Soccer/World Cup rules are a reference inside `sports-picks`, not a separate skill.
 
 ## Repo structure
 
@@ -38,9 +38,6 @@ sports-picks-skill/
 │   └── install-openclaw.md
 ├── scripts/
 │   └── install-hermes.sh
-├── .picks/
-│   ├── PROCESS.md
-│   └── REFLECTIONS.md
 └── skills/
     ├── sports-picks/
     │   ├── SKILL.md
@@ -62,12 +59,12 @@ sports-picks-skill/
 - `skills/sports-picks/references/runtime.md` — short working checklist.
 - `skills/sports-picks/references/process.md` — settlement, reflection, ledger maintenance.
 - `skills/sports-picks/references/mlb.md` — MLB-specific pick rules.
-- `.picks/PROCESS.md` — reusable lessons and process rules.
-- `.picks/REFLECTIONS.md` — fresh-start reflection ledger template.
+- `templates/` — optional manual-bet and research-note templates.
+- `.picks/` — local runtime state, created during setup and excluded from Git.
 
 ## Runtime state
 
-This repo includes only templates and reusable process files. Live pick history, receipts, watchlists, and execution schedules are runtime state and should stay out of public commits.
+The tracked `templates/` directory contains reusable starter documents. Live pick history, receipts, watchlists, and execution schedules are runtime state and should stay out of public commits.
 
 Cron executes from a dedicated runtime checkout that always tracks clean `origin/main`, never from a developer checkout — see [docs/deploy-runtime.md](docs/deploy-runtime.md) and `scripts/deploy-runtime.sh`.
 
@@ -101,8 +98,8 @@ Exit code `0` means every check passed, `1` means the handoff is inconsistent, a
 
 `scripts/mlb_lineup_watchlist.py` provides deterministic selection and
 validation for lineup-dependent near-misses. Pending entries are eligible only
-60-90 minutes before first pitch and only when unconfirmed lineups were the
-sole original blocker. The scheduled reviewer then refreshes lineups, key
+60-90 minutes before first pitch and only when unpublished lineups and/or an unannounced opposing starter were
+the original blockers permitted by the watchlist contract. The scheduled reviewer then refreshes lineups, key
 injuries, and price and reruns every original gate. Under a separately enabled
 local MLB standing authorization, promotions become pending inputs to the
 recurring execution poller; the review job itself never creates or executes bets.

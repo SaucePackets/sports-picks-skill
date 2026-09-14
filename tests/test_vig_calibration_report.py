@@ -54,6 +54,17 @@ class CalibrationPopulationTests(unittest.TestCase):
                 self.assertEqual(module.main(), 0)
             return buffer.getvalue()
 
+    def test_confidence_is_not_reconstructed_from_current_or_old_stakes(self):
+        high = dict(pick("win", 25, 10), confidence="High")
+        small = dict(pick("loss", 9, -9), confidence="small")
+        unknown = pick("win", 30, 12)
+        text = self.run_report([high, small, unknown])
+        self.assertIn("- high: 1-0", text)
+        self.assertIn("- small: 0-1", text)
+        self.assertIn("- unknown (confidence not recorded): 1-0", text)
+        self.assertNotIn("High($30)", text)
+        self.assertNotIn("54.5%", text)
+
     def test_the_header_names_the_population_it_covers(self):
         text = self.run_report([pick("win", 20.0, 8.0), pick("loss", 10.0, -10.0)])
         self.assertIn("2 decided picks", text)

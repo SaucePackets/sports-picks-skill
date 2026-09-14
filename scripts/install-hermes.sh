@@ -17,11 +17,6 @@ mkdir -p "$HERMES_HOME/skills/sports"
 cp -R "$TMP_DIR/repo/skills/"* "$HERMES_HOME/skills/sports/"
 
 mkdir -p "$HERMES_HOME/sports-picks/.picks"
-for f in PROCESS.md REFLECTIONS.md; do
-  if [ -f "$TMP_DIR/repo/.picks/$f" ] && [ ! -f "$HERMES_HOME/sports-picks/.picks/$f" ]; then
-    cp "$TMP_DIR/repo/.picks/$f" "$HERMES_HOME/sports-picks/.picks/$f"
-  fi
-done
 
 echo "Installed sports-picks skill bundle into $HERMES_HOME/skills/sports"
 echo "Runtime ledger root: $HERMES_HOME/sports-picks/.picks"

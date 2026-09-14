@@ -28,7 +28,7 @@ The `sports-picks` skill is designed to:
 - use current sport data, not team reputation
 - track official picks in a local `.picks/INDEX.md` or runtime-specific ledger
 - review settled picks in `.picks/REFLECTIONS.md`
-- promote recurring lessons into `.picks/PROCESS.md`
+- propose evidence-backed process changes for review before adopting new rules
 
 ## What not to do
 

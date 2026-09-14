@@ -1,7 +1,7 @@
 #!/bin/bash
 # Validates parameters before executing sports-skills commands
 SPORT="nba"
-MONTH=$(date +%m)
+MONTH=$((10#$(date +%m)))
 
 case "$SPORT" in
   nba)
