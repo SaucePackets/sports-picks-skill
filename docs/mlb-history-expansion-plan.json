@@ -1,0 +1,24 @@
+{
+  "schema": "mlb-history-expansion-plan-v1",
+  "purpose": "Bounded earlier-season source feasibility before bulk training-data acquisition",
+  "sample_dates": ["2023-04-17", "2023-07-14", "2023-09-18", "2024-04-15", "2024-07-12", "2024-09-16"],
+  "selection": "First two regular-season occurrences on each date, sorted by numeric game ID; retain refused samples without replacement",
+  "games_per_date": 2,
+  "max_requests": 42,
+  "transport": "Existing bounded retained-starter fetch: no redirects or retries, 20-second timeout, 16 MiB response ceiling, sequential requests",
+  "prediction_cutoff_minutes": 60,
+  "next_experiment": {
+    "warmup": ["2023-03-01", "2023-04-30"],
+    "train": ["2023-05-01", "2024-09-30"],
+    "development": ["2025-01-01", "2025-06-30"],
+    "reserved_retrospective_test": ["2025-07-01", "2025-09-30"],
+    "scope": "Regular season only; no test-window acquisition or scoring in this feasibility probe",
+    "model": "Carry forward the three-feature L2=1 logistic model and baseline definitions; no new feature or calibration selection from test outcomes",
+    "release_gate": "A separately reviewed bulk acquisition/admission and evaluation contract is required before opening the reserved test; 300 paired games minimum remains necessary but not sufficient"
+  },
+  "evidence": "Provider historical reconstruction, not independently verified original pregame publication",
+  "bulk_coverage_established": false,
+  "fitting_enabled": false,
+  "scoring_enabled": false,
+  "eligible": false
+}
