@@ -7,8 +7,10 @@ passed: 29 tests and 2 subtests. A manual invocation of the deployed review gate
 completed and wrote the runtime decision audit at 19:27:05 UTC. The queue tracks
 all ten games; first retries are due at 19:40 UTC (14:40 CT), within the next
 15-minute review invocation. No research request was due during that check.
-This verifies deployment and the initial queue path, not a completed live producer
-handoff. There are no new picks from this verification.
+The natural 14:30 CT review then completed successfully and wrote its runtime
+audit at 19:30:35.845863 UTC with no input errors or recheck warnings; all ten
+games remained tracked as pending. This verifies deployment, scheduler invocation,
+and the initial queue path, not a completed live producer handoff. There are no new picks from this verification.
 
 Execution job `84095861d05d` remains paused. The risk file SHA256 remains
 `bb0f140db8d22dceb7cc9a5c4c7dfe6ab0273ee36a2bbfc7a3ca73e38027cfc6`.
