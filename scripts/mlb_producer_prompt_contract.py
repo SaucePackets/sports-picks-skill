@@ -41,10 +41,9 @@ EVENING_MERGE_PREFIX = f"- Schedule file: MERGE into the existing `{SCHEDULE}`"
 STAGE2_SCAN = "scripts/mlb_stage2_scan.py"
 EVENING_PREFLIGHT_CONTRACT = (
     "   EVENING STAGE 2 PREFLIGHT (mandatory, before any writer command):\n"
-    "   - Run `python3 scripts/mlb_stage2_scan.py --date YYYY-MM-DD && test -s "
-    ".picks/tmp/stage2-YYYY-MM-DD.json` before the first skeleton command and again "
-    "before any land command if the scan was not run in this invocation. If the scan "
-    "or artifact check fails, return the exact error and stop; never call the writer."
+    "   - Set `run_nonce=$(python3 -c 'import secrets; print(secrets.token_hex(16))')`, then run `python3 scripts/mlb_stage2_scan.py --date YYYY-MM-DD --run-nonce \"$run_nonce\" && test -s "
+    ".picks/tmp/stage2-YYYY-MM-DD.json` before the first skeleton command; reuse that nonce for land. The receipt binds the artifact bytes to this invocation. If the scan or artifact check fails, return the exact error and stop; never call the writer.\n"
+    "   - The scan receipt is required by both writer paths; stale, missing, and wrong-date artifacts are refused."
 )
 
 
@@ -98,14 +97,14 @@ def writer_contract(spec: PromptSpec) -> str:
         [
             "   PRODUCER WRITER CONTRACT v1 (mandatory, not advisory):",
             f"   - Immediately create the producer draft with `python3 {WRITER} "
-            f"--skeleton --day YYYY-MM-DD --out {spec.draft}`.",
+            f"--skeleton --day YYYY-MM-DD --run-nonce \"$run_nonce\" --out {spec.draft}`.",
             "   - Fill that draft only: keep its header fields, fill every existing "
             "game_reads stub, and add only producer-owned candidates and watchlist entries.",
             "   - Never add slate_denominator or scan_sha256 to the draft; the writer "
             "derives both from the exact Stage 2 scan bytes.",
             f"   - NEVER create, overwrite, merge, or edit `{SCHEDULE}` directly.",
             f"   - Land only with `python3 {WRITER} --land {spec.draft} "
-            "--day YYYY-MM-DD` after every read is complete.",
+            "--day YYYY-MM-DD --run-nonce \"$run_nonce\"` after every read is complete.",
             "   - A nonzero exit or a response with landed=false is a terminal run "
             "failure. Return the exact writer errors and stop; never report slate success.",
         ]
@@ -145,8 +144,8 @@ WRITER_COMMAND = re.compile(r"`([^`\n]*mlb_slate_writer\.py[^`\n]*)`")
 def _writer_invocations(job_id: str, prompt: str, *, bind: bool = False) -> str:
     spec = PROMPT_SPECS[job_id]
     expected = {
-        f"python3 {WRITER} --skeleton --day YYYY-MM-DD --out {spec.draft}": 1,
-        f"python3 {WRITER} --land {spec.draft} --day YYYY-MM-DD": 2,
+        f"python3 {WRITER} --skeleton --day YYYY-MM-DD --run-nonce \"$run_nonce\" --out {spec.draft}": 1,
+        f"python3 {WRITER} --land {spec.draft} --day YYYY-MM-DD --run-nonce \"$run_nonce\"": 2,
     }
     flag = f" --schema-sha256 {mlb_game_reads.producer_schema()['sha256']}"
     matches = list(WRITER_COMMAND.finditer(prompt))
@@ -229,7 +228,7 @@ def _task_write_line(spec: PromptSpec) -> str:
 def _task_land_line(spec: PromptSpec) -> str:
     return (
         f"9. Land the filled draft with `python3 {WRITER} --land {spec.draft} "
-        "--day YYYY-MM-DD`. This is the only supported schedule write. If it exits "
+        "--day YYYY-MM-DD --run-nonce \"$run_nonce\"`. This is the only supported schedule write. If it exits "
         "nonzero or reports landed=false, return the exact writer errors and stop without "
         "reporting slate success."
     )

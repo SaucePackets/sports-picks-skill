@@ -97,7 +97,7 @@ import mlb_runtime_policy  # noqa: E402
 # about where a day's schedule lives, and two copies of that is two chances to
 # disagree about it.
 from mlb_slate_receipt import read_sha256, schedule_path_for  # noqa: E402
-from mlb_stage2_scan import denominator_output_path, resolve_scan_root  # noqa: E402
+from mlb_stage2_scan import denominator_output_path, resolve_scan_root, scan_receipt_path  # noqa: E402
 
 DENOMINATOR_SOURCE = "mlb_stage2_scan"
 
@@ -833,6 +833,33 @@ def default_draft_path(root: Path, day: str) -> Path:
     return root / ".picks" / "tmp" / f"{day}-slate-draft.json"
 
 
+def require_scan_receipt(root: Path, day: str, nonce: str | None) -> None:
+    """Require the scan receipt supplied by the invoking producer process.
+
+    The public Python helpers remain usable for deterministic library tests; the
+    CLI boundary used by the prompt requires a nonce-bound receipt. This avoids
+    pretending that an existing scan file proves this invocation ran it.
+    """
+    if not nonce:
+        raise SlateWriteError(["scan run receipt nonce is required; run Stage 2 with --run-nonce first"])
+    path = scan_receipt_path(day, root)
+    try:
+        receipt = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError) as exc:
+        raise SlateWriteError([f"scan run receipt not readable at {path}: {exc}"]) from exc
+    if not isinstance(receipt, dict) or receipt.get("schema") != "mlb-stage2-run-v1":
+        raise SlateWriteError([f"invalid scan run receipt at {path}"])
+    if receipt.get("date") != day or receipt.get("run_nonce") != nonce:
+        raise SlateWriteError([f"scan run receipt does not match day {day} and this invocation"])
+    scan_path = denominator_output_path(day, root)
+    try:
+        digest = hashlib.sha256(scan_path.read_bytes()).hexdigest()
+    except OSError as exc:
+        raise SlateWriteError([f"denominator scan not readable at {scan_path}: {exc}"]) from exc
+    if receipt.get("scan_sha256") != digest:
+        raise SlateWriteError(["scan run receipt does not match the current scan artifact"])
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     mode = parser.add_mutually_exclusive_group(required=True)
@@ -861,6 +888,11 @@ def main(argv: list[str] | None = None) -> int:
         "--schema-sha256",
         help="expected producer schema digest; refuse before any draft or schedule write on mismatch",
     )
+    parser.add_argument(
+        "--run-nonce",
+        default=None,
+        help="nonce from the Stage 2 scan invocation; required at the CLI boundary",
+    )
     args = parser.parse_args(argv)
     if (
         args.schema_sha256 is not None
@@ -879,6 +911,11 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     root = (args.root or resolve_scan_root()).resolve()
+    try:
+        require_scan_receipt(root, normalize_slate_date(args.day or dt.date.today().isoformat()), args.run_nonce)
+    except SlateWriteError as exc:
+        print(json.dumps({"landed": False, "errors": exc.errors}, indent=2))
+        return 1
     # A malformed ``--day`` is a usage error and not a finding about the slate:
     # every path below is built from it, so there is no day whose record could
     # be reported on.
